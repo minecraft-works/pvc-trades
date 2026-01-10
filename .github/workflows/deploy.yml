@@ -38,6 +38,14 @@ jobs:
       - name: Fetch data.json with Playwright
         run: npm run fetch-data
 
+      - name: Copy static JSON files to public
+        run: |
+          mkdir -p public
+          cp config.json public/
+          cp trade_conversions.json public/
+          cp core_currencies.json public/
+          cp block_conversions.json public/
+
       - name: Build
         run: npm run build
 
