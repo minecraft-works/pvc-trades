@@ -1,0 +1,293 @@
+[
+    {
+        "item": "BOOK",
+        "originalName": "Playtime Certificate",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "PLAYTIME_CERTIFICATE",
+        "lore": "Use it to buy a claim block at the spawn"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "T2 Playtime Certificate",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "lore": "Terra2",
+        "customName": "TERRA2_PLAYTIME_CERT"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "Inactivity Certificate",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "INACTIVITY_CERTIFICATE"
+    },
+    {
+        "item": "DIAMOND",
+        "originalName": "50 Votes Certificate",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "VOTE_DIAMOND"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "30 Days Donor Voucher",
+        "enchant": {
+            "minecraft:infinity": 69
+        },
+        "customName": "DONOR_VOUCHER"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "Supporter Rank Voucher",
+        "enchant": {
+            "minecraft:infinity": 69
+        },
+        "customName": "DONOR_VOUCHER"
+    },
+    {
+        "item": "PAPER",
+        "originalName": "Skip the Queue Ticket",
+        "enchant": {
+            "minecraft:infinity": 69
+        },
+        "customName": "SKIP_THE_QUEUE_TICKET"
+    },
+    {
+        "item": "PAPER",
+        "originalName": "Bulk Totem Voucher",
+        "enchant": {
+            "minecraft:sharpness": 1
+        },
+        "customName": "BULK_TOTEM_VOUCHER"
+    },
+    {
+        "item": "PAPER",
+        "originalName": "Inactivity Ticket",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "INACTIVITY_TICKET"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "Nickname Voucher",
+        "enchant": {
+            "minecraft:infinity": 69
+        },
+        "customName": "NICKNAME_VOUCHER"
+    },
+    {
+        "item": "DRIED_KELP",
+        "originalName": "HST - Hard Survival Token",
+        "enchant": {
+            "minecraft:vanishing_curse": 1
+        },
+        "customName": "HARD_SURVIVAL_TOKEN"
+    },
+    {
+        "item": "DIRT",
+        "originalName": "Womp Womp",
+        "enchant": {
+            "minecraft:binding_curse": 1
+        },
+        "customName": "WOMP_WOMP"
+    },
+    {
+        "item": "EMERALD",
+        "originalName": "Sponsor Token",
+        "enchant": {
+            "": 0
+        },
+        "customName": "SPONSOR_TOKEN"
+    },
+    {
+        "item": "FEATHER",
+        "originalName": "Writer's Quill",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "WRITER_QUILL"
+    },
+    {
+        "item": "SUNFLOWER",
+        "originalName": "Event Coin",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "EVENT_COIN"
+    },
+    {
+        "item": "JACK_O_LANTERN",
+        "originalName": "Trick or Treat Coin",
+        "enchant": {
+            "minecraft:unbreaking": 1
+        },
+        "customName": "TRICK_OR_TREAT_COIN"
+    },
+    {
+        "item": "MAGMA_CREAM",
+        "originalName": "GCU Coin",
+        "enchant": {
+            "minecraft:feather_falling": 1
+        },
+        "customName": "GCU_COIN"
+    },
+    {
+        "item": "BROWN_DYE",
+        "originalName": "Nerchius Poop",
+        "enchant": {
+            "minecraft:vanishing_curse": 1
+        },
+        "customName": "NERCHIUS_POOP"
+    },
+    {
+        "item": "BOOK",
+        "originalName": "The Big Claim",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "THE_BIG_CLAIM"
+    },
+    {
+        "item": "HEART_OF_THE_SEA",
+        "originalName": "Slot Machine Token",
+        "enchant": {
+            "minecraft:channeling": 1
+        },
+        "customName": "SLOT_MACHINE_TOKEN"
+    },
+    {
+        "item": "FLINT",
+        "originalName": "Voucher Credits Token",
+        "enchant": {
+            "minecraft:sharpness": 1
+        },
+        "customName": "VOUCHER_CREDITS_TOKEN"
+    },
+    {
+        "item": "LAPIS_ORE",
+        "originalName": "Mini Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "LAPIS_CLAIM"
+    },
+    {
+        "item": "COAL_ORE",
+        "originalName": "Standard Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "COAL_CLAIM"
+    },
+    {
+        "item": "COAL_ORE",
+        "originalName": "16x16 Protection Block",
+        "enchant": {
+            "": 0
+        },
+        "customName": "COAL_CLAIM",
+        "lore": "§6Will protect 16x16 blocks."
+    },
+    {
+        "item": "REDSTONE_ORE",
+        "originalName": "Large Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "REDSTONE_CLAIM"
+    },
+    {
+        "item": "DEEPSLATE_EMERALD_ORE",
+        "originalName": "Super Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "EMERALD_CLAIM"
+    },
+    {
+        "item": "DIAMOND_ORE",
+        "originalName": "mEGA Protection BlocK",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "DIAMOND_CLAIM"
+    },
+    {
+        "item": "COPPER_ORE",
+        "originalName": "Chunk Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "CHUNK_CLAIM"
+    },
+    {
+        "item": "DEEPSLATE_COAL_ORE",
+        "originalName": "Hard Survival Protection Block",
+        "enchant": {
+            "minecraft:lure": 0
+        },
+        "customName": "HARD_SURVIVAL_CLAIM"
+    },
+    {
+        "item": "GOLDEN_APPLE",
+        "originalName": "Notch Apple",
+        "enchant": {
+            "minecraft:sharpness": 1
+        },
+        "customName": "NOTCH_TEMPLE_APPLE"
+    },
+    {
+        "item": "CHARCOAL",
+        "originalName": "Quarry Extractor Fuel",
+        "enchant": {
+            "minecraft:sharpness": 1
+        },
+        "customName": "QUARRY_EXTRACTOR_FUEL"
+    },
+    {
+        "item": "CHARCOAL",
+        "originalName": "Nepero",
+        "enchant": {
+            "minecraft:efficiency": 1
+        },
+        "customName": "NEPERO"
+    },
+    {
+        "item": "PAPER",
+        "originalName": "Bank-O'-Note",
+        "enchant": {
+            "minecraft:infinity": 69
+        },
+        "customName": "BANK_NOTE"
+    },
+    {
+        "item": "AMETHYST_SHARD",
+        "originalName": "Caddozzo",
+        "enchant": {
+            "minecraft:sharpness": 1
+        },
+        "customName": "CADDOZZO"
+    },
+    {
+        "item": "§a§oBank§e§o-§a§oO'§e§o-§a§oNote",
+        "originalName": "",
+        "enchant": {
+            "": 0
+        },
+        "customName": "BANK_NOTE"
+    },
+    {
+        "item": "HEART_OF_THE_SEA",
+        "originalName": "$LlamaCoin",
+        "enchant": {
+            "minecraft:unbreaking": 3
+        },
+        "customName": "$LLAMACOIN"
+    }
+]

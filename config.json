@@ -1,0 +1,15 @@
+{
+  "dataUrl": "data.json",
+  "dynmap": {
+    "baseUrl": "https://web.peacefulvanilla.club/maps",
+    "tileSize": 128,
+    "defaultZoom": 4,
+    "maxZoomLevel": 7,
+    "playerRefreshMs": 1000
+  },
+  "analysis": {
+    "shopClusterDistance": 16,
+    "maxTransitiveIterations": 10,
+    "minIndependentShops": 3
+  }
+}

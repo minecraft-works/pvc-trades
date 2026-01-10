@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://web.peacefulvanilla.club; img-src 'self' https: data:;">
+    <title>Shop Listings</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <a href="#results" class="skip-link">Skip to results</a>
+
+    <div class="search-container">
+        <div class="search-box">
+            <label for="searchWant" class="visually-hidden">Search for items you need</label>
+            <input type="text" id="searchWant" placeholder="I need..." autofocus>
+            <label for="searchGive" class="visually-hidden">Search for items you give</label>
+            <input type="text" id="searchGive" placeholder="I give...">
+            <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">⇄</button>
+        </div>
+    </div>
+
+    <div id="table-container">
+        <div id="table-header" role="rowgroup"></div>
+        <div id="results" role="rowgroup" aria-live="polite"></div>
+    </div>
+
+    <dialog id="matrix-dialog" aria-labelledby="matrix-title">
+        <header>
+            <h2 id="matrix-title">Cross-conversion rates</h2>
+            <button id="close-matrix" type="button" aria-label="Close matrix dialog">&times;</button>
+        </header>
+        <div id="matrix-container"></div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+    "netherite block": { "base": "netherite ingot", "multiplier": 9 },
+    "diamond block": { "base": "diamond", "multiplier": 9 },
+    "emerald block": { "base": "emerald", "multiplier": 9 },
+    "gold block": { "base": "gold ingot", "multiplier": 9 },
+    "iron block": { "base": "iron ingot", "multiplier": 9 },
+    "lapis block": { "base": "lapis lazuli", "multiplier": 9 },
+    "redstone block": { "base": "redstone", "multiplier": 9 },
+    "coal block": { "base": "coal", "multiplier": 9 },
+    "copper block": { "base": "copper ingot", "multiplier": 9 },
+    "quartz block": { "base": "nether quartz", "multiplier": 4 }
+}
