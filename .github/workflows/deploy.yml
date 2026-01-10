@@ -33,7 +33,7 @@ jobs:
         run: npm install
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Fetch data.json with Playwright
         run: npm run fetch-data
