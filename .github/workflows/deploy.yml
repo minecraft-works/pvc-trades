@@ -26,7 +26,7 @@ jobs:
       - name: Fetch data.json
         run: |
           mkdir -p public
-          curl -f -o public/data.json https://web.peacefulvanilla.club/shops/data.json
+          curl -f -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" -o public/data.json https://web.peacefulvanilla.club/shops/data.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
