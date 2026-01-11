@@ -179,8 +179,17 @@ export async function loadFixedRatios(): Promise<BlockConversions> {
 // Query Matching Functions
 // ============================================================================
 
+const normalizeCache = new Map<string, string>();
+
+function normalize(s: string): string {
+    const cached = normalizeCache.get(s);
+    if (cached !== undefined) { return cached; }
+    const result = s.replaceAll('_', ' ').replaceAll(' ', '');
+    normalizeCache.set(s, result);
+    return result;
+}
+
 export function matchesQuery(text: string, query: string): boolean {
-    const normalize = (s: string): string => s.replaceAll('_', ' ').replaceAll(' ', '');
     const textNorm = normalize(text);
     const queryNorm = normalize(query);
     if (textNorm.includes(queryNorm)) { return true; }
