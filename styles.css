@@ -427,6 +427,75 @@ mark {
     font-size: 0.8rem;
 }
 
+/* ============================================================================
+ * Map Dialog
+ * ============================================================================ */
+
+#map-dialog {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: 16px;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: fit-content;
+    height: fit-content;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+#map-dialog::backdrop {
+    background: rgb(0 0 0 / 70%);
+}
+
+#map-container {
+    position: relative;
+    width: 384px;
+    height: 384px;
+    overflow: hidden;
+    border-radius: var(--border-radius);
+    background: #1a1a2e;
+}
+
+#map-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 100%;
+    height: 100%;
+}
+
+.map-tile {
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    image-rendering: pixelated;
+}
+
+#map-marker {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #f44;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px rgb(0 0 0 / 50%);
+    pointer-events: none;
+    z-index: 10;
+}
+
+#map-coords {
+    margin-top: 12px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: var(--color-text-dimmed);
+}
+
 /* Mobile: show all columns in compressed form */
 @media (width <= 600px) {
     body {
@@ -535,5 +604,25 @@ mark {
 
     .trade-row > .col:last-child {
         padding-right: 6px !important;
+    }
+
+    /* Map dialog responsive */
+    #map-dialog {
+        padding: 12px;
+    }
+
+    #map-container {
+        width: 240px;
+        height: 240px;
+    }
+
+    #map-marker {
+        width: 10px;
+        height: 10px;
+    }
+
+    #map-coords {
+        font-size: 0.8rem;
+        margin-top: 8px;
     }
 }

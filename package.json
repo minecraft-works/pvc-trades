@@ -19,6 +19,7 @@
     "lint:all": "npm run lint && npm run lint:css && npm run lint:html",
     "lint:fix": "eslint src/**/*.ts --fix && stylelint styles.css --fix",
     "fetch-data": "node scripts/fetch-data.js",
+    "fetch-tiles": "node scripts/fetch-tiles.js",
     "prepare": "husky"
   },
   "lint-staged": {
