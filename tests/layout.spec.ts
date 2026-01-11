@@ -292,6 +292,23 @@ test.describe('CSS Layout - Trade Rows', () => {
         // Should contain 'monospace' in font stack
         expect(fontFamily.toLowerCase()).toContain('monospace');
     });
+
+    test('trade rows use content-visibility for off-screen rendering optimization', async ({ page }) => {
+        const row = page.locator('.trade-row').first();
+        
+        // Verify content-visibility: auto is applied (skips rendering off-screen rows)
+        const contentVisibility = await row.evaluate(el => 
+            getComputedStyle(el).contentVisibility
+        );
+        expect(contentVisibility).toBe('auto');
+        
+        // Verify contain-intrinsic-block-size is set (placeholder height for stable scrolling)
+        const intrinsicSize = await row.evaluate(el => 
+            getComputedStyle(el).containIntrinsicBlockSize
+        );
+        // Computed value may be "32px" or "auto 32px" depending on browser
+        expect(intrinsicSize).toContain('32px');
+    });
 });
 
 test.describe('CSS Layout - Search Container', () => {
@@ -537,6 +554,16 @@ test.describe('CSS Layout - Visual Invariants', () => {
         // Check that the header text includes the sort arrow (ascending = best deals first)
         const headerText = await devHeader.textContent();
         expect(headerText?.trim()).toBe('Deal▲');
+    });
+
+    test('active sort column header has blue color', async ({ page }) => {
+        // The Deal header should have active-sort class and blue color
+        const devHeader = page.locator('#table-header .col.dev-header');
+        await expect(devHeader).toHaveClass(/active-sort/);
+        
+        const color = await devHeader.evaluate(el => getComputedStyle(el).color);
+        // Should be blue (#4a9eff = rgb(74, 158, 255))
+        expect(color).toBe('rgb(74, 158, 255)');
     });
 
     test('all three worlds are represented in world column', async ({ page }) => {

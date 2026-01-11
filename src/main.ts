@@ -59,6 +59,8 @@ let ratioGraph: RatioGraph | null = null;
 const currentSort: SortState = { column: 'dev', direction: 'asc' };
 let cachedRegex: RegExp | null = null;
 let cachedPattern = '';
+let searchDebounceTimer: number | null = null;
+const deviationCache = new Map<Trade, DeviationResult | null>();
 
 // ============================================================================
 // Constants
@@ -150,6 +152,16 @@ function getCachedRegex(pattern: string): RegExp {
     return cachedRegex;
 }
 
+function debouncedSearch(): void {
+    if (searchDebounceTimer !== null) {
+        cancelAnimationFrame(searchDebounceTimer);
+    }
+    searchDebounceTimer = requestAnimationFrame(() => {
+        searchDebounceTimer = null;
+        search();
+    });
+}
+
 function search(): void {
     const wantQuery = getInputValue('searchWant');
     const giveQuery = getInputValue('searchGive');
@@ -199,6 +211,10 @@ function sortResults(results: FilterResult[]): void {
 // ============================================================================
 
 function getDeviation(trade: Trade): DeviationResult | null {
+    if (deviationCache.has(trade)) {
+        return deviationCache.get(trade)!;
+    }
+
     if (!itemValues) { return null; }
 
     const costValue = getTrustedItemValue(trade.costName, itemValues);
@@ -213,13 +229,17 @@ function getDeviation(trade: Trade): DeviationResult | null {
     const percent = Math.max(DEVIATION_MIN_PERCENT, Math.min(DEVIATION_MAX_PERCENT, Math.round((ratio - 1) * 100)));
 
     if (percent === 0) {
-        return { ratio, text: '0%', isGood: null };
+        const result = { ratio, text: '0%', isGood: null };
+        deviationCache.set(trade, result);
+        return result;
     }
 
     const isGood = percent < 0;
     const text = percent > 0 ? `+${percent}%` : `−${Math.abs(percent)}%`;
+    const result = { ratio, text, isGood };
+    deviationCache.set(trade, result);
 
-    return { ratio, text, isGood };
+    return result;
 }
 
 // ============================================================================
@@ -236,6 +256,7 @@ function updateSortArrows(): void {
         const label = el.dataset['label'] ?? '';
         const col = el.dataset['col'] ?? '';
         el.textContent = label + getArrow(col);
+        el.classList.toggle('active-sort', col === currentSort.column);
     });
 }
 
@@ -375,10 +396,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadShops();
 
     getElement('searchWant').addEventListener('input', () => {
-        requestAnimationFrame(search);
+        debouncedSearch();
     });
     getElement('searchGive').addEventListener('input', () => {
-        requestAnimationFrame(search);
+        debouncedSearch();
     });
 
     document.addEventListener('keydown', e => {
