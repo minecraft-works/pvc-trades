@@ -172,6 +172,8 @@ body {
     align-items: center;
     background: var(--color-bg-secondary);
     padding: 4px;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 28px;
 }
 
 .trade-row > .col:first-child {
