@@ -135,6 +135,7 @@ body {
     grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
     content-visibility: auto;
     contain-intrinsic-block-size: 32px;
+    cursor: pointer;
 }
 
 /* Hide mobile-coords column on desktop - remove from flow entirely */
