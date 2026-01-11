@@ -444,6 +444,7 @@ mark {
     height: fit-content;
     max-width: 90vw;
     max-height: 90vh;
+    overflow: hidden;
 }
 
 #map-dialog::backdrop {
@@ -453,9 +454,9 @@ mark {
 #map-container {
     position: relative;
 
-    /* Use viewport-relative sizing, capped at 512px */
-    width: min(80vw, 80vh, 512px);
-    height: min(80vw, 80vh, 512px);
+    /* Use viewport-relative sizing, capped at 768px */
+    width: min(80vw, 80vh, 768px);
+    height: min(80vw, 80vh, 768px);
     overflow: hidden;
     border-radius: var(--border-radius);
     background: #1a1a2e;
@@ -488,6 +489,22 @@ mark {
     box-shadow: 0 0 8px rgb(0 0 0 / 50%);
     pointer-events: none;
     z-index: 10;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 8px rgb(0 0 0 / 50%);
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.3);
+        box-shadow:
+            0 0 12px rgb(0 0 0 / 50%),
+            0 0 20px rgb(255 68 68 / 60%);
+    }
 }
 
 #map-coords {
