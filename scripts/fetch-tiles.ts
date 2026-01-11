@@ -2,6 +2,17 @@ import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import type { Page } from 'playwright';
+import {
+    getTileFilename,
+    getNormalizedWorld,
+    getUniqueTiles,
+    calculateRateLimitDelay,
+    type TileInfo,
+    type RateLimitState,
+    type RateLimitConfig,
+    type FetchResult
+} from './tile-utils';
 
 // Add stealth plugin to avoid Cloudflare detection
 chromium.use(StealthPlugin());
@@ -16,110 +27,16 @@ const CONFIG = {
     delayBetweenTiles: 500, // ms between tile fetches
     batchSize: 10, // tiles per batch
     delayBetweenBatches: 2000 // ms between batches
-};
+} as const;
 
-/**
- * Calculate tile coordinates from Minecraft world coordinates
- * At maxZoom (8), 1 pixel = 1 block, so tile covers tileSize blocks.
- * At lower zooms, each tile covers more area: blocksPerTile = tileSize * 2^(maxZoom - zoom)
- */
-function getTileCoords(x, z, zoom, maxZoom, tileSize) {
-    const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
-    
-    const tileX = Math.floor(x / blocksPerTile);
-    const tileZ = Math.floor(z / blocksPerTile);
-    
-    return { tileX, tileZ, blocksPerTile };
+interface FetchTileResult extends FetchResult {
+    error?: string;
 }
 
 /**
- * Get tile filename from coordinates
+ * Fetch a single tile by navigating to it (like fetch-data.ts does)
  */
-function getTileFilename(tileX, tileZ) {
-    return `${tileX}_${tileZ}.png`;
-}
-
-/**
- * Get tile URL for a world
- */
-function getTileUrl(world, zoom, tileX, tileZ) {
-    const worldLower = world.toLowerCase();
-    const worldId = worldLower === 'world' || worldLower === 'overworld' ? 'minecraft_overworld' 
-        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'minecraft_the_nether'
-        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'minecraft_the_end'
-        : `minecraft_${world}`;
-    return `${CONFIG.baseUrl}/tiles/${worldId}/${zoom}/${tileX}_${tileZ}.png`;
-}
-
-/**
- * Parse shop location string to coordinates
- */
-function parseLocation(location) {
-    const coords = location.split(', ');
-    return {
-        x: parseFloat(coords[0]) || 0,
-        y: parseFloat(coords[1]) || 0,
-        z: parseFloat(coords[2]) || 0
-    };
-}
-
-/**
- * Get unique tiles needed for all shops (including 3x3 neighbors)
- */
-function getUniqueTiles(shops) {
-    const tilesMap = new Map();
-    
-    for (const shop of shops) {
-        const { x, z } = parseLocation(shop.location);
-        const world = shop.world.replace('minecraft:', '');
-        const { tileX, tileZ, blocksPerTile } = getTileCoords(
-            x, z, CONFIG.zoom, CONFIG.maxZoom, CONFIG.tileSize
-        );
-        
-        // Add the center tile and all 8 neighbors (3x3 grid)
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dz = -1; dz <= 1; dz++) {
-                const tx = tileX + dx;
-                const tz = tileZ + dz;
-                const key = `${world}/${tx}_${tz}`;
-                
-                if (!tilesMap.has(key)) {
-                    tilesMap.set(key, {
-                        world,
-                        tileX: tx,
-                        tileZ: tz,
-                        blocksPerTile,
-                        url: getTileUrl(world, CONFIG.zoom, tx, tz),
-                        shops: []
-                    });
-                }
-                
-                // Only track shops on the center tile
-                if (dx === 0 && dz === 0) {
-                    tilesMap.get(key).shops.push({ x, z, location: shop.location });
-                }
-            }
-        }
-    }
-    
-    return Array.from(tilesMap.values());
-}
-
-/**
- * Get normalized world name for output directory
- */
-function getNormalizedWorld(world) {
-    const worldLower = world.toLowerCase();
-    return worldLower === 'world' || worldLower === 'overworld' ? 'overworld'
-        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'the_nether'
-        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'the_end'
-        : world;
-}
-
-/**
- * Fetch a single tile by navigating to it (like fetch-data.js does)
- */
-async function fetchTile(page, tile, outputDir) {
+async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise<FetchTileResult> {
     const filename = getTileFilename(tile.tileX, tile.tileZ);
     const normalizedWorld = getNormalizedWorld(tile.world);
     
@@ -138,7 +55,7 @@ async function fetchTile(page, tile, outputDir) {
     console.log(`  [FETCH] ${tile.url}`);
     
     try {
-        // Navigate to the tile URL (same approach as fetch-data.js)
+        // Navigate to the tile URL (same approach as fetch-data.ts)
         const response = await page.goto(tile.url, { 
             waitUntil: 'load', 
             timeout: 30000 
@@ -146,19 +63,19 @@ async function fetchTile(page, tile, outputDir) {
         
         if (!response) {
             console.log(`  [FAIL] ${normalizedWorld}/${filename}: No response`);
-            return { success: false, error: 'No response' };
+            return { success: false, cached: false, error: 'No response' };
         }
         
         const status = response.status();
         if (status !== 200) {
             console.log(`  [FAIL] ${normalizedWorld}/${filename}: HTTP ${status}`);
-            return { success: false, error: `HTTP ${status}` };
+            return { success: false, cached: false, error: `HTTP ${status}` };
         }
         
         const contentType = response.headers()['content-type'] || '';
         if (!contentType.includes('image')) {
             console.log(`  [FAIL] ${normalizedWorld}/${filename}: Not an image (${contentType})`);
-            return { success: false, error: `Not an image: ${contentType}` };
+            return { success: false, cached: false, error: `Not an image: ${contentType}` };
         }
         
         // Get the raw body as buffer
@@ -167,15 +84,16 @@ async function fetchTile(page, tile, outputDir) {
         console.log(`  [OK] ${normalizedWorld}/${filename} (${buffer.length} bytes)`);
         return { success: true, cached: false };
     } catch (error) {
-        console.log(`  [ERROR] ${normalizedWorld}/${filename}: ${error.message}`);
-        return { success: false, error: error.message };
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`  [ERROR] ${normalizedWorld}/${filename}: ${message}`);
+        return { success: false, cached: false, error: message };
     }
 }
 
 /**
  * Sleep utility
  */
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -194,7 +112,7 @@ async function main() {
     console.log(`Loaded ${shopData.data.length} shops`);
     
     // Calculate unique tiles needed
-    const tiles = getUniqueTiles(shopData.data);
+    const tiles = getUniqueTiles(shopData.data, CONFIG.zoom, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl);
     console.log(`\nUnique tiles needed: ${tiles.length}`);
     
     // Group by world for summary
@@ -269,32 +187,43 @@ async function main() {
     let downloaded = 0;
     let cached = 0;
     let failed = 0;
-    
+    const rateLimitState = { fetchedInBatch: 0 };
+    const rateLimitConfig = {
+        batchSize: CONFIG.batchSize,
+        delayBetweenTiles: CONFIG.delayBetweenTiles,
+        delayBetweenBatches: CONFIG.delayBetweenBatches
+    };
+
     console.log(`\nFetching ${tiles.length} tiles...`);
-    console.log(`Rate limit: ${CONFIG.delayBetweenTiles}ms between tiles, ${CONFIG.delayBetweenBatches}ms between batches of ${CONFIG.batchSize}`);
-    
+    console.log(`Rate limit: ${CONFIG.delayBetweenTiles}ms between fetches, ${CONFIG.delayBetweenBatches}ms between batches of ${CONFIG.batchSize}`);
+
     for (let i = 0; i < tiles.length; i++) {
         const tile = tiles[i];
         const result = await fetchTile(page, tile, outputDir);
-        
+
+        // Update counters
         if (result.success) {
             if (result.cached) cached++;
             else downloaded++;
         } else {
             failed++;
         }
+
+        // Calculate rate limit delay using tested utility
+        const hasMoreTiles = i < tiles.length - 1;
+        const rateLimit = calculateRateLimitDelay(result, rateLimitState, rateLimitConfig, hasMoreTiles);
         
-        // Rate limiting
-        if ((i + 1) % CONFIG.batchSize === 0 && i < tiles.length - 1) {
-            console.log(`\n  Batch complete. Waiting ${CONFIG.delayBetweenBatches}ms...`);
-            await sleep(CONFIG.delayBetweenBatches);
-        } else if (i < tiles.length - 1) {
-            await sleep(CONFIG.delayBetweenTiles);
+        if (rateLimit.batchComplete) {
+            console.log(`\n  Batch complete. Waiting ${rateLimit.delay}ms...`);
+        }
+        
+        if (rateLimit.delay > 0) {
+            await sleep(rateLimit.delay);
         }
     }
-    
+
     await browser.close();
-    
+
     console.log('\n=== Summary ===');
     console.log(`Downloaded: ${downloaded}`);
     console.log(`Cached: ${cached}`);

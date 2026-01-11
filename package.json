@@ -18,8 +18,8 @@
     "lint:html": "htmlhint index.html",
     "lint:all": "npm run lint && npm run lint:css && npm run lint:html",
     "lint:fix": "eslint src/**/*.ts --fix && stylelint styles.css --fix",
-    "fetch-data": "node scripts/fetch-data.js",
-    "fetch-tiles": "node scripts/fetch-tiles.js",
+    "fetch-data": "tsx scripts/fetch-data.ts",
+    "fetch-tiles": "tsx scripts/fetch-tiles.ts",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -40,6 +40,7 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "stylelint": "^16.0.0",
     "stylelint-config-standard": "^36.0.0",
+    "tsx": "^4.21.0",
     "typescript-eslint": "^8.52.0",
     "vite": "^7.3.1",
     "vitest": "^4.0.16"
