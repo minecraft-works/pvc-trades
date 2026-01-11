@@ -324,7 +324,7 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
             : worldAbbrev === 'E' ? 'The End' 
             : 'Overworld';
 
-        html.push(`<div class="trade-row">
+        html.push(`<div class="trade-row" data-x="${t.x}" data-y="${t.y}" data-z="${t.z}" data-world="${t.world}">
             <span class="col result-amt">${showAmount}</span>
             <span class="col result-name">${resultDisplay}</span>
             <span class="col cost-amt">${costAmt}</span>
@@ -340,6 +340,18 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
     }
 
     container.innerHTML = html.join('');
+    
+    // Add click handlers for map modal
+    container.querySelectorAll<HTMLElement>('.trade-row').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', () => {
+            const x = parseInt(row.dataset['x'] ?? '0', 10);
+            const y = parseInt(row.dataset['y'] ?? '0', 10);
+            const z = parseInt(row.dataset['z'] ?? '0', 10);
+            const world = row.dataset['world'] ?? 'overworld';
+            openMapDialog(x, y, z, world);
+        });
+    });
 }
 
 // ============================================================================
@@ -423,6 +435,100 @@ function renderMatrix(): void {
 }
 
 // ============================================================================
+// Map Dialog
+// ============================================================================
+
+const MAP_CONFIG = {
+    tileSize: 128,
+    zoom: 4,
+    maxZoom: 7,
+    displaySize: 256  // Size of the map display in pixels
+};
+
+/**
+ * Calculate tile coordinates from Minecraft world coordinates
+ */
+function getTileCoords(x: number, z: number): { tileX: number; tileZ: number; blocksPerTile: number } {
+    const scale = Math.pow(2, MAP_CONFIG.maxZoom - MAP_CONFIG.zoom);
+    const blocksPerTile = MAP_CONFIG.tileSize * scale;
+    
+    const tileX = Math.floor(x / blocksPerTile);
+    const tileZ = Math.floor(z / blocksPerTile);
+    
+    return { tileX, tileZ, blocksPerTile };
+}
+
+/**
+ * Get tile path for a world
+ */
+function getTilePath(world: string, tileX: number, tileZ: number): string {
+    const worldId = world.includes('nether') ? 'the_nether'
+        : world.includes('end') ? 'the_end'
+        : 'overworld';
+    return `tiles/${worldId}/${tileX}_${tileZ}.png`;
+}
+
+/**
+ * Calculate marker position within the 3x3 grid
+ * Returns percentage positions (0-100) for CSS across the full grid
+ */
+function getMarkerPosition(x: number, z: number, blocksPerTile: number): { left: number; top: number } {
+    const tileX = Math.floor(x / blocksPerTile);
+    const tileZ = Math.floor(z / blocksPerTile);
+    
+    // Position within the center tile (0 to blocksPerTile)
+    const offsetX = x - (tileX * blocksPerTile);
+    const offsetZ = z - (tileZ * blocksPerTile);
+    
+    // Convert to percentage within center tile (0-100)
+    const tilePercent = (offsetX / blocksPerTile) * 100;
+    const tilePercentZ = (offsetZ / blocksPerTile) * 100;
+    
+    // Center tile is in the middle of 3x3 grid, so add 33.33% offset
+    // Each tile takes up 33.33% of the grid
+    const left = 33.33 + (tilePercent / 3);
+    const top = 33.33 + (tilePercentZ / 3);
+    
+    return { left, top };
+}
+
+function openMapDialog(x: number, y: number, z: number, world: string): void {
+    const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
+    const gridEl = document.getElementById('map-grid');
+    const markerEl = document.getElementById('map-marker');
+    const coordsEl = document.getElementById('map-coords');
+    
+    if (!dialog || !gridEl || !markerEl || !coordsEl) {
+        return;
+    }
+    
+    const { tileX, tileZ, blocksPerTile } = getTileCoords(x, z);
+    const { left, top } = getMarkerPosition(x, z, blocksPerTile);
+    
+    // Build 3x3 grid of tiles
+    let tilesHtml = '';
+    for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const tilePath = getTilePath(world, tileX + dx, tileZ + dz);
+            tilesHtml += `<div class="map-tile" style="background-image: url('${tilePath}')"></div>`;
+        }
+    }
+    gridEl.innerHTML = tilesHtml;
+    
+    // Position marker
+    markerEl.style.left = `${left}%`;
+    markerEl.style.top = `${top}%`;
+    
+    // Show coordinates
+    const worldDisplay = world.includes('nether') ? 'Nether'
+        : world.includes('end') ? 'The End'
+        : 'Overworld';
+    coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
+    
+    dialog.showModal();
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
@@ -443,13 +549,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Matrix dialog
-    const dialog = getElement<HTMLDialogElement>('matrix-dialog');
+    // Matrix dialog - close when clicking on backdrop
+    const matrixDialog = getElement<HTMLDialogElement>('matrix-dialog');
     getElement('open-matrix').addEventListener('click', () => {
         renderMatrix();
-        dialog.showModal();
+        matrixDialog.showModal();
     });
-    dialog.addEventListener('click', e => {
-        if (e.target === dialog) { dialog.close(); }
+    matrixDialog.addEventListener('click', e => {
+        const rect = matrixDialog.getBoundingClientRect();
+        const clickedInDialog = (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+        );
+        if (!clickedInDialog) {
+            matrixDialog.close();
+        }
     });
+
+    // Map dialog - close when clicking on backdrop
+    const mapDialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
+    if (mapDialog) {
+        mapDialog.addEventListener('click', e => {
+            const rect = mapDialog.getBoundingClientRect();
+            const clickedInDialog = (
+                e.clientX >= rect.left &&
+                e.clientX <= rect.right &&
+                e.clientY >= rect.top &&
+                e.clientY <= rect.bottom
+            );
+            if (!clickedInDialog) {
+                mapDialog.close();
+            }
+        });
+    }
 });

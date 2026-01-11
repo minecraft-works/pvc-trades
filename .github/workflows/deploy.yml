@@ -65,6 +65,17 @@ jobs:
       - name: Fetch data.json with Playwright
         run: npm run fetch-data
 
+      - name: Cache map tiles
+        uses: actions/cache@v4
+        with:
+          path: public/tiles
+          key: map-tiles-v1
+          restore-keys: |
+            map-tiles-
+
+      - name: Fetch map tiles (only missing)
+        run: npm run fetch-tiles
+
       - name: Copy static JSON files to public
         run: |
           mkdir -p public
