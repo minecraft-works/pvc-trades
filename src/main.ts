@@ -383,18 +383,6 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
     }
 
     container.innerHTML = html.join('');
-    
-    // Add click handlers for map modal
-    container.querySelectorAll<HTMLElement>('.trade-row').forEach(row => {
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', () => {
-            const x = parseInt(row.dataset['x'] ?? '0', 10);
-            const y = parseInt(row.dataset['y'] ?? '0', 10);
-            const z = parseInt(row.dataset['z'] ?? '0', 10);
-            const world = row.dataset['world'] ?? 'overworld';
-            openMapDialog(x, y, z, world);
-        });
-    });
 }
 
 // ============================================================================
@@ -659,4 +647,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
+    
+    // Event delegation for trade row clicks (prevents memory leaks)
+    getElement('results').addEventListener('click', (e) => {
+        const row = (e.target as HTMLElement).closest<HTMLElement>('.trade-row');
+        if (row) {
+            const x = parseInt(row.dataset['x'] ?? '0', 10);
+            const y = parseInt(row.dataset['y'] ?? '0', 10);
+            const z = parseInt(row.dataset['z'] ?? '0', 10);
+            const world = row.dataset['world'] ?? 'overworld';
+            openMapDialog(x, y, z, world);
+        }
+    });
 });
