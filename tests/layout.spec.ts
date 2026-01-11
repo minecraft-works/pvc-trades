@@ -534,9 +534,9 @@ test.describe('CSS Layout - Visual Invariants', () => {
         const devHeader = page.locator('#table-header .col.dev-header');
         await expect(devHeader).toBeVisible();
         
-        // Check that the header text includes the sort arrow (descending)
+        // Check that the header text includes the sort arrow (ascending = best deals first)
         const headerText = await devHeader.textContent();
-        expect(headerText?.trim()).toBe('Deal▼');
+        expect(headerText?.trim()).toBe('Deal▲');
     });
 
     test('all three worlds are represented in world column', async ({ page }) => {

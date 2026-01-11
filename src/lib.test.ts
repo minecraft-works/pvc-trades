@@ -368,8 +368,8 @@ describe('config loading', () => {
 });
 
 describe('sortResults', () => {
-    const createTrade = (resultAmount: number, costAmount: number, resultName: string, stock: number): Trade => ({
-        x: 0, y: 0, z: 0, world: 'overworld',
+    const createTrade = (resultAmount: number, costAmount: number, resultName: string, stock: number, world = 'overworld'): Trade => ({
+        x: 0, y: 0, z: 0, world,
         item1: { type: 'EMERALD', name: '', amount: costAmount },
         item2: undefined,
         resultItem: { type: 'ITEM', name: resultName, amount: resultAmount },
@@ -390,7 +390,7 @@ describe('sortResults', () => {
             { trade: createTrade(50, 1, 'B', 1), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 50 },
             { trade: createTrade(25, 1, 'C', 1), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 25 }
         ];
-        sortResults(results, 'result-amt', 'desc', { x: 0, y: 0, z: 0 });
+        sortResults(results, 'result-amt', 'desc');
         expect(results[0]!.trade.resultName).toBe('B');
         expect(results[1]!.trade.resultName).toBe('C');
         expect(results[2]!.trade.resultName).toBe('A');
@@ -406,6 +406,18 @@ describe('sortResults', () => {
         expect(results[0]!.trade.resultName).toBe('Apple');
         expect(results[1]!.trade.resultName).toBe('Mango');
         expect(results[2]!.trade.resultName).toBe('Zebra');
+    });
+
+    test('sorts by world ascending', () => {
+        const results: FilterResult[] = [
+            { trade: createTrade(1, 1, 'A', 1, 'the_nether'), matchResult: true, matchCost: false, displayName: 'A', displayAmount: 1 },
+            { trade: createTrade(1, 1, 'B', 1, 'overworld'), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 1 },
+            { trade: createTrade(1, 1, 'C', 1, 'the_end'), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 1 }
+        ];
+        sortResults(results, 'world', 'asc');
+        expect(results[0]!.trade.world).toBe('overworld');
+        expect(results[1]!.trade.world).toBe('the_end');
+        expect(results[2]!.trade.world).toBe('the_nether');
     });
 });
 

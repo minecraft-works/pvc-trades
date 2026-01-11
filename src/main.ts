@@ -56,7 +56,7 @@ let allTrades: Trade[] = [];
 let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | null = null;
 let ratioGraph: RatioGraph | null = null;
-const currentSort: SortState = { column: 'result-amt', direction: 'desc' };
+const currentSort: SortState = { column: 'dev', direction: 'asc' };
 let cachedRegex: RegExp | null = null;
 let cachedPattern = '';
 
@@ -122,6 +122,7 @@ async function loadShops(): Promise<void> {
         ratioGraph = buildRatioGraph(itemValues);
 
         renderHeader();
+        search(); // Show all trades on load
     } catch (error) {
         console.error('Failed to load shop data:', error);
         getElement('results').innerHTML =
@@ -150,17 +151,8 @@ function getCachedRegex(pattern: string): RegExp {
 }
 
 function search(): void {
-    const wantRaw = getInputValue('searchWant');
-    const giveRaw = getInputValue('searchGive');
-
-    const wantQuery = wantRaw === '*' ? '' : wantRaw;
-    const giveQuery = giveRaw === '*' ? '' : giveRaw;
-    const showAll = wantRaw === '*' || giveRaw === '*';
-
-    if (!wantQuery && !giveQuery && !showAll) {
-        getElement('results').innerHTML = '';
-        return;
-    }
+    const wantQuery = getInputValue('searchWant');
+    const giveQuery = getInputValue('searchGive');
 
     const wantRegex = wantQuery ? getCachedRegex(wantQuery) : null;
     const giveRegex = giveQuery ? getCachedRegex(giveQuery) : null;
