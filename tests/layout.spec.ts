@@ -539,6 +539,16 @@ test.describe('CSS Layout - Visual Invariants', () => {
         expect(headerText?.trim()).toBe('Deal▲');
     });
 
+    test('active sort column header has blue color', async ({ page }) => {
+        // The Deal header should have active-sort class and blue color
+        const devHeader = page.locator('#table-header .col.dev-header');
+        await expect(devHeader).toHaveClass(/active-sort/);
+        
+        const color = await devHeader.evaluate(el => getComputedStyle(el).color);
+        // Should be blue (#4a9eff = rgb(74, 158, 255))
+        expect(color).toBe('rgb(74, 158, 255)');
+    });
+
     test('all three worlds are represented in world column', async ({ page }) => {
         const worldCells = page.locator('.trade-row .col.world');
         const allText: string[] = [];

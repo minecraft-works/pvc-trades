@@ -236,6 +236,7 @@ function updateSortArrows(): void {
         const label = el.dataset['label'] ?? '';
         const col = el.dataset['col'] ?? '';
         el.textContent = label + getArrow(col);
+        el.classList.toggle('active-sort', col === currentSort.column);
     });
 }
 

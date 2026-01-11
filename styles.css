@@ -140,6 +140,10 @@ body {
     color: var(--color-accent);
 }
 
+#table-header .header.active-sort {
+    color: #4a9eff;
+}
+
 #table-header .amt, #table-header .stock-header, #table-header .dev-header {
     justify-content: flex-end;
 }
