@@ -348,7 +348,7 @@ mark {
     background: rgb(0 0 0 / 70%);
 }
 
-#matrix-dialog header {
+#matrix-container header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -359,7 +359,7 @@ mark {
     background: var(--color-bg-secondary);
 }
 
-#matrix-dialog h2 {
+#matrix-container h2 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 500;
@@ -373,13 +373,15 @@ mark {
     cursor: pointer;
     padding: 0 8px;
     line-height: 1;
+    outline: none;
 }
 
-#close-matrix:hover {
+#close-matrix:hover,
+#close-matrix:focus {
     color: #fff;
 }
 
-#matrix-container {
+.matrix-wrapper {
     padding: 16px 20px 20px;
 }
 
@@ -436,7 +438,7 @@ mark {
     color: var(--color-text);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius-lg);
-    padding: 16px;
+    padding: 0;
     position: fixed;
     inset: 0;
     margin: auto;
@@ -447,6 +449,31 @@ mark {
     overflow: hidden;
 }
 
+#map-dialog header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+}
+
+#close-map {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 8px;
+    line-height: 1;
+    outline: none;
+}
+
+#close-map:hover,
+#close-map:focus {
+    color: #fff;
+}
+
 #map-dialog::backdrop {
     background: rgb(0 0 0 / 70%);
 }
@@ -455,6 +482,8 @@ mark {
     /* Use viewport-relative sizing, capped at 768px */
     width: min(80vw, 80vh, 768px);
     height: min(80vw, 80vh, 768px);
+    margin: 16px;
+    margin-top: 0;
     border-radius: var(--border-radius);
     background: #1a1a2e;
 }
@@ -495,32 +524,20 @@ mark {
     border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 
-/* Pulsing marker for shop location */
-.leaflet-pulsing-marker {
-    animation: pulse 1.5s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center center;
-    filter: drop-shadow(0 0 4px rgb(0 0 0 / 50%));
-}
-
-@keyframes pulse {
-    0%,
-    100% {
-        opacity: 1;
-        filter: drop-shadow(0 0 4px rgb(0 0 0 / 50%));
-    }
-
-    50% {
-        opacity: 0.7;
-        filter:
-            drop-shadow(0 0 8px rgb(255 68 68 / 80%))
-            drop-shadow(0 0 16px rgb(255 68 68 / 60%));
-    }
+/* Simple pin marker */
+.leaflet-pin-marker {
+    width: 24px;
+    height: 24px;
+    background: #e53935;
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow:
+        3px 3px 2px rgb(0 0 0 / 80%),
+        5px 5px 8px rgb(0 0 0 / 60%);
 }
 
 #map-coords {
-    margin-top: 12px;
-    text-align: center;
     font-family: var(--font-mono);
     font-size: 0.9rem;
     color: var(--color-text-dimmed);
@@ -535,6 +552,7 @@ mark {
     .search-container {
         padding: 12px;
         top: 5px;
+        position: static;  /* Disable sticky on mobile to prevent keyboard freeze */
     }
 
     .search-box {

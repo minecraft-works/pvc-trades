@@ -439,12 +439,16 @@ function renderMatrix(): void {
     const container = getElement('matrix-container');
 
     if (!ratioGraph || ratioGraph.size === 0) {
-        container.innerHTML = '<p class="muted">No conversion data available</p>';
+        container.innerHTML = '<header><h2>Conversion Matrix</h2><button id="close-matrix" aria-label="Close">&times;</button></header><p class="muted">No conversion data available</p>';
+        container.querySelector('#close-matrix')?.addEventListener('click', () => {
+            getElement<HTMLDialogElement>('matrix-dialog').close();
+        });
         return;
     }
 
     const coreBlocks = getCoreBlocks();
-    let html = '<table class="matrix"><thead><tr><th></th>';
+    let html = '<header><h2>Conversion Matrix</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
+    html += '<div class="matrix-wrapper"><table class="matrix"><thead><tr><th></th>';
     // Skip last column header (not needed for lower triangle)
     for (let i = 0; i < coreBlocks.length - 1; i++) {
         html += `<th>${getItemIcon(coreBlocks[i]!)}</th>`;
@@ -473,8 +477,13 @@ function renderMatrix(): void {
         html += '</tr>';
     }
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
+    
+    // Add close button handler
+    container.querySelector('#close-matrix')?.addEventListener('click', () => {
+        getElement<HTMLDialogElement>('matrix-dialog').close();
+    });
 }
 
 // ============================================================================
@@ -511,6 +520,13 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
         worldDisplay = 'The End';
     }
     coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
+    
+    // Ensure close button is set up
+    const closeBtn = dialog.querySelector('#close-map');
+    if (closeBtn && !closeBtn.hasAttribute('data-initialized')) {
+        closeBtn.setAttribute('data-initialized', 'true');
+        closeBtn.addEventListener('click', () => dialog.close());
+    }
     
     // Calculate which tile this shop is on
     const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
@@ -569,14 +585,13 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
         
         const latLng = L.latLng(markerLat, markerLng);
         
-        // Use circleMarker with pulsing effect via CSS
-        L.circleMarker(latLng, {
-            radius: 8,
-            className: 'leaflet-pulsing-marker',
-            color: '#ff0000',
-            fillColor: '#ff0000',
-            fillOpacity: 1,
-            weight: 2
+        // Simple pin marker
+        L.marker(latLng, {
+            icon: L.divIcon({
+                className: 'leaflet-pin-marker',
+                iconSize: [24, 24],
+                iconAnchor: [4, 24]  // Bottom-left corner of pin points to location
+            })
         }).addTo(leafletMap);
         
         // Define the exact 3x3 tile bounds
