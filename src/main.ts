@@ -49,6 +49,43 @@ interface DeviationResult {
 }
 
 // ============================================================================
+// Dialog Utilities
+// ============================================================================
+
+/**
+ * Set up a dialog to close when clicking on backdrop (outside the dialog box)
+ */
+function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
+    dialog.addEventListener('click', e => {
+        const rect = dialog.getBoundingClientRect();
+        const clickedInDialog = (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+        );
+        if (!clickedInDialog) {
+            dialog.close();
+        }
+    });
+}
+
+/**
+ * Open a dialog with content preparation
+ */
+function openDialog(dialogId: string, prepare?: () => void): void {
+    const dialog = document.getElementById(dialogId) as HTMLDialogElement | null;
+    if (!dialog) {
+        return;
+    }
+    
+    if (prepare) {
+        prepare();
+    }
+    dialog.showModal();
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
@@ -550,39 +587,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Matrix dialog - close when clicking on backdrop
+    // Matrix dialog
     const matrixDialog = getElement<HTMLDialogElement>('matrix-dialog');
+    setupDialogBackdropClose(matrixDialog);
     getElement('open-matrix').addEventListener('click', () => {
-        renderMatrix();
-        matrixDialog.showModal();
-    });
-    matrixDialog.addEventListener('click', e => {
-        const rect = matrixDialog.getBoundingClientRect();
-        const clickedInDialog = (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
-        );
-        if (!clickedInDialog) {
-            matrixDialog.close();
-        }
+        openDialog('matrix-dialog', renderMatrix);
     });
 
-    // Map dialog - close when clicking on backdrop
+    // Map dialog
     const mapDialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
     if (mapDialog) {
-        mapDialog.addEventListener('click', e => {
-            const rect = mapDialog.getBoundingClientRect();
-            const clickedInDialog = (
-                e.clientX >= rect.left &&
-                e.clientX <= rect.right &&
-                e.clientY >= rect.top &&
-                e.clientY <= rect.bottom
-            );
-            if (!clickedInDialog) {
-                mapDialog.close();
-            }
-        });
+        setupDialogBackdropClose(mapDialog);
     }
 });

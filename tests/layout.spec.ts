@@ -13,6 +13,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
 // Test configuration
 const BASE_URL = 'http://localhost:5173';
 const VIEWPORT = { width: 1280, height: 720 };
+const MOBILE_VIEWPORT = { width: 375, height: 667 };
 
 // Mock shop data for testing
 const MOCK_SHOP_DATA = {
@@ -475,8 +476,6 @@ test.describe('CSS Layout - CSS Custom Properties', () => {
 });
 
 test.describe('CSS Layout - Mobile Responsiveness', () => {
-    const MOBILE_VIEWPORT = { width: 375, height: 667 };
-
     test.beforeEach(async ({ page }) => {
         await setupMockRoutes(page);
         await page.setViewportSize(MOBILE_VIEWPORT);
@@ -640,6 +639,78 @@ test.describe('CSS Layout - Matrix Dialog', () => {
         
         // Press Escape to close the dialog (native dialog behavior)
         await page.keyboard.press('Escape');
+        await expect(dialog).not.toBeVisible();
+    });
+
+    test('matrix dialog closes when clicking backdrop', async ({ page }) => {
+        await page.click('#open-matrix');
+        const dialog = page.locator('#matrix-dialog');
+        await expect(dialog).toBeVisible();
+        
+        // Click on the backdrop (outside the dialog box)
+        // The dialog::backdrop covers the entire viewport, click at corner
+        await page.mouse.click(10, 10);
+        await expect(dialog).not.toBeVisible();
+    });
+
+    test('matrix dialog closes when clicking backdrop on mobile', async ({ page }) => {
+        await page.setViewportSize(MOBILE_VIEWPORT);
+        await page.click('#open-matrix');
+        const dialog = page.locator('#matrix-dialog');
+        await expect(dialog).toBeVisible();
+        
+        // Click on the backdrop (outside the dialog box) on mobile
+        await page.mouse.click(10, 10);
+        await expect(dialog).not.toBeVisible();
+    });
+});
+
+test.describe('CSS Layout - Map Dialog', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('map dialog opens when clicking trade row', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+    });
+
+    test('map dialog closes when pressing Escape', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+        
+        await page.keyboard.press('Escape');
+        await expect(dialog).not.toBeVisible();
+    });
+
+    test('map dialog closes when clicking backdrop', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+        
+        // Click on the backdrop (outside the dialog box)
+        await page.mouse.click(10, 10);
+        await expect(dialog).not.toBeVisible();
+    });
+
+    test('map dialog closes when clicking backdrop on mobile', async ({ page }) => {
+        await page.setViewportSize(MOBILE_VIEWPORT);
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+        
+        // Click on the backdrop on mobile
+        await page.mouse.click(10, 10);
         await expect(dialog).not.toBeVisible();
     });
 });
