@@ -14,7 +14,6 @@ import {
     highlight,
     escapeHtml,
     parseLocation,
-    calculateDistance,
     processTrade,
     filterTrade,
     sortResults,
@@ -354,16 +353,6 @@ describe('parseLocation', () => {
     });
 });
 
-describe('calculateDistance', () => {
-    test('calculates 3D distance', () => {
-        expect(calculateDistance(0, 0, 0, 3, 4, 0)).toBeCloseTo(5);
-    });
-
-    test('handles same point', () => {
-        expect(calculateDistance(10, 20, 30, 10, 20, 30)).toBe(0);
-    });
-});
-
 describe('config loading', () => {
     test('getConfig returns config', () => {
         const config = getConfig();
@@ -413,22 +402,10 @@ describe('sortResults', () => {
             { trade: createTrade(1, 1, 'Apple', 1), matchResult: true, matchCost: false, displayName: 'Apple', displayAmount: 1 },
             { trade: createTrade(1, 1, 'Mango', 1), matchResult: true, matchCost: false, displayName: 'Mango', displayAmount: 1 }
         ];
-        sortResults(results, 'result-name', 'asc', { x: 0, y: 0, z: 0 });
+        sortResults(results, 'result-name', 'asc');
         expect(results[0]!.trade.resultName).toBe('Apple');
         expect(results[1]!.trade.resultName).toBe('Mango');
         expect(results[2]!.trade.resultName).toBe('Zebra');
-    });
-
-    test('sorts by distance', () => {
-        const results: FilterResult[] = [
-            { trade: { ...createTrade(1, 1, 'A', 1), x: 100, y: 0, z: 0 }, matchResult: true, matchCost: false, displayName: 'A', displayAmount: 1 },
-            { trade: { ...createTrade(1, 1, 'B', 1), x: 10, y: 0, z: 0 }, matchResult: true, matchCost: false, displayName: 'B', displayAmount: 1 },
-            { trade: { ...createTrade(1, 1, 'C', 1), x: 50, y: 0, z: 0 }, matchResult: true, matchCost: false, displayName: 'C', displayAmount: 1 }
-        ];
-        sortResults(results, 'dist', 'asc', { x: 0, y: 0, z: 0 });
-        expect(results[0]!.trade.resultName).toBe('B');
-        expect(results[1]!.trade.resultName).toBe('C');
-        expect(results[2]!.trade.resultName).toBe('A');
     });
 });
 

@@ -142,6 +142,59 @@ test.describe('CSS Layout - Trade Rows', () => {
         }
     });
 
+    test('header columns align with trade row columns', async ({ page }) => {
+        const headerCols = page.locator('#table-header .col');
+        const firstRowCols = page.locator('.trade-row').first().locator('.col');
+        
+        const headerCount = await headerCols.count();
+        const rowCount = await firstRowCols.count();
+        
+        expect(headerCount, 'Header and row should have same column count').toBe(rowCount);
+        
+        // Check each column's left edge alignment
+        for (let i = 0; i < headerCount; i++) {
+            const headerBox = await headerCols.nth(i).boundingBox();
+            const rowBox = await firstRowCols.nth(i).boundingBox();
+            
+            expect(headerBox, `Header column ${i} should have bounding box`).toBeTruthy();
+            expect(rowBox, `Row column ${i} should have bounding box`).toBeTruthy();
+            
+            // Left edges should align (allow 1px tolerance for rounding)
+            expect(
+                Math.abs(headerBox!.x - rowBox!.x),
+                `Column ${i} left edges should align (header: ${headerBox!.x}, row: ${rowBox!.x})`
+            ).toBeLessThanOrEqual(1);
+            
+            // Widths should match (allow 1px tolerance)
+            expect(
+                Math.abs(headerBox!.width - rowBox!.width),
+                `Column ${i} widths should match (header: ${headerBox!.width}, row: ${rowBox!.width})`
+            ).toBeLessThanOrEqual(1);
+        }
+    });
+
+    test('header and cell text alignment matches for each column', async ({ page }) => {
+        const headerCols = page.locator('#table-header .col');
+        const firstRowCols = page.locator('.trade-row').first().locator('.col');
+        
+        const count = await headerCols.count();
+        
+        for (let i = 0; i < count; i++) {
+            const headerJustify = await headerCols.nth(i).evaluate(
+                el => getComputedStyle(el).justifyContent
+            );
+            const rowJustify = await firstRowCols.nth(i).evaluate(
+                el => getComputedStyle(el).justifyContent
+            );
+            
+            // Both should have the same justify-content (text alignment in flex)
+            expect(
+                headerJustify,
+                `Column ${i} header (${headerJustify}) and cell (${rowJustify}) should have matching alignment`
+            ).toBe(rowJustify);
+        }
+    });
+
     test('rows are vertically stacked without overlap (grid alignment)', async ({ page }) => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();

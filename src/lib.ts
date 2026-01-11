@@ -302,13 +302,6 @@ export function parseLocation(location: string): Coordinates {
     };
 }
 
-export function calculateDistance(
-    x1: number, y1: number, z1: number,
-    x2: number, y2: number, z2: number
-): number {
-    return Math.hypot(x1 - x2, y1 - y2, z1 - z2);
-}
-
 // ============================================================================
 // Trade Processing
 // ============================================================================
@@ -409,17 +402,9 @@ export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string):
 export function sortResults(
     results: FilterResult[],
     column: SortColumn,
-    direction: SortDirection,
-    refCoords: Coordinates
+    direction: SortDirection
 ): FilterResult[] {
     const dir = direction === 'asc' ? 1 : -1;
-
-    if (column === 'dist') {
-        for (const r of results) {
-            const t = r.trade;
-            r.dist = calculateDistance(t.x, t.y, t.z, refCoords.x, refCoords.y, refCoords.z);
-        }
-    }
 
     results.sort((a, b) => {
         const ta = a.trade;
@@ -443,10 +428,6 @@ export function sortResults(
             case 'stock':
                 av = ta.displayStock;
                 bv = tb.displayStock;
-                break;
-            case 'dist':
-                av = a.dist ?? 0;
-                bv = b.dist ?? 0;
                 break;
             default:
                 return 0;
