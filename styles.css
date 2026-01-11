@@ -71,6 +71,8 @@ body {
     top: 10px;
     z-index: 100;
     box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+    contain: layout style; /* Isolate from rest of page to prevent full relayout on keyboard open */
+    will-change: transform;
 }
 
 .search-box {
