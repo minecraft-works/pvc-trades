@@ -480,7 +480,8 @@ function renderMatrix(): void {
 
 const MAP_CONFIG = {
     tileSize: 512,  // pixels per tile (and blocks per tile)
-    baseUrl: 'tiles'
+    baseUrl: 'tiles',
+    zoom: 8  // zoom level for pyramid tile path
 };
 
 // Leaflet map instance (reused across dialog opens)
@@ -553,7 +554,7 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
             for (let dx = -1; dx <= 1; dx++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dy;
-                const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${tx}_${tz}.png`;
+                const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
                 
                 // In CRS.Simple, bounds are [[south, west], [north, east]]
                 // We want tile at (dx, dy) relative to center (0,0)
