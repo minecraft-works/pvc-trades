@@ -40,7 +40,7 @@ const MOCK_SHOP_DATA = {
         },
         {
             location: '150, 70, 250',
-            world: 'world',
+            world: 'world_nether',
             recipes: [
                 {
                     resultItem: { type: 'EMERALD', name: 'Emerald', amount: 12 },
@@ -51,6 +51,17 @@ const MOCK_SHOP_DATA = {
                     resultItem: { type: 'NETHERITE_INGOT', name: 'Netherite Ingot', amount: 1 },
                     item1: { type: 'EMERALD', name: 'Emerald', amount: 100 },
                     stock: 8
+                }
+            ]
+        },
+        {
+            location: '300, 100, 400',
+            world: 'world_the_end',
+            recipes: [
+                {
+                    resultItem: { type: 'ENDER_PEARL', name: 'Ender Pearl', amount: 4 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: 5 },
+                    stock: 16
                 }
             ]
         }
@@ -74,10 +85,9 @@ async function waitForAppReady(page: Page): Promise<void> {
     await page.waitForSelector('.search-container', { state: 'visible' });
 }
 
-// Helper to trigger a search that shows all results
+// Helper to wait for all trades to be visible (trades show on load)
 async function showAllTrades(page: Page): Promise<void> {
-    await page.fill('#searchWant', '*');
-    // Wait for results to render
+    // Trades are shown automatically on load, just wait for them
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
 }
 
@@ -491,5 +501,57 @@ test.describe('CSS Layout - Visual Invariants', () => {
             // Should be reddish color
             expect(badColor).toMatch(/^rgb/);
         }
+    });
+
+    test('world column header is sortable', async ({ page }) => {
+        const worldHeader = page.locator('#table-header .col.world-header');
+        await expect(worldHeader).toBeVisible();
+        
+        // Should have data-col attribute for sorting
+        const dataCol = await worldHeader.getAttribute('data-col');
+        expect(dataCol).toBe('world');
+        
+        // Should have header class for clickability
+        const classes = await worldHeader.getAttribute('class');
+        expect(classes).toContain('header');
+    });
+
+    test('world column displays abbreviated world names', async ({ page }) => {
+        const worldCells = page.locator('.trade-row .col.world');
+        const count = await worldCells.count();
+        
+        if (count > 0) {
+            // Check that world cells contain single-letter abbreviations
+            for (let i = 0; i < Math.min(count, 5); i++) {
+                const text = await worldCells.nth(i).textContent();
+                expect(['O', 'N', 'E']).toContain(text?.trim());
+            }
+        }
+    });
+
+    test('deal column is sorted by default on page load', async ({ page }) => {
+        // The Deal (dev) header should have sort arrow text on load
+        const devHeader = page.locator('#table-header .col.dev-header');
+        await expect(devHeader).toBeVisible();
+        
+        // Check that the header text includes the sort arrow (descending)
+        const headerText = await devHeader.textContent();
+        expect(headerText?.trim()).toBe('Deal▼');
+    });
+
+    test('all three worlds are represented in world column', async ({ page }) => {
+        const worldCells = page.locator('.trade-row .col.world');
+        const allText: string[] = [];
+        
+        const count = await worldCells.count();
+        for (let i = 0; i < count; i++) {
+            const text = await worldCells.nth(i).textContent();
+            if (text) allText.push(text.trim());
+        }
+        
+        // Should have all three world abbreviations
+        expect(allText).toContain('O'); // Overworld
+        expect(allText).toContain('N'); // The Nether
+        expect(allText).toContain('E'); // The End
     });
 });
