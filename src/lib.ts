@@ -831,3 +831,19 @@ export function getTileOffset(x: number, z: number, tileSize: number = 512): { o
 export function calculateFitZoom(containerSize: number, contentSize: number): number {
     return Math.log2(containerSize / contentSize);
 }
+
+/**
+ * Convert Minecraft coordinates to Leaflet CRS.Simple latLng
+ * In CRS.Simple, lat = y (negative for down), lng = x
+ */
+export function toLeafletCoords(
+    x: number,
+    z: number,
+    tileSize: number = 512
+): { lat: number; lng: number } {
+    const { offsetX, offsetZ } = getTileOffset(x, z, tileSize);
+    return {
+        lat: -offsetZ,  // Invert Z for screen coords (negative = down)
+        lng: offsetX
+    };
+}

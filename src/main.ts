@@ -27,8 +27,8 @@ import {
     getCoreBlocks,
     getWorldId,
     getTileCoords,
-    getTileOffset,
-    calculateFitZoom
+    calculateFitZoom,
+    toLeafletCoords
 } from './lib.js';
 
 import type {
@@ -512,9 +512,8 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
     }
     coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
     
-    // Calculate which tile this shop is on and position within it
+    // Calculate which tile this shop is on
     const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
-    const { offsetX, offsetZ } = getTileOffset(x, z, MAP_CONFIG.tileSize);
     
     // Show dialog first so container has dimensions
     dialog.showModal();
@@ -565,16 +564,13 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
         }
         
         // Marker position relative to center tile
-        // Center tile is at bounds [[-512, 0], [0, 512]]
-        // Shop offset within tile: offsetX (0-512), offsetZ (0-512)
-        // In CRS.Simple: x = offsetX, y = -offsetZ (invert for screen coords)
-        const markerLat = -offsetZ;  // Y in CRS.Simple (negative = down)
-        const markerLng = offsetX;   // X in CRS.Simple
+        // Convert Minecraft coords to Leaflet CRS.Simple coords
+        const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, MAP_CONFIG.tileSize);
         
         const latLng = L.latLng(markerLat, markerLng);
         
         // Use circleMarker with pulsing effect via CSS
-        currentMarker = L.circleMarker(latLng, {
+        L.circleMarker(latLng, {
             radius: 8,
             className: 'leaflet-pulsing-marker',
             color: '#ff0000',

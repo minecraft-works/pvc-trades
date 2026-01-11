@@ -31,7 +31,8 @@ import {
     getWorldId,
     getTileCoords,
     getTileOffset,
-    calculateFitZoom
+    calculateFitZoom,
+    toLeafletCoords
 } from './lib.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 
@@ -885,5 +886,42 @@ describe('calculateFitZoom', () => {
         
         // container 1536px, content 1536 units -> zoom 0
         expect(calculateFitZoom(1536, 1536)).toBe(0);
+    });
+});
+
+describe('toLeafletCoords', () => {
+    test('converts positive coordinates to Leaflet latLng', () => {
+        // At (100, 200) in tile (0, 0), offset is (100, 200)
+        // Leaflet: lat = -offsetZ = -200, lng = offsetX = 100
+        expect(toLeafletCoords(100, 200)).toEqual({ lat: -200, lng: 100 });
+    });
+
+    test('converts coordinates at tile boundary', () => {
+        // At (512, 512) in tile (1, 1), offset is (0, 0)
+        const result = toLeafletCoords(512, 512);
+        expect(result.lat + 0).toBe(0);  // +0 converts -0 to 0
+        expect(result.lng + 0).toBe(0);
+        
+        // At (511, 511) still in tile (0, 0)
+        expect(toLeafletCoords(511, 511)).toEqual({ lat: -511, lng: 511 });
+    });
+
+    test('converts negative coordinates correctly', () => {
+        // At (-69, 64) in tile (-1, 0), offset is (443, 64)
+        // This matches the real shop example from debug logs
+        expect(toLeafletCoords(-69, 64)).toEqual({ lat: -64, lng: 443 });
+    });
+
+    test('converts coordinates with negative Z', () => {
+        // At (100, -100) in tile (0, -1), offset is (100, 412)
+        // tileZ = floor(-100/512) = -1
+        // offsetZ = -100 - (-1 * 512) = -100 + 512 = 412
+        expect(toLeafletCoords(100, -100)).toEqual({ lat: -412, lng: 100 });
+    });
+
+    test('respects custom tile size', () => {
+        // At (300, 300) with tile size 256
+        // tile (1, 1), offset (44, 44)
+        expect(toLeafletCoords(300, 300, 256)).toEqual({ lat: -44, lng: 44 });
     });
 });
