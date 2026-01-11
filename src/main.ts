@@ -34,7 +34,6 @@ import type {
     RatioGraph,
     MappingRule,
     ShopData,
-    Coordinates,
     SortColumn,
     SortState
 } from './types.js';
@@ -80,10 +79,6 @@ function getElement<T extends HTMLElement>(id: string): T {
 
 function getInputValue(id: string): string {
     return getElement<HTMLInputElement>(id).value.trim().toLowerCase();
-}
-
-function getNumberValue(id: string, fallback = 0): number {
-    return Number(getElement<HTMLInputElement>(id).value) || fallback;
 }
 
 // ============================================================================
@@ -185,18 +180,10 @@ function sortByColumn(column: SortColumn): void {
         currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
     } else {
         currentSort.column = column;
-        currentSort.direction = ['cost-name', 'result-name', 'dist'].includes(column) ? 'asc' : 'desc';
+        currentSort.direction = ['cost-name', 'result-name'].includes(column) ? 'asc' : 'desc';
     }
     updateSortArrows();
     search();
-}
-
-function getRefCoords(): Coordinates {
-    return {
-        x: getNumberValue('refX'),
-        y: getNumberValue('refY'),
-        z: getNumberValue('refZ')
-    };
 }
 
 function sortResults(results: FilterResult[]): void {
@@ -211,7 +198,7 @@ function sortResults(results: FilterResult[]): void {
             return dir * (devA.ratio - devB.ratio);
         });
     } else {
-        sortResultsLib(results, currentSort.column, currentSort.direction, getRefCoords());
+        sortResultsLib(results, currentSort.column, currentSort.direction);
     }
 }
 
@@ -269,10 +256,10 @@ function renderHeader(): void {
         <span class="col header" data-col="cost-name" data-label="I give">I give</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
         <span class="col header dev-header" data-col="dev" data-label="Dev" title="Deviation from expected price">Dev</span>
-        <span class="col header dist-header" data-col="dist" data-label="Dist">Dist</span>
-        <span class="col"><input type="number" id="refX" value="0" placeholder="X" title="Reference X"></span>
-        <span class="col"><input type="number" id="refY" value="0" placeholder="Y" title="Reference Y"></span>
-        <span class="col"><input type="number" id="refZ" value="0" placeholder="Z" title="Reference Z"></span>
+        <span class="col world-header" title="World">W</span>
+        <span class="col coord">X</span>
+        <span class="col coord">Y</span>
+        <span class="col coord">Z</span>
     `;
 
     header.querySelectorAll<HTMLElement>('.header').forEach(el => {
@@ -280,10 +267,6 @@ function renderHeader(): void {
             const col = el.dataset['col'] as SortColumn | undefined;
             if (col) { sortByColumn(col); }
         });
-    });
-
-    ['refX', 'refY', 'refZ'].forEach(id => {
-        getElement(id).addEventListener('input', search);
     });
 
     updateSortArrows();
@@ -297,10 +280,9 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
         return;
     }
 
-    const ref = getRefCoords();
     const html: string[] = [];
 
-    for (const { trade: t, matchResult, matchCost, dist, displayName, displayAmount } of results) {
+    for (const { trade: t, matchResult, matchCost, displayName, displayAmount } of results) {
         const showName = displayName ?? t.resultName;
         const showAmount = displayAmount ?? t.resultAmount;
         const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
@@ -314,7 +296,6 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
 
         const costDisplay = matchCost && giveRegex ? highlight(costName, giveRegex) : escapeHtml(costName);
         const resultDisplay = matchResult && wantRegex ? highlight(showName, wantRegex) : escapeHtml(showName);
-        const d = dist ?? Math.round(Math.hypot(t.x - ref.x, t.y - ref.y, t.z - ref.z));
 
         const dev = getDeviation(t);
         const devClass = dev && dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
@@ -327,7 +308,7 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
             <span class="col cost-name">${costDisplay}</span>
             <span class="col stock ${stockClass}">${t.displayStock}</span>
             <span class="col dev ${devClass}">${devText}</span>
-            <span class="col coord">${Math.round(d)}</span>
+            <span class="col coord world">${escapeHtml(t.world)}</span>
             <span class="col coord">${t.x}</span>
             <span class="col coord">${t.y}</span>
             <span class="col coord">${t.z}</span>

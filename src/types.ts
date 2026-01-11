@@ -137,7 +137,6 @@ export interface FilterResult {
     matchCost: boolean;
     displayName: string;
     displayAmount: number;
-    dist?: number;
 }
 
 // ============================================================================
@@ -150,7 +149,6 @@ export type SortColumn =
     | 'cost-amt' 
     | 'cost-name' 
     | 'stock' 
-    | 'dist' 
     | 'dev';
 
 export type SortDirection = 'asc' | 'desc';
