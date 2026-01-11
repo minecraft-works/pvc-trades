@@ -452,8 +452,10 @@ mark {
 
 #map-container {
     position: relative;
-    width: 384px;
-    height: 384px;
+
+    /* Use viewport-relative sizing, capped at 512px */
+    width: min(80vw, 80vh, 512px);
+    height: min(80vw, 80vh, 512px);
     overflow: hidden;
     border-radius: var(--border-radius);
     background: #1a1a2e;
@@ -609,11 +611,6 @@ mark {
     /* Map dialog responsive */
     #map-dialog {
         padding: 12px;
-    }
-
-    #map-container {
-        width: 240px;
-        height: 240px;
     }
 
     #map-marker {
