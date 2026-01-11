@@ -115,8 +115,22 @@ body {
     contain: layout style;
 }
 
-#table-header, #results, .trade-row {
+/* Wrappers use display: contents so children participate in parent grid */
+#table-header, #results {
     display: contents;
+}
+
+/* Each trade row is its own grid with matching columns */
+
+/* This enables content-visibility: auto to skip rendering off-screen rows */
+.trade-row {
+    display: grid;
+    grid-column: 1 / -1;
+
+    /* Match parent's column definition exactly */
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
+    content-visibility: auto;
+    contain-intrinsic-block-size: 32px;
 }
 
 #table-header .col {
@@ -172,8 +186,6 @@ body {
     align-items: center;
     background: var(--color-bg-secondary);
     padding: 4px;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 28px;
 }
 
 .trade-row > .col:first-child {
@@ -254,18 +266,10 @@ body {
     text-align: right;
 }
 
-.col.world-icon,
 .col.world-header,
 .col.world {
     justify-content: center;
     text-align: center;
-}
-
-.world-block-icon {
-    width: 16px;
-    height: 16px;
-    image-rendering: pixelated;
-    vertical-align: middle;
 }
 
 .stock.in-stock {
@@ -424,6 +428,10 @@ mark {
     }
 
     #table-container {
+        grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr);
+    }
+
+    .trade-row {
         grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr);
     }
 

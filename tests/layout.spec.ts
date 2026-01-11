@@ -292,6 +292,23 @@ test.describe('CSS Layout - Trade Rows', () => {
         // Should contain 'monospace' in font stack
         expect(fontFamily.toLowerCase()).toContain('monospace');
     });
+
+    test('trade rows use content-visibility for off-screen rendering optimization', async ({ page }) => {
+        const row = page.locator('.trade-row').first();
+        
+        // Verify content-visibility: auto is applied (skips rendering off-screen rows)
+        const contentVisibility = await row.evaluate(el => 
+            getComputedStyle(el).contentVisibility
+        );
+        expect(contentVisibility).toBe('auto');
+        
+        // Verify contain-intrinsic-block-size is set (placeholder height for stable scrolling)
+        const intrinsicSize = await row.evaluate(el => 
+            getComputedStyle(el).containIntrinsicBlockSize
+        );
+        // Computed value may be "32px" or "auto 32px" depending on browser
+        expect(intrinsicSize).toContain('32px');
+    });
 });
 
 test.describe('CSS Layout - Search Container', () => {
