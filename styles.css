@@ -400,9 +400,25 @@ mark {
     font-weight: 500;
 }
 
+.matrix thead th {
+    padding: 8px 6px;
+}
+
+.matrix-icon {
+    width: 24px;
+    height: 24px;
+    image-rendering: pixelated;
+    vertical-align: middle;
+}
+
 .matrix td.self {
     background: #3a3a3a;
     color: var(--color-text-dimmed);
+}
+
+.matrix td.skip {
+    background: #2a2a2a;
+    border: none;
 }
 
 .matrix-hint {

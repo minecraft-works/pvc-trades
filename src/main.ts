@@ -346,11 +346,38 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
 // Matrix Dialog
 // ============================================================================
 
+const ITEM_ICONS: Record<string, string> = {
+    'Netherite Ingot': 'icons/netherite_ingot.png',
+    'Netherite Block': 'icons/netherite_block.png',
+    'Diamond Block': 'icons/diamond_block.png',
+    'Diamond': 'icons/diamond.png',
+    'Emerald Block': 'icons/emerald_block.png',
+    'Emerald': 'icons/emerald.png',
+    'Gold Block': 'icons/gold_block.png',
+    'Gold Ingot': 'icons/gold_ingot.png',
+    'Iron Block': 'icons/iron_block.png',
+    'Iron Ingot': 'icons/iron_ingot.png',
+};
+
+function getItemIcon(name: string): string {
+    const url = ITEM_ICONS[name];
+    if (url) {
+        return `<img src="${url}" alt="${escapeHtml(name)}" class="matrix-icon" title="${escapeHtml(name)}">`;
+    }
+    return escapeHtml(name);
+}
+
 function formatValue(value: number): string {
-    if (value >= 100) { return Math.round(value).toString(); }
-    if (value >= 10) { return value.toFixed(1); }
-    if (value >= 1) { return value.toFixed(2); }
-    return value.toFixed(3);
+    // Always show as ratio X:1 or 1:X
+    if (value >= 1) {
+        // Value >= 1: show as "X:1"
+        const rounded = Math.round(value);
+        return `${rounded}:1`;
+    } else {
+        // Value < 1: show as "1:X"
+        const inverse = Math.round(1 / value);
+        return `1:${inverse}`;
+    }
 }
 
 function renderMatrix(): void {
@@ -363,16 +390,22 @@ function renderMatrix(): void {
 
     const coreBlocks = getCoreBlocks();
     let html = '<table class="matrix"><thead><tr><th></th>';
-    for (const item of coreBlocks) {
-        html += `<th>${escapeHtml(item)}</th>`;
+    // Skip last column header (not needed for lower triangle)
+    for (let i = 0; i < coreBlocks.length - 1; i++) {
+        html += `<th>${getItemIcon(coreBlocks[i]!)}</th>`;
     }
     html += '</tr></thead><tbody>';
 
-    for (const row of coreBlocks) {
-        html += `<tr><th>${escapeHtml(row)}</th>`;
-        for (const col of coreBlocks) {
-            if (row === col) {
-                html += '<td class="self">1</td>';
+    // Skip first row (rowIdx=0) since it would be all skip cells
+    for (let rowIdx = 1; rowIdx < coreBlocks.length; rowIdx++) {
+        const row = coreBlocks[rowIdx]!;
+        html += `<tr><th>${getItemIcon(row)}</th>`;
+        // Skip last column (not needed for lower triangle)
+        for (let colIdx = 0; colIdx < coreBlocks.length - 1; colIdx++) {
+            const col = coreBlocks[colIdx]!;
+            if (colIdx >= rowIdx) {
+                // Diagonal and upper triangle - skip (redundant data)
+                html += '<td class="skip"></td>';
             } else {
                 const ratio = getRatio(ratioGraph, row, col);
                 if (ratio === null) {
@@ -386,7 +419,6 @@ function renderMatrix(): void {
     }
 
     html += '</tbody></table>';
-    html += '<p class="matrix-hint">Cell shows: 1 row item = X column items</p>';
     container.innerHTML = html;
 }
 
@@ -416,9 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
     getElement('open-matrix').addEventListener('click', () => {
         renderMatrix();
         dialog.showModal();
-    });
-    getElement('close-matrix').addEventListener('click', () => {
-        dialog.close();
     });
     dialog.addEventListener('click', e => {
         if (e.target === dialog) { dialog.close(); }

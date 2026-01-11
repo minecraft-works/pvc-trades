@@ -633,12 +633,13 @@ test.describe('CSS Layout - Matrix Dialog', () => {
         expect(borderRadius).not.toBe('0px');
     });
 
-    test('matrix dialog closes when close button clicked', async ({ page }) => {
+    test('matrix dialog closes when pressing Escape', async ({ page }) => {
         await page.click('#open-matrix');
         const dialog = page.locator('#matrix-dialog');
         await expect(dialog).toBeVisible();
         
-        await page.click('#close-matrix');
+        // Press Escape to close the dialog (native dialog behavior)
+        await page.keyboard.press('Escape');
         await expect(dialog).not.toBeVisible();
     });
 });
