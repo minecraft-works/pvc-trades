@@ -109,61 +109,68 @@ function getUniqueTiles(shops) {
 }
 
 /**
- * Fetch a single tile using the browser's fetch API (with cookies)
+ * Get normalized world name for output directory
+ */
+function getNormalizedWorld(world) {
+    const worldLower = world.toLowerCase();
+    return worldLower === 'world' || worldLower === 'overworld' ? 'overworld'
+        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'the_nether'
+        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'the_end'
+        : world;
+}
+
+/**
+ * Fetch a single tile by navigating to it (like fetch-data.js does)
  */
 async function fetchTile(page, tile, outputDir) {
     const filename = getTileFilename(tile.tileX, tile.tileZ);
-    // Use normalized world name for output directory
-    const worldLower = tile.world.toLowerCase();
-    const normalizedWorld = worldLower === 'world' || worldLower === 'overworld' ? 'overworld'
-        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'the_nether'
-        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'the_end'
-        : tile.world;
+    const normalizedWorld = getNormalizedWorld(tile.world);
     
     const worldDir = join(outputDir, normalizedWorld);
     const filepath = join(worldDir, filename);
     
     // Skip if already exists (from previous run)
     if (existsSync(filepath)) {
-        console.log(`  Skipping ${normalizedWorld}/${filename} (cached)`);
+        console.log(`  [CACHED] ${normalizedWorld}/${filename}`);
         return { success: true, cached: true };
     }
     
     mkdirSync(worldDir, { recursive: true });
     
+    // Log the exact URL being fetched
+    console.log(`  [FETCH] ${tile.url}`);
+    
     try {
-        // Use browser's fetch to get the tile (with Cloudflare cookies)
-        const result = await page.evaluate(async (url) => {
-            const response = await fetch(url);
-            if (!response.ok) {
-                return { error: `HTTP ${response.status}` };
-            }
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('image')) {
-                return { error: `Not an image: ${contentType}` };
-            }
-            const buffer = await response.arrayBuffer();
-            // Convert to base64 for transfer
-            const bytes = new Uint8Array(buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return { data: btoa(binary), size: buffer.byteLength };
-        }, tile.url);
+        // Navigate to the tile URL (same approach as fetch-data.js)
+        const response = await page.goto(tile.url, { 
+            waitUntil: 'load', 
+            timeout: 30000 
+        });
         
-        if (result.error) {
-            console.log(`  Skipping ${normalizedWorld}/${filename}: ${result.error}`);
-            return { success: false, error: result.error };
+        if (!response) {
+            console.log(`  [FAIL] ${normalizedWorld}/${filename}: No response`);
+            return { success: false, error: 'No response' };
         }
         
-        // Decode base64 and write file
-        const buffer = Buffer.from(result.data, 'base64');
+        const status = response.status();
+        if (status !== 200) {
+            console.log(`  [FAIL] ${normalizedWorld}/${filename}: HTTP ${status}`);
+            return { success: false, error: `HTTP ${status}` };
+        }
+        
+        const contentType = response.headers()['content-type'] || '';
+        if (!contentType.includes('image')) {
+            console.log(`  [FAIL] ${normalizedWorld}/${filename}: Not an image (${contentType})`);
+            return { success: false, error: `Not an image: ${contentType}` };
+        }
+        
+        // Get the raw body as buffer
+        const buffer = await response.body();
         writeFileSync(filepath, buffer);
-        console.log(`  Downloaded ${normalizedWorld}/${filename} (${result.size} bytes)`);
+        console.log(`  [OK] ${normalizedWorld}/${filename} (${buffer.length} bytes)`);
         return { success: true, cached: false };
     } catch (error) {
-        console.log(`  Error ${normalizedWorld}/${filename}: ${error.message}`);
+        console.log(`  [ERROR] ${normalizedWorld}/${filename}: ${error.message}`);
         return { success: false, error: error.message };
     }
 }
@@ -227,6 +234,39 @@ async function main() {
     console.log('Visiting homepage for cookies...');
     await page.goto(CONFIG.homepageUrl, { waitUntil: 'networkidle', timeout: 60000 });
     await sleep(3000);
+    
+    // Sanity check: fetch a center tile (0_0) to verify dynmap is accessible
+    console.log('\n--- Sanity check: fetching center tile ---');
+    const testUrl = `${CONFIG.baseUrl}/tiles/minecraft_overworld/${CONFIG.zoom}/0_0.png`;
+    console.log(`Testing: ${testUrl}`);
+    
+    try {
+        const testResponse = await page.goto(testUrl, { waitUntil: 'load', timeout: 30000 });
+        const testStatus = testResponse?.status();
+        const testContentType = testResponse?.headers()['content-type'] || '';
+        
+        if (testStatus !== 200) {
+            console.error(`\nSanity check FAILED: HTTP ${testStatus}`);
+            console.error('The dynmap tile server may be down or blocking requests.');
+            await browser.close();
+            process.exit(1);
+        }
+        
+        if (!testContentType.includes('image')) {
+            console.error(`\nSanity check FAILED: Expected image, got ${testContentType}`);
+            console.error('The dynmap may be returning an error page.');
+            await browser.close();
+            process.exit(1);
+        }
+        
+        const testBuffer = await testResponse.body();
+        console.log(`Sanity check PASSED: Got ${testBuffer.length} bytes of image data`);
+    } catch (error) {
+        console.error(`\nSanity check FAILED: ${error.message}`);
+        console.error('Cannot connect to dynmap. Aborting tile fetch.');
+        await browser.close();
+        process.exit(1);
+    }
     
     // Fetch tiles in batches with rate limiting
     let downloaded = 0;
