@@ -9,9 +9,9 @@ chromium.use(StealthPlugin());
 const CONFIG = {
     baseUrl: 'https://web.peacefulvanilla.club/maps',
     homepageUrl: 'https://web.peacefulvanilla.club/',
-    tileSize: 128,
-    zoom: 4,
-    maxZoom: 7,
+    tileSize: 512,  // pixels per tile
+    zoom: 8,        // zoom level 8: 1 pixel = 1 block
+    maxZoom: 8,     // at maxZoom, 1 pixel = 1 block
     // Rate limiting to avoid DDoS
     delayBetweenTiles: 500, // ms between tile fetches
     batchSize: 10, // tiles per batch
@@ -20,15 +20,12 @@ const CONFIG = {
 
 /**
  * Calculate tile coordinates from Minecraft world coordinates
- * Dynmap uses a specific coordinate system where tiles are indexed by their position
+ * At maxZoom (8), 1 pixel = 1 block, so tile covers tileSize blocks.
+ * At lower zooms, each tile covers more area: blocksPerTile = tileSize * 2^(maxZoom - zoom)
  */
 function getTileCoords(x, z, zoom, maxZoom, tileSize) {
-    // Scale factor based on zoom level difference
-    const scale = Math.pow(2, maxZoom - zoom);
-    // Blocks covered per tile at this zoom
-    const blocksPerTile = tileSize * scale;
+    const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
     
-    // Calculate tile indices (can be negative)
     const tileX = Math.floor(x / blocksPerTile);
     const tileZ = Math.floor(z / blocksPerTile);
     

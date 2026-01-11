@@ -439,18 +439,19 @@ function renderMatrix(): void {
 // ============================================================================
 
 const MAP_CONFIG = {
-    tileSize: 128,
-    zoom: 4,
-    maxZoom: 7,
+    tileSize: 512,  // pixels per tile
+    zoom: 8,        // zoom level 8: 1 pixel = 1 block
+    maxZoom: 8,     // at maxZoom, 1 pixel = 1 block
     displaySize: 256  // Size of the map display in pixels
 };
 
 /**
  * Calculate tile coordinates from Minecraft world coordinates
+ * At maxZoom (8), 1 pixel = 1 block, so tile covers tileSize blocks.
+ * At lower zooms, each tile covers more area: blocksPerTile = tileSize * 2^(maxZoom - zoom)
  */
 function getTileCoords(x: number, z: number): { tileX: number; tileZ: number; blocksPerTile: number } {
-    const scale = Math.pow(2, MAP_CONFIG.maxZoom - MAP_CONFIG.zoom);
-    const blocksPerTile = MAP_CONFIG.tileSize * scale;
+    const blocksPerTile = MAP_CONFIG.tileSize * Math.pow(2, MAP_CONFIG.maxZoom - MAP_CONFIG.zoom);
     
     const tileX = Math.floor(x / blocksPerTile);
     const tileZ = Math.floor(z / blocksPerTile);
