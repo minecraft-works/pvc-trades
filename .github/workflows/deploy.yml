@@ -4,7 +4,7 @@ on:
   push:
     branches: [develop, main]
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
+    - cron: '*/15 * * * *'  # Every 15 minutes
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,18 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Lint TypeScript
+        run: npm run lint
+
+      - name: Lint CSS
+        run: npm run lint:css
+
+      - name: Lint HTML
+        run: npm run lint:html
+
+      - name: Run tests
+        run: npm test
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
