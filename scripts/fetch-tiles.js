@@ -46,9 +46,10 @@ function getTileFilename(tileX, tileZ) {
  * Get tile URL for a world
  */
 function getTileUrl(world, zoom, tileX, tileZ) {
-    const worldId = world === 'overworld' ? 'minecraft_overworld' 
-        : world === 'nether' ? 'minecraft_the_nether'
-        : world === 'the_end' ? 'minecraft_the_end'
+    const worldLower = world.toLowerCase();
+    const worldId = worldLower === 'world' || worldLower === 'overworld' ? 'minecraft_overworld' 
+        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'minecraft_the_nether'
+        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'minecraft_the_end'
         : `minecraft_${world}`;
     return `${CONFIG.baseUrl}/tiles/${worldId}/${zoom}/${tileX}_${tileZ}.png`;
 }
@@ -108,45 +109,61 @@ function getUniqueTiles(shops) {
 }
 
 /**
- * Fetch a single tile using Playwright
+ * Fetch a single tile using the browser's fetch API (with cookies)
  */
 async function fetchTile(page, tile, outputDir) {
     const filename = getTileFilename(tile.tileX, tile.tileZ);
-    const worldDir = join(outputDir, tile.world);
+    // Use normalized world name for output directory
+    const worldLower = tile.world.toLowerCase();
+    const normalizedWorld = worldLower === 'world' || worldLower === 'overworld' ? 'overworld'
+        : worldLower === 'world_nether' || worldLower.includes('nether') ? 'the_nether'
+        : worldLower === 'world_the_end' || worldLower.includes('end') ? 'the_end'
+        : tile.world;
+    
+    const worldDir = join(outputDir, normalizedWorld);
     const filepath = join(worldDir, filename);
     
     // Skip if already exists (from previous run)
     if (existsSync(filepath)) {
-        console.log(`  Skipping ${tile.world}/${filename} (cached)`);
+        console.log(`  Skipping ${normalizedWorld}/${filename} (cached)`);
         return { success: true, cached: true };
     }
     
     mkdirSync(worldDir, { recursive: true });
     
     try {
-        const response = await page.goto(tile.url, { 
-            waitUntil: 'load',
-            timeout: 30000 
-        });
+        // Use browser's fetch to get the tile (with Cloudflare cookies)
+        const result = await page.evaluate(async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                return { error: `HTTP ${response.status}` };
+            }
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('image')) {
+                return { error: `Not an image: ${contentType}` };
+            }
+            const buffer = await response.arrayBuffer();
+            // Convert to base64 for transfer
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return { data: btoa(binary), size: buffer.byteLength };
+        }, tile.url);
         
-        if (!response || response.status() !== 200) {
-            console.log(`  Failed ${tile.world}/${filename}: HTTP ${response?.status()}`);
-            return { success: false, error: `HTTP ${response?.status()}` };
+        if (result.error) {
+            console.log(`  Skipping ${normalizedWorld}/${filename}: ${result.error}`);
+            return { success: false, error: result.error };
         }
         
-        // Check content type
-        const contentType = response.headers()['content-type'];
-        if (!contentType || !contentType.includes('image')) {
-            console.log(`  Skipping ${tile.world}/${filename}: Not an image (${contentType})`);
-            return { success: false, error: 'Not an image' };
-        }
-        
-        const buffer = await response.body();
+        // Decode base64 and write file
+        const buffer = Buffer.from(result.data, 'base64');
         writeFileSync(filepath, buffer);
-        console.log(`  Downloaded ${tile.world}/${filename} (${buffer.length} bytes)`);
+        console.log(`  Downloaded ${normalizedWorld}/${filename} (${result.size} bytes)`);
         return { success: true, cached: false };
     } catch (error) {
-        console.log(`  Error ${tile.world}/${filename}: ${error.message}`);
+        console.log(`  Error ${normalizedWorld}/${filename}: ${error.message}`);
         return { success: false, error: error.message };
     }
 }
