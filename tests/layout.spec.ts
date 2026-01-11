@@ -18,13 +18,13 @@ const VIEWPORT = { width: 1280, height: 720 };
 const MOCK_SHOP_DATA = {
     data: [
         {
-            location: '100, 64, 200',
+            location: '-7374.0, 69.0, -1772.0',
             world: 'world',
             recipes: [
                 {
-                    resultItem: { type: 'DIAMOND', name: 'Diamond', amount: 1 },
-                    item1: { type: 'EMERALD', name: 'Emerald', amount: 10 },
-                    stock: 64
+                    resultItem: { type: 'FIREWORK_ROCKET', name: 'Firework Rocket', amount: 64 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: 1 },
+                    stock: 6
                 },
                 {
                     resultItem: { type: 'GOLD_INGOT', name: 'Gold Ingot', amount: 5 },
@@ -39,7 +39,7 @@ const MOCK_SHOP_DATA = {
             ]
         },
         {
-            location: '150, 70, 250',
+            location: '-19950.0, 68.0, -21636.0',
             world: 'world_nether',
             recipes: [
                 {
@@ -55,7 +55,7 @@ const MOCK_SHOP_DATA = {
             ]
         },
         {
-            location: '300, 100, 400',
+            location: '300.0, 100.0, 400.0',
             world: 'world_the_end',
             recipes: [
                 {
@@ -105,11 +105,11 @@ test.describe('CSS Layout - Table Structure', () => {
         expect(display).toBe('grid');
     });
 
-    test('table container has 10 columns defined', async ({ page }) => {
+    test('table container has 10 visible columns defined', async ({ page }) => {
         const container = page.locator('#table-container');
         const gridCols = await container.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         
-        // Should have 10 column values (separated by spaces)
+        // Should have 10 column values (mobile-coords is hidden on desktop)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
         expect(columnCount).toBe(10);
     });
@@ -140,7 +140,7 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(count).toBeGreaterThan(0);
     });
 
-    test('each trade row has exactly 10 columns (stride check)', async ({ page }) => {
+    test('each trade row has exactly 11 columns in DOM (10 visible)', async ({ page }) => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();
         
@@ -148,7 +148,8 @@ test.describe('CSS Layout - Trade Rows', () => {
             const row = rows.nth(i);
             const columns = row.locator('.col');
             const colCount = await columns.count();
-            expect(colCount, `Row ${i} should have exactly 10 columns`).toBe(10);
+            // 11 columns in DOM, but mobile-coords is hidden on desktop
+            expect(colCount, `Row ${i} should have exactly 11 columns in DOM`).toBe(11);
         }
     });
 
@@ -161,10 +162,17 @@ test.describe('CSS Layout - Trade Rows', () => {
         
         expect(headerCount, 'Header and row should have same column count').toBe(rowCount);
         
-        // Check each column's left edge alignment
+        // Check each column's left edge alignment (skip hidden columns)
         for (let i = 0; i < headerCount; i++) {
-            const headerBox = await headerCols.nth(i).boundingBox();
-            const rowBox = await firstRowCols.nth(i).boundingBox();
+            const headerCol = headerCols.nth(i);
+            const rowCol = firstRowCols.nth(i);
+            
+            // Skip hidden columns (display: none)
+            const headerDisplay = await headerCol.evaluate(el => getComputedStyle(el).display);
+            if (headerDisplay === 'none') continue;
+            
+            const headerBox = await headerCol.boundingBox();
+            const rowBox = await rowCol.boundingBox();
             
             expect(headerBox, `Header column ${i} should have bounding box`).toBeTruthy();
             expect(rowBox, `Row column ${i} should have bounding box`).toBeTruthy();
@@ -230,9 +238,14 @@ test.describe('CSS Layout - Trade Rows', () => {
 
         for (let i = 0; i < count; i++) {
             const col = columns.nth(i);
+            
+            // Skip hidden columns (display: none)
+            const display = await col.evaluate(el => getComputedStyle(el).display);
+            if (display === 'none') continue;
+            
             const box = await col.boundingBox();
             
-            // Each column should have at least some width (not collapsed)
+            // Each visible column should have at least some width (not collapsed)
             expect(box?.width, `Column ${i} should have width > 0`).toBeGreaterThan(0);
         }
     });
@@ -254,6 +267,80 @@ test.describe('CSS Layout - Trade Rows', () => {
         // All columns in a row should have the same height (grid alignment)
         const uniqueHeights = [...new Set(heights)];
         expect(uniqueHeights.length, 'All columns should have equal height').toBe(1);
+    });
+
+    test('adjacent columns do not overlap horizontally', async ({ page }) => {
+        const rows = page.locator('.trade-row');
+        const rowCount = await rows.count();
+
+        // Check first 3 rows
+        for (let r = 0; r < Math.min(rowCount, 3); r++) {
+            const row = rows.nth(r);
+            const columns = row.locator('.col');
+            const count = await columns.count();
+
+            // Get bounding boxes for visible columns with actual width
+            const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
+            for (let i = 0; i < count; i++) {
+                const col = columns.nth(i);
+                
+                // Check if element is actually displayed (not display: none)
+                const display = await col.evaluate(el => getComputedStyle(el).display);
+                if (display === 'none') continue;
+                
+                const box = await col.boundingBox();
+                // Only include columns that have actual visible width (> 1px)
+                if (box && box.width > 1) {
+                    boxes.push({ index: i, box: { x: box.x, width: box.width } });
+                }
+            }
+
+            // Sort by x position
+            boxes.sort((a, b) => a.box.x - b.box.x);
+
+            // Check that each column ends before the next one starts
+            for (let i = 0; i < boxes.length - 1; i++) {
+                const current = boxes[i];
+                const next = boxes[i + 1];
+                const currentEnd = current.box.x + current.box.width;
+                
+                expect(
+                    currentEnd,
+                    `Row ${r}: Column ${current.index} (ends at ${currentEnd.toFixed(1)}) overlaps column ${next.index} (starts at ${next.box.x.toFixed(1)})`
+                ).toBeLessThanOrEqual(next.box.x + 1); // 1px tolerance for subpixel rendering
+            }
+        }
+    });
+
+    test('text content stays within column bounds', async ({ page }) => {
+        const rows = page.locator('.trade-row');
+        const rowCount = await rows.count();
+
+        // Check first 3 rows
+        for (let r = 0; r < Math.min(rowCount, 3); r++) {
+            const row = rows.nth(r);
+            const nameColumns = row.locator('.col.cost-name, .col.result-name');
+            const count = await nameColumns.count();
+
+            for (let i = 0; i < count; i++) {
+                const col = nameColumns.nth(i);
+                const colBox = await col.boundingBox();
+                
+                if (colBox) {
+                    // Get the scroll width (actual content width) vs client width (visible width)
+                    const { scrollWidth, clientWidth } = await col.evaluate(el => ({
+                        scrollWidth: el.scrollWidth,
+                        clientWidth: el.clientWidth
+                    }));
+
+                    // If content overflows, it should be clipped (overflow: hidden)
+                    if (scrollWidth > clientWidth) {
+                        const overflow = await col.evaluate(el => getComputedStyle(el).overflow);
+                        expect(overflow, `Row ${r} column ${i}: overflowing content should be hidden`).toBe('hidden');
+                    }
+                }
+            }
+        }
     });
 
     test('item names do not overflow container', async ({ page }) => {
@@ -397,19 +484,36 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         await waitForAppReady(page);
     });
 
-    test('search inputs stack vertically on mobile', async ({ page }) => {
+    test('search inputs stay on single row on mobile', async ({ page }) => {
         const searchBox = page.locator('.search-box');
         const flexWrap = await searchBox.evaluate(el => getComputedStyle(el).flexWrap);
-        expect(flexWrap).toBe('wrap');
+        expect(flexWrap).toBe('nowrap');
+        
+        // Verify all 3 items are on the same row (same Y position)
+        const searchWant = page.locator('#searchWant');
+        const searchGive = page.locator('#searchGive');
+        const openMatrix = page.locator('#open-matrix');
+        
+        const wantBox = await searchWant.boundingBox();
+        const giveBox = await searchGive.boundingBox();
+        const buttonBox = await openMatrix.boundingBox();
+        
+        expect(wantBox).toBeTruthy();
+        expect(giveBox).toBeTruthy();
+        expect(buttonBox).toBeTruthy();
+        
+        // All items should have the same Y position (within 2px tolerance)
+        expect(Math.abs(wantBox!.y - giveBox!.y)).toBeLessThanOrEqual(2);
+        expect(Math.abs(giveBox!.y - buttonBox!.y)).toBeLessThanOrEqual(2);
     });
 
     test('table container adjusts columns for mobile', async ({ page }) => {
         const container = page.locator('#table-container');
         const gridCols = await container.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         
-        // Mobile should have fewer visible columns (4 instead of 10)
+        // Mobile shows 7 columns: #, name, #, name, deal, stock, coords
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(4);
+        expect(columnCount).toBe(7);
     });
 
     test('search container has reduced padding on mobile', async ({ page }) => {
@@ -418,6 +522,84 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         
         // Mobile padding should be 12px (vs 20px on desktop)
         expect(padding).toBe('12px');
+    });
+
+    test('adjacent columns do not overlap horizontally on mobile', async ({ page }) => {
+        await showAllTrades(page);
+        
+        const rows = page.locator('.trade-row');
+        const rowCount = await rows.count();
+
+        // Check first 3 rows
+        for (let r = 0; r < Math.min(rowCount, 3); r++) {
+            const row = rows.nth(r);
+            const columns = row.locator('.col');
+            const count = await columns.count();
+
+            // Get bounding boxes for visible columns with actual width
+            const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
+            for (let i = 0; i < count; i++) {
+                const col = columns.nth(i);
+                
+                // Check if element is actually displayed (not display: none)
+                const display = await col.evaluate(el => getComputedStyle(el).display);
+                if (display === 'none') continue;
+                
+                const box = await col.boundingBox();
+                // Only include columns that have actual visible width (> 1px)
+                if (box && box.width > 1) {
+                    boxes.push({ index: i, box: { x: box.x, width: box.width } });
+                }
+            }
+
+            // Sort by x position
+            boxes.sort((a, b) => a.box.x - b.box.x);
+
+            // Check that each column ends before the next one starts
+            for (let i = 0; i < boxes.length - 1; i++) {
+                const current = boxes[i];
+                const next = boxes[i + 1];
+                const currentEnd = current.box.x + current.box.width;
+                
+                expect(
+                    currentEnd,
+                    `Mobile row ${r}: Column ${current.index} (ends at ${currentEnd.toFixed(1)}) overlaps column ${next.index} (starts at ${next.box.x.toFixed(1)})`
+                ).toBeLessThanOrEqual(next.box.x + 1); // 1px tolerance for subpixel rendering
+            }
+        }
+    });
+
+    test('mobile-coords content is not clipped by insufficient column width', async ({ page }) => {
+        await showAllTrades(page);
+        
+        const coordsCols = page.locator('.trade-row .col.mobile-coords');
+        const count = await coordsCols.count();
+
+        for (let i = 0; i < Math.min(count, 5); i++) {
+            const col = coordsCols.nth(i);
+            
+            // Measure actual text width using a temporary range
+            const { textWidth, availableWidth, textContent } = await col.evaluate(el => {
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                const rect = range.getBoundingClientRect();
+                const style = getComputedStyle(el);
+                const paddingLeft = parseFloat(style.paddingLeft) || 0;
+                const paddingRight = parseFloat(style.paddingRight) || 0;
+                const available = el.clientWidth - paddingLeft - paddingRight;
+                return {
+                    textWidth: rect.width,
+                    availableWidth: available,
+                    textContent: el.textContent
+                };
+            });
+
+            // Text should fit within available column space
+            expect(
+                textWidth,
+                `Mobile coords "${textContent}" text (${textWidth.toFixed(1)}px) should fit in available space (${availableWidth.toFixed(1)}px)`
+            ).toBeLessThanOrEqual(availableWidth + 1);
+        }
     });
 });
 

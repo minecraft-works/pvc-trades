@@ -105,7 +105,11 @@ body {
     color: var(--color-text-dimmed);
 }
 
-/* Table */
+/*
+ * Table
+ * 10 columns on desktop: amt, name, amt, name, deal, stock, world, x, y, z
+ * mobile-coords is hidden on desktop
+ */
 #table-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -131,6 +135,13 @@ body {
     grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
     content-visibility: auto;
     contain-intrinsic-block-size: 32px;
+}
+
+/* Hide mobile-coords column on desktop - remove from flow entirely */
+.mobile-coords,
+.trade-row > .col.mobile-coords,
+#table-header .col.mobile-coords {
+    display: none;
 }
 
 #table-header .col {
@@ -400,7 +411,7 @@ mark {
     font-size: 0.8rem;
 }
 
-/* Mobile: hide less important columns, stack search inputs */
+/* Mobile: show all columns in compressed form */
 @media (width <= 600px) {
     body {
         padding: 10px;
@@ -412,50 +423,101 @@ mark {
     }
 
     .search-box {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 6px;
     }
 
     #searchWant,
     #searchGive {
-        flex: 1 1 100%;
-        font-size: 1rem;
-        padding: 10px 12px;
+        flex: 1 1 0;
+        min-width: 0;
+        font-size: 0.85rem;
+        padding: 8px 10px;
     }
 
     #open-matrix {
-        flex: 1;
-        padding: 10px 12px;
-    }
-
-    #table-container {
-        grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr);
-    }
-
-    .trade-row {
-        grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr);
-    }
-
-    /* Hide Dev, Stock, World, X, Y, Z columns on mobile (show only first 4) */
-    #table-header .col:nth-child(5),
-    #table-header .col:nth-child(6),
-    #table-header .col:nth-child(7),
-    #table-header .col:nth-child(8),
-    #table-header .col:nth-child(9),
-    #table-header .col:nth-child(10),
-    .trade-row .col:nth-child(5),
-    .trade-row .col:nth-child(6),
-    .trade-row .col:nth-child(7),
-    .trade-row .col:nth-child(8),
-    .trade-row .col:nth-child(9),
-    .trade-row .col:nth-child(10) {
-        display: none;
-    }
-
-    .col {
+        flex: 0 0 auto;
+        padding: 8px 10px;
         font-size: 0.85rem;
     }
 
-    .col.cost-amt, .col.result-amt {
-        font-size: 0.7rem;
+    /* Compact 7-column layout: #, name, #, name, deal, stock, coords */
+    #table-container {
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 94px;
+    }
+
+    .trade-row {
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 94px;
+    }
+
+    /* Show mobile-coords column on mobile */
+    .mobile-coords {
+        display: flex !important;
+        font-size: 0.55rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-left: 8px !important;
+    }
+
+    /* Add inner padding between deal, stock, and coords for visual separation */
+    .col.dev {
+        font-size: 0.6rem;
+        padding-right: 8px !important;
+    }
+
+    .col.stock {
+        font-size: 0.65rem;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+
+    /* General column sizing */
+    .col {
+        font-size: 0.75rem;
+        padding: 3px 2px !important;
+    }
+
+    .col.cost-amt,
+    .col.result-amt {
+        font-size: 0.65rem;
+    }
+
+    .col.cost-name,
+    .col.result-name {
+        font-size: 0.72rem;
+    }
+
+    /* Hide world, x, y, z columns (8-11) on mobile */
+    #table-header .col:nth-child(8),
+    #table-header .col:nth-child(9),
+    #table-header .col:nth-child(10),
+    #table-header .col:nth-child(11),
+    .trade-row .col:nth-child(8),
+    .trade-row .col:nth-child(9),
+    .trade-row .col:nth-child(10),
+    .trade-row .col:nth-child(11) {
+        display: none;
+    }
+
+    /* Header adjustments */
+    #table-header .col {
+        font-size: 0.6rem;
+        padding: 6px 2px !important;
+    }
+
+    #table-header .col:first-child {
+        padding-left: 6px !important;
+    }
+
+    #table-header .col:last-child {
+        padding-right: 6px !important;
+    }
+
+    .trade-row > .col:first-child {
+        padding-left: 6px !important;
+    }
+
+    .trade-row > .col:last-child {
+        padding-right: 6px !important;
     }
 }

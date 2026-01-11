@@ -269,6 +269,7 @@ function renderHeader(): void {
         <span class="col header" data-col="cost-name" data-label="I give">I give</span>
         <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
+        <span class="col coord mobile-coords">Loc</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
         <span class="col coord">X</span>
         <span class="col coord">Y</span>
@@ -330,6 +331,7 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
             <span class="col cost-name">${costDisplay}</span>
             <span class="col dev ${devClass}">${devText}</span>
             <span class="col stock ${stockClass}">${t.displayStock}</span>
+            <span class="col coord mobile-coords" title="${t.x}, ${t.y}, ${t.z}">${t.x},${t.z}</span>
             <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
             <span class="col coord">${t.x}</span>
             <span class="col coord">${t.y}</span>
