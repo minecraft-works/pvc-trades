@@ -27,7 +27,11 @@ import {
     loadBaseItems,
     loadConfig,
     getConfig,
-    median
+    median,
+    getWorldId,
+    getTileCoords,
+    getTileOffset,
+    calculateFitZoom
 } from './lib.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 
@@ -781,5 +785,105 @@ describe('processTrade', () => {
         expect(trade.resultName).toBe('Gunpowder');
         expect(trade.resultAmount).toBe(128);
         expect(trade.displayStock).toBe(384);
+    });
+});
+
+// ============================================================================
+// Map Utilities
+// ============================================================================
+
+describe('getWorldId', () => {
+    test('returns overworld for normal world', () => {
+        expect(getWorldId('minecraft:overworld')).toBe('overworld');
+        expect(getWorldId('overworld')).toBe('overworld');
+        expect(getWorldId('world')).toBe('overworld');
+    });
+
+    test('returns the_nether for nether world', () => {
+        expect(getWorldId('minecraft:the_nether')).toBe('the_nether');
+        expect(getWorldId('the_nether')).toBe('the_nether');
+        expect(getWorldId('nether')).toBe('the_nether');
+    });
+
+    test('returns the_end for end world', () => {
+        expect(getWorldId('minecraft:the_end')).toBe('the_end');
+        expect(getWorldId('the_end')).toBe('the_end');
+        expect(getWorldId('end')).toBe('the_end');
+    });
+});
+
+describe('getTileCoords', () => {
+    test('calculates tile for positive coordinates', () => {
+        expect(getTileCoords(0, 0)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(100, 200)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(511, 511)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(512, 512)).toEqual({ tileX: 1, tileZ: 1 });
+        expect(getTileCoords(1024, 1536)).toEqual({ tileX: 2, tileZ: 3 });
+    });
+
+    test('calculates tile for negative coordinates', () => {
+        expect(getTileCoords(-1, -1)).toEqual({ tileX: -1, tileZ: -1 });
+        expect(getTileCoords(-69, 64)).toEqual({ tileX: -1, tileZ: 0 });
+        expect(getTileCoords(-512, -512)).toEqual({ tileX: -1, tileZ: -1 });
+        expect(getTileCoords(-513, -513)).toEqual({ tileX: -2, tileZ: -2 });
+    });
+
+    test('respects custom tile size', () => {
+        expect(getTileCoords(256, 256, 256)).toEqual({ tileX: 1, tileZ: 1 });
+        expect(getTileCoords(100, 100, 128)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(128, 128, 128)).toEqual({ tileX: 1, tileZ: 1 });
+    });
+});
+
+describe('getTileOffset', () => {
+    test('calculates offset for positive coordinates', () => {
+        expect(getTileOffset(0, 0)).toEqual({ offsetX: 0, offsetZ: 0 });
+        expect(getTileOffset(100, 200)).toEqual({ offsetX: 100, offsetZ: 200 });
+        expect(getTileOffset(511, 511)).toEqual({ offsetX: 511, offsetZ: 511 });
+        expect(getTileOffset(512, 512)).toEqual({ offsetX: 0, offsetZ: 0 });
+        expect(getTileOffset(600, 700)).toEqual({ offsetX: 88, offsetZ: 188 });
+    });
+
+    test('calculates offset for negative coordinates', () => {
+        // -69 is in tile -1 (which spans -512 to -1)
+        // offset = -69 - (-1 * 512) = -69 + 512 = 443
+        expect(getTileOffset(-69, 64)).toEqual({ offsetX: 443, offsetZ: 64 });
+        expect(getTileOffset(-1, -1)).toEqual({ offsetX: 511, offsetZ: 511 });
+        expect(getTileOffset(-512, -512)).toEqual({ offsetX: 0, offsetZ: 0 });
+    });
+
+    test('respects custom tile size', () => {
+        expect(getTileOffset(300, 300, 256)).toEqual({ offsetX: 44, offsetZ: 44 });
+    });
+});
+
+describe('calculateFitZoom', () => {
+    test('calculates zoom for exact fit', () => {
+        // container 512px, content 512 units -> zoom 0 (1:1)
+        expect(calculateFitZoom(512, 512)).toBe(0);
+        
+        // container 1024px, content 512 units -> zoom 1 (2:1)
+        expect(calculateFitZoom(1024, 512)).toBe(1);
+        
+        // container 256px, content 512 units -> zoom -1 (0.5:1)
+        expect(calculateFitZoom(256, 512)).toBe(-1);
+    });
+
+    test('calculates fractional zoom', () => {
+        // container 729px, content 1536 units
+        // zoom = log2(729/1536) ≈ -1.075
+        const zoom = calculateFitZoom(729, 1536);
+        expect(zoom).toBeCloseTo(-1.075, 2);
+    });
+
+    test('handles various container sizes', () => {
+        // container 768px, content 1536 units -> zoom -1
+        expect(calculateFitZoom(768, 1536)).toBe(-1);
+        
+        // container 384px, content 1536 units -> zoom -2
+        expect(calculateFitZoom(384, 1536)).toBe(-2);
+        
+        // container 1536px, content 1536 units -> zoom 0
+        expect(calculateFitZoom(1536, 1536)).toBe(0);
     });
 });

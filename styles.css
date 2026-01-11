@@ -428,7 +428,7 @@ mark {
 }
 
 /* ============================================================================
- * Map Dialog
+ * Map Dialog (Leaflet)
  * ============================================================================ */
 
 #map-dialog {
@@ -452,58 +452,69 @@ mark {
 }
 
 #map-container {
-    position: relative;
-
     /* Use viewport-relative sizing, capped at 768px */
     width: min(80vw, 80vh, 768px);
     height: min(80vw, 80vh, 768px);
-    overflow: hidden;
     border-radius: var(--border-radius);
     background: #1a1a2e;
 }
 
-#map-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    width: 100%;
-    height: 100%;
-}
-
-.map-tile {
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
+/* Leaflet tile rendering - pixelated for Minecraft dynmap */
+#map-container .leaflet-tile,
+#map-container .leaflet-image-layer {
     image-rendering: pixelated;
+    image-rendering: crisp-edges;  /* Firefox fallback */
 }
 
-#map-marker {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    background: #f44;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 8px rgb(0 0 0 / 50%);
-    pointer-events: none;
-    z-index: 10;
+/* Leaflet controls styling */
+#map-container .leaflet-control-zoom {
+    border: none;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+}
+
+#map-container .leaflet-control-zoom a {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 18px;
+}
+
+#map-container .leaflet-control-zoom a:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+#map-container .leaflet-control-zoom-in {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+#map-container .leaflet-control-zoom-out {
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+/* Pulsing marker for shop location */
+.leaflet-pulsing-marker {
     animation: pulse 1.5s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: center center;
+    filter: drop-shadow(0 0 4px rgb(0 0 0 / 50%));
 }
 
 @keyframes pulse {
     0%,
     100% {
-        transform: translate(-50%, -50%) scale(1);
-        box-shadow: 0 0 8px rgb(0 0 0 / 50%);
+        opacity: 1;
+        filter: drop-shadow(0 0 4px rgb(0 0 0 / 50%));
     }
 
     50% {
-        transform: translate(-50%, -50%) scale(1.3);
-        box-shadow:
-            0 0 12px rgb(0 0 0 / 50%),
-            0 0 20px rgb(255 68 68 / 60%);
+        opacity: 0.7;
+        filter:
+            drop-shadow(0 0 8px rgb(255 68 68 / 80%))
+            drop-shadow(0 0 16px rgb(255 68 68 / 60%));
     }
 }
 
@@ -628,11 +639,6 @@ mark {
     /* Map dialog responsive */
     #map-dialog {
         padding: 12px;
-    }
-
-    #map-marker {
-        width: 10px;
-        height: 10px;
     }
 
     #map-coords {

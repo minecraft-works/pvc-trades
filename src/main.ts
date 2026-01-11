@@ -24,7 +24,11 @@ import {
     getConfig,
     buildRatioGraph,
     getRatio,
-    getCoreBlocks
+    getCoreBlocks,
+    getWorldId,
+    getTileCoords,
+    getTileOffset,
+    calculateFitZoom
 } from './lib.js';
 
 import type {
@@ -37,6 +41,8 @@ import type {
     SortColumn,
     SortState
 } from './types.js';
+
+import * as L from 'leaflet';
 
 // ============================================================================
 // Types
@@ -472,98 +478,141 @@ function renderMatrix(): void {
 }
 
 // ============================================================================
-// Map Dialog
+// Map Dialog (Leaflet)
 // ============================================================================
 
 const MAP_CONFIG = {
-    tileSize: 512,  // pixels per tile
-    zoom: 8,        // zoom level 8: 1 pixel = 1 block
-    maxZoom: 8,     // at maxZoom, 1 pixel = 1 block
-    displaySize: 256  // Size of the map display in pixels
+    tileSize: 512,  // pixels per tile (and blocks per tile)
+    baseUrl: 'tiles'
 };
 
-/**
- * Calculate tile coordinates from Minecraft world coordinates
- * At maxZoom (8), 1 pixel = 1 block, so tile covers tileSize blocks.
- * At lower zooms, each tile covers more area: blocksPerTile = tileSize * 2^(maxZoom - zoom)
- */
-function getTileCoords(x: number, z: number): { tileX: number; tileZ: number; blocksPerTile: number } {
-    const blocksPerTile = MAP_CONFIG.tileSize * Math.pow(2, MAP_CONFIG.maxZoom - MAP_CONFIG.zoom);
-    
-    const tileX = Math.floor(x / blocksPerTile);
-    const tileZ = Math.floor(z / blocksPerTile);
-    
-    return { tileX, tileZ, blocksPerTile };
-}
+// Leaflet map instance (reused across dialog opens)
+let leafletMap: L.Map | null = null;
 
 /**
- * Get tile path for a world
+ * Initialize or update the Leaflet map
  */
-function getTilePath(world: string, tileX: number, tileZ: number): string {
-    const worldId = world.includes('nether') ? 'the_nether'
-        : world.includes('end') ? 'the_end'
-        : 'overworld';
-    return `tiles/${worldId}/${tileX}_${tileZ}.png`;
-}
-
-/**
- * Calculate marker position within the 3x3 grid
- * Returns percentage positions (0-100) for CSS across the full grid
- */
-function getMarkerPosition(x: number, z: number, blocksPerTile: number): { left: number; top: number } {
-    const tileX = Math.floor(x / blocksPerTile);
-    const tileZ = Math.floor(z / blocksPerTile);
-    
-    // Position within the center tile (0 to blocksPerTile)
-    const offsetX = x - (tileX * blocksPerTile);
-    const offsetZ = z - (tileZ * blocksPerTile);
-    
-    // Convert to percentage within center tile (0-100)
-    const tilePercent = (offsetX / blocksPerTile) * 100;
-    const tilePercentZ = (offsetZ / blocksPerTile) * 100;
-    
-    // Center tile is in the middle of 3x3 grid, so add 33.33% offset
-    // Each tile takes up 33.33% of the grid
-    const left = 33.33 + (tilePercent / 3);
-    const top = 33.33 + (tilePercentZ / 3);
-    
-    return { left, top };
-}
-
 function openMapDialog(x: number, y: number, z: number, world: string): void {
     const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
-    const gridEl = document.getElementById('map-grid');
-    const markerEl = document.getElementById('map-marker');
+    const container = document.getElementById('map-container');
     const coordsEl = document.getElementById('map-coords');
     
-    if (!dialog || !gridEl || !markerEl || !coordsEl) {
+    if (!dialog || !container || !coordsEl) {
         return;
     }
     
-    const { tileX, tileZ, blocksPerTile } = getTileCoords(x, z);
-    const { left, top } = getMarkerPosition(x, z, blocksPerTile);
-    
-    // Build 3x3 grid of tiles
-    let tilesHtml = '';
-    for (let dz = -1; dz <= 1; dz++) {
-        for (let dx = -1; dx <= 1; dx++) {
-            const tilePath = getTilePath(world, tileX + dx, tileZ + dz);
-            tilesHtml += `<div class="map-tile" style="background-image: url('${tilePath}')"></div>`;
-        }
-    }
-    gridEl.innerHTML = tilesHtml;
-    
-    // Position marker
-    markerEl.style.left = `${left}%`;
-    markerEl.style.top = `${top}%`;
+    const worldId = getWorldId(world);
     
     // Show coordinates
-    const worldDisplay = world.includes('nether') ? 'Nether'
-        : world.includes('end') ? 'The End'
-        : 'Overworld';
+    let worldDisplay = 'Overworld';
+    if (world.includes('nether')) {
+        worldDisplay = 'Nether';
+    } else if (world.includes('end')) {
+        worldDisplay = 'The End';
+    }
     coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
     
+    // Calculate which tile this shop is on and position within it
+    const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
+    const { offsetX, offsetZ } = getTileOffset(x, z, MAP_CONFIG.tileSize);
+    
+    // Show dialog first so container has dimensions
     dialog.showModal();
+    
+    // Wait for dialog to render
+    requestAnimationFrame(() => {
+        // Destroy old map if it exists (cleaner than reusing)
+        if (leafletMap) {
+            try {
+                leafletMap.remove();
+            } catch {
+                // Map already removed
+            }
+            leafletMap = null;
+        }
+        
+        // Create map with CRS.Simple
+        // We'll set bounds to show a 3x3 tile area centered on the shop's tile
+        leafletMap = L.map(container, {
+            crs: L.CRS.Simple,
+            minZoom: -2,   // Will be set dynamically
+            maxZoom: 2,    // Allow zooming in
+            zoomControl: true,
+            attributionControl: false,
+            maxBoundsViscosity: 1.0,  // Prevent panning outside bounds (no rubber band)
+            zoomSnap: 0,   // Allow fractional zoom levels
+            zoomDelta: 0.5 // Zoom step when using buttons
+        });
+        
+        // Add tiles in a 3x3 grid around the shop's tile
+        // Each tile is placed as an ImageOverlay at its correct bounds
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const tx = tileX + dx;
+                const tz = tileZ + dy;
+                const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${tx}_${tz}.png`;
+                
+                // In CRS.Simple, bounds are [[south, west], [north, east]]
+                // We want tile at (dx, dy) relative to center (0,0)
+                // Each tile is 512 units
+                const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+                const north = -dy * MAP_CONFIG.tileSize;
+                const west = dx * MAP_CONFIG.tileSize;
+                const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+                
+                L.imageOverlay(tileUrl, [[south, west], [north, east]]).addTo(leafletMap);
+            }
+        }
+        
+        // Marker position relative to center tile
+        // Center tile is at bounds [[-512, 0], [0, 512]]
+        // Shop offset within tile: offsetX (0-512), offsetZ (0-512)
+        // In CRS.Simple: x = offsetX, y = -offsetZ (invert for screen coords)
+        const markerLat = -offsetZ;  // Y in CRS.Simple (negative = down)
+        const markerLng = offsetX;   // X in CRS.Simple
+        
+        const latLng = L.latLng(markerLat, markerLng);
+        
+        // Use circleMarker with pulsing effect via CSS
+        currentMarker = L.circleMarker(latLng, {
+            radius: 8,
+            className: 'leaflet-pulsing-marker',
+            color: '#ff0000',
+            fillColor: '#ff0000',
+            fillOpacity: 1,
+            weight: 2
+        }).addTo(leafletMap);
+        
+        // Define the exact 3x3 tile bounds
+        // Grid spans: lat from -1024 to 512, lng from -512 to 1024 (1536 x 1536 units)
+        const gridBounds = L.latLngBounds(
+            [-1024, -512],  // SW corner (bottom-left)
+            [512, 1024]     // NE corner (top-right)
+        );
+        
+        // Center of 3x3 grid
+        const gridCenter = L.latLng(-256, 256);
+        
+        leafletMap.invalidateSize();
+        
+        // Calculate exact zoom to fit grid in container
+        const containerSize = leafletMap.getSize();
+        const gridSize = MAP_CONFIG.tileSize * 3;  // 3 tiles × 512 units
+        const smallerDimension = Math.min(containerSize.x, containerSize.y);
+        
+        // Calculate exact zoom needed to fit grid
+        const exactZoom = calculateFitZoom(smallerDimension, gridSize);
+        
+        // Round up slightly to ensure no panning at min zoom
+        const minZoom = Math.ceil(exactZoom * 100) / 100;
+        
+        // Set this as the minimum zoom
+        leafletMap.setMinZoom(minZoom);
+        leafletMap.setMaxBounds(gridBounds);
+        
+        // Set view centered on grid at calculated zoom
+        leafletMap.setView(gridCenter, minZoom);
+    });
 }
 
 // ============================================================================

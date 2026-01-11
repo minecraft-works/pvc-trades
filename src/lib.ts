@@ -785,3 +785,49 @@ export function getTrustedItemValue(
 
     return null;
 }
+
+// ============================================================================
+// Map Utilities
+// ============================================================================
+
+/**
+ * Get world ID for tile URL from world name
+ */
+export function getWorldId(world: string): string {
+    if (world.includes('nether')) {
+        return 'the_nether';
+    }
+    if (world.includes('end')) {
+        return 'the_end';
+    }
+    return 'overworld';
+}
+
+/**
+ * Calculate which tile contains the given coordinates
+ */
+export function getTileCoords(x: number, z: number, tileSize: number = 512): { tileX: number; tileZ: number } {
+    return {
+        tileX: Math.floor(x / tileSize),
+        tileZ: Math.floor(z / tileSize)
+    };
+}
+
+/**
+ * Calculate offset within a tile (0 to tileSize-1)
+ */
+export function getTileOffset(x: number, z: number, tileSize: number = 512): { offsetX: number; offsetZ: number } {
+    const { tileX, tileZ } = getTileCoords(x, z, tileSize);
+    return {
+        offsetX: x - tileX * tileSize,
+        offsetZ: z - tileZ * tileSize
+    };
+}
+
+/**
+ * Calculate zoom level needed to fit a given size in a container
+ * In CRS.Simple: pixels = units × 2^zoom
+ */
+export function calculateFitZoom(containerSize: number, contentSize: number): number {
+    return Math.log2(containerSize / contentSize);
+}
