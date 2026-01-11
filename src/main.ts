@@ -254,9 +254,9 @@ function renderHeader(): void {
         <span class="col header" data-col="result-name" data-label="I need">I need</span>
         <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
         <span class="col header" data-col="cost-name" data-label="I give">I give</span>
+        <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
-        <span class="col header dev-header" data-col="dev" data-label="Dev" title="Deviation from expected price">Dev</span>
-        <span class="col world-header" title="World">W</span>
+        <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
         <span class="col coord">X</span>
         <span class="col coord">Y</span>
         <span class="col coord">Z</span>
@@ -301,14 +301,23 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRe
         const devClass = dev && dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
         const devText = dev ? dev.text : '';
 
+        // Abbreviate world names: O=Overworld, N=Nether, E=End
+        const worldLower = t.world.toLowerCase();
+        const worldAbbrev = worldLower.includes('nether') ? 'N' 
+            : worldLower.includes('end') ? 'E' 
+            : 'O';
+        const worldTitle = worldAbbrev === 'N' ? 'The Nether' 
+            : worldAbbrev === 'E' ? 'The End' 
+            : 'Overworld';
+
         html.push(`<div class="trade-row">
             <span class="col result-amt">${showAmount}</span>
             <span class="col result-name">${resultDisplay}</span>
             <span class="col cost-amt">${costAmt}</span>
             <span class="col cost-name">${costDisplay}</span>
-            <span class="col stock ${stockClass}">${t.displayStock}</span>
             <span class="col dev ${devClass}">${devText}</span>
-            <span class="col coord world">${escapeHtml(t.world)}</span>
+            <span class="col stock ${stockClass}">${t.displayStock}</span>
+            <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
             <span class="col coord">${t.x}</span>
             <span class="col coord">${t.y}</span>
             <span class="col coord">${t.z}</span>

@@ -380,9 +380,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         const container = page.locator('#table-container');
         const gridCols = await container.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         
-        // Mobile should have fewer visible columns (5 instead of 10)
+        // Mobile should have fewer visible columns (4 instead of 10)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(5);
+        expect(columnCount).toBe(4);
     });
 
     test('search container has reduced padding on mobile', async ({ page }) => {

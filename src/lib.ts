@@ -429,6 +429,8 @@ export function sortResults(
                 av = ta.displayStock;
                 bv = tb.displayStock;
                 break;
+            case 'world':
+                return dir * ta.world.localeCompare(tb.world);
             default:
                 return 0;
         }
