@@ -110,7 +110,7 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 50px 70px 50px 50px 50px 50px;
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
     gap: 2px 0;
     contain: layout style;
 }
@@ -253,11 +253,6 @@ body {
 .col.world {
     justify-content: center;
     text-align: center;
-}
-
-.col.world-icon,
-.col.world-header {
-    cursor: help;
 }
 
 .world-block-icon {
@@ -423,15 +418,17 @@ mark {
     }
 
     #table-container {
-        grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr) 50px;
+        grid-template-columns: 40px minmax(80px, 1fr) 40px minmax(80px, 1fr);
     }
 
-    /* Hide Dev, World, X, Y, Z columns on mobile */
+    /* Hide Dev, Stock, World, X, Y, Z columns on mobile (show only first 4) */
+    #table-header .col:nth-child(5),
     #table-header .col:nth-child(6),
     #table-header .col:nth-child(7),
     #table-header .col:nth-child(8),
     #table-header .col:nth-child(9),
     #table-header .col:nth-child(10),
+    .trade-row .col:nth-child(5),
     .trade-row .col:nth-child(6),
     .trade-row .col:nth-child(7),
     .trade-row .col:nth-child(8),

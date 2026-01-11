@@ -149,7 +149,8 @@ export type SortColumn =
     | 'cost-amt' 
     | 'cost-name' 
     | 'stock' 
-    | 'dev';
+    | 'dev'
+    | 'world';
 
 export type SortDirection = 'asc' | 'desc';
 
