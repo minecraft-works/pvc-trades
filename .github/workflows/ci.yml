@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Lint TypeScript
         run: npm run lint
 
@@ -31,5 +34,8 @@ jobs:
       - name: Lint HTML
         run: npm run lint:html
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm test
+
+      - name: Run E2E layout tests
+        run: npm run test:e2e
