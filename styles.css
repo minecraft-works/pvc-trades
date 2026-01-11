@@ -463,7 +463,7 @@ mark {
     }
 
     .trade-row {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 94px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 100px;
     }
 
     /* Show mobile-coords column on mobile */
