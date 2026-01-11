@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     getTileCoords,
     getTileFilename,
+    getTilePath,
     getTileUrl,
     getWorldId,
     parseLocation,
@@ -73,6 +74,24 @@ describe('getTileFilename', () => {
     
     it('formats mixed coordinates', () => {
         expect(getTileFilename(-1, 5)).toBe('-1_5.png');
+    });
+});
+
+describe('getTilePath', () => {
+    it('formats pyramid path with positive coordinates', () => {
+        expect(getTilePath(8, 1, 2)).toBe('8/1/2.png');
+    });
+    
+    it('formats pyramid path with negative coordinates', () => {
+        expect(getTilePath(6, -3, -4)).toBe('6/-3/-4.png');
+    });
+    
+    it('formats pyramid path at zoom 1', () => {
+        expect(getTilePath(1, 0, 0)).toBe('1/0/0.png');
+    });
+    
+    it('formats pyramid path with mixed coordinates', () => {
+        expect(getTilePath(4, -1, 5)).toBe('4/-1/5.png');
     });
 });
 

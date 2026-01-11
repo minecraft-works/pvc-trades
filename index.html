@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://web.peacefulvanilla.club; img-src 'self' https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://web.peacefulvanilla.club; img-src 'self' https: data:;">
     <title>Shop Listings</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -30,11 +31,11 @@
     </dialog>
 
     <dialog id="map-dialog">
-        <div id="map-container">
-            <div id="map-grid"></div>
-            <div id="map-marker"></div>
-        </div>
-        <div id="map-coords"></div>
+        <header>
+            <span id="map-coords"></span>
+            <button id="close-map" aria-label="Close">&times;</button>
+        </header>
+        <div id="map-container"></div>
     </dialog>
 
     <script type="module" src="/src/main.ts"></script>

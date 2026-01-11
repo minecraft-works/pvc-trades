@@ -76,10 +76,17 @@ export function getTileCoords(
 }
 
 /**
- * Get tile filename from coordinates.
+ * Get tile filename from coordinates (legacy flat format).
  */
 export function getTileFilename(tileX: number, tileZ: number): string {
     return `${tileX}_${tileZ}.png`;
+}
+
+/**
+ * Get tile path in pyramid structure: {z}/{x}/{y}.png
+ */
+export function getTilePath(zoom: number, tileX: number, tileZ: number): string {
+    return `${zoom}/${tileX}/${tileZ}.png`;
 }
 
 /**
