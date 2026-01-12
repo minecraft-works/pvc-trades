@@ -27,3 +27,4 @@ tiles/**/*.png
 test-results/
 playwright-report/
 .lighthouseci/
+players.json

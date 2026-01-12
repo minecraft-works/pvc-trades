@@ -32,7 +32,10 @@ import {
     getTileCoords,
     getTileOffset,
     calculateFitZoom,
-    toLeafletCoords
+    toLeafletCoords,
+    toLeafletCoordsRelative,
+    fromLeafletCoordsRelative,
+    clampToCircle
 } from './lib.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 
@@ -923,5 +926,175 @@ describe('toLeafletCoords', () => {
         // At (300, 300) with tile size 256
         // tile (1, 1), offset (44, 44)
         expect(toLeafletCoords(300, 300, 256)).toEqual({ lat: -44, lng: 44 });
+    });
+});
+
+describe('toLeafletCoordsRelative', () => {
+    test('converts coords relative to center tile at origin', () => {
+        // Player at (100, 200), center tile is (0, 0)
+        // Center tile origin is (0, 0), so relative coords are (100, 200)
+        const result = toLeafletCoordsRelative(100, 200, 0, 0);
+        expect(result).toEqual({ lat: -200, lng: 100 });
+    });
+
+    test('converts coords relative to non-origin center tile', () => {
+        // Player at (600, 700), center tile is (1, 1)
+        // Center tile origin is (512, 512)
+        // Relative: x = 600 - 512 = 88, z = 700 - 512 = 188
+        const result = toLeafletCoordsRelative(600, 700, 1, 1);
+        expect(result).toEqual({ lat: -188, lng: 88 });
+    });
+
+    test('handles player in different tile than center', () => {
+        // Player at (1000, 1000), center tile is (0, 0)
+        // Center tile origin is (0, 0)
+        // Relative: x = 1000, z = 1000
+        const result = toLeafletCoordsRelative(1000, 1000, 0, 0);
+        expect(result).toEqual({ lat: -1000, lng: 1000 });
+    });
+
+    test('handles negative player coordinates', () => {
+        // Player at (-100, -200), center tile is (0, 0)
+        const result = toLeafletCoordsRelative(-100, -200, 0, 0);
+        expect(result).toEqual({ lat: 200, lng: -100 });
+    });
+
+    test('handles negative center tile', () => {
+        // Player at (0, 0), center tile is (-1, -1)
+        // Center tile origin is (-512, -512)
+        // Relative: x = 0 - (-512) = 512, z = 0 - (-512) = 512
+        const result = toLeafletCoordsRelative(0, 0, -1, -1);
+        expect(result).toEqual({ lat: -512, lng: 512 });
+    });
+
+    test('respects custom tile size', () => {
+        // Player at (300, 400), center tile is (1, 1), tile size 256
+        // Center tile origin is (256, 256)
+        // Relative: x = 300 - 256 = 44, z = 400 - 256 = 144
+        const result = toLeafletCoordsRelative(300, 400, 1, 1, 256);
+        expect(result).toEqual({ lat: -144, lng: 44 });
+    });
+});
+
+describe('fromLeafletCoordsRelative', () => {
+    test('converts origin coords back to world coords at tile 0,0', () => {
+        const result = fromLeafletCoordsRelative(0, 0, 0, 0);
+        expect(result).toEqual({ x: 0, z: 0 });
+    });
+
+    test('converts positive offset back to world coords', () => {
+        // lat = -200 means z offset = 200, lng = 100 means x offset = 100
+        const result = fromLeafletCoordsRelative(-200, 100, 0, 0);
+        expect(result).toEqual({ x: 100, z: 200 });
+    });
+
+    test('converts coords at non-zero tile center', () => {
+        // Center tile (1, 1) has origin at (512, 512)
+        // lat = -100, lng = 50 → x = 50 + 512 = 562, z = 100 + 512 = 612
+        const result = fromLeafletCoordsRelative(-100, 50, 1, 1);
+        expect(result).toEqual({ x: 562, z: 612 });
+    });
+
+    test('is inverse of toLeafletCoordsRelative', () => {
+        const x = 1234;
+        const z = 5678;
+        const tileX = 2;
+        const tileZ = 11;
+        
+        const leaflet = toLeafletCoordsRelative(x, z, tileX, tileZ);
+        const back = fromLeafletCoordsRelative(leaflet.lat, leaflet.lng, tileX, tileZ);
+        
+        expect(back.x).toBe(x);
+        expect(back.z).toBe(z);
+    });
+
+    test('handles negative world coords', () => {
+        const x = -500;
+        const z = -300;
+        
+        const leaflet = toLeafletCoordsRelative(x, z, 0, 0);
+        const back = fromLeafletCoordsRelative(leaflet.lat, leaflet.lng, 0, 0);
+        
+        expect(back.x).toBe(x);
+        expect(back.z).toBe(z);
+    });
+
+    test('rounds to nearest integer', () => {
+        // lat = -100.7, lng = 50.3 → should round to x=50, z=101
+        const result = fromLeafletCoordsRelative(-100.7, 50.3, 0, 0);
+        expect(result.x).toBe(50);
+        expect(result.z).toBe(101);
+    });
+});
+
+describe('clampToCircle', () => {
+    const centerLat = 0;
+    const centerLng = 0;
+    const radius = 100;
+
+    test('returns original point when inside circle', () => {
+        const result = clampToCircle(50, 50, centerLat, centerLng, radius);
+        expect(result.lat).toBe(50);
+        expect(result.lng).toBe(50);
+        expect(result.clamped).toBe(false);
+    });
+
+    test('returns original point when exactly on circle edge', () => {
+        // Point at (0, 100) is exactly on the circle
+        const result = clampToCircle(0, 100, centerLat, centerLng, radius);
+        expect(result.lat).toBe(0);
+        expect(result.lng).toBe(100);
+        expect(result.clamped).toBe(false);
+    });
+
+    test('returns original point at center', () => {
+        const result = clampToCircle(0, 0, centerLat, centerLng, radius);
+        expect(result.lat).toBe(0);
+        expect(result.lng).toBe(0);
+        expect(result.clamped).toBe(false);
+    });
+
+    test('clamps point outside circle to edge (right)', () => {
+        // Point at (0, 200) should clamp to (0, 100)
+        const result = clampToCircle(0, 200, centerLat, centerLng, radius);
+        expect(result.lat).toBeCloseTo(0, 5);
+        expect(result.lng).toBeCloseTo(100, 5);
+        expect(result.clamped).toBe(true);
+    });
+
+    test('clamps point outside circle to edge (diagonal)', () => {
+        // Point at (200, 200) should clamp to circle edge in that direction
+        // Distance from origin = sqrt(200^2 + 200^2) = 282.84
+        // Scale factor = 100 / 282.84 = 0.3536
+        // Clamped: (200 * 0.3536, 200 * 0.3536) ≈ (70.71, 70.71)
+        const result = clampToCircle(200, 200, centerLat, centerLng, radius);
+        expect(result.lat).toBeCloseTo(70.71, 1);
+        expect(result.lng).toBeCloseTo(70.71, 1);
+        expect(result.clamped).toBe(true);
+    });
+
+    test('clamps point outside circle to edge (negative)', () => {
+        // Point at (-300, 0) should clamp to (-100, 0)
+        const result = clampToCircle(-300, 0, centerLat, centerLng, radius);
+        expect(result.lat).toBeCloseTo(-100, 5);
+        expect(result.lng).toBeCloseTo(0, 5);
+        expect(result.clamped).toBe(true);
+    });
+
+    test('handles non-origin center', () => {
+        // Circle centered at (100, 100), radius 50
+        // Point at (200, 100) is 100 units away, should clamp to (150, 100)
+        const result = clampToCircle(200, 100, 100, 100, 50);
+        expect(result.lat).toBeCloseTo(150, 5);
+        expect(result.lng).toBeCloseTo(100, 5);
+        expect(result.clamped).toBe(true);
+    });
+
+    test('handles very far points correctly', () => {
+        // Very far point should still clamp to correct edge
+        const result = clampToCircle(10000, 0, centerLat, centerLng, radius);
+        expect(result.lat).toBeCloseTo(100, 5);
+        expect(result.lng).toBeCloseTo(0, 5);
+        expect(result.clamped).toBe(true);
     });
 });

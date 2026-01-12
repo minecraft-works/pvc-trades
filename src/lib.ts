@@ -847,3 +847,82 @@ export function toLeafletCoords(
         lng: offsetX
     };
 }
+
+/**
+ * Convert Minecraft world coordinates to Leaflet coords relative to a center tile.
+ * Used for placing markers (like players) relative to a shop's tile.
+ */
+export function toLeafletCoordsRelative(
+    x: number,
+    z: number,
+    centerTileX: number,
+    centerTileZ: number,
+    tileSize: number = 512
+): { lat: number; lng: number } {
+    // Calculate the block offset from the center tile's origin
+    const centerOriginX = centerTileX * tileSize;
+    const centerOriginZ = centerTileZ * tileSize;
+    
+    const relativeX = x - centerOriginX;
+    const relativeZ = z - centerOriginZ;
+    
+    return {
+        lat: -relativeZ,  // Invert Z for screen coords
+        lng: relativeX
+    };
+}
+
+/**
+ * Convert Leaflet coords back to Minecraft world coordinates relative to a center tile.
+ * Inverse of toLeafletCoordsRelative.
+ */
+export function fromLeafletCoordsRelative(
+    lat: number,
+    lng: number,
+    centerTileX: number,
+    centerTileZ: number,
+    tileSize: number = 512
+): { x: number; z: number } {
+    const centerOriginX = centerTileX * tileSize;
+    const centerOriginZ = centerTileZ * tileSize;
+    
+    return {
+        x: Math.round(lng + centerOriginX),
+        z: Math.round(-lat + centerOriginZ)  // Invert back from screen coords
+    };
+}
+
+/**
+ * Clamp a point to the edge of a circle if it's outside.
+ * Returns the original point if inside, or the nearest point on the circle edge if outside.
+ * 
+ * @param lat - Latitude (y coordinate)
+ * @param lng - Longitude (x coordinate) 
+ * @param centerLat - Circle center latitude
+ * @param centerLng - Circle center longitude
+ * @param radius - Circle radius in coordinate units
+ * @returns The clamped coordinates and whether the point was outside
+ */
+export function clampToCircle(
+    lat: number,
+    lng: number,
+    centerLat: number,
+    centerLng: number,
+    radius: number
+): { lat: number; lng: number; clamped: boolean } {
+    const dx = lng - centerLng;
+    const dy = lat - centerLat;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance <= radius) {
+        return { lat, lng, clamped: false };
+    }
+    
+    // Normalize and scale to circle edge
+    const scale = radius / distance;
+    return {
+        lat: centerLat + dy * scale,
+        lng: centerLng + dx * scale,
+        clamped: true
+    };
+}

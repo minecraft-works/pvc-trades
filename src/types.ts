@@ -255,6 +255,27 @@ export interface TradeInput {
 }
 
 // ============================================================================
+// Player Types
+// ============================================================================
+
+export interface PlayerPosition {
+    x: number;
+    y: number;
+    z: number;
+}
+
+export interface Player {
+    uuid: string;
+    name: string;
+    foreign: boolean;
+    position: PlayerPosition;
+}
+
+export interface PlayersData {
+    players: Player[];
+}
+
+// ============================================================================
 // Default Configuration
 // ============================================================================
 
