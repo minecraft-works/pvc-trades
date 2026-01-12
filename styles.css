@@ -71,8 +71,6 @@ body {
     top: 10px;
     z-index: 100;
     box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
-    contain: layout style; /* Isolate from rest of page to prevent full relayout on keyboard open */
-    will-change: transform;
 }
 
 .search-box {
@@ -115,28 +113,27 @@ body {
 #table-container {
     max-width: 1200px;
     margin: 0 auto;
+}
+
+/* Header row as its own grid */
+#table-header {
     display: grid;
     grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
     gap: 2px 0;
-    contain: layout style;
 }
 
-/* Wrappers use display: contents so children participate in parent grid */
-#table-header, #results {
-    display: contents;
+/* Results container for virtual scroller */
+#results {
+    display: block;
 }
 
 /* Each trade row is its own grid with matching columns */
-
-/* This enables content-visibility: auto to skip rendering off-screen rows */
 .trade-row {
     display: grid;
-    grid-column: 1 / -1;
+    margin-top: 2px; /* Gap between rows (was grid gap before) */
 
-    /* Match parent's column definition exactly */
+    /* Match header's column definition exactly */
     grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
-    content-visibility: auto;
-    contain-intrinsic-block-size: 32px;
     cursor: pointer;
 }
 
