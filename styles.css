@@ -440,8 +440,10 @@ mark {
     position: fixed;
     inset: 0;
     margin: auto;
-    width: min(80vw, 80vh, 768px);
-    height: min(80vw, 80vh, 768px);
+
+    /* Match table width behavior: min of viewport, table max-width, or square constraint */
+    width: min(calc(100vw - 20px), 80vh, 768px);
+    height: min(calc(100vw - 20px), 80vh, 768px);
     overflow: visible;
 }
 
@@ -645,12 +647,12 @@ mark {
     }
 
     /* Compact 7-column layout: #, name, #, name, deal, stock, coords */
-    #table-container {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 94px;
+    #table-header {
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 96px;
     }
 
     .trade-row {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 100px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 96px;
     }
 
     /* Show mobile-coords column on mobile */
@@ -660,6 +662,7 @@ mark {
         overflow: hidden;
         text-overflow: ellipsis;
         padding-left: 8px !important;
+        border-radius: 0 4px 4px 0;
     }
 
     /* Add inner padding between deal, stock, and coords for visual separation */
@@ -721,12 +724,21 @@ mark {
     }
 
     .trade-row > .col:last-child {
-        padding-right: 6px !important;
+        padding-right: 8px !important;
     }
 
-    /* Map dialog responsive */
+    /* mobile-coords is the visual last column (cols 8-11 are hidden) */
+    .trade-row > .col.mobile-coords {
+        padding-right: 8px !important;
+        border-radius: 0 4px 4px 0;
+    }
+
+    /* Map dialog responsive - shrink with viewport like table does */
     #map-dialog {
-        padding: 12px;
+        width: calc(100vw - 20px);
+        height: calc(100vw - 20px);
+        max-width: 90vh;
+        max-height: 90vh;
     }
 
     #map-coords {

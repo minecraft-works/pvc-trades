@@ -504,9 +504,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         expect(Math.abs(giveBox!.y - buttonBox!.y)).toBeLessThanOrEqual(2);
     });
 
-    test('table container adjusts columns for mobile', async ({ page }) => {
-        const container = page.locator('#table-container');
-        const gridCols = await container.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    test('table header adjusts columns for mobile', async ({ page }) => {
+        const header = page.locator('#table-header');
+        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         
         // Mobile shows 7 columns: #, name, #, name, deal, stock, coords
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
@@ -597,6 +597,52 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
                 `Mobile coords "${textContent}" text (${textWidth.toFixed(1)}px) should fit in available space (${availableWidth.toFixed(1)}px)`
             ).toBeLessThanOrEqual(availableWidth + 1);
         }
+    });
+
+    test('mobile header grid matches trade row grid', async ({ page }) => {
+        await showAllTrades(page);
+
+        const header = page.locator('#table-header');
+        const firstRow = page.locator('.trade-row').first();
+
+        const headerCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const rowCols = await firstRow.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+
+        // Both should have the same grid template (7 columns on mobile)
+        expect(headerCols).toBe(rowCols);
+    });
+
+    test('mobile-coords column has border-radius for rounded corners', async ({ page }) => {
+        await showAllTrades(page);
+
+        const mobileCoords = page.locator('.trade-row .col.mobile-coords').first();
+        const borderRadius = await mobileCoords.evaluate(el => getComputedStyle(el).borderRadius);
+
+        // Should have right-side border radius (0 4px 4px 0 computes to specific values)
+        expect(borderRadius).toMatch(/0px 4px 4px 0px/);
+    });
+
+    test('map dialog scales with viewport on mobile', async ({ page }) => {
+        await showAllTrades(page);
+
+        // Click on a trade row to open the map dialog
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        // Wait for dialog to be visible
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+
+        const box = await dialog.boundingBox();
+        expect(box).toBeTruthy();
+
+        // Dialog width should be based on viewport (100vw - 20px = 355px for 375px viewport)
+        // Allow some tolerance for padding/borders
+        expect(box!.width).toBeGreaterThan(300);
+        expect(box!.width).toBeLessThanOrEqual(375);
+
+        // Dialog should be square (width equals height)
+        expect(Math.abs(box!.width - box!.height)).toBeLessThanOrEqual(2);
     });
 });
 
@@ -777,6 +823,216 @@ test.describe('CSS Layout - Map Dialog', () => {
         await expect(dialog).toBeVisible();
         
         await page.locator('#close-map').click();
+        await expect(dialog).not.toBeVisible();
+    });
+});
+
+test.describe('Map Dialog - Leaflet Integration', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('map dialog initializes Leaflet container', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        const mapContainer = page.locator('#map-container');
+        await expect(mapContainer).toBeVisible();
+
+        // Wait for Leaflet to add its container class
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+    });
+
+    test('Leaflet map has zoom controls', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        // Wait for Leaflet container
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        const zoomIn = page.locator('.leaflet-control-zoom-in');
+        const zoomOut = page.locator('.leaflet-control-zoom-out');
+
+        await expect(zoomIn).toBeVisible();
+        await expect(zoomOut).toBeVisible();
+    });
+
+    test('map coordinates update when panning', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        const coords = page.locator('#map-coords');
+        const initialText = await coords.textContent();
+
+        // Simulate a pan by dragging
+        const mapContainer = page.locator('#map-container');
+        const box = await mapContainer.boundingBox();
+        if (box) {
+            const centerX = box.x + box.width / 2;
+            const centerY = box.y + box.height / 2;
+
+            await page.mouse.move(centerX, centerY);
+            await page.mouse.down();
+            await page.mouse.move(centerX + 100, centerY + 100, { steps: 10 });
+            await page.mouse.up();
+
+            // Wait for coords to update
+            await page.waitForTimeout(100);
+            const newText = await coords.textContent();
+
+            // Coordinates should have changed after panning
+            expect(newText).not.toBe(initialText);
+        }
+    });
+
+    test('shop pin marker is displayed on map', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        // Shop marker uses leaflet-pin-marker class
+        const shopMarker = page.locator('.leaflet-pin-marker');
+        await expect(shopMarker).toBeVisible({ timeout: 5000 });
+    });
+
+    test('zoom controls are functional', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        // Verify both zoom controls exist and are enabled
+        const zoomIn = page.locator('.leaflet-control-zoom-in');
+        const zoomOut = page.locator('.leaflet-control-zoom-out');
+
+        await expect(zoomIn).toBeVisible();
+        await expect(zoomOut).toBeVisible();
+
+        // Verify zoom controls are not disabled
+        await expect(zoomIn).not.toHaveAttribute('aria-disabled', 'true');
+    });
+});
+
+test.describe('Map Dialog - Player Markers Structure', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('Leaflet pane structure exists for markers', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        // Leaflet map pane (parent of all panes) should exist
+        const mapPane = page.locator('.leaflet-map-pane');
+        await expect(mapPane).toBeAttached();
+    });
+
+    test('dialog supports absolute positioned edge markers', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+
+        // Dialog position should support absolute positioned children
+        const position = await dialog.evaluate(el => getComputedStyle(el).position);
+        expect(position).toBe('fixed');
+    });
+
+    test('player name CSS class is defined', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        // Verify the CSS class exists
+        const hasPlayerNameStyle = await page.evaluate(() => {
+            const rules = Array.from(document.styleSheets)
+                .flatMap(s => {
+                    try { return Array.from(s.cssRules); }
+                    catch { return []; }
+                })
+                .filter(r => r.cssText.includes('.player-name'));
+            return rules.length > 0;
+        });
+        expect(hasPlayerNameStyle).toBe(true);
+    });
+
+    test('player edge marker CSS class is defined', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
+
+        // Verify the CSS class exists
+        const hasEdgeMarkerStyle = await page.evaluate(() => {
+            const rules = Array.from(document.styleSheets)
+                .flatMap(s => {
+                    try { return Array.from(s.cssRules); }
+                    catch { return []; }
+                })
+                .filter(r => r.cssText.includes('.player-edge-marker'));
+            return rules.length > 0;
+        });
+        expect(hasEdgeMarkerStyle).toBe(true);
+    });
+});
+
+test.describe('Map Dialog - Backdrop Close Behavior', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('dialog does not close when panning ends outside circle', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+
+        const mapContainer = page.locator('#map-container');
+        const box = await mapContainer.boundingBox();
+
+        if (box) {
+            const centerX = box.x + box.width / 2;
+            const centerY = box.y + box.height / 2;
+
+            // Start drag inside the map, release outside
+            await page.mouse.move(centerX, centerY);
+            await page.mouse.down();
+            await page.mouse.move(10, 10, { steps: 10 }); // Move to top-left corner (outside)
+            await page.mouse.up();
+
+            // Dialog should still be visible (pan started inside)
+            await expect(dialog).toBeVisible();
+        }
+    });
+
+    test('dialog closes only when click starts and ends outside', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+
+        // Click that starts and ends outside the dialog (backdrop)
+        await page.mouse.click(10, 10);
+
         await expect(dialog).not.toBeVisible();
     });
 });
