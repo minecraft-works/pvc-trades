@@ -31,6 +31,8 @@ import {
     toLeafletCoords
 } from './lib.js';
 
+import VirtualScroller from 'virtual-scroller/dom';
+
 import type {
     Trade,
     FilterResult,
@@ -104,6 +106,13 @@ let cachedRegex: RegExp | null = null;
 let cachedPattern = '';
 let searchDebounceTimer: number | null = null;
 const deviationCache = new Map<Trade, DeviationResult | null>();
+
+// Virtual scroller instance for performance
+let virtualScroller: VirtualScroller<FilterResult> | null = null;
+
+// Current regex patterns for highlighting (used by virtual scroller render)
+let currentWantRegex: RegExp | null = null;
+let currentGiveRegex: RegExp | null = null;
 
 // ============================================================================
 // Constants
@@ -329,60 +338,92 @@ function renderHeader(): void {
     updateSortArrows();
 }
 
+/**
+ * Create a trade row DOM element for a single result
+ */
+function createTradeRowElement(result: FilterResult): HTMLElement {
+    const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
+    const showName = displayName ?? t.resultName;
+    const showAmount = displayAmount ?? t.resultAmount;
+    const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
+
+    let costAmt = String(t.item1.amount);
+    let costName = t.costName;
+    if (t.item2) {
+        costAmt += '+' + t.item2.amount;
+        costName += ' + ' + formatName(t.item2);
+    }
+
+    const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
+    const resultDisplay = matchResult && currentWantRegex ? highlight(showName, currentWantRegex) : escapeHtml(showName);
+
+    const dev = getDeviation(t);
+    const devClass = dev && dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
+    const devText = dev ? dev.text : '';
+
+    // Abbreviate world names: O=Overworld, N=Nether, E=End
+    const worldLower = t.world.toLowerCase();
+    const worldAbbrev = worldLower.includes('nether') ? 'N' 
+        : worldLower.includes('end') ? 'E' 
+        : 'O';
+    const worldTitle = worldAbbrev === 'N' ? 'The Nether' 
+        : worldAbbrev === 'E' ? 'The End' 
+        : 'Overworld';
+
+    const row = document.createElement('div');
+    row.className = 'trade-row';
+    row.dataset['x'] = String(t.x);
+    row.dataset['y'] = String(t.y);
+    row.dataset['z'] = String(t.z);
+    row.dataset['world'] = t.world;
+    row.innerHTML = `
+        <span class="col result-amt">${showAmount}</span>
+        <span class="col result-name">${resultDisplay}</span>
+        <span class="col cost-amt">${costAmt}</span>
+        <span class="col cost-name">${costDisplay}</span>
+        <span class="col dev ${devClass}">${devText}</span>
+        <span class="col stock ${stockClass}">${t.displayStock}</span>
+        <span class="col coord mobile-coords" title="${t.x}, ${t.y}, ${t.z}">${t.x},${t.z}</span>
+        <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
+        <span class="col coord">${t.x}</span>
+        <span class="col coord">${t.y}</span>
+        <span class="col coord">${t.z}</span>
+    `;
+    return row;
+}
+
 function renderResults(results: FilterResult[], wantRegex: RegExp | null, giveRegex: RegExp | null): void {
     const container = getElement('results');
 
+    // Update global regex state for the row renderer
+    currentWantRegex = wantRegex;
+    currentGiveRegex = giveRegex;
+
+    // Handle empty results
     if (results.length === 0) {
+        // Clean up virtual scroller if it exists
+        if (virtualScroller) {
+            virtualScroller.stop();
+            virtualScroller = null;
+        }
         container.innerHTML = '<div class="no-results"><h2>No trades found</h2><p>Try a different search term</p></div>';
         return;
     }
 
-    const html: string[] = [];
-
-    for (const { trade: t, matchResult, matchCost, displayName, displayAmount } of results) {
-        const showName = displayName ?? t.resultName;
-        const showAmount = displayAmount ?? t.resultAmount;
-        const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
-
-        let costAmt = String(t.item1.amount);
-        let costName = t.costName;
-        if (t.item2) {
-            costAmt += '+' + t.item2.amount;
-            costName += ' + ' + formatName(t.item2);
-        }
-
-        const costDisplay = matchCost && giveRegex ? highlight(costName, giveRegex) : escapeHtml(costName);
-        const resultDisplay = matchResult && wantRegex ? highlight(showName, wantRegex) : escapeHtml(showName);
-
-        const dev = getDeviation(t);
-        const devClass = dev && dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
-        const devText = dev ? dev.text : '';
-
-        // Abbreviate world names: O=Overworld, N=Nether, E=End
-        const worldLower = t.world.toLowerCase();
-        const worldAbbrev = worldLower.includes('nether') ? 'N' 
-            : worldLower.includes('end') ? 'E' 
-            : 'O';
-        const worldTitle = worldAbbrev === 'N' ? 'The Nether' 
-            : worldAbbrev === 'E' ? 'The End' 
-            : 'Overworld';
-
-        html.push(`<div class="trade-row" data-x="${t.x}" data-y="${t.y}" data-z="${t.z}" data-world="${t.world}">
-            <span class="col result-amt">${showAmount}</span>
-            <span class="col result-name">${resultDisplay}</span>
-            <span class="col cost-amt">${costAmt}</span>
-            <span class="col cost-name">${costDisplay}</span>
-            <span class="col dev ${devClass}">${devText}</span>
-            <span class="col stock ${stockClass}">${t.displayStock}</span>
-            <span class="col coord mobile-coords" title="${t.x}, ${t.y}, ${t.z}">${t.x},${t.z}</span>
-            <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
-            <span class="col coord">${t.x}</span>
-            <span class="col coord">${t.y}</span>
-            <span class="col coord">${t.z}</span>
-        </div>`);
+    // Initialize or update virtual scroller
+    if (!virtualScroller) {
+        virtualScroller = new VirtualScroller(
+            container,
+            results,
+            createTradeRowElement,
+            {
+                getEstimatedItemHeight: () => 32,
+                getItemId: (item: FilterResult) => `${item.trade.x}-${item.trade.y}-${item.trade.z}-${item.trade.resultName}-${item.trade.costName}`
+            }
+        );
+    } else {
+        virtualScroller.setItems(results);
     }
-
-    container.innerHTML = html.join('');
 }
 
 // ============================================================================

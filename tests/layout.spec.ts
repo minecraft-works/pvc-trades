@@ -100,16 +100,18 @@ test.describe('CSS Layout - Table Structure', () => {
         await waitForAppReady(page);
     });
 
-    test('table container uses CSS grid layout', async ({ page }) => {
+    test('table container is block layout (virtual scroll compatible)', async ({ page }) => {
         const container = page.locator('#table-container');
         const display = await container.evaluate(el => getComputedStyle(el).display);
-        expect(display).toBe('grid');
+        expect(display).toBe('block');
     });
 
-    test('table container has 10 visible columns defined', async ({ page }) => {
-        const container = page.locator('#table-container');
-        const gridCols = await container.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+    test('table header uses CSS grid with 10 visible columns', async ({ page }) => {
+        const header = page.locator('#table-header');
+        const display = await header.evaluate(el => getComputedStyle(el).display);
+        expect(display).toBe('grid');
         
+        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         // Should have 10 column values (mobile-coords is hidden on desktop)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
         expect(columnCount).toBe(10);
@@ -381,21 +383,17 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(fontFamily.toLowerCase()).toContain('monospace');
     });
 
-    test('trade rows use content-visibility for off-screen rendering optimization', async ({ page }) => {
+    test('trade rows use virtual scrolling (no content-visibility needed)', async ({ page }) => {
+        // Virtual scrolling is used instead of content-visibility
+        // Verify that #results is a block element that can receive padding from virtual scroller
+        const results = page.locator('#results');
+        const display = await results.evaluate(el => getComputedStyle(el).display);
+        expect(display).toBe('block');
+        
+        // Each trade row should be a grid for column layout
         const row = page.locator('.trade-row').first();
-        
-        // Verify content-visibility: auto is applied (skips rendering off-screen rows)
-        const contentVisibility = await row.evaluate(el => 
-            getComputedStyle(el).contentVisibility
-        );
-        expect(contentVisibility).toBe('auto');
-        
-        // Verify contain-intrinsic-block-size is set (placeholder height for stable scrolling)
-        const intrinsicSize = await row.evaluate(el => 
-            getComputedStyle(el).containIntrinsicBlockSize
-        );
-        // Computed value may be "32px" or "auto 32px" depending on browser
-        expect(intrinsicSize).toContain('32px');
+        const rowDisplay = await row.evaluate(el => getComputedStyle(el).display);
+        expect(rowDisplay).toBe('grid');
     });
 });
 
