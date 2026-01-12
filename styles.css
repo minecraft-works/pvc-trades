@@ -505,7 +505,29 @@ mark {
 #map-container .leaflet-tile,
 #map-container .leaflet-image-layer {
     image-rendering: pixelated;
-    image-rendering: crisp-edges;  /* Firefox fallback */
+    image-rendering: crisp-edges;
+
+    /* Reduce moiré during panning by promoting to GPU layer */
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+}
+
+/* When zoomed out, use smooth rendering to avoid moiré */
+#map-container.zoomed-out .leaflet-tile,
+#map-container.zoomed-out .leaflet-image-layer {
+    image-rendering: auto;
+}
+
+/* Prevent tile container sub-pixel positioning */
+#map-container .leaflet-tile-container {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* Reduce pane jitter */
+#map-container .leaflet-map-pane {
+    transform: translate3d(0, 0, 0);
 }
 
 /* Leaflet controls styling */
@@ -537,7 +559,7 @@ mark {
     border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 
-/* Simple pin marker */
+/* Simple pin marker for shop */
 .leaflet-pin-marker {
     width: 24px;
     height: 24px;
@@ -548,6 +570,47 @@ mark {
     box-shadow:
         3px 3px 2px rgb(0 0 0 / 80%),
         5px 5px 8px rgb(0 0 0 / 60%);
+}
+
+/* Player markers */
+.leaflet-player-marker {
+    width: 12px;
+    height: 12px;
+    background: #4caf50;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
+}
+
+/* Player name label (shared between map and edge markers) */
+.player-name {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: #fff;
+    background: rgb(0 0 0 / 70%);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Player markers on circle edge (outside map, as DOM elements) */
+.player-edge-marker {
+    position: absolute;
+
+    /* width and height set dynamically based on distance */
+    background: #ff9800;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    pointer-events: auto;
+    opacity: 0.9;
 }
 
 /* Mobile: show all columns in compressed form */

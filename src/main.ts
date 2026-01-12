@@ -28,7 +28,10 @@ import {
     getWorldId,
     getTileCoords,
     calculateFitZoom,
-    toLeafletCoords
+    toLeafletCoords,
+    toLeafletCoordsRelative,
+    fromLeafletCoordsRelative,
+    clampToCircle
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -41,7 +44,9 @@ import type {
     MappingRule,
     ShopData,
     SortColumn,
-    SortState
+    SortState,
+    Player,
+    PlayersData
 } from './types.js';
 
 import * as L from 'leaflet';
@@ -62,19 +67,31 @@ interface DeviationResult {
 
 /**
  * Set up a dialog to close when clicking on backdrop (outside the dialog box)
+ * Only closes if both mousedown and mouseup happen outside the dialog,
+ * preventing accidental closes when panning a map and releasing outside.
  */
 function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
-    dialog.addEventListener('click', e => {
+    let mouseDownOutside = false;
+    
+    const isOutsideDialog = (e: MouseEvent): boolean => {
         const rect = dialog.getBoundingClientRect();
-        const clickedInDialog = (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
+        return (
+            e.clientX < rect.left ||
+            e.clientX > rect.right ||
+            e.clientY < rect.top ||
+            e.clientY > rect.bottom
         );
-        if (!clickedInDialog) {
+    };
+    
+    dialog.addEventListener('mousedown', e => {
+        mouseDownOutside = isOutsideDialog(e);
+    });
+    
+    dialog.addEventListener('click', e => {
+        if (mouseDownOutside && isOutsideDialog(e)) {
             dialog.close();
         }
+        mouseDownOutside = false;
     });
 }
 
@@ -522,16 +539,48 @@ function renderMatrix(): void {
 const MAP_CONFIG = {
     tileSize: 512,  // pixels per tile (and blocks per tile)
     baseUrl: 'tiles',
-    zoom: 8  // zoom level for pyramid tile path
+    zoom: 8,  // zoom level for pyramid tile path
+    playersUrl: 'players.json'  // Local fallback; production uses worker URL
 };
 
 // Leaflet map instance (reused across dialog opens)
 let leafletMap: L.Map | null = null;
 
+// Layer group for player markers (to clear/update on pan/zoom)
+let playerMarkersLayer: L.LayerGroup | null = null;
+
+// Cached player data
+let cachedPlayers: Player[] = [];
+
+// Player refresh interval (cleared when dialog closes)
+let playerRefreshInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Fetch player positions from API
+ * Returns empty array if fetch fails (no dots shown)
+ */
+async function fetchPlayers(): Promise<Player[]> {
+    try {
+        const response = await fetch('https://pvc-players.minecraft-works.workers.dev', {
+            signal: AbortSignal.timeout(3000)
+        });
+        if (response.ok) {
+            const data = (await response.json()) as PlayersData;
+            cachedPlayers = data.players || [];
+            return cachedPlayers;
+        }
+    } catch (error) {
+        console.warn('Failed to fetch players:', error);
+    }
+    // Return empty on failure - no dots shown
+    cachedPlayers = [];
+    return cachedPlayers;
+}
+
 /**
  * Initialize or update the Leaflet map
  */
-function openMapDialog(x: number, y: number, z: number, world: string): void {
+async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
     const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
     const container = document.getElementById('map-container');
     const coordsEl = document.getElementById('map-coords');
@@ -551,12 +600,26 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
     }
     coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
     
+    // Clear any existing player refresh interval
+    if (playerRefreshInterval) {
+        clearInterval(playerRefreshInterval);
+        playerRefreshInterval = null;
+    }
+
     // Ensure close button is set up
     const closeBtn = dialog.querySelector('#close-map');
     if (closeBtn && !closeBtn.hasAttribute('data-initialized')) {
         closeBtn.setAttribute('data-initialized', 'true');
         closeBtn.addEventListener('click', () => dialog.close());
     }
+
+    // Clear player refresh interval when dialog closes
+    dialog.addEventListener('close', () => {
+        if (playerRefreshInterval) {
+            clearInterval(playerRefreshInterval);
+            playerRefreshInterval = null;
+        }
+    }, { once: true });
     
     // Calculate which tile this shop is on
     const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
@@ -615,7 +678,7 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
         
         const latLng = L.latLng(markerLat, markerLng);
         
-        // Simple pin marker
+        // Simple pin marker for the shop
         L.marker(latLng, {
             icon: L.divIcon({
                 className: 'leaflet-pin-marker',
@@ -623,6 +686,167 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
                 iconAnchor: [4, 24]  // Bottom-left corner of pin points to location
             })
         }).addTo(leafletMap);
+        
+        // Create layer group for player markers
+        playerMarkersLayer = L.layerGroup().addTo(leafletMap);
+        
+        /**
+         * Update the coordinate label to show current map center
+         */
+        const updateCoordsLabel = (): void => {
+            if (!leafletMap) {return;}
+            const mapCenter = leafletMap.getCenter();
+            const mcCoords = fromLeafletCoordsRelative(
+                mapCenter.lat,
+                mapCenter.lng,
+                tileX,
+                tileZ,
+                MAP_CONFIG.tileSize
+            );
+            coordsEl.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
+        };
+        
+        /**
+         * Update player markers based on current viewport.
+         * Players inside the visible circle appear on the map.
+         * Players outside appear as DOM elements on the circle edge.
+         * Only shows players if the map is showing the overworld (all players assumed to be in overworld).
+         */
+        const updatePlayerMarkers = (): void => {
+            // Clear existing markers first
+            playerMarkersLayer?.clearLayers();
+            const existingEdgeMarkers = dialog.querySelectorAll('.player-edge-marker');
+            existingEdgeMarkers.forEach(el => el.remove());
+            
+            // Only show players in overworld (all players are assumed to be in overworld for now)
+            if (worldId !== 'overworld' || !leafletMap || cachedPlayers.length === 0) {return;}
+            
+            // Get current map center in Leaflet coords
+            const mapCenter = leafletMap.getCenter();
+            
+            // Calculate visible radius in map units based on current zoom
+            // The container is circular, so visible radius = half the smaller container dimension
+            const containerRect = container.getBoundingClientRect();
+            const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
+            
+            // Convert container pixels to map units at current zoom
+            const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
+            const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
+            const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
+            
+            // Edge marker positioning (in screen space)
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+            const edgeRadius = containerRect.width / 2 + 8;  // Slightly outside the circle
+            
+            for (const player of cachedPlayers) {
+                // Convert player Minecraft coords to Leaflet coords relative to shop's tile
+                const playerCoords = toLeafletCoordsRelative(
+                    player.position.x,
+                    player.position.z,
+                    tileX,
+                    tileZ,
+                    MAP_CONFIG.tileSize
+                );
+                
+                // Check if player is inside visible circle (centered on current map view)
+                const clamped = clampToCircle(
+                    playerCoords.lat,
+                    playerCoords.lng,
+                    mapCenter.lat,
+                    mapCenter.lng,
+                    visibleRadiusMapUnits
+                );
+                
+                if (clamped.clamped) {
+                    // Player is outside visible area - render as DOM element on circle edge
+                    // Calculate angle from map center to player
+                    const dx = playerCoords.lng - mapCenter.lng;
+                    const dy = playerCoords.lat - mapCenter.lat;
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Calculate distance for size scaling (logarithmic)
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    // Use log scale: closer = larger, further = smaller
+                    // minSize = 4px, maxSize = 12px
+                    // At visibleRadius distance, size = 12px; at 100x that, size = 4px
+                    const minSize = 4;
+                    const maxSize = 12;
+                    const logScale = Math.log10(distance / visibleRadiusMapUnits + 1);
+                    const size = Math.max(minSize, maxSize - logScale * 4);
+                    
+                    // Position on circle edge (CSS uses inverted Y)
+                    const edgeX = centerX + edgeRadius * Math.cos(angle);
+                    const edgeY = centerY - edgeRadius * Math.sin(angle);  // Invert Y for screen coords
+                    
+                    const edgeMarker = document.createElement('div');
+                    edgeMarker.className = 'player-edge-marker';
+                    edgeMarker.title = player.name;
+                    edgeMarker.style.left = `${edgeX}px`;
+                    edgeMarker.style.top = `${edgeY}px`;
+                    edgeMarker.style.width = `${size}px`;
+                    edgeMarker.style.height = `${size}px`;
+                    
+                    const nameLabel = document.createElement('span');
+                    nameLabel.className = 'player-name';
+                    nameLabel.textContent = player.name;
+                    edgeMarker.appendChild(nameLabel);
+                    
+                    dialog.appendChild(edgeMarker);
+                } else {
+                    // Player is inside visible area - render as Leaflet marker
+                    const playerLatLng = L.latLng(playerCoords.lat, playerCoords.lng);
+                    
+                    L.marker(playerLatLng, {
+                        icon: L.divIcon({
+                            className: 'leaflet-player-marker',
+                            html: `<span class="player-name">${player.name}</span>`,
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6]  // Center of marker
+                        }),
+                        title: player.name
+                    }).addTo(playerMarkersLayer!);
+                }
+            }
+        };
+        
+        // Fetch players and set up dynamic updates
+        fetchPlayers().then(players => {
+            if (!leafletMap) {return;}
+            cachedPlayers = players;
+            updatePlayerMarkers();
+        });
+
+        // Refresh player positions every 5 seconds
+        playerRefreshInterval = setInterval(() => {
+            fetchPlayers().then(players => {
+                if (!leafletMap) {return;}
+                cachedPlayers = players;
+                updatePlayerMarkers();
+            });
+        }, 5000);
+        
+        // Toggle zoomed-out class based on zoom level for image rendering
+        const updateZoomClass = () => {
+            const zoom = leafletMap!.getZoom();
+            // When zoom is below 0.5, we're zoomed out enough that pixelated causes moiré
+            if (zoom < 0.5) {
+                container.classList.add('zoomed-out');
+            } else {
+                container.classList.remove('zoomed-out');
+            }
+        };
+
+        // Update coordinate label and player markers when map is panned or zoomed
+        leafletMap.on('move', () => {
+            updateCoordsLabel();
+            updatePlayerMarkers();
+        });
+        leafletMap.on('zoomend', () => {
+            updateCoordsLabel();
+            updatePlayerMarkers();
+            updateZoomClass();
+        });
         
         // Define the exact 5x5 tile bounds (for panning limits)
         // Grid spans: lat from -1536 to 1024, lng from -1024 to 1536 (2560 x 2560 units)
@@ -655,6 +879,9 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
         
         // Set view centered on shop at initial zoom (showing ~3x3 tiles)
         leafletMap.setView(shopCenter, initialZoom);
+        
+        // Apply initial zoom class
+        updateZoomClass();
     });
 }
 
