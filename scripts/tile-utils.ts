@@ -169,9 +169,9 @@ export function getUniqueTiles(
         const world = shop.world.replace('minecraft:', '');
         const { tileX, tileZ, blocksPerTile } = getTileCoords(x, z, zoom, maxZoom, tileSize);
         
-        // Add the center tile and all 8 neighbors (3x3 grid)
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dz = -1; dz <= 1; dz++) {
+        // Add the center tile and all 24 neighbors (5x5 grid)
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dz = -2; dz <= 2; dz++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dz;
                 const key = `${world}/${tx}_${tz}`;

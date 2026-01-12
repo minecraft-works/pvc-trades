@@ -711,6 +711,74 @@ test.describe('CSS Layout - Map Dialog', () => {
         await page.mouse.click(10, 10);
         await expect(dialog).not.toBeVisible();
     });
+
+    test('map dialog has circular styling', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        
+        const container = page.locator('#map-container');
+        await expect(container).toBeVisible();
+        
+        const borderRadius = await container.evaluate(el => getComputedStyle(el).borderRadius);
+        expect(borderRadius).toBe('50%');
+        
+        const overflow = await container.evaluate(el => getComputedStyle(el).overflow);
+        expect(overflow).toBe('hidden');
+    });
+
+    test('map dialog has square aspect ratio', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        
+        const container = page.locator('#map-container');
+        const box = await container.boundingBox();
+        expect(box).not.toBeNull();
+        
+        // Width and height should be equal (square for circular display)
+        expect(box!.width).toBeCloseTo(box!.height, 1);
+    });
+
+    test('map dialog close button is positioned in top-right', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        
+        const closeBtn = page.locator('#close-map');
+        await expect(closeBtn).toBeVisible();
+        
+        const position = await closeBtn.evaluate(el => getComputedStyle(el).position);
+        expect(position).toBe('absolute');
+        
+        const btnBox = await closeBtn.boundingBox();
+        const dialogBox = await page.locator('#map-dialog').boundingBox();
+        expect(btnBox).not.toBeNull();
+        expect(dialogBox).not.toBeNull();
+        
+        // Close button should be near top-right of dialog
+        expect(btnBox!.x + btnBox!.width).toBeCloseTo(dialogBox!.x + dialogBox!.width - 8, 10);
+    });
+
+    test('map dialog shows coordinates label', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        
+        const coords = page.locator('#map-coords');
+        await expect(coords).toBeVisible();
+        
+        // Should show world and coordinates
+        const text = await coords.textContent();
+        expect(text).toMatch(/\w+:\s*-?\d+,\s*-?\d+,\s*-?\d+/);
+    });
+
+    test('map dialog closes via close button', async ({ page }) => {
+        const firstRow = page.locator('.trade-row').first();
+        await firstRow.click();
+        
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+        
+        await page.locator('#close-map').click();
+        await expect(dialog).not.toBeVisible();
+    });
 });
 
 test.describe('CSS Layout - Visual Invariants', () => {

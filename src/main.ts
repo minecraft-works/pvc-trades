@@ -589,10 +589,10 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
             zoomDelta: 0.5 // Zoom step when using buttons
         });
         
-        // Add tiles in a 3x3 grid around the shop's tile
+        // Add tiles in a 5x5 grid around the shop's tile
         // Each tile is placed as an ImageOverlay at its correct bounds
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dy;
                 const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
@@ -624,35 +624,37 @@ function openMapDialog(x: number, y: number, z: number, world: string): void {
             })
         }).addTo(leafletMap);
         
-        // Define the exact 3x3 tile bounds
-        // Grid spans: lat from -1024 to 512, lng from -512 to 1024 (1536 x 1536 units)
+        // Define the exact 5x5 tile bounds (for panning limits)
+        // Grid spans: lat from -1536 to 1024, lng from -1024 to 1536 (2560 x 2560 units)
         const gridBounds = L.latLngBounds(
-            [-1024, -512],  // SW corner (bottom-left)
-            [512, 1024]     // NE corner (top-right)
+            [-1536, -1024],  // SW corner (bottom-left)
+            [1024, 1536]     // NE corner (top-right)
         );
         
-        // Center of 3x3 grid
-        const gridCenter = L.latLng(-256, 256);
+        // Center on the shop's position (marker coords)
+        const shopCenter = L.latLng(markerLat, markerLng);
         
         leafletMap.invalidateSize();
         
-        // Calculate exact zoom to fit grid in container
+        // Calculate zoom to show ~3x3 tiles (1536 units) for nice initial view
+        // while having 5x5 tiles loaded for panning buffer
         const containerSize = leafletMap.getSize();
-        const gridSize = MAP_CONFIG.tileSize * 3;  // 3 tiles × 512 units
+        const visibleSize = MAP_CONFIG.tileSize * 3;  // Show 3 tiles × 512 units
         const smallerDimension = Math.min(containerSize.x, containerSize.y);
         
-        // Calculate exact zoom needed to fit grid
-        const exactZoom = calculateFitZoom(smallerDimension, gridSize);
+        // Calculate zoom to fit visible area (3x3)
+        const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
         
-        // Round up slightly to ensure no panning at min zoom
-        const minZoom = Math.ceil(exactZoom * 100) / 100;
+        // Min zoom fits full 5x5 grid (for zoom out limit)
+        const gridSize = MAP_CONFIG.tileSize * 5;
+        const minZoom = calculateFitZoom(smallerDimension, gridSize);
         
-        // Set this as the minimum zoom
+        // Set zoom limits
         leafletMap.setMinZoom(minZoom);
         leafletMap.setMaxBounds(gridBounds);
         
-        // Set view centered on grid at calculated zoom
-        leafletMap.setView(gridCenter, minZoom);
+        // Set view centered on shop at initial zoom (showing ~3x3 tiles)
+        leafletMap.setView(shopCenter, initialZoom);
     });
 }
 
