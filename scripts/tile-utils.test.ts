@@ -227,10 +227,10 @@ describe('getUniqueTiles', () => {
         expect(result).toEqual([]);
     });
     
-    it('returns 9 tiles (3x3 grid) for single shop', () => {
+    it('returns 25 tiles (5x5 grid) for single shop', () => {
         const shops = [{ location: '100, 64, 100', world: 'overworld' }];
         const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
-        expect(result).toHaveLength(9);
+        expect(result).toHaveLength(25);
     });
     
     it('deduplicates overlapping tiles from nearby shops', () => {
@@ -240,8 +240,8 @@ describe('getUniqueTiles', () => {
             { location: '200, 64, 200', world: 'overworld' }
         ];
         const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
-        // Both are in tile (0, 0), so we should get 9 tiles, not 18
-        expect(result).toHaveLength(9);
+        // Both are in tile (0, 0), so we should get 25 tiles, not 50
+        expect(result).toHaveLength(25);
     });
     
     it('separates tiles from different worlds', () => {
@@ -250,8 +250,8 @@ describe('getUniqueTiles', () => {
             { location: '100, 64, 100', world: 'nether' }
         ];
         const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
-        // 9 tiles for each world
-        expect(result).toHaveLength(18);
+        // 25 tiles for each world
+        expect(result).toHaveLength(50);
     });
     
     it('tracks shops only on center tile', () => {
