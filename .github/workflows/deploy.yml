@@ -71,8 +71,6 @@ jobs:
           path: public/tiles
           key: map-tiles-v4-pyramid
           restore-keys: |
-            map-tiles-v4-
-            map-tiles-v3-
             map-tiles-
 
       - name: Fetch map tiles (only missing)
