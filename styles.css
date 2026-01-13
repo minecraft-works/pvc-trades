@@ -587,7 +587,6 @@ mark {
 /* Player name label (shared between map and edge markers) */
 .player-name {
     position: absolute;
-    left: 16px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 0.65rem;
@@ -598,6 +597,35 @@ mark {
     border-radius: 3px;
     white-space: nowrap;
     pointer-events: none;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    left: 16px;
+    right: auto;
+}
+
+/* Label on left side (for markers on right edge) */
+.player-name.label-left {
+    left: auto;
+    right: 16px;
+}
+
+/* Label above (for markers near bottom edge) */
+.player-name.label-top {
+    top: auto;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+}
+
+/* Label below (for markers near top edge) */
+.player-name.label-bottom {
+    top: calc(100% + 4px);
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
 }
 
 /* Player markers on circle edge (outside map, as DOM elements) */
