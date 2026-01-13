@@ -479,34 +479,41 @@ mark {
 .cart-empty {
     text-align: center;
     color: var(--color-text-muted);
-    padding: 40px;
+    padding: 20px;
+    font-size: 0.85rem;
 }
 
 .cart-items {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .cart-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 4px 8px;
     background: var(--color-bg);
     border-radius: var(--border-radius);
-    margin-bottom: 8px;
+    margin-bottom: 2px;
 }
 
 .cart-item-info {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
     flex: 1;
     min-width: 0;
+    font-size: 0.8rem;
+}
+
+.cart-item-info strong {
+    font-weight: 500;
 }
 
 .cart-item-cost {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: var(--color-text-muted);
 }
 
@@ -519,13 +526,13 @@ mark {
 .cart-item-controls {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .qty-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 1rem;
+    width: 22px;
+    height: 22px;
+    font-size: 0.85rem;
     font-weight: 700;
     border: 1px solid var(--color-border);
     border-radius: 4px;
@@ -540,17 +547,18 @@ mark {
 }
 
 .qty-display {
-    min-width: 24px;
+    min-width: 20px;
     text-align: center;
     font-weight: 600;
+    font-size: 0.8rem;
 }
 
 .remove-btn {
     background: none;
     border: none;
-    font-size: 1rem;
+    font-size: 0.85rem;
     cursor: pointer;
-    padding: 4px;
+    padding: 2px;
     opacity: 0.6;
 }
 
@@ -561,20 +569,20 @@ mark {
 .cart-lists {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 .cart-list-section {
     background: var(--color-bg);
     border-radius: var(--border-radius);
-    padding: 12px;
+    padding: 8px;
 }
 
 .cart-list-section h3 {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: var(--color-text-muted);
 }
 
@@ -585,8 +593,8 @@ mark {
 }
 
 .cart-list-section li {
-    padding: 4px 0;
-    font-size: 0.9rem;
+    padding: 2px 0;
+    font-size: 0.75rem;
     border-bottom: 1px solid var(--color-border);
 }
 
@@ -597,73 +605,201 @@ mark {
 .cart-route-section {
     background: var(--color-bg);
     border-radius: var(--border-radius);
-    padding: 12px;
+    padding: 8px;
 }
 
 .cart-route-section h3 {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: var(--color-text-muted);
 }
 
 .route-distance {
-    font-size: 0.85rem;
-    color: var(--color-accent);
-    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 8px;
+    margin-bottom: 0;
+    padding: 6px 0 0 20px;
+    border-top: 1px solid var(--color-border);
 }
 
-.cart-route {
-    list-style: none;
+.dist-label {
+    /* Takes up the first column like stop-text */
+}
+
+.dist-ow,
+.dist-nether {
+    font-family: var(--font-mono);
+    text-align: right;
+    min-width: 10ch;
+}
+
+.dist-ow {
+    color: var(--color-good-deal);
+}
+
+.dist-nether {
+    color: var(--color-bad-deal);
+}
+
+/* Route Timeline - Compact style */
+.route-timeline {
+    display: flex;
+    flex-direction: column;
     padding: 0;
     margin: 0;
-    counter-reset: route-step;
+    gap: 0;
 }
 
-.route-stop {
+.timeline-stop {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 0;
-    font-size: 0.9rem;
-    border-bottom: 1px solid var(--color-border);
-    counter-increment: route-step;
+    align-items: flex-start;
+    min-height: 28px;
 }
 
-.route-stop::before {
-    content: counter(route-step);
+.timeline-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 20px;
+    flex-shrink: 0;
+    padding-top: 6px;
+    gap: 4px;
+}
+
+.timeline-dot {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 22px;
-    height: 22px;
-    background: var(--color-bg-secondary);
+    width: 12px;
+    height: 12px;
+    border: none;
     border-radius: 50%;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.route-stop:last-child {
-    border-bottom: none;
-}
-
-.route-stop.clickable {
-    cursor: pointer;
-}
-
-.route-stop.clickable:hover {
     background: var(--color-bg-secondary);
-    margin: 0 -12px;
-    padding-left: 12px;
-    padding-right: 12px;
+    color: var(--color-text-muted);
+    font-size: 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
 }
 
-.route-stop-portal {
-    color: #e879f9;
+.timeline-dot:hover:not(:disabled) {
+    background: var(--color-accent);
+    color: var(--color-bg);
 }
 
-.route-icon {
-    font-size: 1rem;
+.timeline-dot:disabled {
+    cursor: default;
+}
+
+.timeline-line {
+    width: 2px;
+    flex: 1;
+    background: var(--color-border);
+    min-height: 8px;
+}
+
+.timeline-stop:last-child .timeline-line {
+    display: none;
+}
+
+/* Completed: checkmark on muted background */
+.timeline-status-completed .timeline-dot {
+    background: var(--color-bg-secondary);
+    color: var(--color-accent);
+}
+
+/* Line only fills during active navigation (via .navigating class on timeline) */
+.route-timeline.navigating .timeline-status-completed .timeline-line {
+    background: var(--color-accent);
+}
+
+/* Current: muted background until navigation is active */
+.timeline-status-current .timeline-dot {
+    background: var(--color-bg-secondary);
+}
+
+/* During active navigation, current stop is filled accent */
+.route-timeline.navigating .timeline-status-current .timeline-dot {
+    background: var(--color-accent);
+}
+
+/* Pending: muted background */
+.timeline-status-pending .timeline-dot {
+    background: var(--color-bg-secondary);
+}
+
+.timeline-content {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    min-width: 0;
+}
+
+.timeline-content.clickable {
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    padding: 4px 6px;
+    margin: 0 -6px;
+}
+
+.timeline-content.clickable:hover {
+    background: var(--color-bg-secondary);
+}
+
+.stop-icon {
+    flex-shrink: 0;
+}
+
+.stop-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coord-ow,
+.coord-nether {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    text-align: right;
+    min-width: 10ch;
+}
+
+.coord-ow {
+    color: var(--color-good-deal);
+}
+
+.coord-nether {
+    color: var(--color-bad-deal);
+}
+
+
+/* Overworld shops are green */
+.timeline-stop-shop .timeline-content {
+    color: var(--color-good-deal);
+}
+
+/* Nether shops are red */
+.timeline-stop-nether .timeline-content {
+    color: var(--color-bad-deal);
+}
+
+.timeline-stop-nether.timeline-status-completed .timeline-dot {
+    color: var(--color-bad-deal);
+}
+
+.route-timeline.navigating .timeline-stop-nether.timeline-status-current .timeline-dot {
+    background: var(--color-bad-deal);
 }
 
 .cart-footer {

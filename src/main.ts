@@ -31,7 +31,6 @@ import {
     toLeafletCoordsRelative,
     fromLeafletCoordsRelative,
     clampToCircle,
-    toOverworldEquivalent,
     calculateRouteDistance,
     computeOptimalOrder
 } from './lib.js';
@@ -51,8 +50,11 @@ import type {
     PlayersData,
     CartItem,
     RouteStop,
-    ShoppingList
+    ShoppingList,
+    NavigationProgress
 } from './types.js';
+
+import { NAV_STORAGE_KEY } from './types.js';
 
 import * as L from 'leaflet';
 
@@ -148,6 +150,12 @@ let cart: CartItem[] = [];
 const CART_STORAGE_KEY = 'pvc-trades-cart';
 let mapOpenedFromCart = false;
 
+// Navigation progress state
+let navProgress: NavigationProgress = {
+    completedKeys: new Set(),
+    currentIndex: 0
+};
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -237,6 +245,108 @@ function updateCartQuantity(trade: Trade, delta: number): void {
 function clearCart(): void {
     cart = [];
     saveCart();
+    // Reset navigation progress when cart is cleared
+    navProgress = { completedKeys: new Set(), currentIndex: 0 };
+    saveNavProgress();
+}
+
+// ============================================================================
+// Navigation Progress
+// ============================================================================
+
+/**
+ * Load navigation progress from localStorage
+ */
+function loadNavProgress(): void {
+    try {
+        const stored = localStorage.getItem(NAV_STORAGE_KEY);
+        if (stored) {
+            const data = JSON.parse(stored);
+            navProgress = {
+                completedKeys: new Set(data.completedKeys ?? []),
+                currentIndex: data.currentIndex ?? 0
+            };
+        }
+    } catch {
+        navProgress = { completedKeys: new Set(), currentIndex: 0 };
+    }
+}
+
+/**
+ * Save navigation progress to localStorage
+ */
+function saveNavProgress(): void {
+    try {
+        localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({
+            completedKeys: [...navProgress.completedKeys],
+            currentIndex: navProgress.currentIndex
+        }));
+    } catch {
+        // Storage full or unavailable - ignore
+    }
+}
+
+/**
+ * Sync navigation progress with current cart
+ * Removes completed keys for items no longer in cart
+ * Recalculates current index
+ */
+function syncNavProgressWithCart(route: RouteStop[]): void {
+    // Get keys of all shop stops in current route
+    const currentShopKeys = new Set(
+        route
+            .filter(stop => stop.type === 'shop' && stop.cartItem)
+            .map(stop => getTradeKey(stop.cartItem!.trade))
+    );
+    
+    // Remove completed keys that are no longer in cart
+    const validCompleted = new Set(
+        [...navProgress.completedKeys].filter(key => currentShopKeys.has(key))
+    );
+    
+    // Find first non-completed shop stop index
+    let currentIndex = 0;
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i];
+        if (stop?.type === 'shop' && stop.cartItem) {
+            const key = getTradeKey(stop.cartItem.trade);
+            if (!validCompleted.has(key)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        // If we reach the end, all are completed
+        if (i === route.length - 1) {
+            currentIndex = route.length;
+        }
+    }
+    
+    navProgress = {
+        completedKeys: validCompleted,
+        currentIndex
+    };
+    saveNavProgress();
+}
+
+/**
+ * Toggle completion status of a route stop
+ */
+function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
+    if (stop.type !== 'shop' || !stop.cartItem) { return; }
+    
+    const key = getTradeKey(stop.cartItem.trade);
+    
+    if (navProgress.completedKeys.has(key)) {
+        navProgress.completedKeys.delete(key);
+    } else {
+        navProgress.completedKeys.add(key);
+    }
+    
+    // Recalculate current index
+    syncNavProgressWithCart(route);
+    
+    // Re-render the cart dialog to update timeline
+    renderCartDialog();
 }
 
 /**
@@ -318,56 +428,18 @@ function computeRoute(): RouteStop[] {
     // Get optimized order using lib functions
     const order = computeOptimalOrder(points);
     
-    // Build route with portal transitions
+    // Build route with shop stops only
     const route: RouteStop[] = [];
-    let currentX = 0;
-    let currentZ = 0;
-    let currentWorld = 'overworld';
     
     for (const idx of order) {
         const item = cart[idx]!;
-        const nextWorld = item.trade.world;
-        
-        // Check if we need a portal transition
-        const wasNether = isNether(currentWorld);
-        const willBeNether = isNether(nextWorld);
-        
-        if (wasNether !== willBeNether) {
-            if (willBeNether) {
-                // Entering nether: portal in overworld near next shop's OW-equivalent
-                const owEquiv = toOverworldEquivalent(item.trade.x, item.trade.z, nextWorld);
-                route.push({
-                    type: 'portal',
-                    x: owEquiv.x,
-                    z: owEquiv.z,
-                    world: 'overworld',
-                    portalAction: 'enter'
-                });
-            } else {
-                // Exiting nether: portal exit to overworld
-                const owEquiv = toOverworldEquivalent(currentX, currentZ, currentWorld);
-                route.push({
-                    type: 'portal',
-                    x: owEquiv.x,
-                    z: owEquiv.z,
-                    world: nextWorld,
-                    portalAction: 'exit'
-                });
-            }
-        }
-        
-        // Add the shop stop
         route.push({
             type: 'shop',
             x: item.trade.x,
             z: item.trade.z,
-            world: nextWorld,
+            world: item.trade.world,
             cartItem: item
         });
-        
-        currentX = item.trade.x;
-        currentZ = item.trade.z;
-        currentWorld = nextWorld;
     }
     
     return route;
@@ -1255,13 +1327,13 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     itemEl.innerHTML = `
         <span class="cart-item-info">
             <strong>${trade.resultAmount}× ${trade.resultName}</strong>
-            <span class="cart-item-cost">for ${trade.item1.amount}× ${trade.costName}</span>
+            <span class="cart-item-cost">← ${trade.item1.amount}× ${trade.costName}</span>
         </span>
         <span class="cart-item-controls">
             <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
             <span class="qty-display">${quantity}</span>
             <button class="qty-btn qty-plus" aria-label="Increase quantity">+</button>
-            <button class="remove-btn" aria-label="Remove from cart">🗑️</button>
+            <button class="remove-btn" aria-label="Remove from cart">×</button>
         </span>
     `;
     
@@ -1292,32 +1364,126 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
 }
 
 /**
- * Create a route stop element
+ * Get status for a route stop based on navigation progress
  */
-function createRouteStopElement(stop: RouteStop): HTMLElement {
-    const li = document.createElement('li');
-    li.className = `route-stop route-stop-${stop.type}`;
-    
+function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
     if (stop.type === 'portal') {
-        const action = stop.portalAction === 'enter' ? 'Enter portal' : 'Exit portal';
-        const destWorld = isNether(stop.world) ? 'Nether' : 'Overworld';
-        li.innerHTML = `<span class="route-icon">⛩️</span> ${action} at (${stop.x}, ${stop.z}) → ${destWorld}`;
+        // Portal inherits status from current index comparison
+        if (stopIndex < navProgress.currentIndex) { return 'completed'; }
+        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+        return 'pending';
+    }
+    
+    if (stop.type === 'shop' && stop.cartItem) {
+        const key = getTradeKey(stop.cartItem.trade);
+        if (navProgress.completedKeys.has(key)) { return 'completed'; }
+        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+    }
+    
+    return 'pending';
+}
+
+/**
+ * Create a timeline stop element - compact single-line style
+ */
+function createTimelineStop(
+    stop: RouteStop,
+    stopIndex: number,
+    route: RouteStop[],
+    _prevStop: RouteStop | null
+): HTMLElement {
+    const status = getStopStatus(stop, stopIndex, route);
+    
+    const el = document.createElement('div');
+    const netherClass = isNether(stop.world) ? ' timeline-stop-nether' : '';
+    el.className = `timeline-stop timeline-stop-${stop.type}${netherClass} timeline-status-${status}`;
+    
+    // Connector column (dot + line)
+    const connector = document.createElement('div');
+    connector.className = 'timeline-connector';
+    
+    const dot = document.createElement('button');
+    dot.className = 'timeline-dot';
+    dot.setAttribute('aria-label', status === 'completed' ? 'Mark incomplete' : 'Mark complete');
+    
+    if (status === 'completed') {
+        dot.innerHTML = '✓';
     } else {
-        const item = stop.cartItem!;
-        const worldName = isNether(stop.world) ? 'Nether' : 'Overworld';
-        li.innerHTML = `<span class="route-icon">🏪</span> Get ${item.quantity}× ${item.trade.resultName} at (${stop.x}, ${stop.z}) ${worldName}`;
-        
-        // Make shop stops clickable to open map
-        li.classList.add('clickable');
-        li.addEventListener('click', () => {
-            mapOpenedFromCart = true;
-            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
-            cartDialog.close();
-            openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+        dot.innerHTML = '';
+    }
+    
+    // Click dot to toggle completion (only for shop stops)
+    if (stop.type === 'shop') {
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleStopCompletion(stop, route);
         });
     }
     
-    return li;
+    connector.appendChild(dot);
+    
+    // Line below dot (connects to next stop)
+    const line = document.createElement('div');
+    line.className = 'timeline-line';
+    connector.appendChild(line);
+    
+    el.appendChild(connector);
+    
+    // Content (single line with all info)
+    const content = document.createElement('div');
+    content.className = 'timeline-content';
+    
+    const item = stop.cartItem!;
+    const isNetherShop = isNether(stop.world);
+    
+    // Calculate both coordinate systems
+    let owCoords: string;
+    let netherCoords: string;
+    if (isNetherShop) {
+        // Nether shop: raw coords are nether, multiply by 8 for overworld equivalent
+        netherCoords = `${stop.x}, ${stop.z}`;
+        owCoords = `${stop.x * 8}, ${stop.z * 8}`;
+    } else {
+        // Overworld shop: raw coords are overworld, divide by 8 for nether equivalent
+        owCoords = `${stop.x}, ${stop.z}`;
+        netherCoords = `${Math.round(stop.x / 8)}, ${Math.round(stop.z / 8)}`;
+    }
+    
+    content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span><span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+    
+    // Make shop content clickable to open map
+    content.classList.add('clickable');
+    content.addEventListener('click', () => {
+        mapOpenedFromCart = true;
+        const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+        cartDialog.close();
+        openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+    });
+    
+    el.appendChild(content);
+    
+    return el;
+}
+
+/**
+ * Render the route timeline
+ */
+function renderRouteTimeline(route: RouteStop[]): void {
+    const timeline = getElement('route-timeline');
+    timeline.innerHTML = '';
+    
+    if (route.length === 0) { return; }
+    
+    // Sync navigation progress with current cart
+    syncNavProgressWithCart(route);
+    
+    // Render each stop
+    let prevStop: RouteStop | null = null;
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        timeline.appendChild(createTimelineStop(stop, i, route, prevStop));
+        prevStop = stop;
+    }
 }
 
 /**
@@ -1327,7 +1493,7 @@ function renderCartDialog(): void {
     const itemsContainer = getElement('cart-items');
     const costsContainer = getElement('cart-costs');
     const gainsContainer = getElement('cart-gains');
-    const routeContainer = getElement('cart-route');
+    const timelineContainer = getElement('route-timeline');
     const routeDistance = getElement('route-distance');
     const clearCartBtn = getElement('clear-cart');
     
@@ -1335,7 +1501,7 @@ function renderCartDialog(): void {
     itemsContainer.innerHTML = '';
     costsContainer.innerHTML = '';
     gainsContainer.innerHTML = '';
-    routeContainer.innerHTML = '';
+    timelineContainer.innerHTML = '';
     
     if (cart.length === 0) {
         itemsContainer.innerHTML = '<p class="cart-empty">Your cart is empty</p>';
@@ -1369,12 +1535,11 @@ function renderCartDialog(): void {
     // Compute and render route
     const route = computeRoute();
     const totalDistance = calculateTotalRouteDistance(route);
+    const netherDistance = Math.round(totalDistance / 8);
     
-    routeDistance.textContent = `Total distance: ~${Math.round(totalDistance)} blocks`;
+    routeDistance.innerHTML = `<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`;
     
-    for (const stop of route) {
-        routeContainer.appendChild(createRouteStopElement(stop));
-    }
+    renderRouteTimeline(route);
 }
 
 // ============================================================================
@@ -1384,6 +1549,7 @@ function renderCartDialog(): void {
 document.addEventListener('DOMContentLoaded', () => {
     loadShops();
     loadCart();
+    loadNavProgress();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();

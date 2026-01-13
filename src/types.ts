@@ -193,6 +193,20 @@ export interface ShoppingList {
 }
 
 // ============================================================================
+// Navigation Types
+// ============================================================================
+
+export type RouteStopStatus = 'completed' | 'current' | 'pending';
+
+export interface NavigationProgress {
+    completedKeys: Set<string>;  // trade keys that are marked complete
+    currentIndex: number;        // index of current stop in route
+}
+
+export const NAV_STORAGE_KEY = 'pvc-trades-nav-progress';
+export const NAV_PLAYER_KEY = 'pvc-trades-nav-player';
+
+// ============================================================================
 // Item Value Calculation Types
 // ============================================================================
 
