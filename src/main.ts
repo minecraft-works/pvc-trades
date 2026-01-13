@@ -790,6 +790,24 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                     const nameLabel = document.createElement('span');
                     nameLabel.className = 'player-name';
                     nameLabel.textContent = player.name;
+                    
+                    // Position label based on marker location to avoid clipping
+                    // Angle is in radians: 0 = right, PI/2 = top, PI = left, -PI/2 = bottom
+                    const angleDeg = angle * 180 / Math.PI;
+                    if (angleDeg > 45 && angleDeg < 135) {
+                        // Top edge - label below
+                        nameLabel.classList.add('label-bottom');
+                    } else if (angleDeg < -45 && angleDeg > -135) {
+                        // Bottom edge - label above
+                        nameLabel.classList.add('label-top');
+                    } else if (Math.abs(angleDeg) > 135 || Math.abs(angleDeg) < 45) {
+                        // Left or right edge - label on opposite side
+                        if (edgeX > centerX) {
+                            nameLabel.classList.add('label-left');  // Marker on right, label on left
+                        }
+                        // Default: label on right (marker on left side)
+                    }
+                    
                     edgeMarker.appendChild(nameLabel);
                     
                     dialog.appendChild(edgeMarker);
