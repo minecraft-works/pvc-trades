@@ -15,7 +15,6 @@ import {
     escapeHtml,
     processTrade,
     filterTrade,
-    sortResults as sortResultsLib,
     calculateItemValues,
     getTrustedItemValue,
     loadFixedRatios,
@@ -44,7 +43,7 @@ import type {
     MappingRule,
     ShopData,
     SortColumn,
-    SortState,
+    SortDirection,
     Player,
     PlayersData
 } from './types.js';
@@ -57,6 +56,7 @@ import * as L from 'leaflet';
 
 interface DeviationResult {
     ratio: number;
+    percent: number;  // Rounded integer for sorting
     text: string;
     isGood: boolean | null;
 }
@@ -118,7 +118,13 @@ let allTrades: Trade[] = [];
 let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | null = null;
 let ratioGraph: RatioGraph | null = null;
-const currentSort: SortState = { column: 'dev', direction: 'asc' };
+
+// Column order for sort priority (left to right)
+const COLUMN_ORDER: SortColumn[] = ['result-amt', 'result-name', 'cost-amt', 'cost-name', 'dev', 'stock', 'distance', 'world'];
+
+// Multi-column sort state
+const activeSorts: Map<SortColumn, SortDirection> = new Map([['dev', 'asc']]);
+
 let cachedRegex: RegExp | null = null;
 let cachedPattern = '';
 let searchDebounceTimer: number | null = null;
@@ -249,29 +255,81 @@ function search(): void {
 }
 
 function sortByColumn(column: SortColumn): void {
-    if (currentSort.column === column) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    const startsAsc = ['cost-name', 'result-name'].includes(column);
+    const currentDir = activeSorts.get(column);
+    
+    if (currentDir !== undefined) {
+        // Cycle through 3 states based on initial direction
+        if (startsAsc) {
+            // asc -> desc -> none
+            if (currentDir === 'asc') {
+                activeSorts.set(column, 'desc');
+            } else {
+                activeSorts.delete(column);
+            }
+        } else {
+            // desc -> asc -> none
+            if (currentDir === 'desc') {
+                activeSorts.set(column, 'asc');
+            } else {
+                activeSorts.delete(column);
+            }
+        }
     } else {
-        currentSort.column = column;
-        currentSort.direction = ['cost-name', 'result-name'].includes(column) ? 'asc' : 'desc';
+        activeSorts.set(column, startsAsc ? 'asc' : 'desc');
     }
     updateSortArrows();
     search();
 }
 
 function sortResults(results: FilterResult[]): void {
-    if (currentSort.column === 'dev') {
-        const dir = currentSort.direction === 'asc' ? 1 : -1;
-        results.sort((a, b) => {
-            const devA = getDeviation(a.trade);
-            const devB = getDeviation(b.trade);
-            if (!devA && !devB) { return 0; }
-            if (!devA) { return 1; }
-            if (!devB) { return -1; }
-            return dir * (devA.ratio - devB.ratio);
-        });
-    } else {
-        sortResultsLib(results, currentSort.column, currentSort.direction);
+    if (activeSorts.size === 0) {
+        return; // No sorting applied
+    }
+    
+    // Get active columns in left-to-right order
+    const sortColumns = COLUMN_ORDER.filter(col => activeSorts.has(col));
+    
+    results.sort((a, b) => {
+        for (const column of sortColumns) {
+            const direction = activeSorts.get(column)!;
+            const cmp = compareByColumn(a, b, column, direction);
+            if (cmp !== 0) {return cmp;}
+        }
+        return 0;
+    });
+}
+
+function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
+    const dir = direction === 'asc' ? 1 : -1;
+    const ta = a.trade;
+    const tb = b.trade;
+    
+    switch (column) {
+        case 'dev': {
+            const devA = getDeviation(ta);
+            const devB = getDeviation(tb);
+            if (!devA && !devB) {return 0;}
+            if (!devA) {return 1;}
+            if (!devB) {return -1;}
+            return dir * (devA.percent - devB.percent);
+        }
+        case 'cost-amt':
+            return dir * ((ta.item1.amount + (ta.item2?.amount || 0)) - (tb.item1.amount + (tb.item2?.amount || 0)));
+        case 'cost-name':
+            return dir * ta.costName.localeCompare(tb.costName);
+        case 'result-amt':
+            return dir * (ta.resultAmount - tb.resultAmount);
+        case 'result-name':
+            return dir * ta.resultName.localeCompare(tb.resultName);
+        case 'stock':
+            return dir * (ta.displayStock - tb.displayStock);
+        case 'world':
+            return dir * ta.world.localeCompare(tb.world);
+        case 'distance':
+            return dir * (Math.hypot(ta.x, ta.z) - Math.hypot(tb.x, tb.z));
+        default:
+            return 0;
     }
 }
 
@@ -298,14 +356,14 @@ function getDeviation(trade: Trade): DeviationResult | null {
     const percent = Math.max(DEVIATION_MIN_PERCENT, Math.min(DEVIATION_MAX_PERCENT, Math.round((ratio - 1) * 100)));
 
     if (percent === 0) {
-        const result = { ratio, text: '0%', isGood: null };
+        const result = { ratio, percent, text: '0%', isGood: null };
         deviationCache.set(trade, result);
         return result;
     }
 
     const isGood = percent < 0;
     const text = percent > 0 ? `+${percent}%` : `−${Math.abs(percent)}%`;
-    const result = { ratio, text, isGood };
+    const result = { ratio, percent, text, isGood };
     deviationCache.set(trade, result);
 
     return result;
@@ -316,16 +374,25 @@ function getDeviation(trade: Trade): DeviationResult | null {
 // ============================================================================
 
 function getArrow(col: string): string {
-    if (currentSort.column !== col) { return ''; }
-    return currentSort.direction === 'asc' ? '▲' : '▼';
+    const direction = activeSorts.get(col as SortColumn);
+    if (!direction) {return '';}
+    return direction === 'asc' ? '↑' : '↓';
 }
+
+// Right-aligned columns get arrow before label, left-aligned get arrow after
+const RIGHT_ALIGNED_COLS = new Set(['result-amt', 'cost-amt', 'stock', 'dev', 'distance', 'world']);
 
 function updateSortArrows(): void {
     document.querySelectorAll<HTMLElement>('#table-header .header').forEach(el => {
         const label = el.dataset['label'] ?? '';
         const col = el.dataset['col'] ?? '';
-        el.textContent = label + getArrow(col);
-        el.classList.toggle('active-sort', col === currentSort.column);
+        const arrow = getArrow(col);
+        if (RIGHT_ALIGNED_COLS.has(col)) {
+            el.textContent = arrow + label;
+        } else {
+            el.textContent = label + arrow;
+        }
+        el.classList.toggle('active-sort', activeSorts.has(col as SortColumn));
     });
 }
 
@@ -338,11 +405,9 @@ function renderHeader(): void {
         <span class="col header" data-col="cost-name" data-label="I give">I give</span>
         <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
-        <span class="col coord mobile-coords">Loc</span>
+        <span class="col header distance-header desktop-only" data-col="distance" data-label="Distance" title="Distance from origin (X, Z)">Distance</span>
+        <span class="col header distance-header mobile-only" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
-        <span class="col coord">X</span>
-        <span class="col coord">Y</span>
-        <span class="col coord">Z</span>
     `;
 
     header.querySelectorAll<HTMLElement>('.header').forEach(el => {
@@ -400,11 +465,8 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col cost-name">${costDisplay}</span>
         <span class="col dev ${devClass}">${devText}</span>
         <span class="col stock ${stockClass}">${t.displayStock}</span>
-        <span class="col coord mobile-coords" title="${t.x}, ${t.y}, ${t.z}">${t.x},${t.z}</span>
+        <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
-        <span class="col coord">${t.x}</span>
-        <span class="col coord">${t.y}</span>
-        <span class="col coord">${t.z}</span>
     `;
     return row;
 }

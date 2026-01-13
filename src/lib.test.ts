@@ -427,6 +427,94 @@ describe('sortResults', () => {
         expect(results[1]!.trade.world).toBe('the_end');
         expect(results[2]!.trade.world).toBe('the_nether');
     });
+
+    test('sorts by distance descending', () => {
+        const createTradeWithCoords = (name: string, x: number, z: number): Trade => ({
+            x, y: 64, z, world: 'overworld',
+            item1: { type: 'EMERALD', name: '', amount: 1 },
+            item2: undefined,
+            resultItem: { type: 'ITEM', name, amount: 1 },
+            stock: 1,
+            displayStock: 1,
+            resultText: name.toLowerCase(),
+            costText: 'emerald',
+            loreText: '',
+            shulkerItems: null,
+            resultName: name,
+            resultAmount: 1,
+            costName: 'Emerald'
+        });
+
+        const results: FilterResult[] = [
+            { trade: createTradeWithCoords('Near', 10, 10), matchResult: true, matchCost: false, displayName: 'Near', displayAmount: 1 },
+            { trade: createTradeWithCoords('Far', 1000, 1000), matchResult: true, matchCost: false, displayName: 'Far', displayAmount: 1 },
+            { trade: createTradeWithCoords('Mid', 100, 100), matchResult: true, matchCost: false, displayName: 'Mid', displayAmount: 1 }
+        ];
+        sortResults(results, 'distance', 'desc');
+        expect(results[0]!.trade.resultName).toBe('Far');
+        expect(results[1]!.trade.resultName).toBe('Mid');
+        expect(results[2]!.trade.resultName).toBe('Near');
+    });
+
+    test('sorts by distance ascending', () => {
+        const createTradeWithCoords = (name: string, x: number, z: number): Trade => ({
+            x, y: 64, z, world: 'overworld',
+            item1: { type: 'EMERALD', name: '', amount: 1 },
+            item2: undefined,
+            resultItem: { type: 'ITEM', name, amount: 1 },
+            stock: 1,
+            displayStock: 1,
+            resultText: name.toLowerCase(),
+            costText: 'emerald',
+            loreText: '',
+            shulkerItems: null,
+            resultName: name,
+            resultAmount: 1,
+            costName: 'Emerald'
+        });
+
+        const results: FilterResult[] = [
+            { trade: createTradeWithCoords('Far', 1000, 1000), matchResult: true, matchCost: false, displayName: 'Far', displayAmount: 1 },
+            { trade: createTradeWithCoords('Near', 10, 10), matchResult: true, matchCost: false, displayName: 'Near', displayAmount: 1 },
+            { trade: createTradeWithCoords('Mid', 100, 100), matchResult: true, matchCost: false, displayName: 'Mid', displayAmount: 1 }
+        ];
+        sortResults(results, 'distance', 'asc');
+        expect(results[0]!.trade.resultName).toBe('Near');
+        expect(results[1]!.trade.resultName).toBe('Mid');
+        expect(results[2]!.trade.resultName).toBe('Far');
+    });
+
+    test('distance uses euclidean distance from origin', () => {
+        const createTradeWithCoords = (name: string, x: number, z: number): Trade => ({
+            x, y: 64, z, world: 'overworld',
+            item1: { type: 'EMERALD', name: '', amount: 1 },
+            item2: undefined,
+            resultItem: { type: 'ITEM', name, amount: 1 },
+            stock: 1,
+            displayStock: 1,
+            resultText: name.toLowerCase(),
+            costText: 'emerald',
+            loreText: '',
+            shulkerItems: null,
+            resultName: name,
+            resultAmount: 1,
+            costName: 'Emerald'
+        });
+
+        // Distance = sqrt(x^2 + z^2)
+        // A: sqrt(300^2 + 400^2) = sqrt(250000) = 500
+        // B: sqrt(100^2 + 100^2) = sqrt(20000) ≈ 141
+        // C: sqrt(0^2 + 600^2) = 600
+        const results: FilterResult[] = [
+            { trade: createTradeWithCoords('A', 300, 400), matchResult: true, matchCost: false, displayName: 'A', displayAmount: 1 },
+            { trade: createTradeWithCoords('B', 100, 100), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 1 },
+            { trade: createTradeWithCoords('C', 0, 600), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 1 }
+        ];
+        sortResults(results, 'distance', 'asc');
+        expect(results[0]!.trade.resultName).toBe('B'); // ~141
+        expect(results[1]!.trade.resultName).toBe('A'); // 500
+        expect(results[2]!.trade.resultName).toBe('C'); // 600
+    });
 });
 
 describe('countIndependentShops', () => {

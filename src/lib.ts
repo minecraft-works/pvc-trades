@@ -440,6 +440,10 @@ export function sortResults(
                 break;
             case 'world':
                 return dir * ta.world.localeCompare(tb.world);
+            case 'distance':
+                av = Math.hypot(ta.x, ta.z);
+                bv = Math.hypot(tb.x, tb.z);
+                break;
             default:
                 return 0;
         }

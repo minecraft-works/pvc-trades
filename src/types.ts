@@ -150,14 +150,18 @@ export type SortColumn =
     | 'cost-name' 
     | 'stock' 
     | 'dev'
-    | 'world';
+    | 'world'
+    | 'distance';
 
 export type SortDirection = 'asc' | 'desc';
 
 export interface SortState {
-    column: SortColumn;
-    direction: SortDirection;
+    column: SortColumn | null;
+    direction: SortDirection | null;
 }
+
+// Multi-column sort: Map from column to direction
+export type MultiSortState = Map<SortColumn, SortDirection>;
 
 export interface Coordinates {
     x: number;

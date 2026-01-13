@@ -118,7 +118,7 @@ body {
 /* Header row as its own grid */
 #table-header {
     display: grid;
-    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px;
     gap: 2px 0;
 }
 
@@ -133,15 +133,18 @@ body {
     margin-top: 2px; /* Gap between rows (was grid gap before) */
 
     /* Match header's column definition exactly */
-    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 50px 50px 50px 50px;
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px;
     cursor: pointer;
 }
 
-/* Hide mobile-coords column on desktop - remove from flow entirely */
-.mobile-coords,
-.trade-row > .col.mobile-coords,
-#table-header .col.mobile-coords {
-    display: none;
+/* Hide mobile-only elements on desktop */
+.mobile-only {
+    display: none !important;
+}
+
+/* Show desktop-only elements on desktop */
+.desktop-only {
+    display: flex !important;
 }
 
 #table-header .col {
@@ -178,7 +181,7 @@ body {
 }
 
 #table-header .world-header {
-    justify-content: center;
+    justify-content: flex-end;
 }
 
 #table-header .col:first-child {
@@ -247,7 +250,7 @@ body {
 }
 
 .trade-row > .col.coord.world {
-    justify-content: center;
+    justify-content: flex-end;
 }
 
 .col.stock {
@@ -277,10 +280,20 @@ body {
     text-align: right;
 }
 
+.col.distance {
+    font-size: 0.7rem;
+    justify-content: flex-end;
+}
+
+.col.distance-header {
+    justify-content: flex-end;
+    text-transform: uppercase;
+}
+
 .col.world-header,
 .col.world {
-    justify-content: center;
-    text-align: center;
+    justify-content: flex-end;
+    text-align: right;
 }
 
 .stock.in-stock {
@@ -674,22 +687,29 @@ mark {
         font-size: 0.85rem;
     }
 
-    /* Compact 7-column layout: #, name, #, name, deal, stock, coords */
+    /* Compact 8-column layout: #, name, #, name, deal, stock, dist, world */
     #table-header {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 96px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 32px;
     }
 
     .trade-row {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 96px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 32px;
     }
 
-    /* Show mobile-coords column on mobile */
-    .mobile-coords {
+    /* Show mobile-only elements on mobile */
+    .mobile-only {
         display: flex !important;
+    }
+
+    /* Hide desktop-only elements on mobile */
+    .desktop-only {
+        display: none !important;
+    }
+
+    /* Distance column mobile styling */
+    .col.distance {
         font-size: 0.55rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        padding-left: 8px !important;
+        padding-left: 4px !important;
         border-radius: 0 4px 4px 0;
     }
 
@@ -721,17 +741,7 @@ mark {
         font-size: 0.72rem;
     }
 
-    /* Hide world, x, y, z columns (8-11) on mobile */
-    #table-header .col:nth-child(8),
-    #table-header .col:nth-child(9),
-    #table-header .col:nth-child(10),
-    #table-header .col:nth-child(11),
-    .trade-row .col:nth-child(8),
-    .trade-row .col:nth-child(9),
-    .trade-row .col:nth-child(10),
-    .trade-row .col:nth-child(11) {
-        display: none;
-    }
+
 
     /* Header adjustments */
     #table-header .col {

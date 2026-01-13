@@ -8,7 +8,7 @@
  * Run with: npx playwright test
  */
 
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Test configuration
 const BASE_URL = 'http://localhost:5173';
@@ -106,15 +106,15 @@ test.describe('CSS Layout - Table Structure', () => {
         expect(display).toBe('block');
     });
 
-    test('table header uses CSS grid with 10 visible columns', async ({ page }) => {
+    test('table header uses CSS grid with 8 visible columns', async ({ page }) => {
         const header = page.locator('#table-header');
         const display = await header.evaluate(el => getComputedStyle(el).display);
         expect(display).toBe('grid');
         
         const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
-        // Should have 10 column values (mobile-coords is hidden on desktop)
+        // Should have 8 column values
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(10);
+        expect(columnCount).toBe(8);
     });
 
     test('header row exists and is visible', async ({ page }) => {
@@ -143,7 +143,7 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(count).toBeGreaterThan(0);
     });
 
-    test('each trade row has exactly 11 columns in DOM (10 visible)', async ({ page }) => {
+    test('each trade row has exactly 8 columns in DOM', async ({ page }) => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();
         
@@ -151,28 +151,32 @@ test.describe('CSS Layout - Trade Rows', () => {
             const row = rows.nth(i);
             const columns = row.locator('.col');
             const colCount = await columns.count();
-            // 11 columns in DOM, but mobile-coords is hidden on desktop
-            expect(colCount, `Row ${i} should have exactly 11 columns in DOM`).toBe(11);
+            // 8 columns: amt, name, amt, name, deal, stock, distance, world
+            expect(colCount, `Row ${i} should have exactly 8 columns in DOM`).toBe(8);
         }
     });
 
     test('header columns align with trade row columns', async ({ page }) => {
-        const headerCols = page.locator('#table-header .col');
+        // Header has 9 cols (desktop + mobile distance), row has 8
+        // Only visible columns should align
+        const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col');
         
         const headerCount = await headerCols.count();
         const rowCount = await firstRowCols.count();
         
-        expect(headerCount, 'Header and row should have same column count').toBe(rowCount);
+        // On desktop, header has 8 visible cols (desktop-only shown, mobile-only hidden)
+        expect(headerCount, 'Header should have 8 visible columns on desktop').toBe(8);
+        expect(rowCount, 'Row should have 8 columns').toBe(8);
         
-        // Check each column's left edge alignment (skip hidden columns)
+        // Check each column's left edge alignment
         for (let i = 0; i < headerCount; i++) {
             const headerCol = headerCols.nth(i);
             const rowCol = firstRowCols.nth(i);
             
             // Skip hidden columns (display: none)
             const headerDisplay = await headerCol.evaluate(el => getComputedStyle(el).display);
-            if (headerDisplay === 'none') continue;
+            if (headerDisplay === 'none') {continue;}
             
             const headerBox = await headerCol.boundingBox();
             const rowBox = await rowCol.boundingBox();
@@ -195,7 +199,7 @@ test.describe('CSS Layout - Trade Rows', () => {
     });
 
     test('header and cell text alignment matches for each column', async ({ page }) => {
-        const headerCols = page.locator('#table-header .col');
+        const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col');
         
         const count = await headerCols.count();
@@ -244,7 +248,7 @@ test.describe('CSS Layout - Trade Rows', () => {
             
             // Skip hidden columns (display: none)
             const display = await col.evaluate(el => getComputedStyle(el).display);
-            if (display === 'none') continue;
+            if (display === 'none') {continue;}
             
             const box = await col.boundingBox();
             
@@ -289,7 +293,7 @@ test.describe('CSS Layout - Trade Rows', () => {
                 
                 // Check if element is actually displayed (not display: none)
                 const display = await col.evaluate(el => getComputedStyle(el).display);
-                if (display === 'none') continue;
+                if (display === 'none') {continue;}
                 
                 const box = await col.boundingBox();
                 // Only include columns that have actual visible width (> 1px)
@@ -508,9 +512,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         const header = page.locator('#table-header');
         const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
         
-        // Mobile shows 7 columns: #, name, #, name, deal, stock, coords
+        // Mobile shows 8 columns: #, name, #, name, deal, stock, distance, world
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(7);
+        expect(columnCount).toBe(8);
     });
 
     test('search container has reduced padding on mobile', async ({ page }) => {
@@ -540,7 +544,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
                 
                 // Check if element is actually displayed (not display: none)
                 const display = await col.evaluate(el => getComputedStyle(el).display);
-                if (display === 'none') continue;
+                if (display === 'none') {continue;}
                 
                 const box = await col.boundingBox();
                 // Only include columns that have actual visible width (> 1px)
@@ -566,28 +570,30 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         }
     });
 
-    test('mobile-coords column handles overflow gracefully', async ({ page }) => {
+    test('distance column has proper styling', async ({ page }) => {
         await showAllTrades(page);
         
-        const coordsCols = page.locator('.trade-row .col.mobile-coords');
-        const count = await coordsCols.count();
+        const distanceCols = page.locator('.trade-row .col.distance');
+        const count = await distanceCols.count();
         expect(count).toBeGreaterThan(0);
 
-        // Check that mobile-coords has proper overflow handling CSS
-        const col = coordsCols.first();
+        // Check that distance column has proper styling
+        const col = distanceCols.first();
         const styles = await col.evaluate(el => {
             const style = getComputedStyle(el);
             return {
-                overflow: style.overflow,
-                textOverflow: style.textOverflow,
-                display: style.display
+                display: style.display,
+                justifyContent: style.justifyContent,
+                fontFamily: style.fontFamily,
+                textAlign: style.textAlign
             };
         });
 
-        // Should have overflow handling (hidden with ellipsis)
-        expect(styles.overflow).toBe('hidden');
-        expect(styles.textOverflow).toBe('ellipsis');
+        // Should be right-aligned with flex layout and monospace font
         expect(styles.display).toBe('flex');
+        expect(styles.justifyContent).toBe('flex-end');
+        expect(styles.fontFamily).toContain('monospace');
+        expect(styles.textAlign).toBe('right');
     });
 
     test('mobile header grid matches trade row grid', async ({ page }) => {
@@ -603,11 +609,11 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         expect(headerCols).toBe(rowCols);
     });
 
-    test('mobile-coords column has border-radius for rounded corners', async ({ page }) => {
+    test('world column has border-radius for rounded corners', async ({ page }) => {
         await showAllTrades(page);
 
-        const mobileCoords = page.locator('.trade-row .col.mobile-coords').first();
-        const borderRadius = await mobileCoords.evaluate(el => getComputedStyle(el).borderRadius);
+        const worldCol = page.locator('.trade-row .col.world').first();
+        const borderRadius = await worldCol.evaluate(el => getComputedStyle(el).borderRadius);
 
         // Should have right-side border radius (0 4px 4px 0 computes to specific values)
         expect(borderRadius).toMatch(/0px 4px 4px 0px/);
@@ -1040,7 +1046,6 @@ test.describe('CSS Layout - Visual Invariants', () => {
     test('no horizontal scrollbar on container at default viewport', async ({ page }) => {
         const container = page.locator('#table-container');
         const box = await container.boundingBox();
-        const overflowX = await container.evaluate(el => getComputedStyle(el).overflowX);
         
         // Container should not require horizontal scroll
         if (box) {
@@ -1119,8 +1124,9 @@ test.describe('CSS Layout - Visual Invariants', () => {
         await expect(devHeader).toBeVisible();
         
         // Check that the header text includes the sort arrow (ascending = best deals first)
+        // Arrow is before label for right-aligned columns
         const headerText = await devHeader.textContent();
-        expect(headerText?.trim()).toBe('Deal▲');
+        expect(headerText?.trim()).toBe('↑Deal');
     });
 
     test('active sort column header has blue color', async ({ page }) => {
@@ -1140,12 +1146,282 @@ test.describe('CSS Layout - Visual Invariants', () => {
         const count = await worldCells.count();
         for (let i = 0; i < count; i++) {
             const text = await worldCells.nth(i).textContent();
-            if (text) allText.push(text.trim());
+            if (text) {allText.push(text.trim());}
         }
         
         // Should have all three world abbreviations
         expect(allText).toContain('O'); // Overworld
         expect(allText).toContain('N'); // The Nether
         expect(allText).toContain('E'); // The End
+    });
+});
+
+// =============================================================================
+// Distance Column Tests
+// =============================================================================
+
+test.describe('CSS Layout - Distance Column', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('distance column header is visible on desktop', async ({ page }) => {
+        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        await expect(distanceHeader).toBeVisible();
+        
+        const text = await distanceHeader.textContent();
+        expect(text?.toLowerCase()).toContain('distance');
+    });
+
+    test('distance column header is sortable', async ({ page }) => {
+        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        
+        // Should have data-col attribute for sorting
+        const dataCol = await distanceHeader.getAttribute('data-col');
+        expect(dataCol).toBe('distance');
+        
+        // Should have header class for clickability
+        const classes = await distanceHeader.getAttribute('class');
+        expect(classes).toContain('header');
+    });
+
+    test('distance column displays numeric values', async ({ page }) => {
+        const distanceCells = page.locator('.trade-row .col.distance');
+        const count = await distanceCells.count();
+        
+        expect(count).toBeGreaterThan(0);
+        
+        for (let i = 0; i < Math.min(count, 5); i++) {
+            const text = await distanceCells.nth(i).textContent();
+            // Should be a number (distance from origin)
+            expect(text?.trim()).toMatch(/^\d+$/);
+        }
+    });
+
+    test('distance column is right-aligned', async ({ page }) => {
+        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        const justifyContent = await distanceHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        expect(justifyContent).toBe('flex-end');
+    });
+
+    test('distance column has tooltip with full coordinates', async ({ page }) => {
+        const distanceCells = page.locator('.trade-row .col.distance');
+        const count = await distanceCells.count();
+        
+        if (count > 0) {
+            const title = await distanceCells.first().getAttribute('title');
+            // Should contain X, Y, Z coordinates
+            expect(title).toMatch(/X:/);
+            expect(title).toMatch(/Y:/);
+            expect(title).toMatch(/Z:/);
+        }
+    });
+});
+
+// =============================================================================
+// Sorting Functionality Tests
+// =============================================================================
+
+test.describe('CSS Layout - Sorting', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('clicking column header toggles sort direction', async ({ page }) => {
+        const stockHeader = page.locator('#table-header .col.stock-header');
+        
+        // Click to activate sort (starts with desc for stock)
+        await stockHeader.click();
+        let text = await stockHeader.textContent();
+        expect(text?.trim()).toBe('↓Stock');
+        
+        // Click again to change direction
+        await stockHeader.click();
+        text = await stockHeader.textContent();
+        expect(text?.trim()).toBe('↑Stock');
+        
+        // Click third time to clear sort
+        await stockHeader.click();
+        text = await stockHeader.textContent();
+        expect(text?.trim()).toBe('Stock');
+    });
+
+    test('multiple columns can be sorted simultaneously', async ({ page }) => {
+        const dealHeader = page.locator('#table-header .col.dev-header');
+        const stockHeader = page.locator('#table-header .col.stock-header');
+        
+        // Deal is already sorted by default
+        await expect(dealHeader).toHaveClass(/active-sort/);
+        
+        // Click stock to add it to sort
+        await stockHeader.click();
+        
+        // Both should now be active
+        await expect(dealHeader).toHaveClass(/active-sort/);
+        await expect(stockHeader).toHaveClass(/active-sort/);
+        
+        // Both should have arrows
+        const dealText = await dealHeader.textContent();
+        const stockText = await stockHeader.textContent();
+        expect(dealText).toMatch(/[↑↓]/);
+        expect(stockText).toMatch(/[↑↓]/);
+    });
+
+    test('sort arrow appears before label for right-aligned columns', async ({ page }) => {
+        const stockHeader = page.locator('#table-header .col.stock-header');
+        
+        // Click to activate sort
+        await stockHeader.click();
+        const text = await stockHeader.textContent();
+        
+        // Arrow should be at the start (right-aligned column)
+        expect(text?.charAt(0)).toMatch(/[↑↓]/);
+    });
+
+    test('sort arrow appears after label for left-aligned columns', async ({ page }) => {
+        const nameHeader = page.locator('#table-header .col[data-col="result-name"]');
+        
+        // Click to activate sort
+        await nameHeader.click();
+        const text = await nameHeader.textContent();
+        
+        // Arrow should be at the end (left-aligned column)
+        expect(text?.charAt(text.length - 1)).toMatch(/[↑↓]/);
+    });
+
+    test('distance column can be sorted', async ({ page }) => {
+        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        
+        // Click to activate sort
+        await distanceHeader.click();
+        await expect(distanceHeader).toHaveClass(/active-sort/);
+        
+        const text = await distanceHeader.textContent();
+        expect(text).toMatch(/[↑↓]/);
+    });
+
+    test('clearing sort removes arrow and active class', async ({ page }) => {
+        const dealHeader = page.locator('#table-header .col.dev-header');
+        
+        // Deal is sorted by default (asc) - but startsAsc=false means desc is first click
+        // Initial state: asc (shown as ↑Deal)
+        await expect(dealHeader).toHaveClass(/active-sort/);
+        let text = await dealHeader.textContent();
+        expect(text?.trim()).toBe('↑Deal');
+        
+        // Click once to clear sort (asc -> none since startsAsc=false)
+        await dealHeader.click();
+        
+        await expect(dealHeader).not.toHaveClass(/active-sort/);
+        text = await dealHeader.textContent();
+        expect(text?.trim()).toBe('Deal');
+    });
+});
+
+// =============================================================================
+// Header Alignment Tests
+// =============================================================================
+
+test.describe('CSS Layout - Header Alignment', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('world column header is right-aligned', async ({ page }) => {
+        const worldHeader = page.locator('#table-header .col.world-header');
+        const justifyContent = await worldHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        expect(justifyContent).toBe('flex-end');
+    });
+
+    test('world column cells are right-aligned', async ({ page }) => {
+        const worldCells = page.locator('.trade-row .col.world');
+        const count = await worldCells.count();
+        
+        if (count > 0) {
+            const justifyContent = await worldCells.first().evaluate(el => getComputedStyle(el).justifyContent);
+            expect(justifyContent).toBe('flex-end');
+        }
+    });
+
+    test('distance column cells are right-aligned', async ({ page }) => {
+        const distanceCells = page.locator('.trade-row .col.distance');
+        const count = await distanceCells.count();
+        
+        if (count > 0) {
+            const justifyContent = await distanceCells.first().evaluate(el => getComputedStyle(el).justifyContent);
+            expect(justifyContent).toBe('flex-end');
+        }
+    });
+
+    test('deal column header is right-aligned', async ({ page }) => {
+        const devHeader = page.locator('#table-header .col.dev-header');
+        const justifyContent = await devHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        expect(justifyContent).toBe('flex-end');
+    });
+
+    test('stock column header is right-aligned', async ({ page }) => {
+        const stockHeader = page.locator('#table-header .col.stock-header');
+        const justifyContent = await stockHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        expect(justifyContent).toBe('flex-end');
+    });
+
+    test('name columns are left-aligned', async ({ page }) => {
+        const resultNameHeader = page.locator('#table-header .col[data-col="result-name"]');
+        const costNameHeader = page.locator('#table-header .col[data-col="cost-name"]');
+        
+        // Flex containers default to flex-start for justify-content
+        // or they may have no explicit justify-content set
+        const resultJustify = await resultNameHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const costJustify = await costNameHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        
+        // Should be left-aligned (flex-start or normal)
+        expect(['flex-start', 'normal', 'start']).toContain(resultJustify);
+        expect(['flex-start', 'normal', 'start']).toContain(costJustify);
+    });
+});
+
+// =============================================================================
+// Mobile View Tests for Distance/World
+// =============================================================================
+
+test.describe('CSS Layout - Mobile Distance Column', () => {
+    test.beforeEach(async ({ page }) => {
+        await setupMockRoutes(page);
+        await page.setViewportSize(MOBILE_VIEWPORT);
+        await page.goto(BASE_URL);
+        await waitForAppReady(page);
+        await showAllTrades(page);
+    });
+
+    test('mobile distance header shows "Dist" label', async ({ page }) => {
+        const mobileDistHeader = page.locator('#table-header .col.distance-header.mobile-only');
+        await expect(mobileDistHeader).toBeVisible();
+        
+        const text = await mobileDistHeader.textContent();
+        expect(text?.toLowerCase()).toContain('dist');
+    });
+
+    test('desktop distance header is hidden on mobile', async ({ page }) => {
+        const desktopDistHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        await expect(desktopDistHeader).not.toBeVisible();
+    });
+
+    test('mobile uses 8-column grid layout', async ({ page }) => {
+        const header = page.locator('#table-header');
+        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
+        expect(columnCount).toBe(8);
     });
 });

@@ -175,8 +175,6 @@ test.describe('Virtual Scrolling - Search Integration', () => {
     });
 
     test('search filters virtual scroller results', async ({ page }) => {
-        const initialCount = await page.locator('.trade-row').count();
-
         // Search for specific term that won't match all
         await page.fill('#searchWant', 'diamond');
         await page.waitForTimeout(100); // Debounce
@@ -245,13 +243,17 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         await page.evaluate(() => window.scrollBy(0, 1000));
         await page.waitForTimeout(200);
 
-        const headerCols = page.locator('#table-header .col');
+        // Header has 9 cols (desktop + mobile distance), row has 8
+        // Only visible columns should align
+        const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col');
 
         const headerCount = await headerCols.count();
         const rowColCount = await firstRowCols.count();
 
-        expect(headerCount, 'Header and row column counts should match').toBe(rowColCount);
+        // On desktop, header has 8 visible cols (desktop-only shown, mobile-only hidden)
+        expect(headerCount, 'Header should have 8 visible columns on desktop').toBe(8);
+        expect(rowColCount, 'Row should have 8 columns').toBe(8);
 
         // Check alignment of visible columns
         for (let i = 0; i < headerCount; i++) {
@@ -259,7 +261,7 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
             const rowCol = firstRowCols.nth(i);
 
             const headerDisplay = await headerCol.evaluate(el => getComputedStyle(el).display);
-            if (headerDisplay === 'none') continue;
+            if (headerDisplay === 'none') { continue; }
 
             const headerBox = await headerCol.boundingBox();
             const rowBox = await rowCol.boundingBox();
@@ -296,7 +298,7 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
             
             for (let i = 0; i < Math.min(count, 5); i++) {
                 const box = await rows.nth(i).boundingBox();
-                if (box) heights.push(box.height);
+                if (box) {heights.push(box.height);}
             }
             return heights;
         };
