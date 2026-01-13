@@ -170,6 +170,29 @@ export interface Coordinates {
 }
 
 // ============================================================================
+// Shopping Cart Types
+// ============================================================================
+
+export interface CartItem {
+    trade: Trade;
+    quantity: number;
+}
+
+export interface RouteStop {
+    type: 'shop' | 'portal';
+    x: number;
+    z: number;
+    world: string;
+    cartItem?: CartItem;  // Only for shop stops
+    portalAction?: 'enter' | 'exit';  // Only for portal stops
+}
+
+export interface ShoppingList {
+    costs: Map<string, number>;   // itemName -> totalAmount
+    gains: Map<string, number>;   // itemName -> totalAmount
+}
+
+// ============================================================================
 // Item Value Calculation Types
 // ============================================================================
 

@@ -45,7 +45,10 @@ import type {
     SortColumn,
     SortDirection,
     Player,
-    PlayersData
+    PlayersData,
+    CartItem,
+    RouteStop,
+    ShoppingList
 } from './types.js';
 
 import * as L from 'leaflet';
@@ -137,12 +140,271 @@ let virtualScroller: VirtualScroller<FilterResult> | null = null;
 let currentWantRegex: RegExp | null = null;
 let currentGiveRegex: RegExp | null = null;
 
+// Shopping cart state
+let cart: CartItem[] = [];
+const CART_STORAGE_KEY = 'pvc-trades-cart';
+let mapOpenedFromCart = false;
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 const DEVIATION_MIN_PERCENT = -99;
 const DEVIATION_MAX_PERCENT = 999;
+
+// ============================================================================
+// Shopping Cart Functions
+// ============================================================================
+
+/**
+ * Generate a unique key for a trade (used to detect duplicates)
+ */
+function getTradeKey(trade: Trade): string {
+    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
+}
+
+/**
+ * Load cart from localStorage
+ */
+function loadCart(): void {
+    try {
+        const stored = localStorage.getItem(CART_STORAGE_KEY);
+        if (stored) {
+            cart = JSON.parse(stored);
+        }
+    } catch {
+        cart = [];
+    }
+    updateCartBadge();
+}
+
+/**
+ * Save cart to localStorage
+ */
+function saveCart(): void {
+    try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+        // Storage full or unavailable - ignore
+    }
+    updateCartBadge();
+}
+
+/**
+ * Add a trade to the cart (or increment quantity if exists)
+ */
+function addToCart(trade: Trade): void {
+    const key = getTradeKey(trade);
+    const existing = cart.find(item => getTradeKey(item.trade) === key);
+    
+    if (existing) {
+        existing.quantity++;
+    } else {
+        cart.push({ trade, quantity: 1 });
+    }
+    
+    saveCart();
+}
+
+/**
+ * Remove a trade from the cart entirely
+ */
+function removeFromCart(trade: Trade): void {
+    const key = getTradeKey(trade);
+    cart = cart.filter(item => getTradeKey(item.trade) !== key);
+    saveCart();
+}
+
+/**
+ * Update quantity for a cart item
+ */
+function updateCartQuantity(trade: Trade, delta: number): void {
+    const key = getTradeKey(trade);
+    const item = cart.find(i => getTradeKey(i.trade) === key);
+    
+    if (item) {
+        item.quantity = Math.max(1, item.quantity + delta);
+        saveCart();
+    }
+}
+
+/**
+ * Clear the entire cart
+ */
+function clearCart(): void {
+    cart = [];
+    saveCart();
+}
+
+/**
+ * Update the cart badge count
+ */
+function updateCartBadge(): void {
+    const badge = document.getElementById('cart-badge');
+    if (badge) {
+        const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+        badge.textContent = count > 0 ? String(count) : '';
+        badge.classList.toggle('hidden', count === 0);
+    }
+}
+
+/**
+ * Aggregate cart into shopping lists
+ */
+function getShoppingList(): ShoppingList {
+    const costs = new Map<string, number>();
+    const gains = new Map<string, number>();
+    
+    for (const { trade, quantity } of cart) {
+        // Aggregate costs
+        const cost1Name = formatName(trade.item1);
+        const cost1Amount = trade.item1.amount * quantity;
+        costs.set(cost1Name, (costs.get(cost1Name) ?? 0) + cost1Amount);
+        
+        if (trade.item2) {
+            const cost2Name = formatName(trade.item2);
+            const cost2Amount = trade.item2.amount * quantity;
+            costs.set(cost2Name, (costs.get(cost2Name) ?? 0) + cost2Amount);
+        }
+        
+        // Aggregate gains
+        const gainAmount = trade.resultAmount * quantity;
+        gains.set(trade.resultName, (gains.get(trade.resultName) ?? 0) + gainAmount);
+    }
+    
+    return { costs, gains };
+}
+
+/**
+ * Check if a point is in the nether
+ */
+function isNether(world: string): boolean {
+    return world.toLowerCase().includes('nether');
+}
+
+/**
+ * Convert nether coords to overworld-equivalent for distance calculation
+ */
+function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
+    if (isNether(world)) {
+        return { x: x * 8, z: z * 8 };
+    }
+    return { x, z };
+}
+
+/**
+ * Calculate distance between two points (using overworld-equivalent coords)
+ */
+function calculateDistance(
+    x1: number, z1: number, world1: string,
+    x2: number, z2: number, world2: string
+): number {
+    const p1 = toOverworldEquivalent(x1, z1, world1);
+    const p2 = toOverworldEquivalent(x2, z2, world2);
+    return Math.hypot(p1.x - p2.x, p1.z - p2.z);
+}
+
+/**
+ * Compute optimal route using nearest-neighbor heuristic
+ * Starts from origin (0, 0) in overworld
+ */
+function computeRoute(): RouteStop[] {
+    if (cart.length === 0) { return []; }
+    
+    // Create list of shop stops to visit
+    const unvisited: CartItem[] = [...cart];
+    const route: RouteStop[] = [];
+    
+    // Start at origin (overworld)
+    let currentX = 0;
+    let currentZ = 0;
+    let currentWorld = 'overworld';
+    
+    while (unvisited.length > 0) {
+        // Find nearest unvisited shop
+        let nearestIdx = 0;
+        let nearestDist = Infinity;
+        
+        for (let i = 0; i < unvisited.length; i++) {
+            const item = unvisited[i]!;
+            const dist = calculateDistance(
+                currentX, currentZ, currentWorld,
+                item.trade.x, item.trade.z, item.trade.world
+            );
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestIdx = i;
+            }
+        }
+        
+        const nextItem = unvisited.splice(nearestIdx, 1)[0]!;
+        const nextWorld = nextItem.trade.world;
+        
+        // Check if we need a portal transition
+        const wasNether = isNether(currentWorld);
+        const willBeNether = isNether(nextWorld);
+        
+        if (wasNether !== willBeNether) {
+            if (willBeNether) {
+                // Entering nether: portal in overworld near next shop's OW-equivalent
+                const owEquiv = toOverworldEquivalent(nextItem.trade.x, nextItem.trade.z, nextWorld);
+                route.push({
+                    type: 'portal',
+                    x: owEquiv.x,
+                    z: owEquiv.z,
+                    world: 'overworld',
+                    portalAction: 'enter'
+                });
+            } else {
+                // Exiting nether: portal exit to overworld
+                const owEquiv = toOverworldEquivalent(currentX, currentZ, currentWorld);
+                route.push({
+                    type: 'portal',
+                    x: owEquiv.x,
+                    z: owEquiv.z,
+                    world: nextWorld,
+                    portalAction: 'exit'
+                });
+            }
+        }
+        
+        // Add the shop stop
+        route.push({
+            type: 'shop',
+            x: nextItem.trade.x,
+            z: nextItem.trade.z,
+            world: nextWorld,
+            cartItem: nextItem
+        });
+        
+        currentX = nextItem.trade.x;
+        currentZ = nextItem.trade.z;
+        currentWorld = nextWorld;
+    }
+    
+    return route;
+}
+
+/**
+ * Calculate total route distance
+ */
+function calculateTotalRouteDistance(route: RouteStop[]): number {
+    if (route.length === 0) { return 0; }
+    
+    let total = 0;
+    let prevX = 0;
+    let prevZ = 0;
+    let prevWorld = 'overworld';
+    
+    for (const stop of route) {
+        total += calculateDistance(prevX, prevZ, prevWorld, stop.x, stop.z, stop.world);
+        prevX = stop.x;
+        prevZ = stop.z;
+        prevWorld = stop.world;
+    }
+    
+    return total;
+}
 
 // ============================================================================
 // DOM Helpers
@@ -400,14 +662,15 @@ function renderHeader(): void {
     const header = getElement('table-header');
     header.innerHTML = `
         <span class="col header amt" data-col="result-amt" data-label="#">#</span>
-        <span class="col header" data-col="result-name" data-label="I need">I need</span>
+        <span class="col header" data-col="result-name" data-label="Item">Item</span>
         <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
-        <span class="col header" data-col="cost-name" data-label="I give">I give</span>
+        <span class="col header" data-col="cost-name" data-label="Cost">Cost</span>
         <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
         <span class="col header distance-header desktop-only" data-col="distance" data-label="Distance" title="Distance from origin (X, Z)">Distance</span>
         <span class="col header distance-header mobile-only" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
+        <span class="col cart-col-header" title="Add to cart"></span>
     `;
 
     header.querySelectorAll<HTMLElement>('.header').forEach(el => {
@@ -467,7 +730,19 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
+        <button class="col add-to-cart-btn" title="Add to cart">+</button>
     `;
+    
+    // Add click handler for cart button (stop propagation to prevent row click)
+    const cartBtn = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
+    cartBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addToCart(t);
+        // Visual feedback
+        cartBtn.classList.add('added');
+        setTimeout(() => cartBtn.classList.remove('added'), 200);
+    });
+    
     return row;
 }
 
@@ -675,11 +950,17 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         closeBtn.addEventListener('click', () => dialog.close());
     }
 
-    // Clear player refresh interval when dialog closes
+    // Clear player refresh interval when dialog closes, and reopen cart if needed
     dialog.addEventListener('close', () => {
         if (playerRefreshInterval) {
             clearInterval(playerRefreshInterval);
             playerRefreshInterval = null;
+        }
+        if (mapOpenedFromCart) {
+            mapOpenedFromCart = false;
+            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+            renderCartDialog();
+            cartDialog.showModal();
         }
     }, { once: true });
     
@@ -966,11 +1247,147 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
 }
 
 // ============================================================================
+// Cart Dialog
+// ============================================================================
+
+/**
+ * Create a cart item element
+ */
+function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'cart-item';
+    
+    itemEl.innerHTML = `
+        <span class="cart-item-info">
+            <strong>${trade.resultAmount}× ${trade.resultName}</strong>
+            <span class="cart-item-cost">for ${trade.item1.amount}× ${trade.costName}</span>
+        </span>
+        <span class="cart-item-controls">
+            <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
+            <span class="qty-display">${quantity}</span>
+            <button class="qty-btn qty-plus" aria-label="Increase quantity">+</button>
+            <button class="remove-btn" aria-label="Remove from cart">🗑️</button>
+        </span>
+    `;
+    
+    // Event handlers
+    const minusBtn = itemEl.querySelector('.qty-minus')!;
+    const plusBtn = itemEl.querySelector('.qty-plus')!;
+    const removeBtn = itemEl.querySelector('.remove-btn')!;
+    
+    minusBtn.addEventListener('click', () => {
+        if (quantity > 1) {
+            updateCartQuantity(trade, -1);
+            renderCartDialog();
+        }
+    });
+    
+    plusBtn.addEventListener('click', () => {
+        updateCartQuantity(trade, 1);
+        renderCartDialog();
+    });
+    
+    removeBtn.addEventListener('click', () => {
+        removeFromCart(trade);
+        renderCartDialog();
+    });
+    
+    return itemEl;
+}
+
+/**
+ * Create a route stop element
+ */
+function createRouteStopElement(stop: RouteStop): HTMLElement {
+    const li = document.createElement('li');
+    li.className = `route-stop route-stop-${stop.type}`;
+    
+    if (stop.type === 'portal') {
+        const action = stop.portalAction === 'enter' ? 'Enter portal' : 'Exit portal';
+        const destWorld = isNether(stop.world) ? 'Nether' : 'Overworld';
+        li.innerHTML = `<span class="route-icon">⛩️</span> ${action} at (${stop.x}, ${stop.z}) → ${destWorld}`;
+    } else {
+        const item = stop.cartItem!;
+        const worldName = isNether(stop.world) ? 'Nether' : 'Overworld';
+        li.innerHTML = `<span class="route-icon">🏪</span> Get ${item.quantity}× ${item.trade.resultName} at (${stop.x}, ${stop.z}) ${worldName}`;
+        
+        // Make shop stops clickable to open map
+        li.classList.add('clickable');
+        li.addEventListener('click', () => {
+            mapOpenedFromCart = true;
+            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+            cartDialog.close();
+            openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+        });
+    }
+    
+    return li;
+}
+
+/**
+ * Render the cart dialog contents
+ */
+function renderCartDialog(): void {
+    const itemsContainer = getElement('cart-items');
+    const costsContainer = getElement('cart-costs');
+    const gainsContainer = getElement('cart-gains');
+    const routeContainer = getElement('cart-route');
+    const routeDistance = getElement('route-distance');
+    const clearCartBtn = getElement('clear-cart');
+    
+    // Clear previous contents
+    itemsContainer.innerHTML = '';
+    costsContainer.innerHTML = '';
+    gainsContainer.innerHTML = '';
+    routeContainer.innerHTML = '';
+    
+    if (cart.length === 0) {
+        itemsContainer.innerHTML = '<p class="cart-empty">Your cart is empty</p>';
+        routeDistance.textContent = '';
+        clearCartBtn.classList.add('hidden');
+        return;
+    }
+    
+    clearCartBtn.classList.remove('hidden');
+    
+    // Render cart items
+    for (const { trade, quantity } of cart) {
+        itemsContainer.appendChild(createCartItemElement(trade, quantity));
+    }
+    
+    // Render shopping lists
+    const shoppingList = getShoppingList();
+    
+    for (const [name, amount] of shoppingList.costs) {
+        const li = document.createElement('li');
+        li.textContent = `${amount}× ${name}`;
+        costsContainer.appendChild(li);
+    }
+    
+    for (const [name, amount] of shoppingList.gains) {
+        const li = document.createElement('li');
+        li.textContent = `${amount}× ${name}`;
+        gainsContainer.appendChild(li);
+    }
+    
+    // Compute and render route
+    const route = computeRoute();
+    const totalDistance = calculateTotalRouteDistance(route);
+    
+    routeDistance.textContent = `Total distance: ~${Math.round(totalDistance)} blocks`;
+    
+    for (const stop of route) {
+        routeContainer.appendChild(createRouteStopElement(stop));
+    }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     loadShops();
+    loadCart();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();
@@ -998,6 +1415,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
+    
+    // Cart dialog
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+    setupDialogBackdropClose(cartDialog);
+    getElement('open-cart').addEventListener('click', () => {
+        renderCartDialog();
+        cartDialog.showModal();
+    });
+    getElement('close-cart').addEventListener('click', () => {
+        cartDialog.close();
+    });
+    getElement('clear-cart').addEventListener('click', () => {
+        clearCart();
+        renderCartDialog();
+    });
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (e) => {
