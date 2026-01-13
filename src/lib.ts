@@ -930,3 +930,184 @@ export function clampToCircle(
         clamped: true
     };
 }
+
+// ============================================================================
+// Route Optimization (TSP)
+// ============================================================================
+
+/**
+ * A point with coordinates and world (for nether conversion)
+ */
+export interface RoutePoint {
+    x: number;
+    z: number;
+    world: string;
+}
+
+/**
+ * Convert nether coords to overworld-equivalent for distance calculation
+ */
+export function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
+    if (world.toLowerCase().includes('nether')) {
+        return { x: x * 8, z: z * 8 };
+    }
+    return { x, z };
+}
+
+/**
+ * Calculate distance between two points (using overworld-equivalent coords)
+ */
+export function calculateRouteDistance(
+    x1: number, z1: number, world1: string,
+    x2: number, z2: number, world2: string
+): number {
+    const p1 = toOverworldEquivalent(x1, z1, world1);
+    const p2 = toOverworldEquivalent(x2, z2, world2);
+    return Math.hypot(p1.x - p2.x, p1.z - p2.z);
+}
+
+/**
+ * Build distance matrix for points (including origin at index 0)
+ * Origin is always at (0, 0) in overworld
+ */
+export function buildDistanceMatrix(points: RoutePoint[]): number[][] {
+    const n = points.length + 1; // +1 for origin
+    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    
+    // Origin is at index 0
+    for (let i = 0; i < points.length; i++) {
+        const point = points[i]!;
+        const distFromOrigin = calculateRouteDistance(0, 0, 'overworld', point.x, point.z, point.world);
+        matrix[0]![i + 1] = distFromOrigin;
+        matrix[i + 1]![0] = distFromOrigin;
+    }
+    
+    // Distances between points
+    for (let i = 0; i < points.length; i++) {
+        for (let j = i + 1; j < points.length; j++) {
+            const a = points[i]!;
+            const b = points[j]!;
+            const dist = calculateRouteDistance(a.x, a.z, a.world, b.x, b.z, b.world);
+            matrix[i + 1]![j + 1] = dist;
+            matrix[j + 1]![i + 1] = dist;
+        }
+    }
+    
+    return matrix;
+}
+
+/**
+ * Nearest-neighbor heuristic to get initial route order
+ * Returns indices into points array (not including origin)
+ */
+export function nearestNeighborOrder(points: RoutePoint[], distMatrix: number[][]): number[] {
+    if (points.length === 0) {return [];}
+    if (points.length === 1) {return [0];}
+    
+    const order: number[] = [];
+    const visited = new Set<number>();
+    let current = 0; // Start at origin (index 0 in matrix)
+    
+    while (order.length < points.length) {
+        let nearestIdx = -1;
+        let nearestDist = Infinity;
+        
+        for (let i = 0; i < points.length; i++) {
+            if (visited.has(i)) {continue;}
+            const dist = distMatrix[current]![i + 1]!; // +1 because origin is at 0
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestIdx = i;
+            }
+        }
+        
+        if (nearestIdx !== -1) {
+            order.push(nearestIdx);
+            visited.add(nearestIdx);
+            current = nearestIdx + 1; // +1 for matrix index
+        }
+    }
+    
+    return order;
+}
+
+/**
+ * Calculate total route length for a given order (starting from origin)
+ */
+export function calculateOrderDistance(order: number[], distMatrix: number[][]): number {
+    if (order.length === 0) {return 0;}
+    
+    let total = distMatrix[0]![order[0]! + 1]!; // Origin to first
+    
+    for (let i = 0; i < order.length - 1; i++) {
+        total += distMatrix[order[i]! + 1]![order[i + 1]! + 1]!;
+    }
+    
+    return total;
+}
+
+/**
+ * 2-opt optimization: iteratively swap edges to improve route
+ * Returns a new optimized order array
+ */
+export function twoOptOptimize(order: number[], distMatrix: number[][]): number[] {
+    if (order.length < 3) {return [...order];}
+    
+    const result = [...order];
+    let improved = true;
+    
+    while (improved) {
+        improved = false;
+        
+        for (let i = 0; i < result.length - 1; i++) {
+            for (let j = i + 2; j < result.length; j++) {
+                // Calculate current distance for edges (i-1 to i) and (j to j+1)
+                const prevI = i === 0 ? 0 : result[i - 1]! + 1;
+                const currI = result[i]! + 1;
+                const currJ = result[j]! + 1;
+                const nextJ = j === result.length - 1 ? -1 : result[j + 1]! + 1;
+                
+                // Current cost: prevI→currI + currJ→nextJ
+                let currentCost = distMatrix[prevI]![currI]!;
+                if (nextJ !== -1) {
+                    currentCost += distMatrix[currJ]![nextJ]!;
+                }
+                
+                // New cost if we reverse segment [i, j]: prevI→currJ + currI→nextJ
+                let newCost = distMatrix[prevI]![currJ]!;
+                if (nextJ !== -1) {
+                    newCost += distMatrix[currI]![nextJ]!;
+                }
+                
+                if (newCost < currentCost - 0.001) { // Small epsilon for float comparison
+                    // Reverse segment from i to j
+                    const segment = result.slice(i, j + 1).reverse();
+                    result.splice(i, j - i + 1, ...segment);
+                    improved = true;
+                }
+            }
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * Compute optimized route order using nearest-neighbor + 2-opt
+ * Returns indices into the points array in optimal visit order
+ */
+export function computeOptimalOrder(points: RoutePoint[]): number[] {
+    if (points.length === 0) {return [];}
+    if (points.length === 1) {return [0];}
+    
+    // Build distance matrix
+    const distMatrix = buildDistanceMatrix(points);
+    
+    // Get initial order using nearest-neighbor
+    let order = nearestNeighborOrder(points, distMatrix);
+    
+    // Optimize with 2-opt
+    order = twoOptOptimize(order, distMatrix);
+    
+    return order;
+}

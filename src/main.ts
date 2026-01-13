@@ -30,7 +30,10 @@ import {
     toLeafletCoords,
     toLeafletCoordsRelative,
     fromLeafletCoordsRelative,
-    clampToCircle
+    clampToCircle,
+    toOverworldEquivalent,
+    calculateRouteDistance,
+    computeOptimalOrder
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -249,6 +252,22 @@ function updateCartBadge(): void {
 }
 
 /**
+ * Refresh the in-cart state of all visible cart buttons
+ * Call this after cart modifications (remove, clear) to update button styling
+ */
+function refreshCartButtonStates(): void {
+    const buttons = document.querySelectorAll('.add-to-cart-btn[data-trade-key]');
+    const cartKeys = new Set(cart.map(item => getTradeKey(item.trade)));
+    
+    buttons.forEach(btn => {
+        const key = btn.getAttribute('data-trade-key');
+        if (key) {
+            btn.classList.toggle('in-cart', cartKeys.has(key));
+        }
+    });
+}
+
+/**
  * Aggregate cart into shopping lists
  */
 function getShoppingList(): ShoppingList {
@@ -283,62 +302,31 @@ function isNether(world: string): boolean {
 }
 
 /**
- * Convert nether coords to overworld-equivalent for distance calculation
- */
-function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
-    if (isNether(world)) {
-        return { x: x * 8, z: z * 8 };
-    }
-    return { x, z };
-}
-
-/**
- * Calculate distance between two points (using overworld-equivalent coords)
- */
-function calculateDistance(
-    x1: number, z1: number, world1: string,
-    x2: number, z2: number, world2: string
-): number {
-    const p1 = toOverworldEquivalent(x1, z1, world1);
-    const p2 = toOverworldEquivalent(x2, z2, world2);
-    return Math.hypot(p1.x - p2.x, p1.z - p2.z);
-}
-
-/**
- * Compute optimal route using nearest-neighbor heuristic
+ * Compute optimal route using nearest-neighbor + 2-opt optimization
  * Starts from origin (0, 0) in overworld
  */
 function computeRoute(): RouteStop[] {
     if (cart.length === 0) { return []; }
     
-    // Create list of shop stops to visit
-    const unvisited: CartItem[] = [...cart];
-    const route: RouteStop[] = [];
+    // Convert cart items to RoutePoints for optimization
+    const points = cart.map(item => ({
+        x: item.trade.x,
+        z: item.trade.z,
+        world: item.trade.world
+    }));
     
-    // Start at origin (overworld)
+    // Get optimized order using lib functions
+    const order = computeOptimalOrder(points);
+    
+    // Build route with portal transitions
+    const route: RouteStop[] = [];
     let currentX = 0;
     let currentZ = 0;
     let currentWorld = 'overworld';
     
-    while (unvisited.length > 0) {
-        // Find nearest unvisited shop
-        let nearestIdx = 0;
-        let nearestDist = Infinity;
-        
-        for (let i = 0; i < unvisited.length; i++) {
-            const item = unvisited[i]!;
-            const dist = calculateDistance(
-                currentX, currentZ, currentWorld,
-                item.trade.x, item.trade.z, item.trade.world
-            );
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearestIdx = i;
-            }
-        }
-        
-        const nextItem = unvisited.splice(nearestIdx, 1)[0]!;
-        const nextWorld = nextItem.trade.world;
+    for (const idx of order) {
+        const item = cart[idx]!;
+        const nextWorld = item.trade.world;
         
         // Check if we need a portal transition
         const wasNether = isNether(currentWorld);
@@ -347,7 +335,7 @@ function computeRoute(): RouteStop[] {
         if (wasNether !== willBeNether) {
             if (willBeNether) {
                 // Entering nether: portal in overworld near next shop's OW-equivalent
-                const owEquiv = toOverworldEquivalent(nextItem.trade.x, nextItem.trade.z, nextWorld);
+                const owEquiv = toOverworldEquivalent(item.trade.x, item.trade.z, nextWorld);
                 route.push({
                     type: 'portal',
                     x: owEquiv.x,
@@ -371,14 +359,14 @@ function computeRoute(): RouteStop[] {
         // Add the shop stop
         route.push({
             type: 'shop',
-            x: nextItem.trade.x,
-            z: nextItem.trade.z,
+            x: item.trade.x,
+            z: item.trade.z,
             world: nextWorld,
-            cartItem: nextItem
+            cartItem: item
         });
         
-        currentX = nextItem.trade.x;
-        currentZ = nextItem.trade.z;
+        currentX = item.trade.x;
+        currentZ = item.trade.z;
         currentWorld = nextWorld;
     }
     
@@ -397,7 +385,7 @@ function calculateTotalRouteDistance(route: RouteStop[]): number {
     let prevWorld = 'overworld';
     
     for (const stop of route) {
-        total += calculateDistance(prevX, prevZ, prevWorld, stop.x, stop.z, stop.world);
+        total += calculateRouteDistance(prevX, prevZ, prevWorld, stop.x, stop.z, stop.world);
         prevX = stop.x;
         prevZ = stop.z;
         prevWorld = stop.world;
@@ -721,6 +709,12 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     row.dataset['y'] = String(t.y);
     row.dataset['z'] = String(t.z);
     row.dataset['world'] = t.world;
+    
+    // Check if this trade is already in cart
+    const tradeKey = getTradeKey(t);
+    const isInCart = cart.some(item => getTradeKey(item.trade) === tradeKey);
+    const inCartClass = isInCart ? ' in-cart' : '';
+    
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
         <span class="col result-name">${resultDisplay}</span>
@@ -730,7 +724,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
-        <button class="col add-to-cart-btn" title="Add to cart">+</button>
+        <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
     
     // Add click handler for cart button (stop propagation to prevent row click)
@@ -738,6 +732,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     cartBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         addToCart(t);
+        cartBtn.classList.add('in-cart');
         // Visual feedback
         cartBtn.classList.add('added');
         setTimeout(() => cartBtn.classList.remove('added'), 200);
@@ -1289,6 +1284,7 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     
     removeBtn.addEventListener('click', () => {
         removeFromCart(trade);
+        refreshCartButtonStates();
         renderCartDialog();
     });
     
@@ -1428,6 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     getElement('clear-cart').addEventListener('click', () => {
         clearCart();
+        refreshCartButtonStates();
         renderCartDialog();
     });
     
