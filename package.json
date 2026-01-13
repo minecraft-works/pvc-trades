@@ -24,6 +24,11 @@
   },
   "lint-staged": {
     "src/**/*.ts": "eslint",
+    "scripts/**/*.ts": "eslint",
+    "tests/**/*.ts": [
+      "eslint",
+      "npm run test:e2e"
+    ],
     "styles.css": "stylelint",
     "index.html": "htmlhint"
   },
