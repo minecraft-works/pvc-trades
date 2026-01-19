@@ -1312,7 +1312,7 @@ mark {
 }
 
 #nav-dialog::backdrop {
-    background: rgb(0 0 0 / 100%);
+    background: rgb(0 0 0 / 85%);
 }
 
 #nav-dialog-map-container {
@@ -1484,26 +1484,30 @@ mark {
     display: none;
 }
 
-/* Stop navigation button */
-.stop-nav-btn {
+/* Close navigation button */
+#close-nav {
     position: absolute;
     top: 8px;
     right: 8px;
     background: var(--color-bad-deal);
     border: none;
-    border-radius: var(--border-radius);
+    border-radius: 50%;
     color: #fff;
-    font-size: 0.85rem;
-    font-weight: 500;
-    padding: 8px 16px;
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    outline: none;
     z-index: 1001;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
-    text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
     transition: opacity 0.15s ease;
 }
 
-.stop-nav-btn:hover {
+#close-nav:hover {
     opacity: 0.9;
 }
 
@@ -1800,8 +1804,9 @@ mark {
         font-size: 0.75rem;
     }
 
-    .stop-nav-btn {
-        font-size: 0.75rem;
-        padding: 6px 12px;
+    #close-nav {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
     }
 }

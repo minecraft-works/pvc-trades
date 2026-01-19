@@ -2075,11 +2075,11 @@ function switchToFollowMode(): void {
 function setupNavigationControls(): void {
     const startBtn = document.getElementById('start-navigation');
     const recenterBtn = document.getElementById('recenter-map');
-    const stopNavBtn = document.getElementById('stop-nav');
+    const closeNavBtn = document.getElementById('close-nav');
     
     startBtn?.addEventListener('click', toggleNavigation);
     recenterBtn?.addEventListener('click', switchToFollowMode);
-    stopNavBtn?.addEventListener('click', stopNavigation);
+    closeNavBtn?.addEventListener('click', stopNavigation);
     
     // Set up nav dialog backdrop close
     const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
