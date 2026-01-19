@@ -1894,8 +1894,11 @@ let currentNearbyShopKey: string | null = null;
 const SHOP_NEARBY_THRESHOLD = 100;
 
 /**
- * Update the shop tooltip when player is near a shop
+ * Update the shop tooltip when player enters a shop area
+ * Shows briefly then auto-hides
  */
+let shopTooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+
 function updateNearbyShopTooltip(): void {
     const tooltip = document.getElementById('nav-shop-tooltip');
     if (!tooltip || !currentPlayerPosition) {
@@ -1928,16 +1931,16 @@ function updateNearbyShopTooltip(): void {
     if (nearestShop && nearestShop.cartItem) {
         const shopKey = `${nearestShop.x},${nearestShop.z}`;
         
-        // Group all items at this shop location
-        const itemsAtShop = cart.filter(item => 
-            item.trade.x === nearestShop!.x && 
-            item.trade.z === nearestShop!.z &&
-            !navProgress.completedKeys.has(getTradeKey(item.trade))
-        );
-        
-        // Only update if shop changed
+        // Only show tooltip when ENTERING a new shop area
         if (currentNearbyShopKey !== shopKey) {
             currentNearbyShopKey = shopKey;
+            
+            // Group all items at this shop location
+            const itemsAtShop = cart.filter(item => 
+                item.trade.x === nearestShop!.x && 
+                item.trade.z === nearestShop!.z &&
+                !navProgress.completedKeys.has(getTradeKey(item.trade))
+            );
             
             // Build shopping list HTML
             const itemsHtml = itemsAtShop.map(item => 
@@ -1949,13 +1952,18 @@ function updateNearbyShopTooltip(): void {
                 <ul>${itemsHtml}</ul>
             `;
             tooltip.classList.remove('hidden');
+            
+            // Auto-hide after 4 seconds
+            if (shopTooltipTimeout) {
+                clearTimeout(shopTooltipTimeout);
+            }
+            shopTooltipTimeout = setTimeout(() => {
+                tooltip.classList.add('hidden');
+            }, 4000);
         }
     } else {
-        // No shop nearby, hide tooltip
-        if (currentNearbyShopKey !== null) {
-            currentNearbyShopKey = null;
-            tooltip.classList.add('hidden');
-        }
+        // Left all shop areas
+        currentNearbyShopKey = null;
     }
 }
 
