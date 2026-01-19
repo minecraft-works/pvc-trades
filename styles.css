@@ -1489,10 +1489,10 @@ mark {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: var(--color-bad-deal);
-    border: none;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
     border-radius: 50%;
-    color: #fff;
+    color: var(--color-text-dimmed);
     font-size: 1.25rem;
     width: 32px;
     height: 32px;
@@ -1504,11 +1504,12 @@ mark {
     outline: none;
     z-index: 1001;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
-    transition: opacity 0.15s ease;
+    transition: all 0.15s ease;
 }
 
 #close-nav:hover {
-    opacity: 0.9;
+    background: var(--color-bg-tertiary);
+    color: #fff;
 }
 
 /* Re-center button for nav dialog */
