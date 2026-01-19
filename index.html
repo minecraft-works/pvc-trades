@@ -41,12 +41,7 @@
 
     <dialog id="nav-dialog">
         <div id="nav-dialog-map-container"></div>
-        <div id="nav-timeline-panel" class="nav-timeline-panel">
-            <div class="nav-panel-header">
-                <span class="nav-panel-title">🗺️ Route</span>
-            </div>
-            <div id="nav-panel-timeline" class="nav-panel-timeline"></div>
-        </div>
+        <div id="nav-shop-tooltip" class="nav-shop-tooltip hidden"></div>
         <div id="nav-dialog-distance" class="nav-dialog-distance"></div>
         <button id="stop-nav" class="stop-nav-btn">Stop</button>
     </dialog>
@@ -60,7 +55,7 @@
             <!-- Tab Bar -->
             <div class="cart-tabs">
                 <button id="tab-cart" class="cart-tab active" data-tab="cart">Cart</button>
-                <button id="tab-navigate" class="cart-tab" data-tab="navigate">Navigate</button>
+                <button id="tab-navigate" class="cart-tab" data-tab="navigate">Route</button>
             </div>
             
             <!-- Cart Tab Content -->
@@ -76,11 +71,6 @@
                         <ul id="cart-costs"></ul>
                     </div>
                 </div>
-                <div class="cart-route-section">
-                    <h3>🗺️ Optimized Route</h3>
-                    <div id="route-timeline" class="route-timeline"></div>
-                    <p id="route-distance" class="route-distance"></p>
-                </div>
             </div>
             
             <!-- Navigate Tab Content -->
@@ -89,7 +79,7 @@
                     <p class="navigate-hint">Enter your player name to start live navigation with the route map.</p>
                     <div class="navigate-controls">
                         <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
-                        <button id="start-navigation" class="start-nav-btn">Start Navigation</button>
+                        <button type="button" id="start-navigation" class="start-nav-btn">Start Navigation</button>
                     </div>
                 </div>
                 <div class="cart-route-section">

@@ -355,8 +355,9 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
     
     // Recalculate current index
     syncNavProgressWithCart(route);
+    saveNavProgress();
     
-    // Re-render the cart dialog to update timeline
+    // Re-render cart dialog
     renderCartDialog();
 }
 
@@ -1396,12 +1397,14 @@ function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]):
 
 /**
  * Create a timeline stop element - compact single-line style
+ * @param forNavPanel - if true, hide coordinates (shown on map instead)
  */
 function createTimelineStop(
     stop: RouteStop,
     stopIndex: number,
     route: RouteStop[],
-    _prevStop: RouteStop | null
+    _prevStop: RouteStop | null,
+    forNavPanel = false
 ): HTMLElement {
     const status = getStopStatus(stop, stopIndex, route);
     
@@ -1460,41 +1463,30 @@ function createTimelineStop(
         netherCoords = `${Math.round(stop.x / 8)}, ${Math.round(stop.z / 8)}`;
     }
     
-    content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span><span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+    // During navigation, hide coords (they're shown on map markers)
+    if (forNavPanel) {
+        content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span>`;
+    } else {
+        content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span><span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+    }
     
-    // Make shop content clickable to open map
+    // Make shop content clickable
     content.classList.add('clickable');
     content.addEventListener('click', () => {
-        mapOpenedFromCart = true;
-        const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
-        cartDialog.close();
-        openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+        // During navigation, clicking toggles completion instead of opening map
+        if (navPlayerRefreshInterval) {
+            toggleStopCompletion(stop, route);
+        } else {
+            mapOpenedFromCart = true;
+            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+            cartDialog.close();
+            openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+        }
     });
     
     el.appendChild(content);
     
     return el;
-}
-
-/**
- * Render the route timeline
- */
-function renderRouteTimeline(route: RouteStop[]): void {
-    const timeline = getElement('route-timeline');
-    timeline.innerHTML = '';
-    
-    if (route.length === 0) { return; }
-    
-    // Sync navigation progress with current cart
-    syncNavProgressWithCart(route);
-    
-    // Render each stop
-    let prevStop: RouteStop | null = null;
-    for (let i = 0; i < route.length; i++) {
-        const stop = route[i]!;
-        timeline.appendChild(createTimelineStop(stop, i, route, prevStop));
-        prevStop = stop;
-    }
 }
 
 /**
@@ -1504,19 +1496,15 @@ function renderCartDialog(): void {
     const itemsContainer = getElement('cart-items');
     const costsContainer = getElement('cart-costs');
     const gainsContainer = getElement('cart-gains');
-    const timelineContainer = getElement('route-timeline');
-    const routeDistance = getElement('route-distance');
     const clearCartBtn = getElement('clear-cart');
     
     // Clear previous contents
     itemsContainer.innerHTML = '';
     costsContainer.innerHTML = '';
     gainsContainer.innerHTML = '';
-    timelineContainer.innerHTML = '';
     
     if (cart.length === 0) {
         itemsContainer.innerHTML = '<p class="cart-empty">Your cart is empty</p>';
-        routeDistance.textContent = '';
         clearCartBtn.classList.add('hidden');
         return;
     }
@@ -1542,15 +1530,6 @@ function renderCartDialog(): void {
         li.textContent = `${amount}× ${name}`;
         gainsContainer.appendChild(li);
     }
-    
-    // Compute and render route
-    const route = computeRoute();
-    const totalDistance = calculateTotalRouteDistance(route);
-    const netherDistance = Math.round(totalDistance / 8);
-    
-    routeDistance.innerHTML = `<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`;
-    
-    renderRouteTimeline(route);
 }
 
 // ============================================================================
@@ -1661,20 +1640,27 @@ function startNavigation(): void {
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
     
+    console.log('Starting navigation, navDialog:', navDialog);
+    
     cartDialog.close();
     
     if (navDialog) {
-        // Initialize navigation map in the dialog
-        const route = computeRoute();
-        initNavigationMapDialog(route);
-        renderNavTimelinePanel(route);
-        
         navDialog.showModal();
+        console.log('Dialog opened, computing route...');
         
-        // Start polling player position
-        pollPlayerPosition();
-        const config = getConfig();
-        navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
+        // Initialize map after dialog is visible (needs dimensions)
+        requestAnimationFrame(() => {
+            const route = computeRoute();
+            console.log('Route computed:', route.length, 'stops');
+            initNavigationMapDialog(route);
+            
+            // Start polling player position
+            pollPlayerPosition();
+            const config = getConfig();
+            navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
+        });
+    } else {
+        console.error('nav-dialog element not found!');
     }
 }
 
@@ -1758,6 +1744,7 @@ async function pollPlayerPosition(): Promise<void> {
             updatePlayerMarker();
             updateLiveDistance();
             checkAutoAdvance();
+            updateNearbyShopTooltip();
             
             // In follow mode, center on player
             if (navMode === 'follow') {
@@ -1897,15 +1884,84 @@ function checkAutoAdvance(): void {
         navProgress.completedKeys.add(key);
         navProgress.currentIndex = currentStopIndex + 1;
         saveNavProgress();
+    }
+}
+
+// Track which shop tooltip is currently shown
+let currentNearbyShopKey: string | null = null;
+
+// Distance threshold to show shop tooltip (in blocks)
+const SHOP_NEARBY_THRESHOLD = 100;
+
+/**
+ * Update the shop tooltip when player is near a shop
+ */
+function updateNearbyShopTooltip(): void {
+    const tooltip = document.getElementById('nav-shop-tooltip');
+    if (!tooltip || !currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    
+    // Find all shops within range (not just current stop)
+    let nearestShop: RouteStop | null = null;
+    let nearestDistance = Infinity;
+    
+    for (const stop of route) {
+        if (!stop.cartItem) { continue; }
         
-        // Re-render timeline panel in nav dialog
-        const newRoute = computeRoute();
-        renderNavTimelinePanel(newRoute);
+        const key = getTradeKey(stop.cartItem.trade);
+        if (navProgress.completedKeys.has(key)) { continue; } // Skip completed
+        
+        const distance = calculateRouteDistance(
+            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            stop.x, stop.z, stop.world
+        );
+        
+        if (distance < SHOP_NEARBY_THRESHOLD && distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestShop = stop;
+        }
+    }
+    
+    if (nearestShop && nearestShop.cartItem) {
+        const shopKey = `${nearestShop.x},${nearestShop.z}`;
+        
+        // Group all items at this shop location
+        const itemsAtShop = cart.filter(item => 
+            item.trade.x === nearestShop!.x && 
+            item.trade.z === nearestShop!.z &&
+            !navProgress.completedKeys.has(getTradeKey(item.trade))
+        );
+        
+        // Only update if shop changed
+        if (currentNearbyShopKey !== shopKey) {
+            currentNearbyShopKey = shopKey;
+            
+            // Build shopping list HTML
+            const itemsHtml = itemsAtShop.map(item => 
+                `<li><span class="item-name">${item.trade.resultName}</span><span class="item-qty">×${item.quantity}</span></li>`
+            ).join('');
+            
+            tooltip.innerHTML = `
+                <h4>🛒 Shopping List</h4>
+                <ul>${itemsHtml}</ul>
+            `;
+            tooltip.classList.remove('hidden');
+        }
+    } else {
+        // No shop nearby, hide tooltip
+        if (currentNearbyShopKey !== null) {
+            currentNearbyShopKey = null;
+            tooltip.classList.add('hidden');
+        }
     }
 }
 
 /**
  * Center the navigation map on the player position
+ * Zoom level adjusts based on distance to nearest shop
  */
 function centerMapOnPlayer(): void {
     if (!navMap || !currentPlayerPosition) {
@@ -1920,7 +1976,35 @@ function centerMapOnPlayer(): void {
         MAP_CONFIG.tileSize
     );
     
-    navMap.setView([lat, lng], navMap.getZoom());
+    // Calculate distance to nearest shop and adjust zoom
+    const route = computeRoute();
+    let minDistance = Infinity;
+    for (const stop of route) {
+        const dx = currentPlayerPosition.x - stop.x;
+        const dz = currentPlayerPosition.z - stop.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < minDistance) {
+            minDistance = dist;
+        }
+    }
+    
+    // Zoom levels: closer = more zoomed in
+    // Distance < 100 blocks: zoom 0 (very close)
+    // Distance 100-500: zoom -1
+    // Distance 500-1000: zoom -2
+    // Distance > 1000: zoom -3
+    let zoom: number;
+    if (minDistance < 100) {
+        zoom = 0;
+    } else if (minDistance < 500) {
+        zoom = -1;
+    } else if (minDistance < 1000) {
+        zoom = -2;
+    } else {
+        zoom = -3;
+    }
+    
+    navMap.setView([lat, lng], zoom);
 }
 
 /**
@@ -2078,23 +2162,25 @@ function initNavigationMapDialog(route: RouteStop[]): void {
         const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
         routePoints.push([lat, lng]);
         
-        // Add numbered marker for each stop
+        // Add numbered marker for each stop (no coords, just visual)
         const isOrigin = i === 0;
-        const tooltipText = stop.cartItem 
-            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-            : (isOrigin ? 'Start' : `Stop ${i}`);
         const markerIcon = L.divIcon({
             className: 'nav-route-marker',
             html: `<div class="nav-marker ${isOrigin ? 'nav-marker-origin' : ''}">${isOrigin ? '🏠' : i}</div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
         });
+        
+        // Tooltip shows item name on hover
+        const tooltipText = stop.cartItem 
+            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+            : (isOrigin ? 'Start' : `Stop ${i}`);
         
         L.marker([lat, lng], { icon: markerIcon })
             .bindTooltip(tooltipText, { 
                 permanent: false,
                 direction: 'top',
-                offset: [0, -12]
+                offset: [0, -18]
             })
             .addTo(navMap);
     }
@@ -2112,39 +2198,6 @@ function initNavigationMapDialog(route: RouteStop[]): void {
         const bounds = L.latLngBounds(routePoints);
         navMap.fitBounds(bounds, { padding: [50, 50] });
     }
-}
-
-/**
- * Render the floating timeline panel in the navigation dialog
- */
-function renderNavTimelinePanel(route: RouteStop[]): void {
-    const panelTimeline = document.getElementById('nav-panel-timeline');
-    if (!panelTimeline) {
-        return;
-    }
-    
-    panelTimeline.innerHTML = '';
-    
-    if (route.length === 0) {
-        panelTimeline.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 12px;">No route</p>';
-        return;
-    }
-    
-    // Sync progress
-    syncNavProgressWithCart(route);
-    
-    // Create timeline container
-    const timeline = document.createElement('div');
-    timeline.className = 'route-timeline navigating';
-    
-    let prevStop: RouteStop | null = null;
-    for (let i = 0; i < route.length; i++) {
-        const stop = route[i]!;
-        timeline.appendChild(createTimelineStop(stop, i, route, prevStop));
-        prevStop = stop;
-    }
-    
-    panelTimeline.appendChild(timeline);
 }
 
 /**
@@ -2171,6 +2224,13 @@ function renderNavigateTab(): void {
                 const stop = route[i]!;
                 navTimeline.appendChild(createTimelineStop(stop, i, route, prevStop));
                 prevStop = stop;
+            }
+            
+            // Add navigating class when navigation is active for matching styling
+            if (navPlayerRefreshInterval) {
+                navTimeline.classList.add('navigating');
+            } else {
+                navTimeline.classList.remove('navigating');
             }
         }
     }
