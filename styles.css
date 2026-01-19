@@ -1389,6 +1389,10 @@ mark {
     animation: tooltip-appear 0.2s ease-out;
 }
 
+.nav-shop-tooltip.hidden {
+    display: none;
+}
+
 @keyframes tooltip-appear {
     from {
         opacity: 0;
