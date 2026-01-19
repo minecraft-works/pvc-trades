@@ -1663,6 +1663,9 @@ function startNavigation(): void {
     
     cartDialog.close();
     
+    // Prevent background scrolling
+    document.body.style.overflow = 'hidden';
+    
     if (navDialog) {
         navDialog.showModal();
         console.log('Dialog opened, computing route...');
@@ -1710,6 +1713,9 @@ function stopNavigation(): void {
     if (navDialog) {
         navDialog.close();
     }
+    
+    // Restore background scrolling
+    document.body.style.overflow = '';
     
     // Clean up nav map
     if (navMap) {
