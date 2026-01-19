@@ -1,17 +1,15 @@
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import type { Page } from 'playwright';
-import sharp from 'sharp';
 import {
     getTilePath,
     getNormalizedWorld,
     getUniqueTiles,
+    getBaseMapTiles,
     calculateRateLimitDelay,
     type TileInfo,
-    type RateLimitState,
-    type RateLimitConfig,
     type FetchResult
 } from './tile-utils';
 
@@ -27,10 +25,7 @@ const CONFIG = {
     // Rate limiting to avoid DDoS
     delayBetweenTiles: 500, // ms between tile fetches
     batchSize: 10, // tiles per batch
-    delayBetweenBatches: 2000, // ms between batches
-    // AVIF options
-    convertToAvif: false,  // Set to true to also generate AVIF tiles
-    avifQuality: 60
+    delayBetweenBatches: 2000 // ms between batches
 } as const;
 
 interface FetchTileResult extends FetchResult {
@@ -102,166 +97,6 @@ function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Generate lower zoom level tiles by combining 4 tiles from the higher zoom level.
- * Each tile at zoom Z-1 combines 4 tiles from zoom Z in a 2x2 grid.
- */
-async function generateTilePyramid(worldDir: string, worldName: string): Promise<void> {
-    console.log(`\n--- Generating tile pyramid for ${worldName} ---`);
-    
-    // Start from maxZoom-1 and work down to minZoom
-    for (let zoom = CONFIG.maxZoom - 1; zoom >= CONFIG.minZoom; zoom--) {
-        const sourceZoom = zoom + 1;
-        const sourceDir = join(worldDir, String(sourceZoom));
-        const targetDir = join(worldDir, String(zoom));
-        
-        if (!existsSync(sourceDir)) {
-            console.log(`  Zoom ${sourceZoom}: No source directory, skipping`);
-            continue;
-        }
-        
-        mkdirSync(targetDir, { recursive: true });
-        
-        // Get all tile X directories at source zoom
-        const xDirs = readdirSync(sourceDir, { withFileTypes: true })
-            .filter(d => d.isDirectory())
-            .map(d => Number.parseInt(d.name, 10))
-            .filter(x => !Number.isNaN(x));
-        
-        if (xDirs.length === 0) {
-            console.log(`  Zoom ${sourceZoom}: No tiles found`);
-            continue;
-        }
-        
-        // Calculate which tiles we need at this zoom level
-        // Each tile at zoom Z covers 2x2 tiles from zoom Z+1
-        const targetTiles = new Set<string>();
-        
-        for (const sourceX of xDirs) {
-            const xDir = join(sourceDir, String(sourceX));
-            const tiles = readdirSync(xDir)
-                .filter(f => f.endsWith('.png'))
-                .map(f => Number.parseInt(f.replace('.png', ''), 10))
-                .filter(z => !Number.isNaN(z));
-            
-            for (const sourceZ of tiles) {
-                const targetX = Math.floor(sourceX / 2);
-                const targetZ = Math.floor(sourceZ / 2);
-                targetTiles.add(`${targetX}/${targetZ}`);
-            }
-        }
-        
-        console.log(`  Zoom ${zoom}: Generating ${targetTiles.size} tiles from ${xDirs.length} source columns`);
-        
-        let generated = 0;
-        let skipped = 0;
-        
-        for (const key of targetTiles) {
-            const [targetX, targetZ] = key.split('/').map(Number);
-            const targetPath = join(targetDir, String(targetX), `${targetZ}.png`);
-            
-            // Skip if already exists
-            if (existsSync(targetPath)) {
-                skipped++;
-                continue;
-            }
-            
-            mkdirSync(dirname(targetPath), { recursive: true });
-            
-            // Source tiles: (2x, 2z), (2x+1, 2z), (2x, 2z+1), (2x+1, 2z+1)
-            const sourceTiles: { x: number; z: number; path: string }[] = [];
-            for (let dx = 0; dx <= 1; dx++) {
-                for (let dz = 0; dz <= 1; dz++) {
-                    const sx = targetX * 2 + dx;
-                    const sz = targetZ * 2 + dz;
-                    sourceTiles.push({
-                        x: dx,
-                        z: dz,
-                        path: join(sourceDir, String(sx), `${sz}.png`)
-                    });
-                }
-            }
-            
-            // Create composite image
-            const composites: sharp.OverlayOptions[] = [];
-            const halfSize = CONFIG.tileSize / 2;
-            
-            for (const tile of sourceTiles) {
-                if (existsSync(tile.path)) {
-                    // Resize source tile to half size and position in grid
-                    const resized = await sharp(tile.path)
-                        .resize(halfSize, halfSize, { kernel: 'lanczos3' })
-                        .toBuffer();
-                    
-                    composites.push({
-                        input: resized,
-                        left: tile.x * halfSize,
-                        top: tile.z * halfSize
-                    });
-                }
-            }
-            
-            if (composites.length > 0) {
-                // Create base image and composite tiles
-                await sharp({
-                    create: {
-                        width: CONFIG.tileSize,
-                        height: CONFIG.tileSize,
-                        channels: 4,
-                        background: { r: 0, g: 0, b: 0, alpha: 0 }
-                    }
-                })
-                    .composite(composites)
-                    .png()
-                    .toFile(targetPath);
-                
-                generated++;
-            }
-        }
-        
-        console.log(`    Generated: ${generated}, Skipped: ${skipped}`);
-    }
-}
-
-/**
- * Convert PNG tiles to AVIF format (optional)
- */
-async function convertToAvif(worldDir: string, worldName: string): Promise<void> {
-    console.log(`\n--- Converting ${worldName} tiles to AVIF ---`);
-    
-    for (let zoom = CONFIG.minZoom; zoom <= CONFIG.maxZoom; zoom++) {
-        const zoomDir = join(worldDir, String(zoom));
-        if (!existsSync(zoomDir)) continue;
-        
-        const xDirs = readdirSync(zoomDir, { withFileTypes: true })
-            .filter(d => d.isDirectory())
-            .map(d => d.name);
-        
-        let converted = 0;
-        
-        for (const xDir of xDirs) {
-            const xPath = join(zoomDir, xDir);
-            const pngFiles = readdirSync(xPath).filter(f => f.endsWith('.png'));
-            
-            for (const pngFile of pngFiles) {
-                const pngPath = join(xPath, pngFile);
-                const avifPath = pngPath.replace('.png', '.avif');
-                
-                if (!existsSync(avifPath)) {
-                    await sharp(pngPath)
-                        .avif({ quality: CONFIG.avifQuality })
-                        .toFile(avifPath);
-                    converted++;
-                }
-            }
-        }
-        
-        if (converted > 0) {
-            console.log(`  Zoom ${zoom}: Converted ${converted} tiles`);
-        }
-    }
-}
-
 async function main() {
     console.log('=== Tile Fetcher ===');
     console.log(`Timestamp: ${new Date().toISOString()}`);
@@ -276,16 +111,35 @@ async function main() {
     const shopData = JSON.parse(readFileSync(dataPath, 'utf-8'));
     console.log(`Loaded ${shopData.data.length} shops`);
     
-    // Calculate unique tiles needed (at max zoom)
-    const tiles = getUniqueTiles(shopData.data, CONFIG.maxZoom, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl);
-    console.log(`\nUnique tiles needed: ${tiles.length}`);
+    // Get zoom 8 tiles around shops (5x5 grid per shop)
+    const shopTiles = getUniqueTiles(shopData.data, CONFIG.maxZoom, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl);
+    console.log(`\nShop tiles (zoom 8): ${shopTiles.length}`);
     
-    // Group by world for summary
-    const byWorld: Record<string, number> = {};
-    for (const tile of tiles) {
-        byWorld[tile.world] = (byWorld[tile.world] || 0) + 1;
+    // Get zoom 4 base map tiles (range -5 to 4, which is 10x10 = 100 tiles)
+    const baseMapTiles = getBaseMapTiles(-5, 4, -5, 4, 4, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl, 'overworld');
+    console.log(`Base map tiles (zoom 4): ${baseMapTiles.length}`);
+    
+    // Combine both sets, removing duplicates
+    const tilesMap = new Map<string, TileInfo>();
+    for (const tile of [...shopTiles, ...baseMapTiles]) {
+        const key = `${tile.world}/${tile.tileX}/${tile.tileZ}/${tile.blocksPerTile}`;
+        if (!tilesMap.has(key)) {
+            tilesMap.set(key, tile);
+        }
     }
-    console.log('By world:', byWorld);
+    const tiles = Array.from(tilesMap.values());
+    console.log(`\nTotal unique tiles: ${tiles.length}`);
+    
+    // Group by world and zoom for summary
+    const byWorldZoom: Record<string, Record<number, number>> = {};
+    for (const tile of tiles) {
+        if (!byWorldZoom[tile.world]) {
+            byWorldZoom[tile.world] = {};
+        }
+        const zoom = CONFIG.maxZoom - Math.log2(tile.blocksPerTile / CONFIG.tileSize);
+        byWorldZoom[tile.world][zoom] = (byWorldZoom[tile.world][zoom] || 0) + 1;
+    }
+    console.log('By world/zoom:', JSON.stringify(byWorldZoom, null, 2));
     
     // Output directory
     const outputDir = 'public/tiles';
@@ -368,8 +222,11 @@ async function main() {
 
         // Update counters
         if (result.success) {
-            if (result.cached) cached++;
-            else downloaded++;
+            if (result.cached) {
+                cached++;
+            } else {
+                downloaded++;
+            }
         } else {
             failed++;
         }
@@ -395,25 +252,10 @@ async function main() {
     console.log(`Failed: ${failed}`);
     console.log(`Total: ${tiles.length}`);
     
-    // Generate tile pyramid (lower zoom levels)
-    console.log('\n=== Generating Tile Pyramid ===');
-    const worlds = [...new Set(tiles.map(t => getNormalizedWorld(t.world)))];
-    
-    for (const world of worlds) {
-        const worldDir = join(outputDir, world);
-        await generateTilePyramid(worldDir, world);
-    }
-    
-    // Optionally convert to AVIF
-    if (CONFIG.convertToAvif) {
-        console.log('\n=== Converting to AVIF ===');
-        for (const world of worlds) {
-            const worldDir = join(outputDir, world);
-            await convertToAvif(worldDir, world);
-        }
-    }
-    
     console.log('\n=== Complete ===');
+    console.log('Note: Tile pyramid generation skipped.');
+    console.log('Zoom 8: High detail around shops');
+    console.log('Zoom 4: Base map coverage (-5 to 4 range)');
 }
 
 main().catch(err => {

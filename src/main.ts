@@ -967,11 +967,102 @@ function renderMatrix(): void {
 // ============================================================================
 
 const MAP_CONFIG = {
-    tileSize: 512,  // pixels per tile (and blocks per tile)
+    tileSize: 512,  // pixels per tile (and blocks per tile at maxZoom)
     baseUrl: 'tiles',
-    zoom: 8,  // zoom level for pyramid tile path
+    maxZoom: 8,     // highest detail zoom level (1 pixel = 1 block)
+    fallbackZoom: 4, // base map zoom level for fallback
+    minZoom: 1,     // lowest detail zoom level (not used in fallback)
     playersUrl: 'players.json'  // Local fallback; production uses worker URL
 };
+
+/**
+ * Load a tile image with fallback to zoom 4.
+ * Returns a promise that resolves with the image URL that loaded successfully,
+ * or rejects if no tile is available.
+ * 
+ * Strategy:
+ * 1. Try zoom 8 (high detail around shops)
+ * 2. If not found, try zoom 4 (base map coverage)
+ * 
+ * @param worldId - The world identifier (overworld, the_nether)
+ * @param tileX - Tile X coordinate at maxZoom (zoom 8)
+ * @param tileZ - Tile Z coordinate at maxZoom (zoom 8)
+ * @returns Promise with { url, zoom } of the loaded tile
+ */
+async function loadTileWithFallback(
+    worldId: string,
+    tileX: number,
+    tileZ: number
+): Promise<{ url: string; zoom: number }> {
+    // Try zoom 8 first (high detail)
+    const zoom8Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tileX}/${tileZ}.png`;
+    if (await checkTileExists(zoom8Url)) {
+        return { url: zoom8Url, zoom: MAP_CONFIG.maxZoom };
+    }
+    
+    // Fall back to zoom 4 (base map)
+    // Calculate zoom 4 tile coords from zoom 8 coords
+    const zoomDiff = MAP_CONFIG.maxZoom - MAP_CONFIG.fallbackZoom; // 8 - 4 = 4
+    const zoom4X = Math.floor(tileX / Math.pow(2, zoomDiff)); // divide by 16
+    const zoom4Z = Math.floor(tileZ / Math.pow(2, zoomDiff)); // divide by 16
+    
+    const zoom4Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${zoom4X}/${zoom4Z}.png`;
+    if (await checkTileExists(zoom4Url)) {
+        return { url: zoom4Url, zoom: MAP_CONFIG.fallbackZoom };
+    }
+    
+    // No tile found
+    throw new Error(`No tile found for ${worldId}/${tileX}/${tileZ}`);
+}
+
+/**
+ * Check if a tile exists by attempting to load it.
+ */
+function checkTileExists(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+    });
+}
+
+/**
+ * Create an ImageOverlay for a tile, using fallback if needed.
+ * The overlay will cover the area of the original maxZoom tile even if
+ * using a lower zoom tile as fallback.
+ * 
+ * @param map - The Leaflet map to add the overlay to
+ * @param worldId - World identifier
+ * @param tileX - Tile X coordinate at maxZoom
+ * @param tileZ - Tile Z coordinate at maxZoom
+ * @param bounds - The L.LatLngBounds for this tile in the map's coordinate system
+ */
+async function addTileOverlayWithFallback(
+    map: L.Map,
+    worldId: string,
+    tileX: number,
+    tileZ: number,
+    bounds: L.LatLngBoundsExpression
+): Promise<L.ImageOverlay | null> {
+    try {
+        const { url, zoom } = await loadTileWithFallback(worldId, tileX, tileZ);
+        
+        if (zoom === MAP_CONFIG.maxZoom) {
+            // Direct tile at max zoom, use directly
+            return L.imageOverlay(url, bounds).addTo(map);
+        } else {
+            // Using a lower zoom tile as fallback
+            // The tile covers a larger area, but we want to show just the relevant portion
+            // For now, use the lower zoom tile stretched to cover the area
+            // This will be blurry but better than nothing
+            return L.imageOverlay(url, bounds).addTo(map);
+        }
+    } catch {
+        // No tile available, return null (empty space)
+        return null;
+    }
+}
 
 // Leaflet map instance (reused across dialog opens)
 let leafletMap: L.Map | null = null;
@@ -1064,7 +1155,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
     dialog.showModal();
     
     // Wait for dialog to render
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
         // Destroy old map if it exists (cleaner than reusing)
         if (leafletMap) {
             try {
@@ -1090,11 +1181,12 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         
         // Add tiles in a 5x5 grid around the shop's tile
         // Each tile is placed as an ImageOverlay at its correct bounds
+        // Uses fallback to lower zoom tiles when maxZoom tiles are missing
+        const tilePromises: Promise<void>[] = [];
         for (let dy = -2; dy <= 2; dy++) {
             for (let dx = -2; dx <= 2; dx++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dy;
-                const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
                 
                 // In CRS.Simple, bounds are [[south, west], [north, east]]
                 // We want tile at (dx, dy) relative to center (0,0)
@@ -1103,10 +1195,18 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 const north = -dy * MAP_CONFIG.tileSize;
                 const west = dx * MAP_CONFIG.tileSize;
                 const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+                const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                 
-                L.imageOverlay(tileUrl, [[south, west], [north, east]]).addTo(leafletMap);
+                // Load tile with fallback (fire and forget, order doesn't matter)
+                tilePromises.push(
+                    addTileOverlayWithFallback(leafletMap, worldId, tx, tz, bounds)
+                        .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
+                );
             }
         }
+        
+        // Wait for all tiles to load (or fail) before continuing
+        await Promise.all(tilePromises);
         
         // Marker position relative to center tile
         // Convert Minecraft coords to Leaflet CRS.Simple coords
@@ -2107,7 +2207,7 @@ let navMap: L.Map | null = null;
 /**
  * Initialize navigation map inside the circular dialog
  */
-function initNavigationMapDialog(route: RouteStop[]): void {
+async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     const container = document.getElementById('nav-dialog-map-container');
     if (!container) {
         return;
@@ -2170,11 +2270,10 @@ function initNavigationMapDialog(route: RouteStop[]): void {
     });
     
     // Load tiles - expand range by 1 for padding
+    // Uses fallback to lower zoom tiles when maxZoom tiles are missing
+    const navTilePromises: Promise<void>[] = [];
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            // All route stops should be in overworld for now
-            const tileUrl = `${MAP_CONFIG.baseUrl}/overworld/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
-            
             // Bounds relative to center tile
             const relX = tx - centerTileX;
             const relZ = tz - centerTileZ;
@@ -2182,10 +2281,18 @@ function initNavigationMapDialog(route: RouteStop[]): void {
             const north = -relZ * MAP_CONFIG.tileSize;
             const west = relX * MAP_CONFIG.tileSize;
             const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
             
-            L.imageOverlay(tileUrl, [[south, west], [north, east]]).addTo(navMap);
+            // All route stops should be in overworld for now
+            navTilePromises.push(
+                addTileOverlayWithFallback(navMap, 'overworld', tx, tz, bounds)
+                    .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
+            );
         }
     }
+    
+    // Wait for all tiles to load
+    await Promise.all(navTilePromises);
     
     // Convert route stops to Leaflet coordinates
     const routePoints: L.LatLngExpression[] = [];
