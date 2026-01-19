@@ -30,7 +30,9 @@ import {
     toLeafletCoords,
     toLeafletCoordsRelative,
     fromLeafletCoordsRelative,
-    clampToCircle
+    clampToCircle,
+    calculateRouteDistance,
+    computeOptimalOrder
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -45,8 +47,15 @@ import type {
     SortColumn,
     SortDirection,
     Player,
-    PlayersData
+    PlayersData,
+    CartItem,
+    RouteStop,
+    ShoppingList,
+    NavigationProgress,
+    NavigationMode
 } from './types.js';
+
+import { NAV_STORAGE_KEY, NAV_PLAYER_KEY, NAV_TAB_KEY, NAV_MODE_KEY } from './types.js';
 
 import * as L from 'leaflet';
 
@@ -137,12 +146,351 @@ let virtualScroller: VirtualScroller<FilterResult> | null = null;
 let currentWantRegex: RegExp | null = null;
 let currentGiveRegex: RegExp | null = null;
 
+// Shopping cart state
+let cart: CartItem[] = [];
+const CART_STORAGE_KEY = 'pvc-trades-cart';
+let mapOpenedFromCart = false;
+
+// Navigation progress state
+let navProgress: NavigationProgress = {
+    completedKeys: new Set(),
+    currentIndex: 0
+};
+
+// Live navigation state
+let isNavigating = false;
+let navMode: NavigationMode = 'follow';
+let navPlayerRefreshInterval: ReturnType<typeof setInterval> | null = null;
+let currentPlayerPosition: { x: number; z: number; world: string } | null = null;
+let navPlayerMarker: L.Marker | null = null;
+
+// Auto-advance threshold in blocks
+const NAV_ARRIVAL_THRESHOLD = 50;
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 const DEVIATION_MIN_PERCENT = -99;
 const DEVIATION_MAX_PERCENT = 999;
+
+// ============================================================================
+// Shopping Cart Functions
+// ============================================================================
+
+/**
+ * Generate a unique key for a trade (used to detect duplicates)
+ */
+function getTradeKey(trade: Trade): string {
+    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
+}
+
+/**
+ * Load cart from localStorage
+ */
+function loadCart(): void {
+    try {
+        const stored = localStorage.getItem(CART_STORAGE_KEY);
+        if (stored) {
+            cart = JSON.parse(stored);
+        }
+    } catch {
+        cart = [];
+    }
+    updateCartBadge();
+}
+
+/**
+ * Save cart to localStorage
+ */
+function saveCart(): void {
+    try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+        // Storage full or unavailable - ignore
+    }
+    updateCartBadge();
+}
+
+/**
+ * Add a trade to the cart (or increment quantity if exists)
+ */
+function addToCart(trade: Trade): void {
+    const key = getTradeKey(trade);
+    const existing = cart.find(item => getTradeKey(item.trade) === key);
+    
+    if (existing) {
+        existing.quantity++;
+    } else {
+        cart.push({ trade, quantity: 1 });
+    }
+    
+    saveCart();
+}
+
+/**
+ * Remove a trade from the cart entirely
+ */
+function removeFromCart(trade: Trade): void {
+    const key = getTradeKey(trade);
+    cart = cart.filter(item => getTradeKey(item.trade) !== key);
+    saveCart();
+}
+
+/**
+ * Update quantity for a cart item
+ * Allows quantity to go to 0 (item stays in cart until dialog closes)
+ */
+function updateCartQuantity(trade: Trade, delta: number): void {
+    const key = getTradeKey(trade);
+    const item = cart.find(i => getTradeKey(i.trade) === key);
+    
+    if (item) {
+        item.quantity = Math.max(0, item.quantity + delta);
+        saveCart();
+    }
+}
+
+/**
+ * Remove items with zero quantity from cart
+ * Called when cart dialog is closed
+ */
+function cleanupZeroQuantityItems(): void {
+    const hadZeroItems = cart.some(item => item.quantity === 0);
+    cart = cart.filter(item => item.quantity > 0);
+    if (hadZeroItems) {
+        saveCart();
+        refreshCartButtonStates();
+    }
+}
+
+/**
+ * Clear the entire cart
+ */
+function clearCart(): void {
+    cart = [];
+    saveCart();
+    // Reset navigation progress when cart is cleared
+    navProgress = { completedKeys: new Set(), currentIndex: 0 };
+    saveNavProgress();
+}
+
+// ============================================================================
+// Navigation Progress
+// ============================================================================
+
+/**
+ * Load navigation progress from localStorage
+ */
+function loadNavProgress(): void {
+    try {
+        const stored = localStorage.getItem(NAV_STORAGE_KEY);
+        if (stored) {
+            const data = JSON.parse(stored);
+            navProgress = {
+                completedKeys: new Set(data.completedKeys ?? []),
+                currentIndex: data.currentIndex ?? 0
+            };
+        }
+    } catch {
+        navProgress = { completedKeys: new Set(), currentIndex: 0 };
+    }
+}
+
+/**
+ * Save navigation progress to localStorage
+ */
+function saveNavProgress(): void {
+    try {
+        localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({
+            completedKeys: [...navProgress.completedKeys],
+            currentIndex: navProgress.currentIndex
+        }));
+    } catch {
+        // Storage full or unavailable - ignore
+    }
+}
+
+/**
+ * Sync navigation progress with current cart
+ * Removes completed keys for items no longer in cart
+ * Recalculates current index
+ */
+function syncNavProgressWithCart(route: RouteStop[]): void {
+    // Get keys of all shop stops in current route
+    const currentShopKeys = new Set(
+        route
+            .filter(stop => stop.type === 'shop' && stop.cartItem)
+            .map(stop => getTradeKey(stop.cartItem!.trade))
+    );
+    
+    // Remove completed keys that are no longer in cart
+    const validCompleted = new Set(
+        [...navProgress.completedKeys].filter(key => currentShopKeys.has(key))
+    );
+    
+    // Find first non-completed shop stop index
+    let currentIndex = 0;
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i];
+        if (stop?.type === 'shop' && stop.cartItem) {
+            const key = getTradeKey(stop.cartItem.trade);
+            if (!validCompleted.has(key)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        // If we reach the end, all are completed
+        if (i === route.length - 1) {
+            currentIndex = route.length;
+        }
+    }
+    
+    navProgress = {
+        completedKeys: validCompleted,
+        currentIndex
+    };
+    saveNavProgress();
+}
+
+/**
+ * Toggle completion status of a route stop
+ */
+function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
+    if (stop.type !== 'shop' || !stop.cartItem) { return; }
+    
+    const key = getTradeKey(stop.cartItem.trade);
+    
+    if (navProgress.completedKeys.has(key)) {
+        navProgress.completedKeys.delete(key);
+    } else {
+        navProgress.completedKeys.add(key);
+    }
+    
+    // Recalculate current index
+    syncNavProgressWithCart(route);
+    saveNavProgress();
+    
+    // Re-render cart dialog
+    renderCartDialog();
+}
+
+/**
+ * Update the cart badge count
+ */
+function updateCartBadge(): void {
+    const badge = document.getElementById('cart-badge');
+    if (badge) {
+        const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+        badge.textContent = count > 0 ? String(count) : '';
+        badge.classList.toggle('hidden', count === 0);
+    }
+}
+
+/**
+ * Refresh the in-cart state of all visible cart buttons
+ * Call this after cart modifications (remove, clear) to update button styling
+ */
+function refreshCartButtonStates(): void {
+    const buttons = document.querySelectorAll('.add-to-cart-btn[data-trade-key]');
+    const cartKeys = new Set(cart.map(item => getTradeKey(item.trade)));
+    
+    buttons.forEach(btn => {
+        const key = btn.getAttribute('data-trade-key');
+        if (key) {
+            btn.classList.toggle('in-cart', cartKeys.has(key));
+        }
+    });
+}
+
+/**
+ * Aggregate cart into shopping lists
+ */
+function getShoppingList(): ShoppingList {
+    const costs = new Map<string, number>();
+    const gains = new Map<string, number>();
+    
+    for (const { trade, quantity } of cart) {
+        // Aggregate costs
+        const cost1Name = formatName(trade.item1);
+        const cost1Amount = trade.item1.amount * quantity;
+        costs.set(cost1Name, (costs.get(cost1Name) ?? 0) + cost1Amount);
+        
+        if (trade.item2) {
+            const cost2Name = formatName(trade.item2);
+            const cost2Amount = trade.item2.amount * quantity;
+            costs.set(cost2Name, (costs.get(cost2Name) ?? 0) + cost2Amount);
+        }
+        
+        // Aggregate gains
+        const gainAmount = trade.resultAmount * quantity;
+        gains.set(trade.resultName, (gains.get(trade.resultName) ?? 0) + gainAmount);
+    }
+    
+    return { costs, gains };
+}
+
+/**
+ * Check if a point is in the nether
+ */
+function isNether(world: string): boolean {
+    return world.toLowerCase().includes('nether');
+}
+
+/**
+ * Compute optimal route using nearest-neighbor + 2-opt optimization
+ * Starts from origin (0, 0) in overworld
+ */
+function computeRoute(): RouteStop[] {
+    if (cart.length === 0) { return []; }
+    
+    // Convert cart items to RoutePoints for optimization
+    const points = cart.map(item => ({
+        x: item.trade.x,
+        z: item.trade.z,
+        world: item.trade.world
+    }));
+    
+    // Get optimized order using lib functions
+    const order = computeOptimalOrder(points);
+    
+    // Build route with shop stops only
+    const route: RouteStop[] = [];
+    
+    for (const idx of order) {
+        const item = cart[idx]!;
+        route.push({
+            type: 'shop',
+            x: item.trade.x,
+            z: item.trade.z,
+            world: item.trade.world,
+            cartItem: item
+        });
+    }
+    
+    return route;
+}
+
+/**
+ * Calculate total route distance
+ */
+function calculateTotalRouteDistance(route: RouteStop[]): number {
+    if (route.length === 0) { return 0; }
+    
+    let total = 0;
+    let prevX = 0;
+    let prevZ = 0;
+    let prevWorld = 'overworld';
+    
+    for (const stop of route) {
+        total += calculateRouteDistance(prevX, prevZ, prevWorld, stop.x, stop.z, stop.world);
+        prevX = stop.x;
+        prevZ = stop.z;
+        prevWorld = stop.world;
+    }
+    
+    return total;
+}
 
 // ============================================================================
 // DOM Helpers
@@ -400,14 +748,15 @@ function renderHeader(): void {
     const header = getElement('table-header');
     header.innerHTML = `
         <span class="col header amt" data-col="result-amt" data-label="#">#</span>
-        <span class="col header" data-col="result-name" data-label="I need">I need</span>
+        <span class="col header" data-col="result-name" data-label="Item">Item</span>
         <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
-        <span class="col header" data-col="cost-name" data-label="I give">I give</span>
+        <span class="col header" data-col="cost-name" data-label="Cost">Cost</span>
         <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
         <span class="col header distance-header desktop-only" data-col="distance" data-label="Distance" title="Distance from origin (X, Z)">Distance</span>
         <span class="col header distance-header mobile-only" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
+        <span class="col cart-col-header" title="Add to cart"></span>
     `;
 
     header.querySelectorAll<HTMLElement>('.header').forEach(el => {
@@ -458,6 +807,12 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     row.dataset['y'] = String(t.y);
     row.dataset['z'] = String(t.z);
     row.dataset['world'] = t.world;
+    
+    // Check if this trade is already in cart
+    const tradeKey = getTradeKey(t);
+    const isInCart = cart.some(item => getTradeKey(item.trade) === tradeKey);
+    const inCartClass = isInCart ? ' in-cart' : '';
+    
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
         <span class="col result-name">${resultDisplay}</span>
@@ -467,7 +822,20 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
+        <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
+    
+    // Add click handler for cart button (stop propagation to prevent row click)
+    const cartBtn = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
+    cartBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addToCart(t);
+        cartBtn.classList.add('in-cart');
+        // Visual feedback
+        cartBtn.classList.add('added');
+        setTimeout(() => cartBtn.classList.remove('added'), 200);
+    });
+    
     return row;
 }
 
@@ -599,11 +967,102 @@ function renderMatrix(): void {
 // ============================================================================
 
 const MAP_CONFIG = {
-    tileSize: 512,  // pixels per tile (and blocks per tile)
+    tileSize: 512,  // pixels per tile (and blocks per tile at maxZoom)
     baseUrl: 'tiles',
-    zoom: 8,  // zoom level for pyramid tile path
+    maxZoom: 8,     // highest detail zoom level (1 pixel = 1 block)
+    fallbackZoom: 4, // base map zoom level for fallback
+    minZoom: 1,     // lowest detail zoom level (not used in fallback)
     playersUrl: 'players.json'  // Local fallback; production uses worker URL
 };
+
+/**
+ * Load a tile image with fallback to zoom 4.
+ * Returns a promise that resolves with the image URL that loaded successfully,
+ * or rejects if no tile is available.
+ * 
+ * Strategy:
+ * 1. Try zoom 8 (high detail around shops)
+ * 2. If not found, try zoom 4 (base map coverage)
+ * 
+ * @param worldId - The world identifier (overworld, the_nether)
+ * @param tileX - Tile X coordinate at maxZoom (zoom 8)
+ * @param tileZ - Tile Z coordinate at maxZoom (zoom 8)
+ * @returns Promise with { url, zoom } of the loaded tile
+ */
+async function loadTileWithFallback(
+    worldId: string,
+    tileX: number,
+    tileZ: number
+): Promise<{ url: string; zoom: number }> {
+    // Try zoom 8 first (high detail)
+    const zoom8Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tileX}/${tileZ}.png`;
+    if (await checkTileExists(zoom8Url)) {
+        return { url: zoom8Url, zoom: MAP_CONFIG.maxZoom };
+    }
+    
+    // Fall back to zoom 4 (base map)
+    // Calculate zoom 4 tile coords from zoom 8 coords
+    const zoomDiff = MAP_CONFIG.maxZoom - MAP_CONFIG.fallbackZoom; // 8 - 4 = 4
+    const zoom4X = Math.floor(tileX / Math.pow(2, zoomDiff)); // divide by 16
+    const zoom4Z = Math.floor(tileZ / Math.pow(2, zoomDiff)); // divide by 16
+    
+    const zoom4Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${zoom4X}/${zoom4Z}.png`;
+    if (await checkTileExists(zoom4Url)) {
+        return { url: zoom4Url, zoom: MAP_CONFIG.fallbackZoom };
+    }
+    
+    // No tile found
+    throw new Error(`No tile found for ${worldId}/${tileX}/${tileZ}`);
+}
+
+/**
+ * Check if a tile exists by attempting to load it.
+ */
+function checkTileExists(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+    });
+}
+
+/**
+ * Create an ImageOverlay for a tile, using fallback if needed.
+ * The overlay will cover the area of the original maxZoom tile even if
+ * using a lower zoom tile as fallback.
+ * 
+ * @param map - The Leaflet map to add the overlay to
+ * @param worldId - World identifier
+ * @param tileX - Tile X coordinate at maxZoom
+ * @param tileZ - Tile Z coordinate at maxZoom
+ * @param bounds - The L.LatLngBounds for this tile in the map's coordinate system
+ */
+async function addTileOverlayWithFallback(
+    map: L.Map,
+    worldId: string,
+    tileX: number,
+    tileZ: number,
+    bounds: L.LatLngBoundsExpression
+): Promise<L.ImageOverlay | null> {
+    try {
+        const { url, zoom } = await loadTileWithFallback(worldId, tileX, tileZ);
+        
+        if (zoom === MAP_CONFIG.maxZoom) {
+            // Direct tile at max zoom, use directly
+            return L.imageOverlay(url, bounds).addTo(map);
+        } else {
+            // Using a lower zoom tile as fallback
+            // The tile covers a larger area, but we want to show just the relevant portion
+            // For now, use the lower zoom tile stretched to cover the area
+            // This will be blurry but better than nothing
+            return L.imageOverlay(url, bounds).addTo(map);
+        }
+    } catch {
+        // No tile available, return null (empty space)
+        return null;
+    }
+}
 
 // Leaflet map instance (reused across dialog opens)
 let leafletMap: L.Map | null = null;
@@ -675,11 +1134,17 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         closeBtn.addEventListener('click', () => dialog.close());
     }
 
-    // Clear player refresh interval when dialog closes
+    // Clear player refresh interval when dialog closes, and reopen cart if needed
     dialog.addEventListener('close', () => {
         if (playerRefreshInterval) {
             clearInterval(playerRefreshInterval);
             playerRefreshInterval = null;
+        }
+        if (mapOpenedFromCart) {
+            mapOpenedFromCart = false;
+            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+            renderCartDialog();
+            cartDialog.showModal();
         }
     }, { once: true });
     
@@ -690,7 +1155,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
     dialog.showModal();
     
     // Wait for dialog to render
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
         // Destroy old map if it exists (cleaner than reusing)
         if (leafletMap) {
             try {
@@ -716,11 +1181,12 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         
         // Add tiles in a 5x5 grid around the shop's tile
         // Each tile is placed as an ImageOverlay at its correct bounds
+        // Uses fallback to lower zoom tiles when maxZoom tiles are missing
+        const tilePromises: Promise<void>[] = [];
         for (let dy = -2; dy <= 2; dy++) {
             for (let dx = -2; dx <= 2; dx++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dy;
-                const tileUrl = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
                 
                 // In CRS.Simple, bounds are [[south, west], [north, east]]
                 // We want tile at (dx, dy) relative to center (0,0)
@@ -729,10 +1195,18 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 const north = -dy * MAP_CONFIG.tileSize;
                 const west = dx * MAP_CONFIG.tileSize;
                 const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+                const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                 
-                L.imageOverlay(tileUrl, [[south, west], [north, east]]).addTo(leafletMap);
+                // Load tile with fallback (fire and forget, order doesn't matter)
+                tilePromises.push(
+                    addTileOverlayWithFallback(leafletMap, worldId, tx, tz, bounds)
+                        .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
+                );
             }
         }
+        
+        // Wait for all tiles to load (or fail) before continuing
+        await Promise.all(tilePromises);
         
         // Marker position relative to center tile
         // Convert Minecraft coords to Leaflet CRS.Simple coords
@@ -966,11 +1440,962 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
 }
 
 // ============================================================================
+// Cart Dialog
+// ============================================================================
+
+/**
+ * Create a cart item element
+ */
+function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'cart-item';
+    
+    // Mark zero-quantity items visually
+    if (quantity === 0) {
+        itemEl.classList.add('zero-quantity');
+    }
+    
+    itemEl.innerHTML = `
+        <span class="cart-item-info">
+            <strong>${trade.resultAmount}× ${trade.resultName}</strong>
+            <span class="cart-item-cost">← ${trade.item1.amount}× ${trade.costName}</span>
+        </span>
+        <span class="cart-item-controls">
+            <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
+            <span class="qty-display">${quantity}</span>
+            <button class="qty-btn qty-plus" aria-label="Increase quantity">+</button>
+            <button class="remove-btn" aria-label="Remove from cart">×</button>
+        </span>
+    `;
+    
+    // Event handlers
+    const minusBtn = itemEl.querySelector('.qty-minus')!;
+    const plusBtn = itemEl.querySelector('.qty-plus')!;
+    const removeBtn = itemEl.querySelector('.remove-btn')!;
+    
+    minusBtn.addEventListener('click', () => {
+        if (quantity > 0) {
+            updateCartQuantity(trade, -1);
+            renderCartDialog();
+        }
+    });
+    
+    plusBtn.addEventListener('click', () => {
+        updateCartQuantity(trade, 1);
+        renderCartDialog();
+    });
+    
+    removeBtn.addEventListener('click', () => {
+        removeFromCart(trade);
+        refreshCartButtonStates();
+        renderCartDialog();
+    });
+    
+    return itemEl;
+}
+
+/**
+ * Get status for a route stop based on navigation progress
+ */
+function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
+    if (stop.type === 'portal') {
+        // Portal inherits status from current index comparison
+        if (stopIndex < navProgress.currentIndex) { return 'completed'; }
+        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+        return 'pending';
+    }
+    
+    if (stop.type === 'shop' && stop.cartItem) {
+        const key = getTradeKey(stop.cartItem.trade);
+        if (navProgress.completedKeys.has(key)) { return 'completed'; }
+        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+    }
+    
+    return 'pending';
+}
+
+/**
+ * Create a timeline stop element - compact single-line style
+ * @param forNavPanel - if true, hide coordinates (shown on map instead)
+ */
+function createTimelineStop(
+    stop: RouteStop,
+    stopIndex: number,
+    route: RouteStop[],
+    _prevStop: RouteStop | null,
+    forNavPanel = false
+): HTMLElement {
+    const status = getStopStatus(stop, stopIndex, route);
+    
+    const el = document.createElement('div');
+    const netherClass = isNether(stop.world) ? ' timeline-stop-nether' : '';
+    el.className = `timeline-stop timeline-stop-${stop.type}${netherClass} timeline-status-${status}`;
+    
+    // Connector column (dot + line)
+    const connector = document.createElement('div');
+    connector.className = 'timeline-connector';
+    
+    const dot = document.createElement('button');
+    dot.className = 'timeline-dot';
+    dot.setAttribute('aria-label', status === 'completed' ? 'Mark incomplete' : 'Mark complete');
+    
+    if (status === 'completed') {
+        dot.innerHTML = '✓';
+    } else {
+        dot.innerHTML = '';
+    }
+    
+    // Click dot to toggle completion (only for shop stops)
+    if (stop.type === 'shop') {
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleStopCompletion(stop, route);
+        });
+    }
+    
+    connector.appendChild(dot);
+    
+    // Line below dot (connects to next stop)
+    const line = document.createElement('div');
+    line.className = 'timeline-line';
+    connector.appendChild(line);
+    
+    el.appendChild(connector);
+    
+    // Content (single line with all info)
+    const content = document.createElement('div');
+    content.className = 'timeline-content';
+    
+    const item = stop.cartItem!;
+    const isNetherShop = isNether(stop.world);
+    
+    // Calculate both coordinate systems
+    let owCoords: string;
+    let netherCoords: string;
+    if (isNetherShop) {
+        // Nether shop: raw coords are nether, multiply by 8 for overworld equivalent
+        netherCoords = `${stop.x}, ${stop.z}`;
+        owCoords = `${stop.x * 8}, ${stop.z * 8}`;
+    } else {
+        // Overworld shop: raw coords are overworld, divide by 8 for nether equivalent
+        owCoords = `${stop.x}, ${stop.z}`;
+        netherCoords = `${Math.round(stop.x / 8)}, ${Math.round(stop.z / 8)}`;
+    }
+    
+    // During navigation, hide coords (they're shown on map markers)
+    if (forNavPanel) {
+        content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span>`;
+    } else {
+        content.innerHTML = `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span><span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+    }
+    
+    // Make shop content clickable
+    content.classList.add('clickable');
+    content.addEventListener('click', () => {
+        // During navigation, clicking toggles completion instead of opening map
+        if (navPlayerRefreshInterval) {
+            toggleStopCompletion(stop, route);
+        } else {
+            mapOpenedFromCart = true;
+            const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+            cartDialog.close();
+            openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+        }
+    });
+    
+    el.appendChild(content);
+    
+    return el;
+}
+
+/**
+ * Render the cart dialog contents
+ */
+function renderCartDialog(): void {
+    const itemsContainer = getElement('cart-items');
+    const costsContainer = getElement('cart-costs');
+    const gainsContainer = getElement('cart-gains');
+    const clearCartBtn = getElement('clear-cart');
+    
+    // Clear previous contents
+    itemsContainer.innerHTML = '';
+    costsContainer.innerHTML = '';
+    gainsContainer.innerHTML = '';
+    
+    if (cart.length === 0) {
+        itemsContainer.innerHTML = '<p class="cart-empty">Your cart is empty</p>';
+        clearCartBtn.classList.add('hidden');
+        return;
+    }
+    
+    clearCartBtn.classList.remove('hidden');
+    
+    // Render cart items
+    for (const { trade, quantity } of cart) {
+        itemsContainer.appendChild(createCartItemElement(trade, quantity));
+    }
+    
+    // Render shopping lists
+    const shoppingList = getShoppingList();
+    
+    for (const [name, amount] of shoppingList.costs) {
+        const li = document.createElement('li');
+        li.textContent = `${amount}× ${name}`;
+        costsContainer.appendChild(li);
+    }
+    
+    for (const [name, amount] of shoppingList.gains) {
+        const li = document.createElement('li');
+        li.textContent = `${amount}× ${name}`;
+        gainsContainer.appendChild(li);
+    }
+}
+
+// ============================================================================
+// Tab Switching
+// ============================================================================
+
+function setupCartTabs(): void {
+    const tabCart = document.getElementById('tab-cart');
+    const tabNavigate = document.getElementById('tab-navigate');
+    
+    tabCart?.addEventListener('click', () => switchTab('cart'));
+    tabNavigate?.addEventListener('click', () => switchTab('navigate'));
+}
+
+function switchTab(tab: 'cart' | 'navigate'): void {
+    const tabCart = document.getElementById('tab-cart');
+    const tabNavigate = document.getElementById('tab-navigate');
+    const contentCart = document.getElementById('tab-content-cart');
+    const contentNavigate = document.getElementById('tab-content-navigate');
+    
+    if (tab === 'cart') {
+        tabCart?.classList.add('active');
+        tabNavigate?.classList.remove('active');
+        contentCart?.classList.add('active');
+        contentNavigate?.classList.remove('active');
+    } else {
+        tabCart?.classList.remove('active');
+        tabNavigate?.classList.add('active');
+        contentCart?.classList.remove('active');
+        contentNavigate?.classList.add('active');
+        // Render navigate tab content when switching to it
+        renderNavigateTab();
+    }
+    
+    localStorage.setItem(NAV_TAB_KEY, tab);
+}
+
+function restoreActiveTab(): void {
+    const savedTab = localStorage.getItem(NAV_TAB_KEY);
+    if (savedTab === 'navigate') {
+        switchTab('navigate');
+    } else {
+        switchTab('cart');
+    }
+}
+
+function setupPlayerNameInput(): void {
+    const input = document.getElementById('player-name-input') as HTMLInputElement | null;
+    if (!input) {
+        return;
+    }
+    
+    // Restore saved player name
+    const savedName = localStorage.getItem(NAV_PLAYER_KEY);
+    if (savedName) {
+        input.value = savedName;
+    }
+    
+    // Save on input
+    input.addEventListener('input', () => {
+        localStorage.setItem(NAV_PLAYER_KEY, input.value);
+    });
+}
+
+// ============================================================================
+// Live Navigation
+// ============================================================================
+
+// Store center tile coords for the current nav map (needed for coord conversion)
+let navMapCenterTileX = 0;
+let navMapCenterTileZ = 0;
+
+/**
+ * Load navigation mode from localStorage
+ */
+function loadNavMode(): void {
+    const saved = localStorage.getItem(NAV_MODE_KEY);
+    if (saved === 'manual') {
+        navMode = 'manual';
+    } else {
+        navMode = 'follow';
+    }
+}
+
+/**
+ * Save navigation mode to localStorage
+ */
+function saveNavMode(): void {
+    localStorage.setItem(NAV_MODE_KEY, navMode);
+}
+
+/**
+ * Start live navigation - poll player position and update map
+ */
+function startNavigation(): void {
+    const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
+    
+    if (!playerNameInput?.value.trim()) {
+        playerNameInput?.focus();
+        return;
+    }
+    
+    isNavigating = true;
+    navMode = 'follow';
+    saveNavMode();
+    
+    // Close cart dialog and open navigation dialog
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    
+    console.log('Starting navigation, navDialog:', navDialog);
+    
+    cartDialog.close();
+    
+    // Prevent background scrolling
+    document.body.style.overflow = 'hidden';
+    
+    if (navDialog) {
+        navDialog.showModal();
+        console.log('Dialog opened, computing route...');
+        
+        // Initialize map after dialog is visible (needs dimensions)
+        requestAnimationFrame(() => {
+            const route = computeRoute();
+            console.log('Route computed:', route.length, 'stops');
+            initNavigationMapDialog(route);
+            
+            // Start polling player position
+            pollPlayerPosition();
+            const config = getConfig();
+            navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
+        });
+    } else {
+        console.error('nav-dialog element not found!');
+    }
+}
+
+/**
+ * Stop live navigation
+ */
+function stopNavigation(): void {
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+    
+    isNavigating = false;
+    
+    // Clear polling interval
+    if (navPlayerRefreshInterval) {
+        clearInterval(navPlayerRefreshInterval);
+        navPlayerRefreshInterval = null;
+    }
+    
+    // Remove player marker from map
+    if (navPlayerMarker && navMap) {
+        navMap.removeLayer(navPlayerMarker);
+        navPlayerMarker = null;
+    }
+    
+    currentPlayerPosition = null;
+    
+    // Close nav dialog and reopen cart dialog
+    if (navDialog) {
+        navDialog.close();
+    }
+    
+    // Restore background scrolling
+    document.body.style.overflow = '';
+    
+    // Clean up nav map
+    if (navMap) {
+        try {
+            navMap.remove();
+        } catch {
+            // Map already removed
+        }
+        navMap = null;
+    }
+    
+    // Reopen cart dialog to navigate tab
+    renderCartDialog();
+    switchTab('navigate');
+    cartDialog.showModal();
+}
+
+/**
+ * Toggle navigation on/off
+ */
+function toggleNavigation(): void {
+    if (isNavigating) {
+        stopNavigation();
+    } else {
+        startNavigation();
+    }
+}
+
+/**
+ * Poll for player position and update the map
+ */
+async function pollPlayerPosition(): Promise<void> {
+    const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
+    const playerName = playerNameInput?.value.trim().toLowerCase();
+    
+    if (!playerName || !navMap) {
+        return;
+    }
+    
+    try {
+        const players = await fetchPlayers();
+        const player = players.find(p => p.name.toLowerCase() === playerName);
+        
+        if (player) {
+            currentPlayerPosition = {
+                x: player.position.x,
+                z: player.position.z,
+                world: 'overworld' // Assume overworld for now
+            };
+            
+            updatePlayerMarker();
+            updateLiveDistance();
+            checkAutoAdvance();
+            updateNearbyShopTooltip();
+            
+            // In follow mode, center on player
+            if (navMode === 'follow') {
+                centerMapOnPlayer();
+            }
+        } else {
+            // Player not found - show in live distance display
+            const liveDistance = document.getElementById('nav-live-distance');
+            if (liveDistance) {
+                liveDistance.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to poll player position:', error);
+    }
+}
+
+/**
+ * Update or create the player marker on the navigation map
+ */
+function updatePlayerMarker(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    const { lat, lng } = toLeafletCoordsRelative(
+        currentPlayerPosition.x,
+        currentPlayerPosition.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    if (navPlayerMarker) {
+        // Update existing marker position
+        navPlayerMarker.setLatLng([lat, lng]);
+    } else {
+        // Create new marker
+        const playerIcon = L.divIcon({
+            className: 'nav-player-marker',
+            html: '<div class="nav-player-dot"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        
+        navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
+        navPlayerMarker.addTo(navMap);
+    }
+}
+
+/**
+ * Update the live distance display
+ */
+function updateLiveDistance(): void {
+    // Update both embedded and dialog distance displays
+    const liveDistance = document.getElementById('nav-live-distance');
+    const dialogDistance = document.getElementById('nav-dialog-distance');
+    
+    if (!currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    if (route.length === 0) {
+        return;
+    }
+    
+    // Find current stop (first non-completed)
+    const currentStopIndex = findCurrentStopIndex(route);
+    
+    let distanceHtml: string;
+    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
+        distanceHtml = '<span class="distance-label">Route complete! 🎉</span>';
+    } else {
+        const currentStop = route[currentStopIndex]!;
+        const distance = calculateRouteDistance(
+            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            currentStop.x, currentStop.z, currentStop.world
+        );
+        
+        const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
+        
+        distanceHtml = `
+            <span class="distance-label">→ ${itemName}:</span>
+            <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
+        `;
+    }
+    
+    if (liveDistance) {
+        liveDistance.innerHTML = distanceHtml;
+    }
+    if (dialogDistance) {
+        dialogDistance.innerHTML = distanceHtml;
+    }
+}
+
+/**
+ * Find the index of the current (first non-completed) stop
+ */
+function findCurrentStopIndex(route: RouteStop[]): number {
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        if (stop.cartItem) {
+            const key = getTradeKey(stop.cartItem.trade);
+            if (!navProgress.completedKeys.has(key)) {
+                return i;
+            }
+        }
+    }
+    return route.length;
+}
+
+/**
+ * Check if player is close enough to auto-advance to next stop
+ */
+function checkAutoAdvance(): void {
+    if (!currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    const currentStopIndex = findCurrentStopIndex(route);
+    
+    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
+        return;
+    }
+    
+    const currentStop = route[currentStopIndex]!;
+    const distance = calculateRouteDistance(
+        currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+        currentStop.x, currentStop.z, currentStop.world
+    );
+    
+    if (distance < NAV_ARRIVAL_THRESHOLD && currentStop.cartItem) {
+        // Auto-complete this stop
+        const key = getTradeKey(currentStop.cartItem.trade);
+        navProgress.completedKeys.add(key);
+        navProgress.currentIndex = currentStopIndex + 1;
+        saveNavProgress();
+    }
+}
+
+// Track which shop tooltip is currently shown
+let currentNearbyShopKey: string | null = null;
+
+// Distance threshold to show shop tooltip (in blocks)
+const SHOP_NEARBY_THRESHOLD = 100;
+
+/**
+ * Update the shop tooltip when player enters a shop area
+ * Shows briefly then auto-hides
+ */
+let shopTooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function updateNearbyShopTooltip(): void {
+    const tooltip = document.getElementById('nav-shop-tooltip');
+    if (!tooltip || !currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    
+    // Find all shops within range (not just current stop)
+    let nearestShop: RouteStop | null = null;
+    let nearestDistance = Infinity;
+    
+    for (const stop of route) {
+        if (!stop.cartItem) { continue; }
+        
+        const key = getTradeKey(stop.cartItem.trade);
+        if (navProgress.completedKeys.has(key)) { continue; } // Skip completed
+        
+        const distance = calculateRouteDistance(
+            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            stop.x, stop.z, stop.world
+        );
+        
+        if (distance < SHOP_NEARBY_THRESHOLD && distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestShop = stop;
+        }
+    }
+    
+    if (nearestShop && nearestShop.cartItem) {
+        const shopKey = `${nearestShop.x},${nearestShop.z}`;
+        
+        // Only show tooltip when ENTERING a new shop area
+        if (currentNearbyShopKey !== shopKey) {
+            currentNearbyShopKey = shopKey;
+            
+            // Group all items at this shop location
+            const itemsAtShop = cart.filter(item => 
+                item.trade.x === nearestShop!.x && 
+                item.trade.z === nearestShop!.z &&
+                !navProgress.completedKeys.has(getTradeKey(item.trade))
+            );
+            
+            // Build shopping list HTML
+            const itemsHtml = itemsAtShop.map(item => 
+                `<li><span class="item-name">${item.trade.resultName}</span><span class="item-qty">×${item.quantity}</span></li>`
+            ).join('');
+            
+            tooltip.innerHTML = `
+                <h4>🛒 Shopping List</h4>
+                <ul>${itemsHtml}</ul>
+            `;
+            tooltip.classList.remove('hidden');
+            
+            // Auto-hide after 4 seconds
+            if (shopTooltipTimeout) {
+                clearTimeout(shopTooltipTimeout);
+            }
+            shopTooltipTimeout = setTimeout(() => {
+                tooltip.classList.add('hidden');
+            }, 4000);
+        }
+    } else {
+        // Left all shop areas
+        currentNearbyShopKey = null;
+    }
+}
+
+/**
+ * Center the navigation map on the player position
+ * Zoom level adjusts based on distance to nearest shop
+ */
+function centerMapOnPlayer(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    const { lat, lng } = toLeafletCoordsRelative(
+        currentPlayerPosition.x,
+        currentPlayerPosition.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    // Calculate distance to nearest shop and adjust zoom
+    const route = computeRoute();
+    let minDistance = Infinity;
+    for (const stop of route) {
+        const dx = currentPlayerPosition.x - stop.x;
+        const dz = currentPlayerPosition.z - stop.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < minDistance) {
+            minDistance = dist;
+        }
+    }
+    
+    // Zoom levels: closer = more zoomed in
+    // Distance < 100 blocks: zoom 0 (very close)
+    // Distance 100-500: zoom -1
+    // Distance 500-1000: zoom -2
+    // Distance > 1000: zoom -3
+    let zoom: number;
+    if (minDistance < 100) {
+        zoom = 0;
+    } else if (minDistance < 500) {
+        zoom = -1;
+    } else if (minDistance < 1000) {
+        zoom = -2;
+    } else {
+        zoom = -3;
+    }
+    
+    navMap.setView([lat, lng], zoom);
+}
+
+/**
+ * Switch to manual mode (triggered when user pans the map)
+ */
+function switchToManualMode(): void {
+    if (!isNavigating) {
+        return;
+    }
+    
+    navMode = 'manual';
+    saveNavMode();
+    
+    // Show re-center button (for both embedded and dialog maps)
+    const recenterBtn = document.getElementById('recenter-map');
+    const dialogRecenterBtn = document.getElementById('nav-dialog-recenter');
+    recenterBtn?.classList.remove('hidden');
+    dialogRecenterBtn?.classList.remove('hidden');
+}
+
+/**
+ * Switch back to follow mode and re-center
+ */
+function switchToFollowMode(): void {
+    navMode = 'follow';
+    saveNavMode();
+    
+    // Hide re-center buttons
+    const recenterBtn = document.getElementById('recenter-map');
+    const dialogRecenterBtn = document.getElementById('nav-dialog-recenter');
+    recenterBtn?.classList.add('hidden');
+    dialogRecenterBtn?.classList.add('hidden');
+    
+    // Center on player
+    centerMapOnPlayer();
+}
+
+/**
+ * Set up navigation event handlers
+ */
+function setupNavigationControls(): void {
+    const startBtn = document.getElementById('start-navigation');
+    const recenterBtn = document.getElementById('recenter-map');
+    const closeNavBtn = document.getElementById('close-nav');
+    
+    startBtn?.addEventListener('click', toggleNavigation);
+    recenterBtn?.addEventListener('click', switchToFollowMode);
+    closeNavBtn?.addEventListener('click', stopNavigation);
+    
+    // Set up nav dialog backdrop close
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    if (navDialog) {
+        navDialog.addEventListener('click', (e) => {
+            if (e.target === navDialog) {
+                stopNavigation();
+            }
+        });
+    }
+}
+
+// ============================================================================
+// Navigation Map
+// ============================================================================
+
+let navMap: L.Map | null = null;
+
+/**
+ * Initialize navigation map inside the circular dialog
+ */
+async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
+    const container = document.getElementById('nav-dialog-map-container');
+    if (!container) {
+        return;
+    }
+    
+    // Clean up existing map
+    if (navMap) {
+        try {
+            navMap.remove();
+        } catch {
+            // Map already removed
+        }
+        navMap = null;
+    }
+    
+    if (route.length === 0) {
+        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>';
+        return;
+    }
+    
+    // Clear container
+    container.innerHTML = '';
+    
+    // Calculate bounds of all shops
+    const xs = route.map(stop => stop.x);
+    const zs = route.map(stop => stop.z);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    
+    // Calculate center and which tiles we need
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    
+    // Calculate the tile range needed
+    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, MAP_CONFIG.tileSize);
+    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, MAP_CONFIG.tileSize);
+    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, MAP_CONFIG.tileSize);
+    
+    // Store center tile coords for coordinate conversion in live navigation
+    navMapCenterTileX = centerTileX;
+    navMapCenterTileZ = centerTileZ;
+    
+    // Create map
+    navMap = L.map(container, {
+        crs: L.CRS.Simple,
+        minZoom: -5,
+        maxZoom: 2,
+        zoomControl: true,
+        attributionControl: false,
+        maxBoundsViscosity: 1
+    });
+    
+    // Listen for user drag to switch to manual mode
+    navMap.on('dragstart', () => {
+        if (isNavigating) {
+            switchToManualMode();
+        }
+    });
+    
+    // Load tiles - expand range by 1 for padding
+    // Uses fallback to lower zoom tiles when maxZoom tiles are missing
+    const navTilePromises: Promise<void>[] = [];
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            // Bounds relative to center tile
+            const relX = tx - centerTileX;
+            const relZ = tz - centerTileZ;
+            const south = -relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+            const north = -relZ * MAP_CONFIG.tileSize;
+            const west = relX * MAP_CONFIG.tileSize;
+            const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+            
+            // All route stops should be in overworld for now
+            navTilePromises.push(
+                addTileOverlayWithFallback(navMap, 'overworld', tx, tz, bounds)
+                    .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
+            );
+        }
+    }
+    
+    // Wait for all tiles to load
+    await Promise.all(navTilePromises);
+    
+    // Convert route stops to Leaflet coordinates
+    const routePoints: L.LatLngExpression[] = [];
+    
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
+        routePoints.push([lat, lng]);
+        
+        // Add numbered marker for each stop (no coords, just visual)
+        const isOrigin = i === 0;
+        const markerIcon = L.divIcon({
+            className: 'nav-route-marker',
+            html: `<div class="nav-marker ${isOrigin ? 'nav-marker-origin' : ''}">${isOrigin ? '🏠' : i}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        });
+        
+        // Tooltip shows item name on hover
+        const tooltipText = stop.cartItem 
+            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+            : (isOrigin ? 'Start' : `Stop ${i}`);
+        
+        L.marker([lat, lng], { icon: markerIcon })
+            .bindTooltip(tooltipText, { 
+                permanent: false,
+                direction: 'top',
+                offset: [0, -18]
+            })
+            .addTo(navMap);
+    }
+    
+    // Draw polyline connecting all stops
+    L.polyline(routePoints, {
+        color: '#3b82f6',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '10, 5'
+    }).addTo(navMap);
+    
+    // Fit map to show all stops with padding
+    if (routePoints.length > 0) {
+        const bounds = L.latLngBounds(routePoints);
+        navMap.fitBounds(bounds, { padding: [50, 50] });
+    }
+}
+
+/**
+ * Render navigation tab content (route preview timeline only - map is in dialog)
+ */
+function renderNavigateTab(): void {
+    const route = computeRoute();
+    
+    // Render timeline in navigate tab (preview mode)
+    const navTimeline = document.getElementById('nav-timeline');
+    const navDistance = document.getElementById('nav-distance');
+    
+    if (navTimeline) {
+        navTimeline.innerHTML = '';
+        
+        if (route.length === 0) {
+            navTimeline.innerHTML = '<p class="cart-empty">Add items to cart to see route</p>';
+        } else {
+            // Sync progress and render using same function as cart tab
+            syncNavProgressWithCart(route);
+            
+            let prevStop: RouteStop | null = null;
+            for (let i = 0; i < route.length; i++) {
+                const stop = route[i]!;
+                navTimeline.appendChild(createTimelineStop(stop, i, route, prevStop));
+                prevStop = stop;
+            }
+            
+            // Add navigating class when navigation is active for matching styling
+            if (navPlayerRefreshInterval) {
+                navTimeline.classList.add('navigating');
+            } else {
+                navTimeline.classList.remove('navigating');
+            }
+        }
+    }
+    
+    // Update distance display
+    if (navDistance) {
+        if (route.length === 0) {
+            navDistance.textContent = '';
+        } else {
+            const totalDistance = calculateTotalRouteDistance(route);
+            const netherDistance = Math.round(totalDistance / 8);
+            navDistance.innerHTML = `<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`;
+        }
+    }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     loadShops();
+    loadCart();
+    loadNavProgress();
+    loadNavMode();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();
@@ -998,6 +2423,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
+    
+    // Cart dialog
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+    setupDialogBackdropClose(cartDialog);
+    
+    // Clean up zero-quantity items when cart dialog closes
+    cartDialog.addEventListener('close', () => {
+        cleanupZeroQuantityItems();
+    });
+    
+    getElement('open-cart').addEventListener('click', () => {
+        renderCartDialog();
+        restoreActiveTab();
+        cartDialog.showModal();
+    });
+    getElement('close-cart').addEventListener('click', () => {
+        // Stop navigation when closing cart dialog
+        if (isNavigating) {
+            stopNavigation();
+        }
+        cartDialog.close();
+    });
+    getElement('clear-cart').addEventListener('click', () => {
+        clearCart();
+        refreshCartButtonStates();
+        renderCartDialog();
+    });
+    
+    // Tab switching
+    setupCartTabs();
+    
+    // Player name input persistence
+    setupPlayerNameInput();
+    
+    // Navigation controls
+    setupNavigationControls();
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (e) => {

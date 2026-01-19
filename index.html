@@ -13,11 +13,14 @@
 
     <div class="search-container">
         <div class="search-box">
-            <label for="searchWant" class="visually-hidden">Search for items you need</label>
-            <input type="text" id="searchWant" placeholder="I need..." autofocus>
-            <label for="searchGive" class="visually-hidden">Search for items you give</label>
-            <input type="text" id="searchGive" placeholder="I give...">
+            <label for="searchWant" class="visually-hidden">Search for items to buy</label>
+            <input type="text" id="searchWant" placeholder="Buying..." autofocus>
+            <label for="searchGive" class="visually-hidden">Search by cost item</label>
+            <input type="text" id="searchGive" placeholder="Paying...">
             <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">⇄</button>
+            <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">
+                🛒<span id="cart-badge" class="cart-badge hidden"></span>
+            </button>
         </div>
     </div>
 
@@ -34,6 +37,61 @@
         <div id="map-container"></div>
         <button id="close-map" aria-label="Close">&times;</button>
         <span id="map-coords"></span>
+    </dialog>
+
+    <dialog id="nav-dialog">
+        <div id="nav-dialog-map-container"></div>
+        <div id="nav-shop-tooltip" class="nav-shop-tooltip hidden"></div>
+        <div id="nav-dialog-distance" class="nav-dialog-distance"></div>
+        <button id="close-nav" aria-label="Stop navigation">&times;</button>
+    </dialog>
+
+    <dialog id="cart-dialog">
+        <div class="cart-header">
+            <h2>🛒 Shopping Cart</h2>
+            <button id="close-cart" aria-label="Close">&times;</button>
+        </div>
+        <div class="cart-content">
+            <!-- Tab Bar -->
+            <div class="cart-tabs">
+                <button id="tab-cart" class="cart-tab active" data-tab="cart">Cart</button>
+                <button id="tab-navigate" class="cart-tab" data-tab="navigate">Route</button>
+            </div>
+            
+            <!-- Cart Tab Content -->
+            <div id="tab-content-cart" class="tab-content active">
+                <div id="cart-items" class="cart-items"></div>
+                <div class="cart-lists">
+                    <div class="cart-list-section">
+                        <h3>📦 Items</h3>
+                        <ul id="cart-gains"></ul>
+                    </div>
+                    <div class="cart-list-section">
+                        <h3>💰 Total Cost</h3>
+                        <ul id="cart-costs"></ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigate Tab Content -->
+            <div id="tab-content-navigate" class="tab-content">
+                <div class="navigate-setup">
+                    <p class="navigate-hint">Enter your player name to start live navigation with the route map.</p>
+                    <div class="navigate-controls">
+                        <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
+                        <button type="button" id="start-navigation" class="start-nav-btn">Start Navigation</button>
+                    </div>
+                </div>
+                <div class="cart-route-section">
+                    <h3>📍 Route Preview</h3>
+                    <div id="nav-timeline" class="route-timeline"></div>
+                    <p id="nav-distance" class="route-distance"></p>
+                </div>
+            </div>
+        </div>
+        <div class="cart-footer">
+            <button id="clear-cart" class="clear-cart-btn">Clear Cart</button>
+        </div>
     </dialog>
 
     <script type="module" src="/src/main.ts"></script>

@@ -118,7 +118,7 @@ body {
 /* Header row as its own grid */
 #table-header {
     display: grid;
-    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px;
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
     gap: 2px 0;
 }
 
@@ -133,7 +133,7 @@ body {
     margin-top: 2px; /* Gap between rows (was grid gap before) */
 
     /* Match header's column definition exactly */
-    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px;
+    grid-template-columns: 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
     cursor: pointer;
 }
 
@@ -207,12 +207,7 @@ body {
     border-radius: 4px 0 0 4px;
 }
 
-.trade-row > .col:last-child {
-    padding-right: 12px;
-    border-radius: 0 4px 4px 0;
-}
-
-.trade-row:hover > .col {
+.trade-row:hover > .col:not(.add-to-cart-btn) {
     background: #333;
 }
 
@@ -338,6 +333,717 @@ mark {
 #open-matrix:hover {
     border-color: var(--color-accent);
     color: var(--color-accent);
+}
+
+/* Cart button */
+#open-cart {
+    position: relative;
+    padding: 12px 14px;
+    font-size: 1.1rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background: var(--color-bg);
+    color: #888;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+#open-cart:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.cart-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    font-size: 0.7rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    padding: 0 4px;
+}
+
+.cart-badge.hidden {
+    display: none;
+}
+
+/* Add to cart button in rows */
+.add-to-cart-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    background: transparent;
+    color: var(--color-text-dimmed);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.add-to-cart-btn:hover {
+    background: rgb(255 255 255 / 10%);
+    color: var(--color-text-muted);
+}
+
+.add-to-cart-btn.in-cart {
+    background: rgb(79 195 247 / 15%);
+    color: var(--color-accent);
+}
+
+.add-to-cart-btn.in-cart:hover {
+    background: rgb(79 195 247 / 25%);
+}
+
+.add-to-cart-btn.added {
+    animation: cart-pop 0.2s ease-out;
+}
+
+@keyframes cart-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.cart-col-header {
+    width: 36px;
+}
+
+/* Cart dialog */
+#cart-dialog {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: 0;
+    max-width: 90vw;
+    max-height: 90vh;
+    width: 600px;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    overflow: hidden;
+}
+
+#cart-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+#cart-dialog::backdrop {
+    background: rgb(0 0 0 / 70%);
+}
+
+.cart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.cart-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+#close-cart {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+#close-cart:hover {
+    color: var(--color-text);
+}
+
+.cart-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+}
+
+.cart-empty {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 20px;
+    font-size: 0.85rem;
+}
+
+.cart-items {
+    margin-bottom: 12px;
+}
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+    margin-bottom: 2px;
+}
+
+.cart-item.zero-quantity {
+    opacity: 0.5;
+}
+
+.cart-item-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+}
+
+.cart-item-info strong {
+    font-weight: 500;
+}
+
+.cart-item-cost {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.cart-item-location {
+    font-size: 0.8rem;
+    color: var(--color-text-dimmed);
+    font-family: monospace;
+}
+
+.cart-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.qty-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.qty-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.qty-display {
+    min-width: 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.remove-btn {
+    background: none;
+    border: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0.6;
+}
+
+.remove-btn:hover {
+    opacity: 1;
+}
+
+.cart-lists {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.cart-list-section {
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+    padding: 8px;
+}
+
+.cart-list-section h3 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--color-text-muted);
+}
+
+.cart-list-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.cart-list-section li {
+    padding: 2px 0;
+    font-size: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.cart-list-section li:last-child {
+    border-bottom: none;
+}
+
+/* Cart Tabs */
+.cart-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 8px;
+}
+
+.cart-tab {
+    flex: 1;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: all 0.15s ease;
+}
+
+.cart-tab:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+}
+
+.cart-tab.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Navigate Tab */
+.navigate-setup {
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.navigate-hint {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+.navigate-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.player-name-input {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+}
+
+.player-name-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+.start-nav-btn {
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: var(--color-accent);
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--color-bg);
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+}
+
+.start-nav-btn:hover {
+    opacity: 0.9;
+}
+
+.start-nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Keep these for backwards compatibility but they're not used in the dialog version */
+.nav-map-wrapper {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.nav-map-container {
+    width: 100%;
+    height: 200px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.recenter-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    color: var(--color-accent);
+    cursor: pointer;
+    z-index: 1000;
+    transition: all 0.15s ease;
+}
+
+.recenter-btn:hover {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.recenter-btn.hidden {
+    display: none;
+}
+
+.nav-live-distance {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+}
+
+.nav-live-distance.hidden {
+    display: none;
+}
+
+.nav-live-distance .distance-value {
+    font-weight: 600;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+}
+
+.nav-live-distance .distance-label {
+    color: var(--color-text-muted);
+}
+
+/* Player marker on navigation map */
+.nav-player-marker {
+    background: transparent;
+}
+
+.nav-player-dot {
+    width: 16px;
+    height: 16px;
+    background: #ef4444;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
+    animation: player-pulse 2s ease-in-out infinite;
+}
+
+@keyframes player-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
+    }
+
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 2px 10px rgb(239 68 68 / 60%);
+    }
+}
+
+/* Navigation Route Markers */
+.nav-route-marker {
+    background: transparent;
+}
+
+.nav-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--color-accent);
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
+}
+
+.nav-marker-origin {
+    background: #22c55e;
+    font-size: 1.1rem;
+}
+
+.cart-route-section {
+    background: var(--color-bg);
+    border-radius: var(--border-radius);
+    padding: 8px;
+}
+
+.cart-route-section h3 {
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--color-text-muted);
+}
+
+.route-distance {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 8px;
+    margin-bottom: 0;
+    padding: 6px 0 0 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.dist-label {
+    /* Takes up the first column like stop-text */
+}
+
+.dist-ow,
+.dist-nether {
+    font-family: var(--font-mono);
+    text-align: right;
+    min-width: 10ch;
+}
+
+.dist-ow {
+    color: var(--color-good-deal);
+}
+
+.dist-nether {
+    color: var(--color-bad-deal);
+}
+
+/* Route Timeline - Compact style */
+.route-timeline {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+    gap: 0;
+}
+
+.timeline-stop {
+    display: flex;
+    align-items: flex-start;
+    min-height: 28px;
+}
+
+.timeline-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 20px;
+    flex-shrink: 0;
+    padding-top: 6px;
+    gap: 4px;
+}
+
+.timeline-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-muted);
+    font-size: 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
+}
+
+.timeline-dot:hover:not(:disabled) {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.timeline-dot:disabled {
+    cursor: default;
+}
+
+.timeline-line {
+    width: 2px;
+    flex: 1;
+    background: var(--color-border);
+    min-height: 8px;
+}
+
+.timeline-stop:last-child .timeline-line {
+    display: none;
+}
+
+/* Completed: checkmark on muted background */
+.timeline-status-completed .timeline-dot {
+    background: var(--color-bg-secondary);
+    color: var(--color-accent);
+}
+
+/* Line only fills during active navigation (via .navigating class on timeline) */
+.route-timeline.navigating .timeline-status-completed .timeline-line {
+    background: var(--color-accent);
+}
+
+/* Current: muted background until navigation is active */
+.timeline-status-current .timeline-dot {
+    background: var(--color-bg-secondary);
+}
+
+/* During active navigation, current stop is filled accent */
+.route-timeline.navigating .timeline-status-current .timeline-dot {
+    background: var(--color-accent);
+}
+
+/* Pending: muted background */
+.timeline-status-pending .timeline-dot {
+    background: var(--color-bg-secondary);
+}
+
+.timeline-content {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    min-width: 0;
+}
+
+.timeline-content.clickable {
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    padding: 4px 6px;
+    margin: 0 -6px;
+}
+
+.timeline-content.clickable:hover {
+    background: var(--color-bg-secondary);
+}
+
+.stop-icon {
+    flex-shrink: 0;
+}
+
+.stop-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coord-ow,
+.coord-nether {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    text-align: right;
+    min-width: 10ch;
+}
+
+.coord-ow {
+    color: var(--color-good-deal);
+}
+
+.coord-nether {
+    color: var(--color-bad-deal);
+}
+
+
+/* Overworld shops are green */
+.timeline-stop-shop .timeline-content {
+    color: var(--color-good-deal);
+}
+
+/* Nether shops are red */
+.timeline-stop-nether .timeline-content {
+    color: var(--color-bad-deal);
+}
+
+.timeline-stop-nether.timeline-status-completed .timeline-dot {
+    color: var(--color-bad-deal);
+}
+
+.route-timeline.navigating .timeline-stop-nether.timeline-status-current .timeline-dot {
+    background: var(--color-bad-deal);
+}
+
+.cart-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.clear-cart-btn {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background: none;
+    color: var(--color-bad-deal);
+    cursor: pointer;
+}
+
+.clear-cart-btn:hover {
+    background: var(--color-bad-deal);
+    border-color: var(--color-bad-deal);
+    color: var(--color-bg);
 }
 
 /* Matrix dialog */
@@ -587,6 +1293,254 @@ mark {
         5px 5px 8px rgb(0 0 0 / 60%);
 }
 
+/* ============================================================================
+ * Navigation Dialog (Circular Map with Floating Timeline)
+ * ============================================================================ */
+
+#nav-dialog {
+    background: transparent;
+    border: none;
+    padding: 0;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+
+    /* Square dialog like map-dialog */
+    width: min(calc(100vw - 20px), 80vh, 768px);
+    height: min(calc(100vw - 20px), 80vh, 768px);
+    overflow: visible;
+}
+
+#nav-dialog::backdrop {
+    background: rgb(0 0 0 / 85%);
+}
+
+#nav-dialog-map-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #1a1a2e;
+    box-shadow: 0 0 0 3px var(--color-border), 0 8px 32px rgb(0 0 0 / 50%);
+}
+
+/* Leaflet tile rendering for nav dialog */
+#nav-dialog-map-container .leaflet-tile,
+#nav-dialog-map-container .leaflet-image-layer {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+}
+
+#nav-dialog-map-container.zoomed-out .leaflet-tile,
+#nav-dialog-map-container.zoomed-out .leaflet-image-layer {
+    image-rendering: auto;
+}
+
+#nav-dialog-map-container .leaflet-tile-container {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+#nav-dialog-map-container .leaflet-map-pane {
+    transform: translate3d(0, 0, 0);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom {
+    border: none;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom a {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 18px;
+}
+
+#nav-dialog-map-container .leaflet-control-zoom a:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom-in {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+#nav-dialog-map-container .leaflet-control-zoom-out {
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+/* Shop tooltip when player is nearby */
+.nav-shop-tooltip {
+    position: absolute;
+    top: 50%;
+    right: -20px;
+    transform: translateY(-50%);
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--border-radius-lg);
+    padding: 16px 20px;
+    min-width: 200px;
+    max-width: 280px;
+    z-index: 1002;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+    animation: tooltip-appear 0.2s ease-out;
+}
+
+.nav-shop-tooltip.hidden {
+    display: none;
+}
+
+@keyframes tooltip-appear {
+    from {
+        opacity: 0;
+        transform: translateY(-50%) translateX(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+    }
+}
+
+.nav-shop-tooltip h4 {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.nav-shop-tooltip ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.nav-shop-tooltip li {
+    padding: 6px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+.nav-shop-tooltip li:last-child {
+    border-bottom: none;
+}
+
+.nav-shop-tooltip .item-name {
+    color: var(--color-text);
+}
+
+.nav-shop-tooltip .item-qty {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* Live distance display below map */
+.nav-dialog-distance {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    color: var(--color-text);
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.nav-dialog-distance .distance-label {
+    color: var(--color-text-muted);
+}
+
+.nav-dialog-distance .distance-value {
+    font-weight: 600;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+}
+
+.nav-dialog-distance.hidden {
+    display: none;
+}
+
+/* Close navigation button */
+#close-nav {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-text-dimmed);
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    outline: none;
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    transition: all 0.15s ease;
+}
+
+#close-nav:hover {
+    background: var(--color-bg-tertiary);
+    color: #fff;
+}
+
+/* Re-center button for nav dialog */
+.nav-dialog-recenter {
+    position: absolute;
+    bottom: 10px;
+    right: calc(50% - 50px);
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-accent);
+    cursor: pointer;
+    z-index: 1001;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-dialog-recenter:hover {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.nav-dialog-recenter.hidden {
+    display: none;
+}
+
 /* Player markers */
 .leaflet-player-marker {
     width: 12px;
@@ -687,13 +1641,30 @@ mark {
         font-size: 0.85rem;
     }
 
-    /* Compact 8-column layout: #, name, #, name, deal, stock, dist, world */
+    #open-cart {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        font-size: 0.85rem;
+    }
+
+    /* Compact 9-column layout: #, name, #, name, deal, stock, dist, world, cart */
     #table-header {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 32px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 26px 24px;
     }
 
     .trade-row {
-        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 32px;
+        grid-template-columns: 28px 1fr 28px 1fr 38px 34px 36px 26px 24px;
+    }
+
+    /* Smaller add button on mobile */
+    .add-to-cart-btn {
+        width: 22px;
+        height: 22px;
+        font-size: 0.9rem;
+    }
+
+    .cart-col-header {
+        width: 24px;
     }
 
     /* Show mobile-only elements on mobile */
@@ -782,5 +1753,61 @@ mark {
     #map-coords {
         font-size: 0.8rem;
         margin-top: 8px;
+    }
+
+    /* Cart dialog mobile */
+    #cart-dialog {
+        width: calc(100vw - 20px);
+        max-height: 90vh;
+    }
+
+    .cart-lists {
+        grid-template-columns: 1fr;
+    }
+
+    .cart-item {
+        flex-wrap: wrap;
+    }
+
+    .cart-item-controls {
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 8px;
+        border-top: 1px solid var(--color-border);
+        margin-top: 8px;
+    }
+
+    /* Navigation dialog mobile responsive */
+    #nav-dialog {
+        width: calc(100vw - 20px);
+        height: calc(100vw - 20px);
+        max-width: 90vh;
+        max-height: 90vh;
+    }
+
+    .nav-timeline-panel {
+        left: -5px;
+        width: 240px;
+        max-height: 50%;
+    }
+
+    .nav-panel-header {
+        padding: 8px 10px;
+    }
+
+    .nav-panel-title {
+        font-size: 0.75rem;
+    }
+
+    .nav-dialog-distance {
+        bottom: -45px;
+        padding: 6px 12px;
+        font-size: 0.75rem;
+    }
+
+    #close-nav {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
     }
 }

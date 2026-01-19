@@ -153,7 +153,7 @@ export function getNormalizedWorld(world: string): string {
 }
 
 /**
- * Get unique tiles needed for all shops (including 3x3 neighbors).
+ * Get unique tiles needed for all shops (including 5x5 neighbors).
  */
 export function getUniqueTiles(
     shops: ShopInput[],
@@ -174,7 +174,7 @@ export function getUniqueTiles(
             for (let dz = -2; dz <= 2; dz++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dz;
-                const key = `${world}/${tx}_${tz}`;
+                const key = `${world}/${zoom}/${tx}_${tz}`;
                 
                 if (!tilesMap.has(key)) {
                     tilesMap.set(key, {
@@ -196,6 +196,40 @@ export function getUniqueTiles(
     }
     
     return Array.from(tilesMap.values());
+}
+
+/**
+ * Get all zoom 4 tiles in a specific range.
+ * Used to provide base map coverage across a region.
+ */
+export function getBaseMapTiles(
+    minTileX: number,
+    maxTileX: number,
+    minTileZ: number,
+    maxTileZ: number,
+    zoom: number,
+    maxZoom: number,
+    tileSize: number,
+    baseUrl: string,
+    world: string = 'overworld'
+): TileInfo[] {
+    const tiles: TileInfo[] = [];
+    const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
+    
+    for (let tx = minTileX; tx <= maxTileX; tx++) {
+        for (let tz = minTileZ; tz <= maxTileZ; tz++) {
+            tiles.push({
+                world,
+                tileX: tx,
+                tileZ: tz,
+                blocksPerTile,
+                url: getTileUrl(baseUrl, world, zoom, tx, tz),
+                shops: []
+            });
+        }
+    }
+    
+    return tiles;
 }
 
 /**

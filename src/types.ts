@@ -170,6 +170,47 @@ export interface Coordinates {
 }
 
 // ============================================================================
+// Shopping Cart Types
+// ============================================================================
+
+export interface CartItem {
+    trade: Trade;
+    quantity: number;
+}
+
+export interface RouteStop {
+    type: 'shop' | 'portal';
+    x: number;
+    z: number;
+    world: string;
+    cartItem?: CartItem;  // Only for shop stops
+    portalAction?: 'enter' | 'exit';  // Only for portal stops
+}
+
+export interface ShoppingList {
+    costs: Map<string, number>;   // itemName -> totalAmount
+    gains: Map<string, number>;   // itemName -> totalAmount
+}
+
+// ============================================================================
+// Navigation Types
+// ============================================================================
+
+export type RouteStopStatus = 'completed' | 'current' | 'pending';
+
+export interface NavigationProgress {
+    completedKeys: Set<string>;  // trade keys that are marked complete
+    currentIndex: number;        // index of current stop in route
+}
+
+export type NavigationMode = 'follow' | 'manual';
+
+export const NAV_STORAGE_KEY = 'pvc-trades-nav-progress';
+export const NAV_PLAYER_KEY = 'pvc-trades-nav-player';
+export const NAV_TAB_KEY = 'pvc-trades-nav-tab';
+export const NAV_MODE_KEY = 'pvc-trades-nav-mode';
+
+// ============================================================================
 // Item Value Calculation Types
 // ============================================================================
 
