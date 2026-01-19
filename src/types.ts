@@ -203,8 +203,12 @@ export interface NavigationProgress {
     currentIndex: number;        // index of current stop in route
 }
 
+export type NavigationMode = 'follow' | 'manual';
+
 export const NAV_STORAGE_KEY = 'pvc-trades-nav-progress';
 export const NAV_PLAYER_KEY = 'pvc-trades-nav-player';
+export const NAV_TAB_KEY = 'pvc-trades-nav-tab';
+export const NAV_MODE_KEY = 'pvc-trades-nav-mode';
 
 // ============================================================================
 // Item Value Calculation Types

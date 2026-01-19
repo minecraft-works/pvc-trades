@@ -45,21 +45,45 @@
             <button id="close-cart" aria-label="Close">&times;</button>
         </div>
         <div class="cart-content">
-            <div id="cart-items" class="cart-items"></div>
-            <div class="cart-lists">
-                <div class="cart-list-section">
-                    <h3>📦 Items</h3>
-                    <ul id="cart-gains"></ul>
+            <!-- Tab Bar -->
+            <div class="cart-tabs">
+                <button id="tab-cart" class="cart-tab active" data-tab="cart">Cart</button>
+                <button id="tab-navigate" class="cart-tab" data-tab="navigate">Navigate</button>
+            </div>
+            
+            <!-- Cart Tab Content -->
+            <div id="tab-content-cart" class="tab-content active">
+                <div id="cart-items" class="cart-items"></div>
+                <div class="cart-lists">
+                    <div class="cart-list-section">
+                        <h3>📦 Items</h3>
+                        <ul id="cart-gains"></ul>
+                    </div>
+                    <div class="cart-list-section">
+                        <h3>💰 Total Cost</h3>
+                        <ul id="cart-costs"></ul>
+                    </div>
                 </div>
-                <div class="cart-list-section">
-                    <h3>💰 Total Cost</h3>
-                    <ul id="cart-costs"></ul>
+                <div class="cart-route-section">
+                    <h3>🗺️ Optimized Route</h3>
+                    <div id="route-timeline" class="route-timeline"></div>
+                    <p id="route-distance" class="route-distance"></p>
                 </div>
             </div>
-            <div class="cart-route-section">
-                <h3>🗺️ Optimized Route</h3>
-                <div id="route-timeline" class="route-timeline"></div>
-                <p id="route-distance" class="route-distance"></p>
+            
+            <!-- Navigate Tab Content -->
+            <div id="tab-content-navigate" class="tab-content">
+                <div class="navigate-controls">
+                    <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
+                    <button id="start-navigation" class="start-nav-btn">Start</button>
+                </div>
+                <div class="nav-map-wrapper">
+                    <div id="nav-map-container" class="nav-map-container"></div>
+                    <button id="recenter-map" class="recenter-btn hidden" title="Re-center on player">⌖</button>
+                </div>
+                <div id="nav-live-distance" class="nav-live-distance hidden"></div>
+                <div id="nav-timeline" class="route-timeline"></div>
+                <p id="nav-distance" class="route-distance"></p>
             </div>
         </div>
         <div class="cart-footer">

@@ -10,29 +10,17 @@ A live GPS-like navigation system that tracks the player's position via Dynmap A
 
 | Tab | Purpose | Content |
 |-----|---------|--------|
-| **Plan** | Route planning | Route timeline + total distance |
+| **Cart** | Shopping & route planning | Cart items, shopping lists, route timeline |
 | **Navigate** | Live navigation | Player input, live map, timeline |
 
 ### Tab Content Layout
 
-**Plan Tab** (route planning only):
+**Cart Tab** (default, full cart view):
 ```
 ┌───────────────────────────────────────┐
-│  [ Plan ]  [ Navigate ]           │
+│  🛒 Shopping Cart              [×]   │
 ├───────────────────────────────────────┤
-│  🗺️ Optimized Route               │
-│  ○  3× Enchanted Book  -69,64  ...  │
-│  ○  1× Diamond Pick   -115,-284 ... │
-│  ○  2× Mending Book   -91,-7   ...  │
-│  ─────────────────────────────────── │
-│  Distance:         21,905   2,738  │
-└───────────────────────────────────────┘
-```
-
-**Cart section** (always visible, above tabs):
-```
-┌───────────────────────────────────────┐
-│  🛒 Shopping Cart                   │
+│  [ Cart ]  [ Navigate ]  ← TABS      │
 ├───────────────────────────────────────┤
 │  1× Enchanted Book ← 64× Emerald [±]×│
 │  2× Diamond Pick  ← 32× Diamond [±]×│
@@ -41,24 +29,46 @@ A live GPS-like navigation system that tracks the player's position via Dynmap A
 │  3× Ench Book │  64× Emerald        │
 │  2× Dia Pick  │  32× Diamond        │
 ├───────────────────────────────────────┤
-│  [ Plan ]  [ Navigate ]  ← TABS    │
+│  🗺️ Optimized Route               │
+│  ○  3× Enchanted Book  -69,64  ...  │
+│  ○  1× Diamond Pick   -115,-284 ... │
+│  ─────────────────────────────────── │
+│  Distance:         21,905   2,738  │
 └───────────────────────────────────────┘
 ```
 
-### What Moves to Plan Tab
+**Navigate Tab**:
+```
+┌───────────────────────────────────────┐
+│  🛒 Shopping Cart              [×]   │
+├───────────────────────────────────────┤
+│  [ Cart ]  [ Navigate ]  ← TABS      │
+├───────────────────────────────────────┤
+│  [Player Name Input]     [Start]     │
+├───────────────────────────────────────┤
+│                                       │
+│           [ LIVE MAP ]                │
+│                                       │
+├───────────────────────────────────────┤
+│  ✓  Diamond Shop       -69, 64       │
+│  ●  Emerald Shop ← YOU ARE HERE      │
+│  ○  Golden Apple     -7374, -1772    │
+│  ─────────────────────────────────── │
+│  Distance:            21,905  2,738  │
+└───────────────────────────────────────┘
+```
 
-The route section currently at the bottom of the cart dialog moves entirely into the Plan tab:
-- 🗺️ Optimized Route header
-- Route timeline (shops with coordinates)
-- Total distance display
+### Tab Placement
 
-The cart items and shopping lists (Items/Costs) remain **above** the tabs, always visible.
+- Tabs appear **at the top**, right below the header
+- **Cart tab** is default (shows on open)
+- **Navigate tab** switches to navigation mode
 
 ---
 
-## Plan Tab
+## Cart Tab
 
-The existing cart view, enhanced with a compact route timeline.
+The full shopping cart view with items, shopping lists, and route timeline.
 
 ### Route Timeline (Vertical)
 
@@ -222,40 +232,39 @@ Dynmap API → /up/world/{world}/
 - [x] Smaller buttons (22px qty buttons, × for remove)
 - [x] Consistent compact styling throughout cart dialog
 
-### Phase 2: Tab Structure
+### Phase 2: Tab Structure ✅
 
-- [ ] Add tab bar below shopping lists (Plan / Navigate)
-- [ ] Move route section into Plan tab content area
-- [ ] Create empty Navigate tab placeholder
-- [ ] Style tab buttons (active/inactive states)
-- [ ] Persist active tab to localStorage
-- [ ] Cart items + shopping lists remain above tabs (always visible)
-- [ ] Default to Plan tab on open
+- [x] Add tab bar at top of cart content (Cart / Navigate)
+- [x] Cart tab contains: items, shopping lists, route section
+- [x] Navigate tab contains: player input, map, timeline
+- [x] Style tab buttons (active/inactive states)
+- [x] Persist active tab to localStorage
+- [x] Default to Cart tab on open
 
-### Phase 3: Navigate Tab - Static
+### Phase 3: Navigate Tab - Static ✅
 
-- [ ] Add player name input field
-- [ ] Add "Start Navigation" button
-- [ ] Embed Leaflet map in Navigate tab
-- [ ] Show route on map (polyline)
-- [ ] Show shop markers on map
+- [x] Add player name input field
+- [x] Add "Start Navigation" button
+- [x] Embed Leaflet map in Navigate tab
+- [x] Show route on map (polyline)
+- [x] Show shop markers on map
 
-### Phase 4: Navigate Tab - Live
+### Phase 4: Navigate Tab - Live ✅
 
-- [ ] Poll Dynmap API for player position
-- [ ] Show player marker on map
-- [ ] Calculate live distance to current stop
-- [ ] Update distance display in real-time
-- [ ] Implement Follow Mode (auto-center)
-- [ ] Implement Manual Mode (user pans)
-- [ ] Add "Re-center" button
+- [x] Poll Dynmap API for player position
+- [x] Show player marker on map
+- [x] Calculate live distance to current stop
+- [x] Update distance display in real-time
+- [x] Implement Follow Mode (auto-center)
+- [x] Implement Manual Mode (user pans)
+- [x] Add "Re-center" button
 
-### Phase 5: Auto-Advance
+### Phase 5: Auto-Advance ✅
 
-- [ ] Detect when player is <50 blocks from shop
-- [ ] Auto-complete current stop
-- [ ] Advance to next stop
-- [ ] Update map focus
+- [x] Detect when player is <50 blocks from shop
+- [x] Auto-complete current stop
+- [x] Advance to next stop
+- [x] Update map focus
 
 ### Phase 6: Persistence ✅
 
@@ -268,9 +277,9 @@ Dynmap API → /up/world/{world}/
 ### Phase 7: Polish
 
 - [ ] Add loading states
-- [ ] Handle player not found
+- [x] Handle player not found
 - [ ] Handle Dynmap API errors
-- [ ] Add "End Navigation" button
+- [x] Add "End Navigation" button (Start/Stop toggle)
 - [ ] Responsive design for mobile
 - [ ] Keyboard navigation
 

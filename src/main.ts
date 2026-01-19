@@ -51,10 +51,11 @@ import type {
     CartItem,
     RouteStop,
     ShoppingList,
-    NavigationProgress
+    NavigationProgress,
+    NavigationMode
 } from './types.js';
 
-import { NAV_STORAGE_KEY } from './types.js';
+import { NAV_STORAGE_KEY, NAV_PLAYER_KEY, NAV_TAB_KEY, NAV_MODE_KEY } from './types.js';
 
 import * as L from 'leaflet';
 
@@ -155,6 +156,16 @@ let navProgress: NavigationProgress = {
     completedKeys: new Set(),
     currentIndex: 0
 };
+
+// Live navigation state
+let isNavigating = false;
+let navMode: NavigationMode = 'follow';
+let navPlayerRefreshInterval: ReturnType<typeof setInterval> | null = null;
+let currentPlayerPosition: { x: number; z: number; world: string } | null = null;
+let navPlayerMarker: L.Marker | null = null;
+
+// Auto-advance threshold in blocks
+const NAV_ARRIVAL_THRESHOLD = 50;
 
 // ============================================================================
 // Constants
@@ -1543,6 +1554,579 @@ function renderCartDialog(): void {
 }
 
 // ============================================================================
+// Tab Switching
+// ============================================================================
+
+function setupCartTabs(): void {
+    const tabCart = document.getElementById('tab-cart');
+    const tabNavigate = document.getElementById('tab-navigate');
+    
+    tabCart?.addEventListener('click', () => switchTab('cart'));
+    tabNavigate?.addEventListener('click', () => switchTab('navigate'));
+}
+
+function switchTab(tab: 'cart' | 'navigate'): void {
+    const tabCart = document.getElementById('tab-cart');
+    const tabNavigate = document.getElementById('tab-navigate');
+    const contentCart = document.getElementById('tab-content-cart');
+    const contentNavigate = document.getElementById('tab-content-navigate');
+    
+    if (tab === 'cart') {
+        tabCart?.classList.add('active');
+        tabNavigate?.classList.remove('active');
+        contentCart?.classList.add('active');
+        contentNavigate?.classList.remove('active');
+    } else {
+        tabCart?.classList.remove('active');
+        tabNavigate?.classList.add('active');
+        contentCart?.classList.remove('active');
+        contentNavigate?.classList.add('active');
+        // Render navigate tab content when switching to it
+        renderNavigateTab();
+    }
+    
+    localStorage.setItem(NAV_TAB_KEY, tab);
+}
+
+function restoreActiveTab(): void {
+    const savedTab = localStorage.getItem(NAV_TAB_KEY);
+    if (savedTab === 'navigate') {
+        switchTab('navigate');
+    } else {
+        switchTab('cart');
+    }
+}
+
+function setupPlayerNameInput(): void {
+    const input = document.getElementById('player-name-input') as HTMLInputElement | null;
+    if (!input) {
+        return;
+    }
+    
+    // Restore saved player name
+    const savedName = localStorage.getItem(NAV_PLAYER_KEY);
+    if (savedName) {
+        input.value = savedName;
+    }
+    
+    // Save on input
+    input.addEventListener('input', () => {
+        localStorage.setItem(NAV_PLAYER_KEY, input.value);
+    });
+}
+
+// ============================================================================
+// Live Navigation
+// ============================================================================
+
+// Store center tile coords for the current nav map (needed for coord conversion)
+let navMapCenterTileX = 0;
+let navMapCenterTileZ = 0;
+
+/**
+ * Load navigation mode from localStorage
+ */
+function loadNavMode(): void {
+    const saved = localStorage.getItem(NAV_MODE_KEY);
+    if (saved === 'manual') {
+        navMode = 'manual';
+    } else {
+        navMode = 'follow';
+    }
+}
+
+/**
+ * Save navigation mode to localStorage
+ */
+function saveNavMode(): void {
+    localStorage.setItem(NAV_MODE_KEY, navMode);
+}
+
+/**
+ * Start live navigation - poll player position and update map
+ */
+function startNavigation(): void {
+    const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
+    const startBtn = document.getElementById('start-navigation');
+    const timeline = document.getElementById('nav-timeline');
+    
+    if (!playerNameInput?.value.trim()) {
+        playerNameInput?.focus();
+        return;
+    }
+    
+    isNavigating = true;
+    navMode = 'follow';
+    saveNavMode();
+    
+    // Update button state
+    if (startBtn) {
+        startBtn.textContent = 'Stop';
+        startBtn.classList.add('navigating');
+    }
+    
+    // Add navigating class to timeline for visual feedback
+    timeline?.classList.add('navigating');
+    
+    // Show live distance display
+    const liveDistance = document.getElementById('nav-live-distance');
+    liveDistance?.classList.remove('hidden');
+    
+    // Start polling player position
+    pollPlayerPosition();
+    const config = getConfig();
+    navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
+}
+
+/**
+ * Stop live navigation
+ */
+function stopNavigation(): void {
+    const startBtn = document.getElementById('start-navigation');
+    const timeline = document.getElementById('nav-timeline');
+    const liveDistance = document.getElementById('nav-live-distance');
+    const recenterBtn = document.getElementById('recenter-map');
+    
+    isNavigating = false;
+    
+    // Clear polling interval
+    if (navPlayerRefreshInterval) {
+        clearInterval(navPlayerRefreshInterval);
+        navPlayerRefreshInterval = null;
+    }
+    
+    // Reset button state
+    if (startBtn) {
+        startBtn.textContent = 'Start';
+        startBtn.classList.remove('navigating');
+    }
+    
+    // Remove navigating class from timeline
+    timeline?.classList.remove('navigating');
+    
+    // Hide live distance display
+    liveDistance?.classList.add('hidden');
+    
+    // Hide re-center button
+    recenterBtn?.classList.add('hidden');
+    
+    // Remove player marker from map
+    if (navPlayerMarker && navMap) {
+        navMap.removeLayer(navPlayerMarker);
+        navPlayerMarker = null;
+    }
+    
+    currentPlayerPosition = null;
+}
+
+/**
+ * Toggle navigation on/off
+ */
+function toggleNavigation(): void {
+    if (isNavigating) {
+        stopNavigation();
+    } else {
+        startNavigation();
+    }
+}
+
+/**
+ * Poll for player position and update the map
+ */
+async function pollPlayerPosition(): Promise<void> {
+    const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
+    const playerName = playerNameInput?.value.trim().toLowerCase();
+    
+    if (!playerName || !navMap) {
+        return;
+    }
+    
+    try {
+        const players = await fetchPlayers();
+        const player = players.find(p => p.name.toLowerCase() === playerName);
+        
+        if (player) {
+            currentPlayerPosition = {
+                x: player.position.x,
+                z: player.position.z,
+                world: 'overworld' // Assume overworld for now
+            };
+            
+            updatePlayerMarker();
+            updateLiveDistance();
+            checkAutoAdvance();
+            
+            // In follow mode, center on player
+            if (navMode === 'follow') {
+                centerMapOnPlayer();
+            }
+        } else {
+            // Player not found - show in live distance display
+            const liveDistance = document.getElementById('nav-live-distance');
+            if (liveDistance) {
+                liveDistance.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to poll player position:', error);
+    }
+}
+
+/**
+ * Update or create the player marker on the navigation map
+ */
+function updatePlayerMarker(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    const { lat, lng } = toLeafletCoordsRelative(
+        currentPlayerPosition.x,
+        currentPlayerPosition.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    if (navPlayerMarker) {
+        // Update existing marker position
+        navPlayerMarker.setLatLng([lat, lng]);
+    } else {
+        // Create new marker
+        const playerIcon = L.divIcon({
+            className: 'nav-player-marker',
+            html: '<div class="nav-player-dot"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        
+        navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
+        navPlayerMarker.addTo(navMap);
+    }
+}
+
+/**
+ * Update the live distance display
+ */
+function updateLiveDistance(): void {
+    const liveDistance = document.getElementById('nav-live-distance');
+    if (!liveDistance || !currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    if (route.length === 0) {
+        return;
+    }
+    
+    // Find current stop (first non-completed)
+    const currentStopIndex = findCurrentStopIndex(route);
+    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
+        liveDistance.innerHTML = '<span class="distance-label">Route complete! 🎉</span>';
+        return;
+    }
+    
+    const currentStop = route[currentStopIndex]!;
+    const distance = calculateRouteDistance(
+        currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+        currentStop.x, currentStop.z, currentStop.world
+    );
+    
+    const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
+    
+    liveDistance.innerHTML = `
+        <span class="distance-label">→ ${itemName}:</span>
+        <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
+    `;
+}
+
+/**
+ * Find the index of the current (first non-completed) stop
+ */
+function findCurrentStopIndex(route: RouteStop[]): number {
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        if (stop.cartItem) {
+            const key = getTradeKey(stop.cartItem.trade);
+            if (!navProgress.completedKeys.has(key)) {
+                return i;
+            }
+        }
+    }
+    return route.length;
+}
+
+/**
+ * Check if player is close enough to auto-advance to next stop
+ */
+function checkAutoAdvance(): void {
+    if (!currentPlayerPosition) {
+        return;
+    }
+    
+    const route = computeRoute();
+    const currentStopIndex = findCurrentStopIndex(route);
+    
+    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
+        return;
+    }
+    
+    const currentStop = route[currentStopIndex]!;
+    const distance = calculateRouteDistance(
+        currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+        currentStop.x, currentStop.z, currentStop.world
+    );
+    
+    if (distance < NAV_ARRIVAL_THRESHOLD && currentStop.cartItem) {
+        // Auto-complete this stop
+        const key = getTradeKey(currentStop.cartItem.trade);
+        navProgress.completedKeys.add(key);
+        navProgress.currentIndex = currentStopIndex + 1;
+        saveNavProgress();
+        
+        // Re-render timeline to show completion
+        renderNavigateTab();
+    }
+}
+
+/**
+ * Center the navigation map on the player position
+ */
+function centerMapOnPlayer(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    const { lat, lng } = toLeafletCoordsRelative(
+        currentPlayerPosition.x,
+        currentPlayerPosition.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    navMap.setView([lat, lng], navMap.getZoom());
+}
+
+/**
+ * Switch to manual mode (triggered when user pans the map)
+ */
+function switchToManualMode(): void {
+    if (!isNavigating) {
+        return;
+    }
+    
+    navMode = 'manual';
+    saveNavMode();
+    
+    // Show re-center button
+    const recenterBtn = document.getElementById('recenter-map');
+    recenterBtn?.classList.remove('hidden');
+}
+
+/**
+ * Switch back to follow mode and re-center
+ */
+function switchToFollowMode(): void {
+    navMode = 'follow';
+    saveNavMode();
+    
+    // Hide re-center button
+    const recenterBtn = document.getElementById('recenter-map');
+    recenterBtn?.classList.add('hidden');
+    
+    // Center on player
+    centerMapOnPlayer();
+}
+
+/**
+ * Set up navigation event handlers
+ */
+function setupNavigationControls(): void {
+    const startBtn = document.getElementById('start-navigation');
+    const recenterBtn = document.getElementById('recenter-map');
+    
+    startBtn?.addEventListener('click', toggleNavigation);
+    recenterBtn?.addEventListener('click', switchToFollowMode);
+}
+
+// ============================================================================
+// Navigation Map
+// ============================================================================
+
+let navMap: L.Map | null = null;
+
+/**
+ * Initialize or update the navigation map showing the route
+ */
+function initNavigationMap(route: RouteStop[]): void {
+    const container = document.getElementById('nav-map-container');
+    if (!container) {
+        return;
+    }
+    
+    // Clean up existing map
+    if (navMap) {
+        try {
+            navMap.remove();
+        } catch {
+            // Map already removed
+        }
+        navMap = null;
+    }
+    
+    if (route.length === 0) {
+        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px;">Add items to cart to see navigation</p>';
+        return;
+    }
+    
+    // Clear container
+    container.innerHTML = '';
+    
+    // Calculate bounds of all shops
+    const xs = route.map(stop => stop.x);
+    const zs = route.map(stop => stop.z);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    
+    // Calculate center and which tiles we need
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    
+    // Calculate the tile range needed
+    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, MAP_CONFIG.tileSize);
+    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, MAP_CONFIG.tileSize);
+    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, MAP_CONFIG.tileSize);
+    
+    // Store center tile coords for coordinate conversion in live navigation
+    navMapCenterTileX = centerTileX;
+    navMapCenterTileZ = centerTileZ;
+    
+    // Create map
+    navMap = L.map(container, {
+        crs: L.CRS.Simple,
+        minZoom: -5,
+        maxZoom: 2,
+        zoomControl: true,
+        attributionControl: false,
+        maxBoundsViscosity: 1
+    });
+    
+    // Listen for user drag to switch to manual mode
+    navMap.on('dragstart', () => {
+        if (isNavigating) {
+            switchToManualMode();
+        }
+    });
+    
+    // Load tiles - expand range by 1 for padding
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            // All route stops should be in overworld for now
+            const tileUrl = `${MAP_CONFIG.baseUrl}/overworld/${MAP_CONFIG.zoom}/${tx}/${tz}.png`;
+            
+            // Bounds relative to center tile
+            const relX = tx - centerTileX;
+            const relZ = tz - centerTileZ;
+            const south = -relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+            const north = -relZ * MAP_CONFIG.tileSize;
+            const west = relX * MAP_CONFIG.tileSize;
+            const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+            
+            L.imageOverlay(tileUrl, [[south, west], [north, east]]).addTo(navMap);
+        }
+    }
+    
+    // Convert route stops to Leaflet coordinates
+    const routePoints: L.LatLngExpression[] = [];
+    
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
+        routePoints.push([lat, lng]);
+        
+        // Add numbered marker for each stop
+        const isOrigin = i === 0;
+        const tooltipText = stop.cartItem 
+            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+            : (isOrigin ? 'Start' : `Stop ${i}`);
+        const markerIcon = L.divIcon({
+            className: 'nav-route-marker',
+            html: `<div class="nav-marker ${isOrigin ? 'nav-marker-origin' : ''}">${isOrigin ? '🏠' : i}</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        
+        L.marker([lat, lng], { icon: markerIcon })
+            .bindTooltip(tooltipText, { 
+                permanent: false,
+                direction: 'top',
+                offset: [0, -12]
+            })
+            .addTo(navMap);
+    }
+    
+    // Draw polyline connecting all stops
+    L.polyline(routePoints, {
+        color: '#3b82f6',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '10, 5'
+    }).addTo(navMap);
+    
+    // Fit map to show all stops with padding
+    if (routePoints.length > 0) {
+        const bounds = L.latLngBounds(routePoints);
+        navMap.fitBounds(bounds, { padding: [30, 30] });
+    }
+}
+
+/**
+ * Render navigation tab content including route timeline and map
+ */
+function renderNavigateTab(): void {
+    const route = computeRoute();
+    
+    // Initialize map
+    initNavigationMap(route);
+    
+    // Render timeline in navigate tab
+    const navTimeline = document.getElementById('nav-timeline');
+    const navDistance = document.getElementById('nav-distance');
+    
+    if (navTimeline) {
+        navTimeline.innerHTML = '';
+        
+        if (route.length === 0) {
+            navTimeline.innerHTML = '<p class="cart-empty">No route to display</p>';
+        } else {
+            // Sync progress and render using same function as cart tab
+            syncNavProgressWithCart(route);
+            
+            let prevStop: RouteStop | null = null;
+            for (let i = 0; i < route.length; i++) {
+                const stop = route[i]!;
+                navTimeline.appendChild(createTimelineStop(stop, i, route, prevStop));
+                prevStop = stop;
+            }
+        }
+    }
+    
+    // Update distance display
+    if (navDistance) {
+        if (route.length === 0) {
+            navDistance.textContent = '';
+        } else {
+            const totalDistance = calculateTotalRouteDistance(route);
+            const netherDistance = Math.round(totalDistance / 8);
+            navDistance.innerHTML = `<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`;
+        }
+    }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
@@ -1550,6 +2134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadShops();
     loadCart();
     loadNavProgress();
+    loadNavMode();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();
@@ -1583,9 +2168,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDialogBackdropClose(cartDialog);
     getElement('open-cart').addEventListener('click', () => {
         renderCartDialog();
+        restoreActiveTab();
         cartDialog.showModal();
     });
     getElement('close-cart').addEventListener('click', () => {
+        // Stop navigation when closing cart dialog
+        if (isNavigating) {
+            stopNavigation();
+        }
         cartDialog.close();
     });
     getElement('clear-cart').addEventListener('click', () => {
@@ -1593,6 +2183,15 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshCartButtonStates();
         renderCartDialog();
     });
+    
+    // Tab switching
+    setupCartTabs();
+    
+    // Player name input persistence
+    setupPlayerNameInput();
+    
+    // Navigation controls
+    setupNavigationControls();
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (e) => {
