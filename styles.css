@@ -498,6 +498,10 @@ mark {
     margin-bottom: 2px;
 }
 
+.cart-item.zero-quantity {
+    opacity: 0.5;
+}
+
 .cart-item-info {
     display: flex;
     flex-direction: row;

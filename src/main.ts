@@ -239,14 +239,28 @@ function removeFromCart(trade: Trade): void {
 
 /**
  * Update quantity for a cart item
+ * Allows quantity to go to 0 (item stays in cart until dialog closes)
  */
 function updateCartQuantity(trade: Trade, delta: number): void {
     const key = getTradeKey(trade);
     const item = cart.find(i => getTradeKey(i.trade) === key);
     
     if (item) {
-        item.quantity = Math.max(1, item.quantity + delta);
+        item.quantity = Math.max(0, item.quantity + delta);
         saveCart();
+    }
+}
+
+/**
+ * Remove items with zero quantity from cart
+ * Called when cart dialog is closed
+ */
+function cleanupZeroQuantityItems(): void {
+    const hadZeroItems = cart.some(item => item.quantity === 0);
+    cart = cart.filter(item => item.quantity > 0);
+    if (hadZeroItems) {
+        saveCart();
+        refreshCartButtonStates();
     }
 }
 
@@ -1336,6 +1350,11 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     const itemEl = document.createElement('div');
     itemEl.className = 'cart-item';
     
+    // Mark zero-quantity items visually
+    if (quantity === 0) {
+        itemEl.classList.add('zero-quantity');
+    }
+    
     itemEl.innerHTML = `
         <span class="cart-item-info">
             <strong>${trade.resultAmount}× ${trade.resultName}</strong>
@@ -1355,7 +1374,7 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     const removeBtn = itemEl.querySelector('.remove-btn')!;
     
     minusBtn.addEventListener('click', () => {
-        if (quantity > 1) {
+        if (quantity > 0) {
             updateCartQuantity(trade, -1);
             renderCartDialog();
         }
@@ -2295,6 +2314,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cart dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     setupDialogBackdropClose(cartDialog);
+    
+    // Clean up zero-quantity items when cart dialog closes
+    cartDialog.addEventListener('close', () => {
+        cleanupZeroQuantityItems();
+    });
+    
     getElement('open-cart').addEventListener('click', () => {
         renderCartDialog();
         restoreActiveTab();
