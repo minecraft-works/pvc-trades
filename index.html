@@ -39,6 +39,18 @@
         <span id="map-coords"></span>
     </dialog>
 
+    <dialog id="nav-dialog">
+        <div id="nav-dialog-map-container"></div>
+        <div id="nav-timeline-panel" class="nav-timeline-panel">
+            <div class="nav-panel-header">
+                <span class="nav-panel-title">🗺️ Route</span>
+            </div>
+            <div id="nav-panel-timeline" class="nav-panel-timeline"></div>
+        </div>
+        <div id="nav-dialog-distance" class="nav-dialog-distance"></div>
+        <button id="stop-nav" class="stop-nav-btn">Stop</button>
+    </dialog>
+
     <dialog id="cart-dialog">
         <div class="cart-header">
             <h2>🛒 Shopping Cart</h2>
@@ -73,17 +85,18 @@
             
             <!-- Navigate Tab Content -->
             <div id="tab-content-navigate" class="tab-content">
-                <div class="navigate-controls">
-                    <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
-                    <button id="start-navigation" class="start-nav-btn">Start</button>
+                <div class="navigate-setup">
+                    <p class="navigate-hint">Enter your player name to start live navigation with the route map.</p>
+                    <div class="navigate-controls">
+                        <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
+                        <button id="start-navigation" class="start-nav-btn">Start Navigation</button>
+                    </div>
                 </div>
-                <div class="nav-map-wrapper">
-                    <div id="nav-map-container" class="nav-map-container"></div>
-                    <button id="recenter-map" class="recenter-btn hidden" title="Re-center on player">⌖</button>
+                <div class="cart-route-section">
+                    <h3>📍 Route Preview</h3>
+                    <div id="nav-timeline" class="route-timeline"></div>
+                    <p id="nav-distance" class="route-distance"></p>
                 </div>
-                <div id="nav-live-distance" class="nav-live-distance hidden"></div>
-                <div id="nav-timeline" class="route-timeline"></div>
-                <p id="nav-distance" class="route-distance"></p>
             </div>
         </div>
         <div class="cart-footer">

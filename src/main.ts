@@ -1647,8 +1647,6 @@ function saveNavMode(): void {
  */
 function startNavigation(): void {
     const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
-    const startBtn = document.getElementById('start-navigation');
-    const timeline = document.getElementById('nav-timeline');
     
     if (!playerNameInput?.value.trim()) {
         playerNameInput?.focus();
@@ -1659,33 +1657,33 @@ function startNavigation(): void {
     navMode = 'follow';
     saveNavMode();
     
-    // Update button state
-    if (startBtn) {
-        startBtn.textContent = 'Stop';
-        startBtn.classList.add('navigating');
+    // Close cart dialog and open navigation dialog
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    
+    cartDialog.close();
+    
+    if (navDialog) {
+        // Initialize navigation map in the dialog
+        const route = computeRoute();
+        initNavigationMapDialog(route);
+        renderNavTimelinePanel(route);
+        
+        navDialog.showModal();
+        
+        // Start polling player position
+        pollPlayerPosition();
+        const config = getConfig();
+        navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
     }
-    
-    // Add navigating class to timeline for visual feedback
-    timeline?.classList.add('navigating');
-    
-    // Show live distance display
-    const liveDistance = document.getElementById('nav-live-distance');
-    liveDistance?.classList.remove('hidden');
-    
-    // Start polling player position
-    pollPlayerPosition();
-    const config = getConfig();
-    navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
 }
 
 /**
  * Stop live navigation
  */
 function stopNavigation(): void {
-    const startBtn = document.getElementById('start-navigation');
-    const timeline = document.getElementById('nav-timeline');
-    const liveDistance = document.getElementById('nav-live-distance');
-    const recenterBtn = document.getElementById('recenter-map');
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     
     isNavigating = false;
     
@@ -1695,21 +1693,6 @@ function stopNavigation(): void {
         navPlayerRefreshInterval = null;
     }
     
-    // Reset button state
-    if (startBtn) {
-        startBtn.textContent = 'Start';
-        startBtn.classList.remove('navigating');
-    }
-    
-    // Remove navigating class from timeline
-    timeline?.classList.remove('navigating');
-    
-    // Hide live distance display
-    liveDistance?.classList.add('hidden');
-    
-    // Hide re-center button
-    recenterBtn?.classList.add('hidden');
-    
     // Remove player marker from map
     if (navPlayerMarker && navMap) {
         navMap.removeLayer(navPlayerMarker);
@@ -1717,6 +1700,26 @@ function stopNavigation(): void {
     }
     
     currentPlayerPosition = null;
+    
+    // Close nav dialog and reopen cart dialog
+    if (navDialog) {
+        navDialog.close();
+    }
+    
+    // Clean up nav map
+    if (navMap) {
+        try {
+            navMap.remove();
+        } catch {
+            // Map already removed
+        }
+        navMap = null;
+    }
+    
+    // Reopen cart dialog to navigate tab
+    renderCartDialog();
+    switchTab('navigate');
+    cartDialog.showModal();
 }
 
 /**
@@ -1809,8 +1812,11 @@ function updatePlayerMarker(): void {
  * Update the live distance display
  */
 function updateLiveDistance(): void {
+    // Update both embedded and dialog distance displays
     const liveDistance = document.getElementById('nav-live-distance');
-    if (!liveDistance || !currentPlayerPosition) {
+    const dialogDistance = document.getElementById('nav-dialog-distance');
+    
+    if (!currentPlayerPosition) {
         return;
     }
     
@@ -1821,23 +1827,31 @@ function updateLiveDistance(): void {
     
     // Find current stop (first non-completed)
     const currentStopIndex = findCurrentStopIndex(route);
+    
+    let distanceHtml: string;
     if (currentStopIndex < 0 || currentStopIndex >= route.length) {
-        liveDistance.innerHTML = '<span class="distance-label">Route complete! 🎉</span>';
-        return;
+        distanceHtml = '<span class="distance-label">Route complete! 🎉</span>';
+    } else {
+        const currentStop = route[currentStopIndex]!;
+        const distance = calculateRouteDistance(
+            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            currentStop.x, currentStop.z, currentStop.world
+        );
+        
+        const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
+        
+        distanceHtml = `
+            <span class="distance-label">→ ${itemName}:</span>
+            <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
+        `;
     }
     
-    const currentStop = route[currentStopIndex]!;
-    const distance = calculateRouteDistance(
-        currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
-        currentStop.x, currentStop.z, currentStop.world
-    );
-    
-    const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
-    
-    liveDistance.innerHTML = `
-        <span class="distance-label">→ ${itemName}:</span>
-        <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
-    `;
+    if (liveDistance) {
+        liveDistance.innerHTML = distanceHtml;
+    }
+    if (dialogDistance) {
+        dialogDistance.innerHTML = distanceHtml;
+    }
 }
 
 /**
@@ -1884,8 +1898,9 @@ function checkAutoAdvance(): void {
         navProgress.currentIndex = currentStopIndex + 1;
         saveNavProgress();
         
-        // Re-render timeline to show completion
-        renderNavigateTab();
+        // Re-render timeline panel in nav dialog
+        const newRoute = computeRoute();
+        renderNavTimelinePanel(newRoute);
     }
 }
 
@@ -1919,9 +1934,11 @@ function switchToManualMode(): void {
     navMode = 'manual';
     saveNavMode();
     
-    // Show re-center button
+    // Show re-center button (for both embedded and dialog maps)
     const recenterBtn = document.getElementById('recenter-map');
+    const dialogRecenterBtn = document.getElementById('nav-dialog-recenter');
     recenterBtn?.classList.remove('hidden');
+    dialogRecenterBtn?.classList.remove('hidden');
 }
 
 /**
@@ -1931,9 +1948,11 @@ function switchToFollowMode(): void {
     navMode = 'follow';
     saveNavMode();
     
-    // Hide re-center button
+    // Hide re-center buttons
     const recenterBtn = document.getElementById('recenter-map');
+    const dialogRecenterBtn = document.getElementById('nav-dialog-recenter');
     recenterBtn?.classList.add('hidden');
+    dialogRecenterBtn?.classList.add('hidden');
     
     // Center on player
     centerMapOnPlayer();
@@ -1945,9 +1964,21 @@ function switchToFollowMode(): void {
 function setupNavigationControls(): void {
     const startBtn = document.getElementById('start-navigation');
     const recenterBtn = document.getElementById('recenter-map');
+    const stopNavBtn = document.getElementById('stop-nav');
     
     startBtn?.addEventListener('click', toggleNavigation);
     recenterBtn?.addEventListener('click', switchToFollowMode);
+    stopNavBtn?.addEventListener('click', stopNavigation);
+    
+    // Set up nav dialog backdrop close
+    const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
+    if (navDialog) {
+        navDialog.addEventListener('click', (e) => {
+            if (e.target === navDialog) {
+                stopNavigation();
+            }
+        });
+    }
 }
 
 // ============================================================================
@@ -1957,10 +1988,10 @@ function setupNavigationControls(): void {
 let navMap: L.Map | null = null;
 
 /**
- * Initialize or update the navigation map showing the route
+ * Initialize navigation map inside the circular dialog
  */
-function initNavigationMap(route: RouteStop[]): void {
-    const container = document.getElementById('nav-map-container');
+function initNavigationMapDialog(route: RouteStop[]): void {
+    const container = document.getElementById('nav-dialog-map-container');
     if (!container) {
         return;
     }
@@ -1976,7 +2007,7 @@ function initNavigationMap(route: RouteStop[]): void {
     }
     
     if (route.length === 0) {
-        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px;">Add items to cart to see navigation</p>';
+        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>';
         return;
     }
     
@@ -2079,20 +2110,50 @@ function initNavigationMap(route: RouteStop[]): void {
     // Fit map to show all stops with padding
     if (routePoints.length > 0) {
         const bounds = L.latLngBounds(routePoints);
-        navMap.fitBounds(bounds, { padding: [30, 30] });
+        navMap.fitBounds(bounds, { padding: [50, 50] });
     }
 }
 
 /**
- * Render navigation tab content including route timeline and map
+ * Render the floating timeline panel in the navigation dialog
+ */
+function renderNavTimelinePanel(route: RouteStop[]): void {
+    const panelTimeline = document.getElementById('nav-panel-timeline');
+    if (!panelTimeline) {
+        return;
+    }
+    
+    panelTimeline.innerHTML = '';
+    
+    if (route.length === 0) {
+        panelTimeline.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 12px;">No route</p>';
+        return;
+    }
+    
+    // Sync progress
+    syncNavProgressWithCart(route);
+    
+    // Create timeline container
+    const timeline = document.createElement('div');
+    timeline.className = 'route-timeline navigating';
+    
+    let prevStop: RouteStop | null = null;
+    for (let i = 0; i < route.length; i++) {
+        const stop = route[i]!;
+        timeline.appendChild(createTimelineStop(stop, i, route, prevStop));
+        prevStop = stop;
+    }
+    
+    panelTimeline.appendChild(timeline);
+}
+
+/**
+ * Render navigation tab content (route preview timeline only - map is in dialog)
  */
 function renderNavigateTab(): void {
     const route = computeRoute();
     
-    // Initialize map
-    initNavigationMap(route);
-    
-    // Render timeline in navigate tab
+    // Render timeline in navigate tab (preview mode)
     const navTimeline = document.getElementById('nav-timeline');
     const navDistance = document.getElementById('nav-distance');
     
@@ -2100,7 +2161,7 @@ function renderNavigateTab(): void {
         navTimeline.innerHTML = '';
         
         if (route.length === 0) {
-            navTimeline.innerHTML = '<p class="cart-empty">No route to display</p>';
+            navTimeline.innerHTML = '<p class="cart-empty">Add items to cart to see route</p>';
         } else {
             // Sync progress and render using same function as cart tab
             syncNavProgressWithCart(route);
