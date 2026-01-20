@@ -35,8 +35,10 @@ async function fetchData() {
 
     try {
         // First visit homepage to get cookies
+        // Use 'domcontentloaded' instead of 'networkidle' - the page has many external resources
+        // (Facebook, Google Analytics, fonts) that keep making requests and cause networkidle to timeout
         console.log('\n--- Step 1: Visiting homepage to get cookies ---');
-        const homeResponse = await page.goto(HOMEPAGE_URL, { waitUntil: 'networkidle', timeout: 60000 });
+        const homeResponse = await page.goto(HOMEPAGE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
         console.log(`Homepage response status: ${homeResponse?.status()}`);
         
         const cookies = await context.cookies();
@@ -51,7 +53,7 @@ async function fetchData() {
         console.log('\n--- Step 2: Navigating to data.json ---');
         const dataResponse = await page.goto(DATA_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
         console.log(`Data.json response status: ${dataResponse?.status()}`);
-        console.log(`Data.json response headers:`);
+        console.log('Data.json response headers:');
         const headers = dataResponse?.headers() || {};
         Object.entries(headers).forEach(([k, v]) => console.log(`  ${k}: ${v}`));
         
@@ -79,7 +81,7 @@ async function fetchData() {
                 // Extract JSON from the page body
                 const jsonText = await page.evaluate(() => {
                     const pre = document.querySelector('pre');
-                    if (pre) return pre.textContent;
+                    if (pre) {return pre.textContent;}
                     return document.body.textContent;
                 });
                 
