@@ -172,7 +172,7 @@
     "tileX": -1,
     "tileZ": -13,
     "blocksPerTile": 512,
-    "shopCount": 4
+    "shopCount": 0
   },
   {
     "world": "World",
@@ -249,7 +249,7 @@
     "tileX": -1,
     "tileZ": -3,
     "blocksPerTile": 512,
-    "shopCount": 0
+    "shopCount": 3
   },
   {
     "world": "World",
@@ -263,14 +263,14 @@
     "tileX": -1,
     "tileZ": -1,
     "blocksPerTile": 512,
-    "shopCount": 67
+    "shopCount": 70
   },
   {
     "world": "World",
     "tileX": -1,
     "tileZ": 0,
     "blocksPerTile": 512,
-    "shopCount": 144
+    "shopCount": 159
   },
   {
     "world": "World",
@@ -298,7 +298,7 @@
     "tileX": 0,
     "tileZ": -1,
     "blocksPerTile": 512,
-    "shopCount": 36
+    "shopCount": 30
   },
   {
     "world": "World",
@@ -1502,7 +1502,7 @@
     "tileX": -11,
     "tileZ": -9,
     "blocksPerTile": 512,
-    "shopCount": 2
+    "shopCount": 4
   },
   {
     "world": "World",
@@ -1614,7 +1614,7 @@
     "tileX": -2,
     "tileZ": -1,
     "blocksPerTile": 512,
-    "shopCount": 3
+    "shopCount": 9
   },
   {
     "world": "World_nether",
@@ -2230,7 +2230,7 @@
     "tileX": -5,
     "tileZ": 13,
     "blocksPerTile": 512,
-    "shopCount": 2
+    "shopCount": 1
   },
   {
     "world": "World",
@@ -2419,7 +2419,7 @@
     "tileX": 11,
     "tileZ": 0,
     "blocksPerTile": 512,
-    "shopCount": 4
+    "shopCount": 3
   },
   {
     "world": "World",
@@ -2454,7 +2454,7 @@
     "tileX": 12,
     "tileZ": 0,
     "blocksPerTile": 512,
-    "shopCount": 25
+    "shopCount": 26
   },
   {
     "world": "World",
@@ -2537,181 +2537,6 @@
     "world": "World",
     "tileX": 14,
     "tileZ": 2,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -5,
-    "tileZ": -37,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -5,
-    "tileZ": -36,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -5,
-    "tileZ": -35,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -5,
-    "tileZ": -34,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -5,
-    "tileZ": -33,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -4,
-    "tileZ": -37,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -4,
-    "tileZ": -36,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -4,
-    "tileZ": -35,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -4,
-    "tileZ": -34,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -4,
-    "tileZ": -33,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -3,
-    "tileZ": -37,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -3,
-    "tileZ": -36,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -3,
-    "tileZ": -35,
-    "blocksPerTile": 512,
-    "shopCount": 1
-  },
-  {
-    "world": "World",
-    "tileX": -3,
-    "tileZ": -34,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -3,
-    "tileZ": -33,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -37,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -36,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -35,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -34,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -33,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -37,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -36,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -35,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -34,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -33,
     "blocksPerTile": 512,
     "shopCount": 0
   },
@@ -3784,7 +3609,7 @@
     "tileX": 6,
     "tileZ": -13,
     "blocksPerTile": 512,
-    "shopCount": 1
+    "shopCount": 0
   },
   {
     "world": "World",
@@ -4687,7 +4512,7 @@
     "tileX": -10,
     "tileZ": -9,
     "blocksPerTile": 512,
-    "shopCount": 0
+    "shopCount": 1
   },
   {
     "world": "World",
@@ -5622,62 +5447,6 @@
   },
   {
     "world": "World",
-    "tileX": -3,
-    "tileZ": -12,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -2,
-    "tileZ": -12,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": -1,
-    "tileZ": -12,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 0,
-    "tileZ": -12,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 1,
-    "tileZ": -14,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 1,
-    "tileZ": -13,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 1,
-    "tileZ": -12,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 1,
-    "tileZ": -11,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
     "tileX": -9,
     "tileZ": -45,
     "blocksPerTile": 512,
@@ -5961,7 +5730,7 @@
     "tileX": 32,
     "tileZ": -18,
     "blocksPerTile": 512,
-    "shopCount": 6
+    "shopCount": 11
   },
   {
     "world": "World",
@@ -6171,7 +5940,7 @@
     "tileX": -31,
     "tileZ": -14,
     "blocksPerTile": 512,
-    "shopCount": 6
+    "shopCount": 5
   },
   {
     "world": "World",
@@ -6254,6 +6023,48 @@
     "world": "World",
     "tileX": -29,
     "tileZ": -12,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -2,
+    "tileZ": -12,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -1,
+    "tileZ": -12,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 0,
+    "tileZ": -12,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 1,
+    "tileZ": -13,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 1,
+    "tileZ": -12,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 1,
+    "tileZ": -11,
     "blocksPerTile": 512,
     "shopCount": 0
   },
@@ -6777,111 +6588,300 @@
   },
   {
     "world": "World",
-    "tileX": 7,
-    "tileZ": -15,
+    "tileX": -10,
+    "tileZ": 5,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 8,
-    "tileZ": -15,
+    "tileX": -10,
+    "tileZ": 6,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 12,
-    "tileZ": -52,
+    "tileX": -10,
+    "tileZ": 7,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 12,
-    "tileZ": -51,
+    "tileX": -10,
+    "tileZ": 8,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 12,
-    "tileZ": -50,
+    "tileX": -10,
+    "tileZ": 9,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 12,
-    "tileZ": -49,
+    "tileX": -9,
+    "tileZ": 5,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 12,
-    "tileZ": -48,
+    "tileX": -9,
+    "tileZ": 6,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 13,
-    "tileZ": -52,
+    "tileX": -9,
+    "tileZ": 7,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 13,
-    "tileZ": -51,
+    "tileX": -9,
+    "tileZ": 8,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 13,
-    "tileZ": -50,
+    "tileX": -9,
+    "tileZ": 9,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 13,
-    "tileZ": -49,
+    "tileX": -8,
+    "tileZ": 5,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 13,
-    "tileZ": -48,
+    "tileX": -8,
+    "tileZ": 6,
     "blocksPerTile": 512,
     "shopCount": 0
   },
   {
     "world": "World",
-    "tileX": 14,
-    "tileZ": -52,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 14,
-    "tileZ": -51,
-    "blocksPerTile": 512,
-    "shopCount": 0
-  },
-  {
-    "world": "World",
-    "tileX": 14,
-    "tileZ": -50,
+    "tileX": -8,
+    "tileZ": 7,
     "blocksPerTile": 512,
     "shopCount": 1
   },
   {
     "world": "World",
+    "tileX": -8,
+    "tileZ": 8,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -8,
+    "tileZ": 9,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -7,
+    "tileZ": 5,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -7,
+    "tileZ": 6,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -7,
+    "tileZ": 7,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -7,
+    "tileZ": 8,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -7,
+    "tileZ": 9,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -6,
+    "tileZ": 5,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -6,
+    "tileZ": 6,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -6,
+    "tileZ": 7,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -6,
+    "tileZ": 8,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -6,
+    "tileZ": 9,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -8,
+    "tileZ": -11,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -8,
+    "tileZ": -10,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -8,
+    "tileZ": -9,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -8,
+    "tileZ": -8,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 12,
+    "tileZ": -52,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 12,
+    "tileZ": -51,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 12,
+    "tileZ": -50,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 12,
+    "tileZ": -49,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 12,
+    "tileZ": -48,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 13,
+    "tileZ": -52,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 13,
+    "tileZ": -51,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 13,
+    "tileZ": -50,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 13,
+    "tileZ": -49,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 13,
+    "tileZ": -48,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 14,
+    "tileZ": -52,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 14,
+    "tileZ": -51,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": 14,
+    "tileZ": -50,
+    "blocksPerTile": 512,
+    "shopCount": 6
+  },
+  {
+    "world": "World",
     "tileX": 14,
     "tileZ": -49,
     "blocksPerTile": 512,
@@ -6961,6 +6961,181 @@
     "world": "World",
     "tileX": 16,
     "tileZ": -48,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -73,
+    "tileZ": -2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -73,
+    "tileZ": -1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -73,
+    "tileZ": 0,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -73,
+    "tileZ": 1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -73,
+    "tileZ": 2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -72,
+    "tileZ": -2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -72,
+    "tileZ": -1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -72,
+    "tileZ": 0,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -72,
+    "tileZ": 1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -72,
+    "tileZ": 2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -71,
+    "tileZ": -2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -71,
+    "tileZ": -1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -71,
+    "tileZ": 0,
+    "blocksPerTile": 512,
+    "shopCount": 1
+  },
+  {
+    "world": "World",
+    "tileX": -71,
+    "tileZ": 1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -71,
+    "tileZ": 2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -70,
+    "tileZ": -2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -70,
+    "tileZ": -1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -70,
+    "tileZ": 0,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -70,
+    "tileZ": 1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -70,
+    "tileZ": 2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -69,
+    "tileZ": -2,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -69,
+    "tileZ": -1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -69,
+    "tileZ": 0,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -69,
+    "tileZ": 1,
+    "blocksPerTile": 512,
+    "shopCount": 0
+  },
+  {
+    "world": "World",
+    "tileX": -69,
+    "tileZ": 2,
     "blocksPerTile": 512,
     "shopCount": 0
   },
