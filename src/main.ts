@@ -1178,16 +1178,86 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             zoomDelta: 0.5 // Zoom step when using buttons
         });
         
-        // Add center tile at shop location initially
-        const shopTileBounds: L.LatLngBoundsExpression = [
-            [-MAP_CONFIG.tileSize, 0],
-            [0, MAP_CONFIG.tileSize]
-        ];
-        await addTileOverlayWithFallback(leafletMap, worldId, tileX, tileZ, shopTileBounds);
+        // Track loaded tiles to avoid duplicates (separate tracking for each zoom level)
+        const loadedZoom8Tiles = new Set<string>();
+        const loadedZoom4Tiles = new Set<string>();
         
-        // Track loaded tiles to avoid duplicates
-        const loadedTiles = new Set<string>();
-        loadedTiles.add(`${tileX},${tileZ}`);
+        // Zoom 4 tile size in map units (8192 blocks / 512 blocks per unit at zoom 8)
+        const zoom4TileSize = MAP_CONFIG.tileSize * 16;  // 512 * 16 = 8192
+        
+        // Calculate zoom 4 tile coords from zoom 8 coords
+        const getZoom4Coords = (z8x: number, z8z: number) => ({
+            x: Math.floor(z8x / 16),
+            z: Math.floor(z8z / 16)
+        });
+        
+        // Load a zoom 4 tile at its proper bounds
+        const loadZoom4Tile = async (z4x: number, z4z: number) => {
+            const key = `z4:${z4x},${z4z}`;
+            if (loadedZoom4Tiles.has(key)) {
+                return;
+            }
+            loadedZoom4Tiles.add(key);
+            
+            // Calculate where this tile should be in the map coordinate system
+            // Zoom 4 tile (z4x, z4z) covers zoom 8 tiles from (z4x*16, z4z*16) to (z4x*16+15, z4z*16+15)
+            // We need to express this relative to the center tile (tileX, tileZ)
+            const startZ8X = z4x * 16;
+            const startZ8Z = z4z * 16;
+            
+            // Convert to relative coordinates (dx, dy from center tile)
+            const dx = startZ8X - tileX;
+            const dy = startZ8Z - tileZ;
+            
+            // Calculate bounds (same formula as zoom 8, but 16x larger)
+            const south = -dy * MAP_CONFIG.tileSize - zoom4TileSize;
+            const north = -dy * MAP_CONFIG.tileSize;
+            const west = dx * MAP_CONFIG.tileSize;
+            const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
+            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+            
+            // Try to load the zoom 4 tile
+            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    L.imageOverlay(blobUrl, bounds).addTo(leafletMap!);
+                }
+            } catch {
+                // Tile doesn't exist, just skip
+            }
+        };
+        
+        // Load a zoom 8 tile
+        const loadZoom8Tile = async (tx: number, tz: number, dx: number, dy: number) => {
+            const key = `z8:${tx},${tz}`;
+            if (loadedZoom8Tiles.has(key)) {
+                return;
+            }
+            loadedZoom8Tiles.add(key);
+            
+            // Calculate bounds for this tile
+            const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+            const north = -dy * MAP_CONFIG.tileSize;
+            const west = dx * MAP_CONFIG.tileSize;
+            const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+            
+            // Try to load zoom 8 tile (no fallback - let zoom 4 layer show through)
+            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    L.imageOverlay(blobUrl, bounds).addTo(leafletMap!);
+                }
+            } catch {
+                // Tile doesn't exist, zoom 4 layer will show
+            }
+        };
         
         // Function to load tiles based on current viewport
         const loadVisibleTiles = async () => {
@@ -1197,43 +1267,39 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             
             const bounds = leafletMap.getBounds();
             
-            // Calculate which tiles are visible
-            // Each tile is 512 units, centered at (0,0) is the shop tile
+            // Calculate which zoom 8 tiles are visible
             const minLat = bounds.getSouth();
             const maxLat = bounds.getNorth();
             const minLng = bounds.getWest();
             const maxLng = bounds.getEast();
             
-            // Convert bounds to tile coordinates
-            // Tile at (dx, dy) has bounds: [-dy*512-(512), -dy*512] to [dx*512, dx*512+512]
-            const minTileX = Math.floor(minLng / MAP_CONFIG.tileSize);
-            const maxTileX = Math.floor(maxLng / MAP_CONFIG.tileSize);
-            const minTileY = -Math.ceil(maxLat / MAP_CONFIG.tileSize);  // Y is inverted
-            const maxTileY = -Math.floor(minLat / MAP_CONFIG.tileSize);
+            // Convert bounds to tile coordinates (relative to center)
+            const minDx = Math.floor(minLng / MAP_CONFIG.tileSize);
+            const maxDx = Math.ceil(maxLng / MAP_CONFIG.tileSize);
+            const minDy = -Math.ceil(maxLat / MAP_CONFIG.tileSize);
+            const maxDy = -Math.floor(minLat / MAP_CONFIG.tileSize);
             
-            // Load tiles with a buffer around the visible area
-            const buffer = 1;  // Load 1 extra tile in each direction
-            for (let dy = minTileY - buffer; dy <= maxTileY + buffer; dy++) {
-                for (let dx = minTileX - buffer; dx <= maxTileX + buffer; dx++) {
+            // First, load zoom 4 tiles as base layer
+            const zoom4Tiles = new Set<string>();
+            for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
+                for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
                     const tx = tileX + dx;
                     const tz = tileZ + dy;
-                    const tileKey = `${tx},${tz}`;
-                    
-                    if (loadedTiles.has(tileKey)) {
-                        continue;  // Already loaded
+                    const z4 = getZoom4Coords(tx, tz);
+                    const key = `${z4.x},${z4.z}`;
+                    if (!zoom4Tiles.has(key)) {
+                        zoom4Tiles.add(key);
+                        loadZoom4Tile(z4.x, z4.z);
                     }
-                    
-                    loadedTiles.add(tileKey);
-                    
-                    // Calculate bounds for this tile
-                    const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
-                    const north = -dy * MAP_CONFIG.tileSize;
-                    const west = dx * MAP_CONFIG.tileSize;
-                    const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
-                    const tileBounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-                    
-                    // Load tile in background (don't await)
-                    addTileOverlayWithFallback(leafletMap, worldId, tx, tz, tileBounds);
+                }
+            }
+            
+            // Then load zoom 8 tiles on top (they'll overlay the zoom 4 tiles)
+            for (let dy = minDy; dy <= maxDy; dy++) {
+                for (let dx = minDx; dx <= maxDx; dx++) {
+                    const tx = tileX + dx;
+                    const tz = tileZ + dy;
+                    loadZoom8Tile(tx, tz, dx, dy);
                 }
             }
         };
@@ -1451,6 +1517,9 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         
         // Set view centered on shop at initial zoom (showing ~3x3 tiles)
         leafletMap.setView(shopCenter, initialZoom);
+        
+        // Load initial visible tiles around the shop
+        loadVisibleTiles();
         
         // Apply initial zoom class
         updateZoomClass();
