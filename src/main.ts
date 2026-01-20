@@ -1178,6 +1178,32 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             zoomDelta: 0.5 // Zoom step when using buttons
         });
         
+        // Load tile manifest to know which tiles exist
+        type ManifestEntry = { world: string; tileX: number; tileZ: number; blocksPerTile: number };
+        let tileManifest: ManifestEntry[] = [];
+        const existingTiles = new Set<string>();
+        
+        try {
+            const manifestResponse = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
+            if (manifestResponse.ok) {
+                tileManifest = await manifestResponse.json();
+                // Build lookup set for fast tile existence checking
+                for (const entry of tileManifest) {
+                    // Key format: world/blocksPerTile/x/z
+                    const key = `${entry.world}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
+                    existingTiles.add(key);
+                }
+            }
+        } catch {
+            console.warn('Failed to load tile manifest');
+        }
+        
+        // Helper to check if a tile exists in manifest
+        const tileExists = (world: string, blocksPerTile: number, tx: number, tz: number): boolean => {
+            const key = `${world}/${blocksPerTile}/${tx}/${tz}`;
+            return existingTiles.has(key);
+        };
+        
         // Track loaded tiles to avoid duplicates (separate tracking for each zoom level)
         const loadedZoom8Tiles = new Set<string>();
         const loadedZoom4Tiles = new Set<string>();
@@ -1198,6 +1224,11 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 return;
             }
             loadedZoom4Tiles.add(key);
+            
+            // Check if tile exists in manifest (zoom 4 = 8192 blocksPerTile)
+            if (!tileExists(worldId, 8192, z4x, z4z)) {
+                return;  // Tile doesn't exist, skip
+            }
             
             // Calculate where this tile should be in the map coordinate system
             // Zoom 4 tile (z4x, z4z) covers zoom 8 tiles from (z4x*16, z4z*16) to (z4x*16+15, z4z*16+15)
@@ -1237,6 +1268,11 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 return;
             }
             loadedZoom8Tiles.add(key);
+            
+            // Check if tile exists in manifest (zoom 8 = 512 blocksPerTile)
+            if (!tileExists(worldId, 512, tx, tz)) {
+                return;  // Tile doesn't exist, skip
+            }
             
             // Calculate bounds for this tile
             const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
