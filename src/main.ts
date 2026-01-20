@@ -1167,46 +1167,80 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         }
         
         // Create map with CRS.Simple
-        // We'll set bounds to show a 3x3 tile area centered on the shop's tile
+        // Free navigation - no bounds restrictions
         leafletMap = L.map(container, {
             crs: L.CRS.Simple,
-            minZoom: -2,   // Will be set dynamically
+            minZoom: -5,   // Allow zooming far out
             maxZoom: 2,    // Allow zooming in
             zoomControl: true,
             attributionControl: false,
-            maxBoundsViscosity: 1.0,  // Prevent panning outside bounds (no rubber band)
             zoomSnap: 0,   // Allow fractional zoom levels
             zoomDelta: 0.5 // Zoom step when using buttons
         });
         
-        // Add tiles in a 5x5 grid around the shop's tile
-        // Each tile is placed as an ImageOverlay at its correct bounds
-        // Uses fallback to lower zoom tiles when maxZoom tiles are missing
-        const tilePromises: Promise<void>[] = [];
-        for (let dy = -2; dy <= 2; dy++) {
-            for (let dx = -2; dx <= 2; dx++) {
-                const tx = tileX + dx;
-                const tz = tileZ + dy;
-                
-                // In CRS.Simple, bounds are [[south, west], [north, east]]
-                // We want tile at (dx, dy) relative to center (0,0)
-                // Each tile is 512 units
-                const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
-                const north = -dy * MAP_CONFIG.tileSize;
-                const west = dx * MAP_CONFIG.tileSize;
-                const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
-                const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-                
-                // Load tile with fallback (fire and forget, order doesn't matter)
-                tilePromises.push(
-                    addTileOverlayWithFallback(leafletMap, worldId, tx, tz, bounds)
-                        .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
-                );
-            }
-        }
+        // Add center tile at shop location initially
+        const shopTileBounds: L.LatLngBoundsExpression = [
+            [-MAP_CONFIG.tileSize, 0],
+            [0, MAP_CONFIG.tileSize]
+        ];
+        await addTileOverlayWithFallback(leafletMap, worldId, tileX, tileZ, shopTileBounds);
         
-        // Wait for all tiles to load (or fail) before continuing
-        await Promise.all(tilePromises);
+        // Track loaded tiles to avoid duplicates
+        const loadedTiles = new Set<string>();
+        loadedTiles.add(`${tileX},${tileZ}`);
+        
+        // Function to load tiles based on current viewport
+        const loadVisibleTiles = async () => {
+            if (!leafletMap) {
+                return;
+            }
+            
+            const bounds = leafletMap.getBounds();
+            
+            // Calculate which tiles are visible
+            // Each tile is 512 units, centered at (0,0) is the shop tile
+            const minLat = bounds.getSouth();
+            const maxLat = bounds.getNorth();
+            const minLng = bounds.getWest();
+            const maxLng = bounds.getEast();
+            
+            // Convert bounds to tile coordinates
+            // Tile at (dx, dy) has bounds: [-dy*512-(512), -dy*512] to [dx*512, dx*512+512]
+            const minTileX = Math.floor(minLng / MAP_CONFIG.tileSize);
+            const maxTileX = Math.floor(maxLng / MAP_CONFIG.tileSize);
+            const minTileY = -Math.ceil(maxLat / MAP_CONFIG.tileSize);  // Y is inverted
+            const maxTileY = -Math.floor(minLat / MAP_CONFIG.tileSize);
+            
+            // Load tiles with a buffer around the visible area
+            const buffer = 1;  // Load 1 extra tile in each direction
+            for (let dy = minTileY - buffer; dy <= maxTileY + buffer; dy++) {
+                for (let dx = minTileX - buffer; dx <= maxTileX + buffer; dx++) {
+                    const tx = tileX + dx;
+                    const tz = tileZ + dy;
+                    const tileKey = `${tx},${tz}`;
+                    
+                    if (loadedTiles.has(tileKey)) {
+                        continue;  // Already loaded
+                    }
+                    
+                    loadedTiles.add(tileKey);
+                    
+                    // Calculate bounds for this tile
+                    const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+                    const north = -dy * MAP_CONFIG.tileSize;
+                    const west = dx * MAP_CONFIG.tileSize;
+                    const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+                    const tileBounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+                    
+                    // Load tile in background (don't await)
+                    addTileOverlayWithFallback(leafletMap, worldId, tx, tz, tileBounds);
+                }
+            }
+        };
+        
+        // Load tiles when map moves or zooms
+        leafletMap.on('moveend', loadVisibleTiles);
+        leafletMap.on('zoomend', loadVisibleTiles);
         
         // Marker position relative to center tile
         // Convert Minecraft coords to Leaflet CRS.Simple coords
@@ -1402,34 +1436,18 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             updateZoomClass();
         });
         
-        // Define the exact 5x5 tile bounds (for panning limits)
-        // Grid spans: lat from -1536 to 1024, lng from -1024 to 1536 (2560 x 2560 units)
-        const gridBounds = L.latLngBounds(
-            [-1536, -1024],  // SW corner (bottom-left)
-            [1024, 1536]     // NE corner (top-right)
-        );
-        
         // Center on the shop's position (marker coords)
         const shopCenter = L.latLng(markerLat, markerLng);
         
         leafletMap.invalidateSize();
         
         // Calculate zoom to show ~3x3 tiles (1536 units) for nice initial view
-        // while having 5x5 tiles loaded for panning buffer
         const containerSize = leafletMap.getSize();
         const visibleSize = MAP_CONFIG.tileSize * 3;  // Show 3 tiles × 512 units
         const smallerDimension = Math.min(containerSize.x, containerSize.y);
         
         // Calculate zoom to fit visible area (3x3)
         const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
-        
-        // Min zoom fits full 5x5 grid (for zoom out limit)
-        const gridSize = MAP_CONFIG.tileSize * 5;
-        const minZoom = calculateFitZoom(smallerDimension, gridSize);
-        
-        // Set zoom limits
-        leafletMap.setMinZoom(minZoom);
-        leafletMap.setMaxBounds(gridBounds);
         
         // Set view centered on shop at initial zoom (showing ~3x3 tiles)
         leafletMap.setView(shopCenter, initialZoom);
