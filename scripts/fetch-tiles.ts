@@ -37,7 +37,11 @@ interface FetchTileResult extends FetchResult {
  * Saves in pyramid structure: {world}/{z}/{x}/{y}.png
  */
 async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise<FetchTileResult> {
-    const tilePath = getTilePath(CONFIG.maxZoom, tile.tileX, tile.tileZ);
+    // Calculate actual zoom level from blocksPerTile
+    // At maxZoom (8), blocksPerTile = tileSize (512)
+    // At zoom 4, blocksPerTile = 512 * 2^(8-4) = 512 * 16 = 8192
+    const zoom = CONFIG.maxZoom - Math.log2(tile.blocksPerTile / CONFIG.tileSize);
+    const tilePath = getTilePath(zoom, tile.tileX, tile.tileZ);
     const normalizedWorld = getNormalizedWorld(tile.world);
     
     const filepath = join(outputDir, normalizedWorld, tilePath);

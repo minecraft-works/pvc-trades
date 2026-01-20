@@ -1189,8 +1189,10 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 tileManifest = await manifestResponse.json();
                 // Build lookup set for fast tile existence checking
                 for (const entry of tileManifest) {
+                    // Normalize world name to match what getWorldId returns
+                    const normalizedWorld = getWorldId(entry.world);
                     // Key format: world/blocksPerTile/x/z
-                    const key = `${entry.world}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
+                    const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
                     existingTiles.add(key);
                 }
             }
