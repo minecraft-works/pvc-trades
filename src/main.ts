@@ -1076,6 +1076,10 @@ let cachedPlayers: Player[] = [];
 // Player refresh interval (cleared when dialog closes)
 let playerRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
+// Global cache for tile blob URLs (persists across map sessions)
+// Key format: "world/zoom/x/z" -> blob URL
+const tileBlobCache = new Map<string, string>();
+
 /**
  * Fetch player positions from API
  * Returns empty array if fetch fails (no dots shown)
@@ -1206,9 +1210,10 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             return existingTiles.has(key);
         };
         
-        // Track loaded tiles to avoid duplicates (separate tracking for each zoom level)
-        const loadedZoom8Tiles = new Set<string>();
-        const loadedZoom4Tiles = new Set<string>();
+        // Track tiles added to THIS map instance (cleared when map is recreated)
+        // Different from tileBlobCache which persists blob URLs across sessions
+        const addedToMapZoom8 = new Set<string>();
+        const addedToMapZoom4 = new Set<string>();
         
         // Zoom 4 tile size in map units (8192 blocks / 512 blocks per unit at zoom 8)
         const zoom4TileSize = MAP_CONFIG.tileSize * 16;  // 512 * 16 = 8192
@@ -1219,13 +1224,13 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             z: Math.floor(z8z / 16)
         });
         
-        // Load a zoom 4 tile at its proper bounds
-        const loadZoom4Tile = async (z4x: number, z4z: number) => {
-            const key = `z4:${z4x},${z4z}`;
-            if (loadedZoom4Tiles.has(key)) {
+        // Load a zoom 4 tile at its proper bounds (non-blocking)
+        const loadZoom4Tile = (z4x: number, z4z: number) => {
+            const mapKey = `z4:${z4x},${z4z}`;
+            if (addedToMapZoom4.has(mapKey)) {
                 return;
             }
-            loadedZoom4Tiles.add(key);
+            addedToMapZoom4.add(mapKey);
             
             // Check if tile exists in manifest (zoom 4 = 8192 blocksPerTile)
             if (!tileExists(worldId, 8192, z4x, z4z)) {
@@ -1249,27 +1254,46 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
             const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
             
-            // Try to load the zoom 4 tile
-            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
-            try {
-                const response = await fetch(url);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    L.imageOverlay(blobUrl, bounds).addTo(leafletMap!);
+            // Global cache key for the tile blob
+            const cacheKey = `${worldId}/4/${z4x}/${z4z}`;
+            
+            // Check if we already have this tile cached
+            const cachedBlobUrl = tileBlobCache.get(cacheKey);
+            if (cachedBlobUrl) {
+                if (leafletMap) {
+                    L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);
                 }
-            } catch {
-                // Tile doesn't exist, just skip
-            }
-        };
-        
-        // Load a zoom 8 tile
-        const loadZoom8Tile = async (tx: number, tz: number, dx: number, dy: number) => {
-            const key = `z8:${tx},${tz}`;
-            if (loadedZoom8Tiles.has(key)) {
                 return;
             }
-            loadedZoom8Tiles.add(key);
+            
+            // Fire-and-forget: load tile without blocking
+            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+            fetch(url)
+                .then(response => {
+                    if (response.ok && leafletMap) {
+                        return response.blob();
+                    }
+                    return null;
+                })
+                .then(blob => {
+                    if (blob && leafletMap) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        tileBlobCache.set(cacheKey, blobUrl);  // Cache for reuse
+                        L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+                    }
+                })
+                .catch(() => {
+                    // Tile doesn't exist, just skip
+                });
+        };
+        
+        // Load a zoom 8 tile (non-blocking)
+        const loadZoom8Tile = (tx: number, tz: number, dx: number, dy: number) => {
+            const mapKey = `z8:${tx},${tz}`;
+            if (addedToMapZoom8.has(mapKey)) {
+                return;
+            }
+            addedToMapZoom8.add(mapKey);
             
             // Check if tile exists in manifest (zoom 8 = 512 blocksPerTile)
             if (!tileExists(worldId, 512, tx, tz)) {
@@ -1283,27 +1307,47 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
             const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
             
-            // Try to load zoom 8 tile (no fallback - let zoom 4 layer show through)
-            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
-            try {
-                const response = await fetch(url);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    L.imageOverlay(blobUrl, bounds).addTo(leafletMap!);
+            // Global cache key for the tile blob
+            const cacheKey = `${worldId}/8/${tx}/${tz}`;
+            
+            // Check if we already have this tile cached
+            const cachedBlobUrl = tileBlobCache.get(cacheKey);
+            if (cachedBlobUrl) {
+                if (leafletMap) {
+                    L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);
                 }
-            } catch {
-                // Tile doesn't exist, zoom 4 layer will show
+                return;
             }
+            
+            // Fire-and-forget: load tile without blocking
+            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
+            fetch(url)
+                .then(response => {
+                    if (response.ok && leafletMap) {
+                        return response.blob();
+                    }
+                    return null;
+                })
+                .then(blob => {
+                    if (blob && leafletMap) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        tileBlobCache.set(cacheKey, blobUrl);  // Cache for reuse
+                        L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+                    }
+                })
+                .catch(() => {
+                    // Tile doesn't exist, zoom 4 layer will show
+                });
         };
         
-        // Function to load tiles based on current viewport
-        const loadVisibleTiles = async () => {
+        // Function to load tiles based on current viewport (non-blocking)
+        const loadVisibleTiles = () => {
             if (!leafletMap) {
                 return;
             }
             
             const bounds = leafletMap.getBounds();
+            const currentZoom = leafletMap.getZoom();
             
             // Calculate which zoom 8 tiles are visible
             const minLat = bounds.getSouth();
@@ -1332,12 +1376,17 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
                 }
             }
             
-            // Then load zoom 8 tiles on top (they'll overlay the zoom 4 tiles)
-            for (let dy = minDy; dy <= maxDy; dy++) {
-                for (let dx = minDx; dx <= maxDx; dx++) {
-                    const tx = tileX + dx;
-                    const tz = tileZ + dy;
-                    loadZoom8Tile(tx, tz, dx, dy);
+            // Only load zoom 8 tiles when zoomed in enough to see detail
+            // At zoom -2 or below, zoom 8 tiles would be tiny (8x8 pixels or less)
+            // so just use zoom 4 tiles as base layer
+            if (currentZoom > -2) {
+                // Then load zoom 8 tiles on top (they'll overlay the zoom 4 tiles)
+                for (let dy = minDy; dy <= maxDy; dy++) {
+                    for (let dx = minDx; dx <= maxDx; dx++) {
+                        const tx = tileX + dx;
+                        const tz = tileZ + dy;
+                        loadZoom8Tile(tx, tz, dx, dy);
+                    }
                 }
             }
         };
