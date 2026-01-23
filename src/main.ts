@@ -2114,22 +2114,6 @@ async function pollPlayerPosition(): Promise<void> {
                 yaw: player.rotation?.yaw
             };
             
-            // Check if player changed worlds
-            const worldChanged = previousPosition && previousPosition.world !== currentPlayerPosition.world;
-            
-            // If world changed, check if we should switch the map to player's new world
-            if (worldChanged) {
-                // Get route to see which worlds have shops
-                const fullRoute = computeRoute(currentPlayerPosition, true);
-                const routeWorlds = new Set(fullRoute.map(stop => getWorldId(stop.world)));
-                
-                // If player's new world has shops, reinitialize the map for that world
-                if (routeWorlds.has(currentPlayerPosition.world)) {
-                    initNavigationMapDialog(fullRoute);
-                    return; // Map will be reinitialized, skip rest of this update
-                }
-            }
-            
             updatePlayerMarker();
             updateLiveDistance();
             checkAutoAdvance();
@@ -2177,11 +2161,10 @@ function updatePlayerMarker(): void {
     }
     
     // Only show player marker if player is in the same world as the map
+    // When worlds differ, marker stays hidden until player enters correct world
     if (currentPlayerPosition.world !== navMapWorld) {
-        // Hide marker if it exists and player is in different world
         if (navPlayerMarker) {
-            navMap.removeLayer(navPlayerMarker);
-            navPlayerMarker = null;
+            navPlayerMarker.setOpacity(0);  // Hide but don't remove
         }
         return;
     }
@@ -2207,6 +2190,7 @@ function updatePlayerMarker(): void {
     if (navPlayerMarker) {
         // Update existing marker position and rotation
         navPlayerMarker.setLatLng([lat, lng]);
+        navPlayerMarker.setOpacity(1);  // Ensure visible when in correct world
         // Update icon to reflect new heading
         const playerIcon = L.divIcon({
             className: 'nav-player-marker',
