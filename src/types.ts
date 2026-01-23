@@ -181,6 +181,7 @@ export interface CartItem {
 export interface RouteStop {
     type: 'shop' | 'portal';
     x: number;
+    y: number;
     z: number;
     world: string;
     cartItem?: CartItem;  // Only for shop stops
