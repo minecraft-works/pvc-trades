@@ -2114,6 +2114,22 @@ async function pollPlayerPosition(): Promise<void> {
                 yaw: player.rotation?.yaw
             };
             
+            // Check if player changed worlds
+            const worldChanged = previousPosition && previousPosition.world !== currentPlayerPosition.world;
+            
+            // If world changed, check if we should switch the map to player's new world
+            if (worldChanged) {
+                // Get route to see which worlds have shops
+                const fullRoute = computeRoute(currentPlayerPosition, true);
+                const routeWorlds = new Set(fullRoute.map(stop => getWorldId(stop.world)));
+                
+                // If player's new world has shops, reinitialize the map for that world
+                if (routeWorlds.has(currentPlayerPosition.world)) {
+                    initNavigationMapDialog(fullRoute);
+                    return; // Map will be reinitialized, skip rest of this update
+                }
+            }
+            
             updatePlayerMarker();
             updateLiveDistance();
             checkAutoAdvance();
@@ -2157,6 +2173,16 @@ async function pollPlayerPosition(): Promise<void> {
  */
 function updatePlayerMarker(): void {
     if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    // Only show player marker if player is in the same world as the map
+    if (currentPlayerPosition.world !== navMapWorld) {
+        // Hide marker if it exists and player is in different world
+        if (navPlayerMarker) {
+            navMap.removeLayer(navPlayerMarker);
+            navPlayerMarker = null;
+        }
         return;
     }
     
