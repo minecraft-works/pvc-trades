@@ -975,95 +975,6 @@ const MAP_CONFIG = {
     playersUrl: 'players.json'  // Local fallback; production uses worker URL
 };
 
-/**
- * Load a tile image with fallback to zoom 4.
- * Returns a promise that resolves with the image URL that loaded successfully,
- * or rejects if no tile is available.
- * 
- * Strategy:
- * 1. Try zoom 8 (high detail around shops)
- * 2. If not found, try zoom 4 (base map coverage)
- * 
- * @param worldId - The world identifier (overworld, the_nether)
- * @param tileX - Tile X coordinate at maxZoom (zoom 8)
- * @param tileZ - Tile Z coordinate at maxZoom (zoom 8)
- * @returns Promise with { url, zoom } of the loaded tile
- */
-async function loadTileWithFallback(
-    worldId: string,
-    tileX: number,
-    tileZ: number
-): Promise<{ url: string; zoom: number }> {
-    // Try zoom 8 first (high detail)
-    const zoom8Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tileX}/${tileZ}.png`;
-    if (await checkTileExists(zoom8Url)) {
-        return { url: zoom8Url, zoom: MAP_CONFIG.maxZoom };
-    }
-    
-    // Fall back to zoom 4 (base map)
-    // Calculate zoom 4 tile coords from zoom 8 coords
-    const zoomDiff = MAP_CONFIG.maxZoom - MAP_CONFIG.fallbackZoom; // 8 - 4 = 4
-    const zoom4X = Math.floor(tileX / Math.pow(2, zoomDiff)); // divide by 16
-    const zoom4Z = Math.floor(tileZ / Math.pow(2, zoomDiff)); // divide by 16
-    
-    const zoom4Url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${zoom4X}/${zoom4Z}.png`;
-    if (await checkTileExists(zoom4Url)) {
-        return { url: zoom4Url, zoom: MAP_CONFIG.fallbackZoom };
-    }
-    
-    // No tile found
-    throw new Error(`No tile found for ${worldId}/${tileX}/${tileZ}`);
-}
-
-/**
- * Check if a tile exists by attempting to load it.
- */
-function checkTileExists(url: string): Promise<boolean> {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = url;
-    });
-}
-
-/**
- * Create an ImageOverlay for a tile, using fallback if needed.
- * The overlay will cover the area of the original maxZoom tile even if
- * using a lower zoom tile as fallback.
- * 
- * @param map - The Leaflet map to add the overlay to
- * @param worldId - World identifier
- * @param tileX - Tile X coordinate at maxZoom
- * @param tileZ - Tile Z coordinate at maxZoom
- * @param bounds - The L.LatLngBounds for this tile in the map's coordinate system
- */
-async function addTileOverlayWithFallback(
-    map: L.Map,
-    worldId: string,
-    tileX: number,
-    tileZ: number,
-    bounds: L.LatLngBoundsExpression
-): Promise<L.ImageOverlay | null> {
-    try {
-        const { url, zoom } = await loadTileWithFallback(worldId, tileX, tileZ);
-        
-        if (zoom === MAP_CONFIG.maxZoom) {
-            // Direct tile at max zoom, use directly
-            return L.imageOverlay(url, bounds).addTo(map);
-        } else {
-            // Using a lower zoom tile as fallback
-            // The tile covers a larger area, but we want to show just the relevant portion
-            // For now, use the lower zoom tile stretched to cover the area
-            // This will be blurry but better than nothing
-            return L.imageOverlay(url, bounds).addTo(map);
-        }
-    } catch {
-        // No tile available, return null (empty space)
-        return null;
-    }
-}
-
 // Leaflet map instance (reused across dialog opens)
 let leafletMap: L.Map | null = null;
 
@@ -1079,6 +990,113 @@ let playerRefreshInterval: ReturnType<typeof setInterval> | null = null;
 // Global cache for tile blob URLs (persists across map sessions)
 // Key format: "world/zoom/x/z" -> blob URL
 const tileBlobCache = new Map<string, string>();
+
+// Global cache for tile manifest (which tiles exist)
+// Key format: "world/blocksPerTile/x/z" -> true
+let tileManifestCache: Set<string> | null = null;
+let manifestLoadPromise: Promise<void> | null = null;
+
+/**
+ * Load the tile manifest (cached globally)
+ */
+async function loadTileManifest(): Promise<Set<string>> {
+    if (tileManifestCache) {
+        return tileManifestCache;
+    }
+    
+    // Avoid multiple simultaneous fetches
+    if (manifestLoadPromise) {
+        await manifestLoadPromise;
+        return tileManifestCache!;
+    }
+    
+    manifestLoadPromise = (async () => {
+        tileManifestCache = new Set<string>();
+        try {
+            const response = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
+            if (response.ok) {
+                const manifest = await response.json() as Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }>;
+                for (const entry of manifest) {
+                    // Normalize world name to match what getWorldId returns
+                    const normalizedWorld = getWorldId(entry.world);
+                    const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
+                    tileManifestCache.add(key);
+                }
+            }
+        } catch {
+            console.warn('Failed to load tile manifest');
+        }
+    })();
+    
+    await manifestLoadPromise;
+    return tileManifestCache!;
+}
+
+/**
+ * Check if a tile exists in the manifest
+ */
+function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTile: number, tx: number, tz: number): boolean {
+    const key = `${world}/${blocksPerTile}/${tx}/${tz}`;
+    return manifest.has(key);
+}
+
+/**
+ * Load a tile and add it to a map (non-blocking, uses cache)
+ * @param map - Leaflet map to add tile to
+ * @param worldId - World identifier (overworld, the_nether)
+ * @param zoom - Zoom level (4 or 8)
+ * @param tx - Tile X coordinate at the specified zoom
+ * @param tz - Tile Z coordinate at the specified zoom
+ * @param bounds - Bounds for the tile overlay
+ * @param addedToMap - Set tracking tiles already added to this map instance
+ */
+function loadTileToMap(
+    map: L.Map,
+    worldId: string,
+    zoom: number,
+    tx: number,
+    tz: number,
+    bounds: L.LatLngBoundsExpression,
+    addedToMap: Set<string>
+): void {
+    const mapKey = `z${zoom}:${tx},${tz}`;
+    if (addedToMap.has(mapKey)) {
+        return;
+    }
+    addedToMap.add(mapKey);
+    
+    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+    
+    // Check if we already have this tile cached
+    const cachedBlobUrl = tileBlobCache.get(cacheKey);
+    if (cachedBlobUrl) {
+        L.imageOverlay(cachedBlobUrl, bounds).addTo(map);
+        return;
+    }
+    
+    // Fire-and-forget: load tile without blocking
+    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${zoom}/${tx}/${tz}.png`;
+    fetch(url)
+        .then(response => {
+            if (response.ok) {
+                return response.blob();
+            }
+            return null;
+        })
+        .then(blob => {
+            if (blob) {
+                const blobUrl = URL.createObjectURL(blob);
+                tileBlobCache.set(cacheKey, blobUrl);
+                // Check map still exists before adding
+                if (map.getContainer()?.isConnected) {
+                    L.imageOverlay(blobUrl, bounds).addTo(map);
+                }
+            }
+        })
+        .catch(() => {
+            // Tile doesn't exist, skip
+        });
+}
 
 /**
  * Fetch player positions from API
@@ -1182,32 +1200,12 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             zoomDelta: 0.5 // Zoom step when using buttons
         });
         
-        // Load tile manifest to know which tiles exist
-        type ManifestEntry = { world: string; tileX: number; tileZ: number; blocksPerTile: number };
-        let tileManifest: ManifestEntry[] = [];
-        const existingTiles = new Set<string>();
-        
-        try {
-            const manifestResponse = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
-            if (manifestResponse.ok) {
-                tileManifest = await manifestResponse.json();
-                // Build lookup set for fast tile existence checking
-                for (const entry of tileManifest) {
-                    // Normalize world name to match what getWorldId returns
-                    const normalizedWorld = getWorldId(entry.world);
-                    // Key format: world/blocksPerTile/x/z
-                    const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
-                    existingTiles.add(key);
-                }
-            }
-        } catch {
-            console.warn('Failed to load tile manifest');
-        }
+        // Load tile manifest (uses global cache)
+        const manifest = await loadTileManifest();
         
         // Helper to check if a tile exists in manifest
         const tileExists = (world: string, blocksPerTile: number, tx: number, tz: number): boolean => {
-            const key = `${world}/${blocksPerTile}/${tx}/${tz}`;
-            return existingTiles.has(key);
+            return tileExistsInManifest(manifest, world, blocksPerTile, tx, tz);
         };
         
         // Track tiles added to THIS map instance (cleared when map is recreated)
@@ -2443,30 +2441,67 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
         }
     });
     
-    // Load tiles - expand range by 1 for padding
-    // Uses fallback to lower zoom tiles when maxZoom tiles are missing
-    const navTilePromises: Promise<void>[] = [];
+    // Load tile manifest (uses global cache)
+    const manifest = await loadTileManifest();
+    
+    // Track tiles added to this map instance
+    const addedToNavMap = new Set<string>();
+    
+    // Zoom 4 tile size in map units
+    const zoom4TileSize = MAP_CONFIG.tileSize * 16;
+    
+    // Calculate zoom 4 tile coords from zoom 8 coords
+    const getZoom4Coords = (z8x: number, z8z: number) => ({
+        x: Math.floor(z8x / 16),
+        z: Math.floor(z8z / 16)
+    });
+    
+    // First load zoom 4 tiles as base layer
+    const zoom4Tiles = new Set<string>();
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            // Bounds relative to center tile
-            const relX = tx - centerTileX;
-            const relZ = tz - centerTileZ;
-            const south = -relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
-            const north = -relZ * MAP_CONFIG.tileSize;
-            const west = relX * MAP_CONFIG.tileSize;
-            const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
-            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-            
-            // All route stops should be in overworld for now
-            navTilePromises.push(
-                addTileOverlayWithFallback(navMap, 'overworld', tx, tz, bounds)
-                    .then(() => {}) // Convert Promise<ImageOverlay|null> to Promise<void>
-            );
+            const z4 = getZoom4Coords(tx, tz);
+            const key = `${z4.x},${z4.z}`;
+            if (!zoom4Tiles.has(key)) {
+                zoom4Tiles.add(key);
+                
+                // Check if zoom 4 tile exists in manifest (blocksPerTile = 8192)
+                if (tileExistsInManifest(manifest, 'overworld', 8192, z4.x, z4.z)) {
+                    // Calculate bounds for zoom 4 tile
+                    const startZ8X = z4.x * 16;
+                    const startZ8Z = z4.z * 16;
+                    const dx = startZ8X - centerTileX;
+                    const dy = startZ8Z - centerTileZ;
+                    const south = -dy * MAP_CONFIG.tileSize - zoom4TileSize;
+                    const north = -dy * MAP_CONFIG.tileSize;
+                    const west = dx * MAP_CONFIG.tileSize;
+                    const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
+                    const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+                    
+                    loadTileToMap(navMap, 'overworld', 4, z4.x, z4.z, bounds, addedToNavMap);
+                }
+            }
         }
     }
     
-    // Wait for all tiles to load
-    await Promise.all(navTilePromises);
+    // Then load zoom 8 tiles on top
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            // Check if zoom 8 tile exists in manifest (blocksPerTile = 512)
+            if (tileExistsInManifest(manifest, 'overworld', 512, tx, tz)) {
+                // Bounds relative to center tile
+                const relX = tx - centerTileX;
+                const relZ = tz - centerTileZ;
+                const south = -relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
+                const north = -relZ * MAP_CONFIG.tileSize;
+                const west = relX * MAP_CONFIG.tileSize;
+                const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
+                const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
+                
+                loadTileToMap(navMap, 'overworld', 8, tx, tz, bounds, addedToNavMap);
+            }
+        }
+    }
     
     // Convert route stops to Leaflet coordinates
     const routePoints: L.LatLngExpression[] = [];
