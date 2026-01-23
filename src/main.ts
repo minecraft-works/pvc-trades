@@ -437,11 +437,17 @@ function isNether(world: string): boolean {
     return world.toLowerCase().includes('nether');
 }
 
+interface RouteOrigin {
+    x: number;
+    z: number;
+    world: string;
+}
+
 /**
  * Compute optimal route using nearest-neighbor + 2-opt optimization
- * Starts from origin (0, 0) in overworld
+ * @param origin - Optional starting position (defaults to 0,0 in overworld)
  */
-function computeRoute(): RouteStop[] {
+function computeRoute(origin?: RouteOrigin): RouteStop[] {
     if (cart.length === 0) { return []; }
     
     // Convert cart items to RoutePoints for optimization
@@ -451,8 +457,8 @@ function computeRoute(): RouteStop[] {
         world: item.trade.world
     }));
     
-    // Get optimized order using lib functions
-    const order = computeOptimalOrder(points);
+    // Get optimized order using lib functions, passing origin if provided
+    const order = computeOptimalOrder(points, origin);
     
     // Build route with shop stops only
     const route: RouteStop[] = [];
@@ -1915,7 +1921,7 @@ function saveNavMode(): void {
 /**
  * Start live navigation - poll player position and update map
  */
-function startNavigation(): void {
+async function startNavigation(): Promise<void> {
     const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
     
     if (!playerNameInput?.value.trim()) {
@@ -1940,12 +1946,31 @@ function startNavigation(): void {
     
     if (navDialog) {
         navDialog.showModal();
-        console.log('Dialog opened, computing route...');
+        console.log('Dialog opened, fetching player position...');
+        
+        // First, get the player's current position
+        const playerName = playerNameInput.value.trim().toLowerCase();
+        try {
+            const players = await fetchPlayers();
+            const player = players.find(p => p.name.toLowerCase() === playerName);
+            
+            if (player) {
+                currentPlayerPosition = {
+                    x: player.position.x,
+                    z: player.position.z,
+                    world: 'overworld'
+                };
+            }
+        } catch (error) {
+            console.warn('Failed to get initial player position:', error);
+        }
         
         // Initialize map after dialog is visible (needs dimensions)
         requestAnimationFrame(() => {
-            const route = computeRoute();
-            console.log('Route computed:', route.length, 'stops');
+            // Compute route from player position (or 0,0 if not found)
+            const route = computeRoute(currentPlayerPosition ?? undefined);
+            navCurrentRoute = route;
+            console.log('Route computed from player position:', route.length, 'stops');
             initNavigationMapDialog(route);
             
             // Start polling player position
@@ -1978,6 +2003,27 @@ function stopNavigation(): void {
         navMap.removeLayer(navPlayerMarker);
         navPlayerMarker = null;
     }
+    
+    // Remove route polyline
+    if (navRoutePolyline && navMap) {
+        navMap.removeLayer(navRoutePolyline);
+        navRoutePolyline = null;
+    }
+    
+    // Remove player-to-next line
+    if (navPlayerToNextLine && navMap) {
+        navMap.removeLayer(navPlayerToNextLine);
+        navPlayerToNextLine = null;
+    }
+    
+    // Remove stop markers
+    if (navMap) {
+        for (const marker of navStopMarkers) {
+            navMap.removeLayer(marker);
+        }
+    }
+    navStopMarkers = [];
+    navCurrentRoute = [];
     
     currentPlayerPosition = null;
     
@@ -2032,6 +2078,7 @@ async function pollPlayerPosition(): Promise<void> {
         const player = players.find(p => p.name.toLowerCase() === playerName);
         
         if (player) {
+            const previousPosition = currentPlayerPosition;
             currentPlayerPosition = {
                 x: player.position.x,
                 z: player.position.z,
@@ -2042,6 +2089,18 @@ async function pollPlayerPosition(): Promise<void> {
             updateLiveDistance();
             checkAutoAdvance();
             updateNearbyShopTooltip();
+            
+            // Recalculate route from new player position if position changed significantly
+            const shouldRecalcRoute = !previousPosition || 
+                Math.abs(previousPosition.x - currentPlayerPosition.x) > 10 ||
+                Math.abs(previousPosition.z - currentPlayerPosition.z) > 10;
+            
+            if (shouldRecalcRoute) {
+                recalculateRouteFromPlayer();
+            }
+            
+            // Update the dotted line from player to next stop
+            updatePlayerToNextLine();
             
             // In follow mode, center on player
             if (navMode === 'follow') {
@@ -2093,6 +2152,139 @@ function updatePlayerMarker(): void {
 }
 
 /**
+ * Recalculate route from the current player position and update the map
+ */
+function recalculateRouteFromPlayer(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    // Compute new route from player position
+    const newRoute = computeRoute(currentPlayerPosition);
+    
+    // Check if route order actually changed
+    const routeChanged = navCurrentRoute.length !== newRoute.length ||
+        newRoute.some((stop, i) => {
+            const oldStop = navCurrentRoute[i];
+            return !oldStop || stop.x !== oldStop.x || stop.z !== oldStop.z;
+        });
+    
+    if (!routeChanged) {
+        return; // No need to update if route order is the same
+    }
+    
+    navCurrentRoute = newRoute;
+    
+    // Remove old route polyline
+    if (navRoutePolyline) {
+        navMap.removeLayer(navRoutePolyline);
+        navRoutePolyline = null;
+    }
+    
+    // Remove old stop markers
+    for (const marker of navStopMarkers) {
+        navMap.removeLayer(marker);
+    }
+    navStopMarkers = [];
+    
+    // Draw new route if we have stops
+    if (newRoute.length > 0) {
+        const routePoints: L.LatLngExpression[] = [];
+        
+        for (let i = 0; i < newRoute.length; i++) {
+            const stop = newRoute[i]!;
+            const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, navMapCenterTileX, navMapCenterTileZ, MAP_CONFIG.tileSize);
+            routePoints.push([lat, lng]);
+            
+            // Add numbered marker for each stop
+            const markerIcon = L.divIcon({
+                className: 'nav-route-marker',
+                html: `<div class="nav-marker">${i + 1}</div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+            
+            const tooltipText = stop.cartItem 
+                ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+                : `Stop ${i + 1}`;
+            
+            const marker = L.marker([lat, lng], { icon: markerIcon })
+                .bindTooltip(tooltipText, { 
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -18]
+                })
+                .addTo(navMap);
+            navStopMarkers.push(marker);
+        }
+        
+        // Draw polyline connecting all stops (solid line between shops)
+        navRoutePolyline = L.polyline(routePoints, {
+            color: '#3b82f6',
+            weight: 3,
+            opacity: 0.8,
+            dashArray: '10, 5'
+        }).addTo(navMap);
+    }
+}
+
+/**
+ * Update the dotted line from player to the next stop
+ */
+function updatePlayerToNextLine(): void {
+    if (!navMap || !currentPlayerPosition) {
+        return;
+    }
+    
+    // Remove existing line
+    if (navPlayerToNextLine) {
+        navMap.removeLayer(navPlayerToNextLine);
+        navPlayerToNextLine = null;
+    }
+    
+    // Find current stop (first non-completed)
+    const currentStopIndex = findCurrentStopIndex(navCurrentRoute);
+    
+    if (currentStopIndex < 0 || currentStopIndex >= navCurrentRoute.length) {
+        return; // No next stop
+    }
+    
+    const nextStop = navCurrentRoute[currentStopIndex]!;
+    
+    // Get player position in Leaflet coordinates
+    const playerCoords = toLeafletCoordsRelative(
+        currentPlayerPosition.x,
+        currentPlayerPosition.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    // Get next stop position in Leaflet coordinates
+    const stopCoords = toLeafletCoordsRelative(
+        nextStop.x,
+        nextStop.z,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        MAP_CONFIG.tileSize
+    );
+    
+    // Draw dotted line from player to next stop
+    navPlayerToNextLine = L.polyline(
+        [
+            [playerCoords.lat, playerCoords.lng],
+            [stopCoords.lat, stopCoords.lng]
+        ],
+        {
+            color: '#22c55e', // Green color to distinguish from route
+            weight: 3,
+            opacity: 0.9,
+            dashArray: '5, 8' // Shorter dash pattern for distinction
+        }
+    ).addTo(navMap);
+}
+
+/**
  * Update the live distance display
  */
 function updateLiveDistance(): void {
@@ -2104,7 +2296,8 @@ function updateLiveDistance(): void {
         return;
     }
     
-    const route = computeRoute();
+    // Use current navigation route if available, otherwise compute fresh
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition);
     if (route.length === 0) {
         return;
     }
@@ -2375,6 +2568,10 @@ function setupNavigationControls(): void {
 // ============================================================================
 
 let navMap: L.Map | null = null;
+let navRoutePolyline: L.Polyline | null = null;
+let navPlayerToNextLine: L.Polyline | null = null;
+let navStopMarkers: L.Marker[] = [];
+let navCurrentRoute: RouteStop[] = [];
 
 /**
  * Initialize navigation map inside the circular dialog
@@ -2506,16 +2703,18 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     // Convert route stops to Leaflet coordinates
     const routePoints: L.LatLngExpression[] = [];
     
+    // Clear old markers
+    navStopMarkers = [];
+    
     for (let i = 0; i < route.length; i++) {
         const stop = route[i]!;
         const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
         routePoints.push([lat, lng]);
         
-        // Add numbered marker for each stop (no coords, just visual)
-        const isOrigin = i === 0;
+        // Add numbered marker for each stop (no origin marker since we start from player)
         const markerIcon = L.divIcon({
             className: 'nav-route-marker',
-            html: `<div class="nav-marker ${isOrigin ? 'nav-marker-origin' : ''}">${isOrigin ? '🏠' : i}</div>`,
+            html: `<div class="nav-marker">${i + 1}</div>`,
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
@@ -2523,19 +2722,20 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
         // Tooltip shows item name on hover
         const tooltipText = stop.cartItem 
             ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-            : (isOrigin ? 'Start' : `Stop ${i}`);
+            : `Stop ${i + 1}`;
         
-        L.marker([lat, lng], { icon: markerIcon })
+        const marker = L.marker([lat, lng], { icon: markerIcon })
             .bindTooltip(tooltipText, { 
                 permanent: false,
                 direction: 'top',
                 offset: [0, -18]
             })
             .addTo(navMap);
+        navStopMarkers.push(marker);
     }
     
     // Draw polyline connecting all stops
-    L.polyline(routePoints, {
+    navRoutePolyline = L.polyline(routePoints, {
         color: '#3b82f6',
         weight: 3,
         opacity: 0.8,

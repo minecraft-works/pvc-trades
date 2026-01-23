@@ -968,16 +968,20 @@ export function calculateRouteDistance(
 
 /**
  * Build distance matrix for points (including origin at index 0)
- * Origin is always at (0, 0) in overworld
+ * Origin defaults to (0, 0) in overworld but can be customized
  */
-export function buildDistanceMatrix(points: RoutePoint[]): number[][] {
+export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): number[][] {
     const n = points.length + 1; // +1 for origin
     const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    
+    const originX = origin?.x ?? 0;
+    const originZ = origin?.z ?? 0;
+    const originWorld = origin?.world ?? 'overworld';
     
     // Origin is at index 0
     for (let i = 0; i < points.length; i++) {
         const point = points[i]!;
-        const distFromOrigin = calculateRouteDistance(0, 0, 'overworld', point.x, point.z, point.world);
+        const distFromOrigin = calculateRouteDistance(originX, originZ, originWorld, point.x, point.z, point.world);
         matrix[0]![i + 1] = distFromOrigin;
         matrix[i + 1]![0] = distFromOrigin;
     }
@@ -1095,13 +1099,15 @@ export function twoOptOptimize(order: number[], distMatrix: number[][]): number[
 /**
  * Compute optimized route order using nearest-neighbor + 2-opt
  * Returns indices into the points array in optimal visit order
+ * @param points - Array of route points to visit
+ * @param origin - Optional starting position (defaults to 0,0 in overworld)
  */
-export function computeOptimalOrder(points: RoutePoint[]): number[] {
+export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): number[] {
     if (points.length === 0) {return [];}
     if (points.length === 1) {return [0];}
     
     // Build distance matrix
-    const distMatrix = buildDistanceMatrix(points);
+    const distMatrix = buildDistanceMatrix(points, origin);
     
     // Get initial order using nearest-neighbor
     let order = nearestNeighborOrder(points, distMatrix);
