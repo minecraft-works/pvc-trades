@@ -778,28 +778,43 @@ mark {
 
 .nav-player-dot {
     position: relative;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     background: #ef4444;
     border: 3px solid white;
     border-radius: 50%;
-    box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
+    box-shadow: 
+        0 0 0 2px #ef4444,
+        0 2px 8px rgb(0 0 0 / 50%);
     animation: player-pulse 2s ease-in-out infinite;
 }
 
-/* Direction arrow inside player marker */
+/* Direction arrow - cone/wedge style pointing outward */
 .nav-player-arrow {
     position: absolute;
-    top: -8px;
+    top: 50%;
     left: 50%;
-    transform-origin: bottom center;
-    margin-left: -4px;
     width: 0;
     height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 10px solid #ef4444;
-    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 20px solid white;
+    filter: drop-shadow(0 0 3px rgb(0 0 0 / 60%));
+    transform-origin: 0 0;
+    margin-left: 0;
+    margin-top: 0;
+}
+
+.nav-player-arrow::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: -5px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 14px solid #ef4444;
 }
 
 @keyframes player-pulse {
