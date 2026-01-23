@@ -245,7 +245,7 @@ export interface Deviation {
 // Dynmap Types
 // ============================================================================
 
-export interface Player {
+export interface DynmapPlayer {
     name: string;
     world: string;
     x: number;
@@ -253,8 +253,8 @@ export interface Player {
     z: number;
 }
 
-export interface PlayersResponse {
-    players: Player[];
+export interface DynmapPlayersResponse {
+    players: DynmapPlayer[];
 }
 
 export interface MapState {
@@ -314,6 +314,7 @@ export interface Player {
     name: string;
     foreign: boolean;
     position: PlayerPosition;
+    world?: string;  // Optional - if provided, indicates which dimension the player is in
 }
 
 export interface PlayersData {
