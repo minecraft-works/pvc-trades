@@ -2662,9 +2662,21 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     // Clear container
     container.innerHTML = '';
     
-    // Determine which world to show based on player position or first shop
-    // If player is in nether, show nether. Otherwise, show world of first shop.
-    const primaryWorld = currentPlayerPosition?.world ?? getWorldId(route[0]!.world);
+    // Determine which world to show based on player position and available shops
+    // Priority: 
+    // 1. If player is in a world that has shops, show that world
+    // 2. Otherwise, show the world of the first shop in the route
+    const playerWorld = currentPlayerPosition?.world ?? null;  // Already normalized
+    const routeWorlds = new Set(route.map(stop => getWorldId(stop.world)));
+    
+    let primaryWorld: string;
+    if (playerWorld && routeWorlds.has(playerWorld)) {
+        // Player is in a world that has shops - show that world
+        primaryWorld = playerWorld;
+    } else {
+        // Player is not in a world with shops - show the first shop's world
+        primaryWorld = getWorldId(route[0]!.world);
+    }
     navMapWorld = primaryWorld;  // Store for use in route recalculation
     
     // Filter route to shops in the primary world only
