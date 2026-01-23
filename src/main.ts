@@ -32,7 +32,9 @@ import {
     fromLeafletCoordsRelative,
     clampToCircle,
     calculateRouteDistance,
-    computeOptimalOrder
+    computeOptimalOrder,
+    isNether,
+    getTradeKey
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -177,13 +179,6 @@ const DEVIATION_MAX_PERCENT = 999;
 // ============================================================================
 // Shopping Cart Functions
 // ============================================================================
-
-/**
- * Generate a unique key for a trade (used to detect duplicates)
- */
-function getTradeKey(trade: Trade): string {
-    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
-}
 
 /**
  * Load cart from localStorage
@@ -436,13 +431,6 @@ function getShoppingList(): ShoppingList {
     }
     
     return { costs, gains };
-}
-
-/**
- * Check if a point is in the nether
- */
-function isNether(world: string): boolean {
-    return world.toLowerCase().includes('nether');
 }
 
 interface RouteOrigin {
