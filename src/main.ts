@@ -2175,7 +2175,7 @@ function updatePlayerMarker(): void {
     const hasHeading = currentPlayerPosition.yaw !== undefined;
     
     const playerIconHtml = hasHeading
-        ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg)"></div></div>`
+        ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg) translate(-50%, -100%)"></div></div>`
         : '<div class="nav-player-dot"></div>';
     
     if (navPlayerMarker) {
@@ -2185,8 +2185,8 @@ function updatePlayerMarker(): void {
         const playerIcon = L.divIcon({
             className: 'nav-player-marker',
             html: playerIconHtml,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
         });
         navPlayerMarker.setIcon(playerIcon);
     } else {
@@ -2194,8 +2194,8 @@ function updatePlayerMarker(): void {
         const playerIcon = L.divIcon({
             className: 'nav-player-marker',
             html: playerIconHtml,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
         });
         
         navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
