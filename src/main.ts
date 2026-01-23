@@ -2785,8 +2785,8 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     // Clear old markers
     navStopMarkers = [];
     
-    for (let i = 0; i < route.length; i++) {
-        const stop = route[i]!;
+    for (let i = 0; i < stopsInWorld.length; i++) {
+        const stop = stopsInWorld[i]!;
         const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
         routePoints.push([lat, lng]);
         
