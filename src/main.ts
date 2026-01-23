@@ -2119,6 +2119,11 @@ async function pollPlayerPosition(): Promise<void> {
             checkAutoAdvance();
             updateNearbyShopTooltip();
             
+            // Check if position actually changed (not just rotation)
+            const positionMoved = !previousPosition || 
+                Math.abs(previousPosition.x - currentPlayerPosition.x) > 1 ||
+                Math.abs(previousPosition.z - currentPlayerPosition.z) > 1;
+            
             // Recalculate route from new player position if position changed significantly
             const shouldRecalcRoute = !previousPosition || 
                 Math.abs(previousPosition.x - currentPlayerPosition.x) > 10 ||
@@ -2131,8 +2136,8 @@ async function pollPlayerPosition(): Promise<void> {
             // Update the dotted line from player to next stop
             updatePlayerToNextLine();
             
-            // In follow mode, center on player
-            if (navMode === 'follow') {
+            // In follow mode, center on player only when position moves
+            if (navMode === 'follow' && positionMoved) {
                 centerMapOnPlayer();
             }
         } else {
@@ -2526,8 +2531,8 @@ function centerMapOnPlayer(): void {
         MAP_CONFIG.tileSize
     );
     
-    // Calculate distance to nearest shop and adjust zoom
-    const route = computeRoute();
+    // Calculate distance to nearest non-completed shop
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
     let minDistance = Infinity;
     for (const stop of route) {
         const dx = currentPlayerPosition.x - stop.x;
@@ -2539,22 +2544,26 @@ function centerMapOnPlayer(): void {
     }
     
     // Zoom levels: closer = more zoomed in
-    // Distance < 100 blocks: zoom 0 (very close)
-    // Distance 100-500: zoom -1
-    // Distance 500-1000: zoom -2
-    // Distance > 1000: zoom -3
+    // Distance < 50 blocks: zoom 1 (very close - max zoom)
+    // Distance 50-150: zoom 0 (close)
+    // Distance 150-400: zoom -1
+    // Distance 400-800: zoom -2
+    // Distance > 800: zoom -3
     let zoom: number;
-    if (minDistance < 100) {
+    if (minDistance < 50) {
+        zoom = 1;
+    } else if (minDistance < 150) {
         zoom = 0;
-    } else if (minDistance < 500) {
+    } else if (minDistance < 400) {
         zoom = -1;
-    } else if (minDistance < 1000) {
+    } else if (minDistance < 800) {
         zoom = -2;
     } else {
         zoom = -3;
     }
     
-    navMap.setView([lat, lng], zoom);
+    // Use flyTo for smoother animation instead of setView
+    navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
 }
 
 /**
