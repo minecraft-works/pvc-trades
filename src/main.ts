@@ -468,6 +468,7 @@ function computeRoute(origin?: RouteOrigin): RouteStop[] {
         route.push({
             type: 'shop',
             x: item.trade.x,
+            y: item.trade.y,
             z: item.trade.z,
             world: item.trade.world,
             cartItem: item
@@ -2323,8 +2324,10 @@ function updateLiveDistance(): void {
     const currentStopIndex = findCurrentStopIndex(route);
     
     let distanceHtml: string;
+    let dialogHtml: string;
     if (currentStopIndex < 0 || currentStopIndex >= route.length) {
         distanceHtml = '<span class="distance-label">Route complete! 🎉</span>';
+        dialogHtml = distanceHtml;
     } else {
         const currentStop = route[currentStopIndex]!;
         const distance = calculateRouteDistance(
@@ -2333,10 +2336,31 @@ function updateLiveDistance(): void {
         );
         
         const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
+        const quantity = currentStop.cartItem?.quantity ?? 1;
         
+        // Simple display for embedded distance (in cart dialog)
         distanceHtml = `
             <span class="distance-label">→ ${itemName}:</span>
             <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
+        `;
+        
+        // Detailed display for navigation dialog with coords and items
+        const coordsText = `${currentStop.x}, ${currentStop.y}, ${currentStop.z}`;
+        const buyText = `${quantity}× ${itemName}`;
+        
+        dialogHtml = `
+            <div class="nav-info-row">
+                <span class="nav-info-label">📍</span>
+                <span class="nav-info-coords">${coordsText}</span>
+            </div>
+            <div class="nav-info-row">
+                <span class="nav-info-label">🛒</span>
+                <span class="nav-info-item">${buyText}</span>
+            </div>
+            <div class="nav-info-row">
+                <span class="nav-info-label">↗</span>
+                <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
+            </div>
         `;
     }
     
@@ -2344,7 +2368,7 @@ function updateLiveDistance(): void {
         liveDistance.innerHTML = distanceHtml;
     }
     if (dialogDistance) {
-        dialogDistance.innerHTML = distanceHtml;
+        dialogDistance.innerHTML = dialogHtml;
     }
 }
 
