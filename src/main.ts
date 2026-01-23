@@ -371,8 +371,9 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
     syncNavProgressWithCart(route);
     saveNavProgress();
     
-    // Re-render cart dialog
+    // Re-render both cart and navigate tabs
     renderCartDialog();
+    renderNavigateTab();
     
     // If navigation is active, recalculate the route to exclude completed items
     if (isNavigating && currentPlayerPosition) {
