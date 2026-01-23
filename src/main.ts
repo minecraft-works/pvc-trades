@@ -1445,8 +1445,14 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             const existingEdgeMarkers = dialog.querySelectorAll('.player-edge-marker');
             existingEdgeMarkers.forEach(el => el.remove());
             
-            // Only show players in overworld (all players are assumed to be in overworld for now)
-            if (worldId !== 'overworld' || !leafletMap || cachedPlayers.length === 0) {return;}
+            // Only show players that are in the same world as the shop
+            if (!leafletMap || cachedPlayers.length === 0) {return;}
+            
+            // Filter players to only those in the same world as the shop
+            const playersInWorld = cachedPlayers.filter(p => {
+                const pWorld = p.world ? getWorldId(p.world) : 'overworld';
+                return pWorld === worldId;
+            });
             
             // Get current map center in Leaflet coords
             const mapCenter = leafletMap.getCenter();
@@ -1466,7 +1472,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
             const centerY = containerRect.height / 2;
             const edgeRadius = containerRect.width / 2 + 8;  // Slightly outside the circle
             
-            for (const player of cachedPlayers) {
+            for (const player of playersInWorld) {
                 // Convert player Minecraft coords to Leaflet coords relative to shop's tile
                 const playerCoords = toLeafletCoordsRelative(
                     player.position.x,
@@ -2024,6 +2030,7 @@ function stopNavigation(): void {
     }
     navStopMarkers = [];
     navCurrentRoute = [];
+    navMapWorld = 'overworld';
     
     currentPlayerPosition = null;
     
@@ -2079,10 +2086,12 @@ async function pollPlayerPosition(): Promise<void> {
         
         if (player) {
             const previousPosition = currentPlayerPosition;
+            // Use player's world if available, otherwise assume overworld
+            const playerWorld = player.world ? getWorldId(player.world) : 'overworld';
             currentPlayerPosition = {
                 x: player.position.x,
                 z: player.position.z,
-                world: 'overworld' // Assume overworld for now
+                world: playerWorld
             };
             
             updatePlayerMarker();
@@ -2159,8 +2168,16 @@ function recalculateRouteFromPlayer(): void {
         return;
     }
     
+    // Only recalculate if player is in the same world as the map
+    if (currentPlayerPosition.world !== navMapWorld) {
+        return;
+    }
+    
     // Compute new route from player position
-    const newRoute = computeRoute(currentPlayerPosition);
+    const fullRoute = computeRoute(currentPlayerPosition);
+    
+    // Filter to only stops in the current map world
+    const newRoute = fullRoute.filter(stop => getWorldId(stop.world) === navMapWorld);
     
     // Check if route order actually changed
     const routeChanged = navCurrentRoute.length !== newRoute.length ||
@@ -2572,6 +2589,7 @@ let navRoutePolyline: L.Polyline | null = null;
 let navPlayerToNextLine: L.Polyline | null = null;
 let navStopMarkers: L.Marker[] = [];
 let navCurrentRoute: RouteStop[] = [];
+let navMapWorld: string = 'overworld';  // World shown on nav map
 
 /**
  * Initialize navigation map inside the circular dialog
@@ -2600,9 +2618,26 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     // Clear container
     container.innerHTML = '';
     
-    // Calculate bounds of all shops
-    const xs = route.map(stop => stop.x);
-    const zs = route.map(stop => stop.z);
+    // Determine which world to show based on player position or first shop
+    // If player is in nether, show nether. Otherwise, show world of first shop.
+    const primaryWorld = currentPlayerPosition?.world ?? getWorldId(route[0]!.world);
+    navMapWorld = primaryWorld;  // Store for use in route recalculation
+    
+    // Filter route to shops in the primary world only
+    // Shops in other worlds will need separate navigation
+    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === primaryWorld);
+    
+    if (stopsInWorld.length === 0) {
+        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No shops in current world</p>';
+        return;
+    }
+    
+    // Store filtered route for navigation
+    navCurrentRoute = stopsInWorld;
+    
+    // Calculate bounds of shops in this world
+    const xs = stopsInWorld.map(stop => stop.x);
+    const zs = stopsInWorld.map(stop => stop.z);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minZ = Math.min(...zs);
@@ -2663,7 +2698,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 zoom4Tiles.add(key);
                 
                 // Check if zoom 4 tile exists in manifest (blocksPerTile = 8192)
-                if (tileExistsInManifest(manifest, 'overworld', 8192, z4.x, z4.z)) {
+                if (tileExistsInManifest(manifest, primaryWorld, 8192, z4.x, z4.z)) {
                     // Calculate bounds for zoom 4 tile
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
@@ -2675,7 +2710,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                     const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
                     const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                     
-                    loadTileToMap(navMap, 'overworld', 4, z4.x, z4.z, bounds, addedToNavMap);
+                    loadTileToMap(navMap, primaryWorld, 4, z4.x, z4.z, bounds, addedToNavMap);
                 }
             }
         }
@@ -2685,7 +2720,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             // Check if zoom 8 tile exists in manifest (blocksPerTile = 512)
-            if (tileExistsInManifest(manifest, 'overworld', 512, tx, tz)) {
+            if (tileExistsInManifest(manifest, primaryWorld, 512, tx, tz)) {
                 // Bounds relative to center tile
                 const relX = tx - centerTileX;
                 const relZ = tz - centerTileZ;
@@ -2695,7 +2730,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
                 const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                 
-                loadTileToMap(navMap, 'overworld', 8, tx, tz, bounds, addedToNavMap);
+                loadTileToMap(navMap, primaryWorld, 8, tx, tz, bounds, addedToNavMap);
             }
         }
     }
