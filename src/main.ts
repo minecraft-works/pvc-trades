@@ -373,6 +373,13 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
     
     // Re-render cart dialog
     renderCartDialog();
+    
+    // If navigation is active, recalculate the route to exclude completed items
+    if (isNavigating && currentPlayerPosition) {
+        recalculateRouteFromPlayer();
+        updatePlayerToNextLine();
+        updateLiveDistance();
+    }
 }
 
 /**
@@ -446,12 +453,20 @@ interface RouteOrigin {
 /**
  * Compute optimal route using nearest-neighbor + 2-opt optimization
  * @param origin - Optional starting position (defaults to 0,0 in overworld)
+ * @param excludeCompleted - If true, exclude items marked as collected
  */
-function computeRoute(origin?: RouteOrigin): RouteStop[] {
+function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
     if (cart.length === 0) { return []; }
     
+    // Filter cart items if excluding completed
+    const activeItems = excludeCompleted
+        ? cart.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)))
+        : cart;
+    
+    if (activeItems.length === 0) { return []; }
+    
     // Convert cart items to RoutePoints for optimization
-    const points = cart.map(item => ({
+    const points = activeItems.map(item => ({
         x: item.trade.x,
         z: item.trade.z,
         world: item.trade.world
@@ -464,7 +479,7 @@ function computeRoute(origin?: RouteOrigin): RouteStop[] {
     const route: RouteStop[] = [];
     
     for (const idx of order) {
-        const item = cart[idx]!;
+        const item = activeItems[idx]!;
         route.push({
             type: 'shop',
             x: item.trade.x,
@@ -1974,8 +1989,8 @@ async function startNavigation(): Promise<void> {
         
         // Initialize map after dialog is visible (needs dimensions)
         requestAnimationFrame(() => {
-            // Compute route from player position (or 0,0 if not found)
-            const route = computeRoute(currentPlayerPosition ?? undefined);
+            // Compute route from player position (or 0,0 if not found), excluding completed items
+            const route = computeRoute(currentPlayerPosition ?? undefined, true);
             navCurrentRoute = route;
             console.log('Route computed from player position:', route.length, 'stops');
             initNavigationMapDialog(route);
@@ -2174,8 +2189,8 @@ function recalculateRouteFromPlayer(): void {
         return;
     }
     
-    // Compute new route from player position
-    const fullRoute = computeRoute(currentPlayerPosition);
+    // Compute new route from player position, excluding completed items
+    const fullRoute = computeRoute(currentPlayerPosition, true);
     
     // Filter to only stops in the current map world
     const newRoute = fullRoute.filter(stop => getWorldId(stop.world) === navMapWorld);
@@ -2260,14 +2275,12 @@ function updatePlayerToNextLine(): void {
         navPlayerToNextLine = null;
     }
     
-    // Find current stop (first non-completed)
-    const currentStopIndex = findCurrentStopIndex(navCurrentRoute);
-    
-    if (currentStopIndex < 0 || currentStopIndex >= navCurrentRoute.length) {
+    // First stop is always the current target (completed items are filtered out)
+    if (navCurrentRoute.length === 0) {
         return; // No next stop
     }
     
-    const nextStop = navCurrentRoute[currentStopIndex]!;
+    const nextStop = navCurrentRoute[0]!;
     
     // Get player position in Leaflet coordinates
     const playerCoords = toLeafletCoordsRelative(
@@ -2314,22 +2327,17 @@ function updateLiveDistance(): void {
         return;
     }
     
-    // Use current navigation route if available, otherwise compute fresh
-    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition);
-    if (route.length === 0) {
-        return;
-    }
-    
-    // Find current stop (first non-completed)
-    const currentStopIndex = findCurrentStopIndex(route);
+    // Use current navigation route if available, otherwise compute fresh (excluding completed)
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
     
     let distanceHtml: string;
     let dialogHtml: string;
-    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
+    if (route.length === 0) {
         distanceHtml = '<span class="distance-label">Route complete! 🎉</span>';
         dialogHtml = distanceHtml;
     } else {
-        const currentStop = route[currentStopIndex]!;
+        // First stop is always the current target (completed items are filtered out)
+        const currentStop = route[0]!;
         const distance = calculateRouteDistance(
             currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
             currentStop.x, currentStop.z, currentStop.world
@@ -2373,37 +2381,15 @@ function updateLiveDistance(): void {
 }
 
 /**
- * Find the index of the current (first non-completed) stop
- */
-function findCurrentStopIndex(route: RouteStop[]): number {
-    for (let i = 0; i < route.length; i++) {
-        const stop = route[i]!;
-        if (stop.cartItem) {
-            const key = getTradeKey(stop.cartItem.trade);
-            if (!navProgress.completedKeys.has(key)) {
-                return i;
-            }
-        }
-    }
-    return route.length;
-}
-
-/**
  * Check if player is close enough to auto-advance to next stop
  */
 function checkAutoAdvance(): void {
-    if (!currentPlayerPosition) {
+    if (!currentPlayerPosition || navCurrentRoute.length === 0) {
         return;
     }
     
-    const route = computeRoute();
-    const currentStopIndex = findCurrentStopIndex(route);
-    
-    if (currentStopIndex < 0 || currentStopIndex >= route.length) {
-        return;
-    }
-    
-    const currentStop = route[currentStopIndex]!;
+    // First stop is always the current target (completed items are filtered out)
+    const currentStop = navCurrentRoute[0]!;
     const distance = calculateRouteDistance(
         currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
         currentStop.x, currentStop.z, currentStop.world
@@ -2413,8 +2399,13 @@ function checkAutoAdvance(): void {
         // Auto-complete this stop
         const key = getTradeKey(currentStop.cartItem.trade);
         navProgress.completedKeys.add(key);
-        navProgress.currentIndex = currentStopIndex + 1;
         saveNavProgress();
+        
+        // Recalculate route to remove completed item
+        recalculateRouteFromPlayer();
+        updatePlayerToNextLine();
+        updateLiveDistance();
+        renderCartDialog();
     }
 }
 
@@ -2436,7 +2427,8 @@ function updateNearbyShopTooltip(): void {
         return;
     }
     
-    const route = computeRoute();
+    // Use current route (already excludes completed items)
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
     
     // Find all shops within range (not just current stop)
     let nearestShop: RouteStop | null = null;
@@ -2444,9 +2436,6 @@ function updateNearbyShopTooltip(): void {
     
     for (const stop of route) {
         if (!stop.cartItem) { continue; }
-        
-        const key = getTradeKey(stop.cartItem.trade);
-        if (navProgress.completedKeys.has(key)) { continue; } // Skip completed
         
         const distance = calculateRouteDistance(
             currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
