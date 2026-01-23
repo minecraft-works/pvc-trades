@@ -1541,6 +1541,11 @@ mark {
     font-weight: 600;
 }
 
+.nav-info-world {
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
 .nav-dialog-distance.hidden {
     display: none;
 }
