@@ -161,7 +161,7 @@ let navProgress: NavigationProgress = {
 let isNavigating = false;
 let navMode: NavigationMode = 'follow';
 let navPlayerRefreshInterval: ReturnType<typeof setInterval> | null = null;
-let currentPlayerPosition: { x: number; z: number; world: string } | null = null;
+let currentPlayerPosition: { x: number; z: number; world: string; yaw?: number } | null = null;
 let navPlayerMarker: L.Marker | null = null;
 
 // Auto-advance threshold in blocks
@@ -371,8 +371,9 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
     syncNavProgressWithCart(route);
     saveNavProgress();
     
-    // Re-render cart dialog
+    // Re-render both cart and navigate tabs
     renderCartDialog();
+    renderNavigateTab();
     
     // If navigation is active, recalculate the route to exclude completed items
     if (isNavigating && currentPlayerPosition) {
@@ -1977,10 +1978,12 @@ async function startNavigation(): Promise<void> {
             const player = players.find(p => p.name.toLowerCase() === playerName);
             
             if (player) {
+                const playerWorld = player.world ? getWorldId(player.world) : 'overworld';
                 currentPlayerPosition = {
                     x: player.position.x,
                     z: player.position.z,
-                    world: 'overworld'
+                    world: playerWorld,
+                    yaw: player.rotation?.yaw
                 };
             }
         } catch (error) {
@@ -2107,7 +2110,8 @@ async function pollPlayerPosition(): Promise<void> {
             currentPlayerPosition = {
                 x: player.position.x,
                 z: player.position.z,
-                world: playerWorld
+                world: playerWorld,
+                yaw: player.rotation?.yaw
             };
             
             updatePlayerMarker();
@@ -2159,14 +2163,32 @@ function updatePlayerMarker(): void {
         MAP_CONFIG.tileSize
     );
     
+    // Calculate rotation for direction arrow (convert Minecraft yaw to CSS rotation)
+    // Minecraft: 0=south, 90=west, 180=north, 270=east
+    // CSS: 0=up(north), so we add 180 to convert
+    const rotation = currentPlayerPosition.yaw !== undefined ? currentPlayerPosition.yaw + 180 : 0;
+    const hasHeading = currentPlayerPosition.yaw !== undefined;
+    
+    const playerIconHtml = hasHeading
+        ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg)"></div></div>`
+        : '<div class="nav-player-dot"></div>';
+    
     if (navPlayerMarker) {
-        // Update existing marker position
+        // Update existing marker position and rotation
         navPlayerMarker.setLatLng([lat, lng]);
+        // Update icon to reflect new heading
+        const playerIcon = L.divIcon({
+            className: 'nav-player-marker',
+            html: playerIconHtml,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        navPlayerMarker.setIcon(playerIcon);
     } else {
         // Create new marker
         const playerIcon = L.divIcon({
             className: 'nav-player-marker',
-            html: '<div class="nav-player-dot"></div>',
+            html: playerIconHtml,
             iconSize: [16, 16],
             iconAnchor: [8, 8]
         });

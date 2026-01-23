@@ -310,11 +310,18 @@ export interface PlayerPosition {
     z: number;
 }
 
+export interface PlayerRotation {
+    pitch: number;  // Vertical look angle (-90 to 90)
+    yaw: number;    // Horizontal heading (0=south, 90=west, 180=north, 270=east in Minecraft)
+    roll: number;   // Usually 0
+}
+
 export interface Player {
     uuid: string;
     name: string;
     foreign: boolean;
     position: PlayerPosition;
+    rotation?: PlayerRotation;  // Player's look direction
     world?: string;  // Optional - if provided, indicates which dimension the player is in
 }
 

@@ -777,6 +777,7 @@ mark {
 }
 
 .nav-player-dot {
+    position: relative;
     width: 16px;
     height: 16px;
     background: #ef4444;
@@ -784,6 +785,21 @@ mark {
     border-radius: 50%;
     box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
     animation: player-pulse 2s ease-in-out infinite;
+}
+
+/* Direction arrow inside player marker */
+.nav-player-arrow {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform-origin: bottom center;
+    margin-left: -4px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 10px solid #ef4444;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
 }
 
 @keyframes player-pulse {
