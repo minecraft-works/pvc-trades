@@ -1290,6 +1290,42 @@ describe('buildDistanceMatrix', () => {
         // Nether (10,0) = OW-equiv (80,0), distance from origin = 80
         expect(matrix[0]![1]).toBeCloseTo(80, 5);
     });
+
+    test('uses custom origin when provided', () => {
+        const points: RoutePoint[] = [{ x: 100, z: 0, world: 'overworld' }];
+        const origin: RoutePoint = { x: 50, z: 0, world: 'overworld' };
+        const matrix = buildDistanceMatrix(points, origin);
+        
+        // Distance from (50,0) to (100,0) = 50
+        expect(matrix[0]![1]).toBeCloseTo(50, 5);
+    });
+
+    test('uses custom origin in nether', () => {
+        const points: RoutePoint[] = [{ x: 100, z: 0, world: 'overworld' }];
+        const origin: RoutePoint = { x: 10, z: 0, world: 'the_nether' };
+        const matrix = buildDistanceMatrix(points, origin);
+        
+        // Origin nether (10,0) = OW-equiv (80,0)
+        // Distance from (80,0) to (100,0) = 20
+        expect(matrix[0]![1]).toBeCloseTo(20, 5);
+    });
+
+    test('custom origin affects distances between all points', () => {
+        const points: RoutePoint[] = [
+            { x: 100, z: 0, world: 'overworld' },  // 100 from (0,0), but 50 from (50,0)
+            { x: 200, z: 0, world: 'overworld' }   // 200 from (0,0), but 150 from (50,0)
+        ];
+        const origin: RoutePoint = { x: 50, z: 0, world: 'overworld' };
+        const matrix = buildDistanceMatrix(points, origin);
+        
+        // With origin at (50,0):
+        // origin to point 0: |100-50| = 50
+        // origin to point 1: |200-50| = 150
+        // point 0 to point 1: |200-100| = 100 (unchanged by origin)
+        expect(matrix[0]![1]).toBeCloseTo(50, 5);
+        expect(matrix[0]![2]).toBeCloseTo(150, 5);
+        expect(matrix[1]![2]).toBeCloseTo(100, 5);
+    });
 });
 
 describe('nearestNeighborOrder', () => {
@@ -1505,4 +1541,49 @@ describe('computeOptimalOrder', () => {
         expect(order.length).toBe(5);
         expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
     });
-});
+
+    test('uses custom origin for route calculation', () => {
+        // With origin at (0,0): order should be [2, 1, 0] (50→100→200)
+        // With origin at (200,0): order should be [0, 1, 2] (200→100→50)
+        const points: RoutePoint[] = [
+            { x: 200, z: 0, world: 'overworld' },  // index 0
+            { x: 100, z: 0, world: 'overworld' },  // index 1
+            { x: 50, z: 0, world: 'overworld' }    // index 2
+        ];
+        
+        // From default origin (0,0) - closest is 50
+        const orderFromOrigin = computeOptimalOrder(points);
+        expect(orderFromOrigin[0]).toBe(2); // 50 is closest to origin
+        
+        // From custom origin (200,0) - closest is 200
+        const customOrigin: RoutePoint = { x: 200, z: 0, world: 'overworld' };
+        const orderFromCustom = computeOptimalOrder(points, customOrigin);
+        expect(orderFromCustom[0]).toBe(0); // 200 is closest to (200,0)
+    });
+
+    test('uses custom origin in nether world', () => {
+        // Origin in nether at (100,0) = OW-equiv (800,0)
+        // Points are in overworld
+        const points: RoutePoint[] = [
+            { x: 100, z: 0, world: 'overworld' },  // 700 from origin
+            { x: 750, z: 0, world: 'overworld' }   // 50 from origin
+        ];
+        const netherOrigin: RoutePoint = { x: 100, z: 0, world: 'the_nether' };
+        const order = computeOptimalOrder(points, netherOrigin);
+        
+        // Point at 750 is closer to nether origin (50 blocks away)
+        expect(order[0]).toBe(1); // 750 is closest
+    });
+
+    test('custom origin respects different worlds', () => {
+        // Player in overworld at (0,0), shops mixed between worlds
+        const points: RoutePoint[] = [
+            { x: 100, z: 0, world: 'overworld' },  // 100 from player
+            { x: 50, z: 0, world: 'the_nether' }   // 400 from player (OW-equiv)
+        ];
+        const playerOrigin: RoutePoint = { x: 0, z: 0, world: 'overworld' };
+        const order = computeOptimalOrder(points, playerOrigin);
+        
+        // Overworld point (100,0) is closer than nether point (OW-equiv 400,0)
+        expect(order[0]).toBe(0);
+    });});
