@@ -1,0 +1,108 @@
+import { Before, After, BeforeAll, AfterAll, Status } from '@cucumber/cucumber';
+import { chromium, Browser } from '@playwright/test';
+import { spawn, ChildProcess } from 'child_process';
+import { CustomWorld } from './world';
+
+// Shared browser instance for all scenarios (faster than launching per scenario)
+let browser: Browser;
+let serverProcess: ChildProcess | null = null;
+
+export const BASE_URL = process.env.BASE_URL || 'http://localhost:5173/pvc-trades/';
+
+async function waitForServer(url: string, timeout = 30000): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        try {
+            const response = await fetch(url.replace(/\/$/, ''));
+            if (response.ok) {
+                return;
+            }
+        } catch {
+            // Server not ready yet
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+    throw new Error(`Server failed to start at ${url} within ${timeout}ms`);
+}
+
+async function startServer(): Promise<ChildProcess> {
+    // Check if server is already running
+    try {
+        const response = await fetch(BASE_URL.replace(/\/$/, ''));
+        if (response.ok) {
+            console.log('Server already running');
+            return null as unknown as ChildProcess;
+        }
+    } catch {
+        // Server not running, start it
+    }
+
+    console.log('Starting dev server...');
+    const proc = spawn('npm', ['run', 'dev'], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true
+    });
+
+    proc.stdout?.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('Local:')) {
+            console.log('Server started');
+        }
+    });
+
+    proc.stderr?.on('data', (data) => {
+        console.error('Server error:', data.toString());
+    });
+
+    await waitForServer(BASE_URL);
+    return proc;
+}
+
+BeforeAll(async function () {
+    // Start server if not running
+    serverProcess = await startServer();
+    
+    // Launch browser once for all tests
+    browser = await chromium.launch({ 
+        headless: process.env.HEADED !== 'true'
+    });
+});
+
+AfterAll(async function () {
+    if (browser) {
+        await browser.close();
+    }
+    if (serverProcess) {
+        serverProcess.kill();
+        serverProcess = null;
+    }
+});
+
+Before(async function (this: CustomWorld) {
+    this.browser = browser;
+    this.context = await browser.newContext();
+    this.page = await this.context.newPage();
+    this.tileRequests = [];
+    
+    // Track tile requests for debugging
+    this.page.on('request', req => {
+        if (req.url().includes('/tiles/') && req.url().endsWith('.png')) {
+            const world = req.url().includes('/the_nether/') ? 'nether' : 'overworld';
+            this.tileRequests.push(`${world}:${req.url()}`);
+        }
+    });
+});
+
+After(async function (this: CustomWorld, scenario) {
+    // Take screenshot on failure for debugging
+    if (scenario.result?.status === Status.FAILED && this.page) {
+        const screenshot = await this.page.screenshot();
+        this.attach(screenshot, 'image/png');
+    }
+    
+    // Close context (releases resources)
+    if (this.context) {
+        await this.context.close();
+    }
+});

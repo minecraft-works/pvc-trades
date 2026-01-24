@@ -151,6 +151,8 @@ let currentGiveRegex: RegExp | null = null;
 
 // Shopping cart state
 let cart: CartItem[] = [];
+// @ts-expect-error - exposing for e2e testing
+window.__cart = cart;
 const CART_STORAGE_KEY = 'pvc-trades-cart';
 let mapOpenedFromCart = false;
 
@@ -448,10 +450,11 @@ interface RouteOrigin {
 function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
     if (cart.length === 0) { return []; }
     
-    // Filter cart items if excluding completed
-    const activeItems = excludeCompleted
-        ? cart.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)))
-        : cart;
+    // Filter cart items: exclude qty=0 and optionally completed items
+    let activeItems = cart.filter(item => item.quantity > 0);
+    if (excludeCompleted) {
+        activeItems = activeItems.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)));
+    }
     
     if (activeItems.length === 0) { return []; }
     
@@ -660,6 +663,7 @@ function sortResults(results: FilterResult[]): void {
     });
 }
 
+// eslint-disable-next-line complexity
 function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
     const dir = direction === 'asc' ? 1 : -1;
     const ta = a.trade;
@@ -784,6 +788,7 @@ function renderHeader(): void {
 /**
  * Create a trade row DOM element for a single result
  */
+// eslint-disable-next-line complexity
 function createTradeRowElement(result: FilterResult): HTMLElement {
     const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
     const showName = displayName ?? t.resultName;
@@ -1062,6 +1067,7 @@ function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTil
  * @param bounds - Bounds for the tile overlay
  * @param addedToMap - Set tracking tiles already added to this map instance
  */
+// eslint-disable-next-line max-params
 function loadTileToMap(
     map: L.Map,
     worldId: string,
@@ -1135,6 +1141,7 @@ async function fetchPlayers(): Promise<Player[]> {
 /**
  * Initialize or update the Leaflet map
  */
+/* eslint-disable max-lines-per-function */
 async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
     const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
     const container = document.getElementById('map-container');
@@ -1628,6 +1635,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         updateZoomClass();
     });
 }
+/* eslint-enable max-lines-per-function */
 
 // ============================================================================
 // Cart Dialog
@@ -1949,8 +1957,6 @@ async function startNavigation(): Promise<void> {
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
     
-    console.log('Starting navigation, navDialog:', navDialog);
-    
     cartDialog.close();
     
     // Prevent background scrolling
@@ -1958,7 +1964,6 @@ async function startNavigation(): Promise<void> {
     
     if (navDialog) {
         navDialog.showModal();
-        console.log('Dialog opened, fetching player position...');
         
         // First, get the player's current position
         const playerName = playerNameInput.value.trim().toLowerCase();
@@ -1984,7 +1989,6 @@ async function startNavigation(): Promise<void> {
             // Compute route from player position (or 0,0 if not found), excluding completed items
             const route = computeRoute(currentPlayerPosition ?? undefined, true);
             navCurrentRoute = route;
-            console.log('Route computed from player position:', route.length, 'stops');
             
             // Pass player's world so the map shows where the player is (if they have shops there)
             const playerWorld = currentPlayerPosition?.world;
@@ -2088,6 +2092,7 @@ function toggleNavigation(): void {
 /**
  * Poll for player position and update the map
  */
+// eslint-disable-next-line complexity
 async function pollPlayerPosition(): Promise<void> {
     const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
     const playerName = playerNameInput?.value.trim().toLowerCase();
@@ -2110,6 +2115,8 @@ async function pollPlayerPosition(): Promise<void> {
                 world: playerWorld,
                 yaw: player.rotation?.yaw
             };
+            // @ts-expect-error - exposing for e2e testing
+            window.__currentPlayerPosition = currentPlayerPosition;
             
             // Check if we need to switch the map to a different world
             // Use pure function for testable logic
@@ -2157,10 +2164,10 @@ async function pollPlayerPosition(): Promise<void> {
                 centerMapOnPlayer();
             }
         } else {
-            // Player not found - show in live distance display
-            const liveDistance = document.getElementById('nav-live-distance');
-            if (liveDistance) {
-                liveDistance.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+            // Player not found - show in distance display
+            const distanceDisplay = document.getElementById('nav-dialog-distance');
+            if (distanceDisplay) {
+                distanceDisplay.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
             }
         }
     } catch (error) {
@@ -2266,6 +2273,8 @@ function recalculateRouteFromPlayer(): void {
     }
     
     navCurrentWorldRoute = worldRoute;
+    // @ts-expect-error - exposing for e2e testing
+    window.__navCurrentWorldRoute = worldRoute;
     
     // Remove old route polyline
     if (navRoutePolyline) {
@@ -2307,6 +2316,12 @@ function recalculateRouteFromPlayer(): void {
                     offset: [0, -18]
                 })
                 .addTo(navMap);
+            
+            // Click marker to toggle completion during navigation
+            marker.on('click', () => {
+                toggleStopCompletion(stop, navCurrentRoute);
+            });
+            
             navStopMarkers.push(marker);
         }
         
@@ -2746,6 +2761,7 @@ function getNextShopWorld(route: RouteStop[]): string | null {
  * @param route - The full route (all worlds)
  * @param targetWorld - Optional: force the map to show this world
  */
+// eslint-disable-next-line complexity, max-lines-per-function
 async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
     const container = document.getElementById('nav-dialog-map-container');
     if (!container) {
@@ -2839,6 +2855,10 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         attributionControl: false,
         maxBoundsViscosity: 1
     });
+    
+    // Expose navMap for testing purposes
+    // @ts-expect-error - exposing for e2e testing
+    window.__navMap = navMap;
     
     // Listen for user drag to switch to manual mode
     navMap.on('dragstart', () => {
@@ -2940,6 +2960,12 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
                 offset: [0, -18]
             })
             .addTo(navMap);
+        
+        // Click marker to toggle completion during navigation
+        marker.on('click', () => {
+            toggleStopCompletion(stop, route);
+        });
+        
         navStopMarkers.push(marker);
     }
     

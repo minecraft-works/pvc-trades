@@ -28,3 +28,7 @@ test-results/
 playwright-report/
 .lighthouseci/
 players.json
+
+# Generated BDD test files
+.features-gen/
+reports/

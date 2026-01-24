@@ -97,3 +97,33 @@ This document captures key architectural and algorithmic decisions made for the 
 | `core_currencies.json` | List of core blocks for ratio matrix |
 
 These are loaded at runtime and can be modified without code changes.
+---
+
+## Testing Strategy: Scenarios vs Unit Tests
+
+**Decision**: Use **Cucumber scenarios** only for behaviors that require browser integration. Use **unit tests** for pure logic.
+
+**Rationale**:
+- Scenarios are expensive: they spin up a browser, start a dev server, and interact with real DOM/Leaflet maps
+- Unit tests are fast, isolated, and provide precise failure messages
+- Only behaviors involving browser APIs, tile loading, or polling loops truly need integration testing
+
+**Scenarios Should Test** (Cucumber):
+| Behavior | Why Integration Required |
+|----------|-------------------------|
+| Map tile initialization | Requires Leaflet to request tiles via network |
+| Map world transitions | Requires polling loop + Leaflet tile layer swap |
+| Tile request verification | Must intercept real network requests |
+
+**Unit Tests Should Test** (Vitest):
+| Behavior | Why Unit Test Sufficient |
+|----------|-------------------------|
+| `shouldSwitchMapWorld()` | Pure function: world comparison logic |
+| `formatDistance()` | Pure function: number → string |
+| Distance calculations | Pure math with no DOM dependency |
+| Navigation text formatting | String manipulation |
+
+**Implementation**:
+- `features/` directory contains Cucumber `.feature` files for BDD scenarios
+- `src/*.test.ts` files contain Vitest unit tests for pure functions
+- `tests/` directory contains Playwright component tests for layout/rendering

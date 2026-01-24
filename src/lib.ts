@@ -462,6 +462,7 @@ export function sortResults(
  * Combines: fixed ratios (block↔ingot), shop trades, and transitive deductions
  * Returns: Map of "itemA->itemB" => ratio (1 itemA = ratio itemB)
  */
+// eslint-disable-next-line complexity
 export function buildRatioGraph(itemValues: ItemValues): RatioGraph {
     const graph: RatioGraph = new Map();
     const coreBlocks = coreBlocksStore.get();
@@ -567,6 +568,7 @@ function normalizeToBaseCurrency(
     return { matches: false, amount };
 }
 
+// eslint-disable-next-line max-params
 function addValue(
     values: ItemValues,
     item: string,
@@ -592,6 +594,7 @@ function addValue(
 /**
  * Calculate item values including transitive derivation through intermediaries
  */
+// eslint-disable-next-line complexity
 export function calculateItemValues(trades: TradeInput[], baseCurrency: string): ItemValues {
     const config = configStore.get();
     const values: ItemValues = new Map();
@@ -726,6 +729,7 @@ export function hasEnoughIndependentData(entry: ItemValueEntry, minShops?: numbe
  * For core blocks, requires >=minShops independent shops.
  * Falls back to block conversions if direct value unavailable.
  */
+// eslint-disable-next-line complexity
 export function getTrustedItemValue(
     itemName: string,
     itemValues: ItemValues,
@@ -1008,6 +1012,7 @@ export function toOverworldEquivalent(x: number, z: number, world: string): { x:
 /**
  * Calculate distance between two points (using overworld-equivalent coords)
  */
+// eslint-disable-next-line max-params
 export function calculateRouteDistance(
     x1: number, z1: number, world1: string,
     x2: number, z2: number, world2: string

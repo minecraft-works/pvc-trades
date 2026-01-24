@@ -378,6 +378,7 @@ describe('config loading', () => {
     });
 });
 
+// eslint-disable-next-line max-lines-per-function
 describe('sortResults', () => {
     const createTrade = (resultAmount: number, costAmount: number, resultName: string, stock: number, world = 'overworld'): Trade => ({
         x: 0, y: 0, z: 0, world,
