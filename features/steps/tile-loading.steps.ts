@@ -210,6 +210,17 @@ Given('the manifest only includes tiles near origin', async ({ page }) => {
 // WHEN Steps
 // ============================================================================
 
+async function waitForTileRequests(page: Page, minRequests: number = 1, timeout: number = 5000): Promise<void> {
+    const p = page as PageWithTileTracking;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+        if ((p.__tileRequests?.length ?? 0) >= minRequests) {
+            return;
+        }
+        await page.waitForTimeout(100);
+    }
+}
+
 When('I open the navigation map with an overworld item', async ({ page }) => {
     // Add overworld shop item to cart
     const overworldRow = page.locator('.trade-row').filter({ hasText: 'Emerald' }).first();
@@ -225,8 +236,10 @@ When('I open the navigation map with an overworld item', async ({ page }) => {
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
     
-    // Wait for map to initialize and tiles to load
-    await page.waitForTimeout(1000);
+    // Wait for tile requests to actually happen (not just a fixed timeout)
+    await waitForTileRequests(page, 1, 5000);
+    // Extra buffer for all tiles to load
+    await page.waitForTimeout(500);
 });
 
 When('I open the navigation map with a nether item', async ({ page }) => {
@@ -244,8 +257,9 @@ When('I open the navigation map with a nether item', async ({ page }) => {
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
     
-    // Wait for map to initialize and tiles to load
-    await page.waitForTimeout(1000);
+    // Wait for tile requests to actually happen
+    await waitForTileRequests(page, 1, 5000);
+    await page.waitForTimeout(500);
 });
 
 When('I open the navigation map with a far-away shop item', async ({ page }) => {
@@ -263,8 +277,9 @@ When('I open the navigation map with a far-away shop item', async ({ page }) => 
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
     
-    // Wait for map to initialize
-    await page.waitForTimeout(1000);
+    // Wait for tile requests to actually happen
+    await waitForTileRequests(page, 1, 5000);
+    await page.waitForTimeout(500);
 });
 
 When('I record the tile request count', async ({ page }) => {
@@ -292,8 +307,9 @@ When('I close and reopen the navigation map', async ({ page }) => {
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
     
-    // Wait for map to initialize
-    await page.waitForTimeout(1000);
+    // Wait for map to initialize - give it time to potentially make requests
+    // (it shouldn't if caching works, but we need to give it the opportunity)
+    await page.waitForTimeout(1500);
 });
 
 // ============================================================================
