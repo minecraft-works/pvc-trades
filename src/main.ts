@@ -1949,8 +1949,6 @@ async function startNavigation(): Promise<void> {
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.getElementById('nav-dialog') as HTMLDialogElement | null;
     
-    console.log('Starting navigation, navDialog:', navDialog);
-    
     cartDialog.close();
     
     // Prevent background scrolling
@@ -1958,7 +1956,6 @@ async function startNavigation(): Promise<void> {
     
     if (navDialog) {
         navDialog.showModal();
-        console.log('Dialog opened, fetching player position...');
         
         // First, get the player's current position
         const playerName = playerNameInput.value.trim().toLowerCase();
@@ -1984,7 +1981,6 @@ async function startNavigation(): Promise<void> {
             // Compute route from player position (or 0,0 if not found), excluding completed items
             const route = computeRoute(currentPlayerPosition ?? undefined, true);
             navCurrentRoute = route;
-            console.log('Route computed from player position:', route.length, 'stops');
             
             // Pass player's world so the map shows where the player is (if they have shops there)
             const playerWorld = currentPlayerPosition?.world;
