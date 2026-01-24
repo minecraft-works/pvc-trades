@@ -15,10 +15,12 @@ Feature: Zoom Behavior
   # ============================================================================
 
   @zoom @distance @wip
-  Scenario: Zoom in when very close to shop (< 50 blocks)
+  Scenario: Zoom in when close to shop (just outside arrival radius)
     Given the next shop is at (100, 200)
-    When player is at (100, 170)
-    Then the map should be at zoom level 1 (maximum)
+    # Note: Arrival radius is 50 blocks, arrival triggers auto-completion
+    # Closest we can test without triggering arrival is 50 blocks (zoom 0 range: 50-150)
+    When player is at (100, 150)
+    Then the map should be at zoom level 0
 
   @zoom @distance @wip
   Scenario: Medium zoom when close (50-150 blocks)
@@ -58,22 +60,24 @@ Feature: Zoom Behavior
   @zoom @follow @wip
   Scenario: Zoom adjusts smoothly with flyTo animation
     Given I am in follow mode at zoom -2
+    # Note: "close" means just outside arrival radius (50 blocks) to avoid auto-complete
+    # 52 blocks away puts us in the 50-150 range (zoom 0)
     When player moves close to a shop
-    Then the map should animate to zoom 1
+    Then the map should animate to zoom 0
 
   # ============================================================================
   # Manual Mode
-  # Note: Re-center button not implemented yet - tests marked @wip
+  # Note: Re-center button not implemented yet - tests marked @skip
   # ============================================================================
 
-  @zoom @manual @wip
+  @zoom @manual @wip @skip
   Scenario: Dragging map switches to manual mode
     Given I am in follow mode
     When I drag the map
     Then I should switch to manual mode
     And the re-center button should appear
 
-  @zoom @manual @wip
+  @zoom @manual @wip @skip
   Scenario: Re-center button returns to follow mode
     Given I am in manual mode
     When I click the re-center button

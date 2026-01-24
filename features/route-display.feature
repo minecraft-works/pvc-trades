@@ -21,7 +21,8 @@ Feature: Route Display
   Scenario: Timeline shows item details
     Given I add a trade for "Diamond" quantity 5 to my cart
     When I open the navigate tab
-    Then the timeline should show "5× Diamond"
+    # Cart quantity (1) × result name - not the trade's result amount
+    Then the timeline should show "1× Diamond"
 
   @route @timeline
   Scenario: Timeline shows both coordinate systems

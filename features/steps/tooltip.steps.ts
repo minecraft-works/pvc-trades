@@ -94,18 +94,51 @@ Given('I am navigating toward a shop', async ({ playerMock }) => {
     playerMock.updatePosition(200, 64, 200, 'World');
 });
 
-Given('the shop at \\({int}, {int}) has {int} items to buy', async (_, _x: number, _z: number, _itemCount: number) => {
+// eslint-disable-next-line no-empty-pattern
+Given('the shop at \\({int}, {int}) has {int} items to buy', async ({}, _x: number, _z: number, _itemCount: number) => {
     // Shop data is configured via the mock
 });
 
-Given('the shop at \\({int}, {int}) has {int} items', async (_, _x: number, _z: number, _itemCount: number) => {
+// eslint-disable-next-line no-empty-pattern
+Given('the shop at \\({int}, {int}) has {int} items', async ({}, _x: number, _z: number, _itemCount: number) => {
     // Shop data is configured via the mock
 });
 
 Given('{int} item is already marked complete', async ({ page }, count: number) => {
+    // Check what dialogs are open using the 'open' attribute
+    const navDialog = page.locator('#nav-dialog');
+    const cartDialog = page.locator('#cart-dialog');
+    const navDialogOpen = await navDialog.getAttribute('open');
+    
+    if (navDialogOpen !== null) {
+        // Close nav dialog - this will automatically reopen cart dialog
+        await page.locator('#close-nav').click();
+        // Wait for cart dialog to open (stopNavigation reopens it)
+        await page.waitForSelector('#cart-dialog[open]', { state: 'visible', timeout: 5000 });
+    }
+    
+    // Now cart dialog should be open, switch to navigate tab
+    const isCartDialogOpen = await cartDialog.getAttribute('open') !== null;
+    if (isCartDialogOpen) {
+        await page.locator('#tab-navigate').click();
+    } else {
+        // Open cart dialog
+        await page.locator('#open-cart').click();
+        await page.waitForSelector('#cart-dialog', { state: 'visible' });
+        await page.locator('#tab-navigate').click();
+    }
+    
+    // Wait for timeline dots to be visible before clicking
+    await page.waitForSelector('.timeline-dot', { state: 'visible', timeout: 5000 });
     const dots = page.locator('.timeline-dot');
     for (let i = 0; i < count; i++) {
         await dots.nth(i).click();
+    }
+    
+    // If nav dialog was open before, restart navigation
+    if (navDialogOpen !== null) {
+        await page.locator('#start-navigation').click();
+        await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
     }
 });
 
@@ -128,8 +161,14 @@ Given('player entered and left the shop area', async ({ playerMock }) => {
     playerMock.setPosition(500, 500);
 });
 
-Given('there are {int} shops within {int} blocks', async (_, _shopCount: number, _radius: number) => {
-    // Configured via mock data
+Given('there are {int} shops within {int} blocks', async ({ page }, _shopCount: number, _radius: number) => {
+    // Start navigation since the scenario requires it
+    await page.locator('#open-cart').click();
+    await page.waitForSelector('#cart-dialog', { state: 'visible' });
+    await page.locator('#tab-navigate').click();
+    await page.locator('#player-name-input').fill('TestPlayer');
+    await page.locator('#start-navigation').click();
+    await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
 });
 
 // ============================================================================
@@ -204,12 +243,14 @@ Then('I should see an arrival tooltip', async ({ page }) => {
     const navPanel = page.locator('#nav-dialog');
     const currentStop = navPanel.locator('.timeline-status-current');
     
-    // Either tooltip or current stop indicator
-    await arrivalIndicator.first().isVisible().catch(() => false) ||
-                      await currentStop.first().isVisible().catch(() => false);
+    // Either tooltip or current stop indicator should be visible
+    const arrivalVisible = await arrivalIndicator.first().isVisible().catch(() => false);
+    const stopVisible = await currentStop.first().isVisible().catch(() => false);
     
-    // For now, just verify we have the nav dialog
-    await expect(navPanel).toBeVisible();
+    // For now, just verify we have the nav dialog (arrival indicators are implementation-specific)
+    if (!arrivalVisible && !stopVisible) {
+        await expect(navPanel).toBeVisible();
+    }
 });
 
 Then('it should show all {int} items to buy', async ({ page }, _count: number) => {
@@ -269,8 +310,20 @@ Then('a shopping list tooltip should appear', async ({ page }) => {
 });
 
 Then('it should list both items with quantities', async ({ page }) => {
-    const navTimeline = page.locator('#nav-timeline');
-    await expect(navTimeline).toBeVisible();
+    // After navigation starts, the nav-dialog is open (not cart-dialog)
+    // The items are shown in the nav-dialog via distance display or shop tooltip
+    const navDialog = page.locator('#nav-dialog');
+    await expect(navDialog).toBeVisible();
+    
+    // The shop tooltip or distance display shows items when near a shop
+    const shopTooltip = page.locator('#nav-shop-tooltip');
+    const distanceDisplay = page.locator('#nav-dialog-distance');
+    
+    // At least one should contain item information
+    const tooltipVisible = await shopTooltip.isVisible().catch(() => false);
+    const distanceVisible = await distanceDisplay.isVisible().catch(() => false);
+    
+    expect(tooltipVisible || distanceVisible).toBe(true);
 });
 
 Then('the tooltip should show only {int} items', async ({ page }, _count: number) => {

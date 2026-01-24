@@ -44,8 +44,10 @@ Given('I add a trade requiring {int} emeralds and giving {int} diamond', async (
 });
 
 Given('I add a trade to the cart', async ({ page }) => {
-    const row = page.locator('.trade-row').first();
-    await row.locator('.add-to-cart-btn').click();
+    // Find the specific trade that gives Emerald and costs Diamond (Overworld Shop at 100,64,200)
+    // data-trade-key format: x,y,z,world,resultItem,costItem
+    const addBtn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await addBtn.click();
 });
 
 Given('I have items in the cart', async ({ page }) => {
@@ -92,8 +94,9 @@ When('I increase the quantity to {int}', async ({ page }, quantity: number) => {
 });
 
 When('I click the add button for a trade', async ({ page }) => {
-    const row = page.locator('.trade-row').first();
-    await row.locator('.add-to-cart-btn').click();
+    // Use the same specific trade that gives Emerald and costs Diamond
+    const addBtn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await addBtn.click();
 });
 
 When('I remove the trade from the cart', async ({ page }) => {
@@ -139,23 +142,26 @@ Then('I should see total gains showing {string}', async ({ page }, expectedText:
 });
 
 Then('the button should show {string} styling', async ({ page }, style: string) => {
-    const firstBtn = page.locator('.trade-row').first().locator('.add-to-cart-btn');
+    // Check the same specific button that was clicked (Emerald,Diamond trade)
+    const btn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
     
     if (style === 'in-cart') {
-        await expect(firstBtn).toHaveClass(/in-cart/);
+        await expect(btn).toHaveClass(/in-cart/);
     } else {
-        await expect(firstBtn).not.toHaveClass(/in-cart/);
+        await expect(btn).not.toHaveClass(/in-cart/);
     }
 });
 
 Then('the button icon should change to a checkmark', async ({ page }) => {
-    const firstBtn = page.locator('.trade-row').first().locator('.add-to-cart-btn');
-    await expect(firstBtn).toHaveClass(/in-cart/);
+    // Check the same specific button that was clicked (Emerald,Diamond trade)
+    const btn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await expect(btn).toHaveClass(/in-cart/);
 });
 
 Then('the add button should show default styling', async ({ page }) => {
-    const firstBtn = page.locator('.trade-row').first().locator('.add-to-cart-btn');
-    await expect(firstBtn).not.toHaveClass(/in-cart/);
+    // Check the same specific button (Emerald,Diamond trade)
+    const btn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await expect(btn).not.toHaveClass(/in-cart/);
 });
 
 Then('the cart badge should be hidden', async ({ page }) => {

@@ -22,12 +22,14 @@ export type BddFixtures = {
  */
 export const test = base.extend<BddFixtures>({
     // Player mock is created fresh for each test
-    playerMock: async (_, use) => {
+    // eslint-disable-next-line no-empty-pattern
+    playerMock: async ({}, use) => {
         const mock = createPlayerMock('World');
         await use(mock);
     },
     // Tile requests tracking
-    tileRequests: async (_, use) => {
+    // eslint-disable-next-line no-empty-pattern
+    tileRequests: async ({}, use) => {
         const requests: string[] = [];
         await use(requests);
     },

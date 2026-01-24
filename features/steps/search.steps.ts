@@ -100,8 +100,12 @@ Then('I should see {string} message', async ({ page }, message: string) => {
 });
 
 Then('{string} should be highlighted in the result rows', async ({ page }, term: string) => {
+    // Wait for filtering to complete and highlights to appear
+    await page.waitForTimeout(500);
+    
     // Check for <mark> tags containing the search term
     const highlights = page.locator('.trade-row mark');
+    await expect(highlights.first()).toBeVisible({ timeout: 3000 });
     const count = await highlights.count();
     
     expect(count).toBeGreaterThan(0);

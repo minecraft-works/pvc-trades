@@ -33,7 +33,7 @@ Feature: Live Navigation
   Scenario: Player not found shows error message
     Given I am navigating as "NonExistentPlayer"
     When the player API is polled
-    Then I should see "Player not found" in the distance display
+    Then I should see "not found" in the distance display
 
   # ============================================================================
   # Live Distance Display
@@ -42,10 +42,10 @@ Feature: Live Navigation
   @navigation @distance
   Scenario: Live distance updates as player moves
     Given I am navigating as "TestPlayer" at (0, 0)
-    And the next shop is at (100, 0)
-    Then the distance display should show "100 blocks"
-    When the player moves to (50, 0)
-    Then the distance display should show "50 blocks"
+    And the next shop is at (100, 200)
+    Then the distance display should show "224 blocks"
+    When the player moves to (50, 100)
+    Then the distance display should show "112 blocks"
 
   @navigation @distance
   Scenario: Shows travel instruction when in different world

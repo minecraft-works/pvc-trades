@@ -216,6 +216,7 @@ export async function setupColoredTileMocks(page: Page): Promise<void> {
 
 /**
  * Mock data with shops in both overworld and nether
+ * Includes multiple shops for testing route display, timeline, and coordinate display
  */
 export const MULTI_WORLD_SHOP_DATA = {
     data: [
@@ -242,6 +243,45 @@ export const MULTI_WORLD_SHOP_DATA = {
                     resultItem: { type: 'NETHERITE_SCRAP', name: 'Netherite Scrap', amount: 1 },
                     item1: { type: 'GOLD_INGOT', name: 'Gold Ingot', amount: 8 },
                     stock: 5
+                }
+            ]
+        },
+        {
+            shopName: 'Diamond Dealer',
+            shopOwner: 'DiamondOwner',
+            location: '300.0, 64.0, 400.0',
+            world: 'World',
+            recipes: [
+                {
+                    resultItem: { type: 'DIAMOND', name: 'Diamond', amount: 5 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: 10 },
+                    stock: 20
+                }
+            ]
+        },
+        {
+            shopName: 'Far Overworld Shop',
+            shopOwner: 'FarOwner',
+            location: '800.0, 64.0, 400.0',
+            world: 'World',
+            recipes: [
+                {
+                    resultItem: { type: 'IRON_INGOT', name: 'Iron Ingot', amount: 16 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: 1 },
+                    stock: 64
+                }
+            ]
+        },
+        {
+            shopName: 'Nether Coords Shop',
+            shopOwner: 'NetherCoordsOwner',
+            location: '100.0, 64.0, 50.0',
+            world: 'World_nether',
+            recipes: [
+                {
+                    resultItem: { type: 'BLAZE_ROD', name: 'Blaze Rod', amount: 2 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: 4 },
+                    stock: 30
                 }
             ]
         }

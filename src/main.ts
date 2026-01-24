@@ -450,10 +450,11 @@ interface RouteOrigin {
 function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
     if (cart.length === 0) { return []; }
     
-    // Filter cart items if excluding completed
-    const activeItems = excludeCompleted
-        ? cart.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)))
-        : cart;
+    // Filter cart items: exclude qty=0 and optionally completed items
+    let activeItems = cart.filter(item => item.quantity > 0);
+    if (excludeCompleted) {
+        activeItems = activeItems.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)));
+    }
     
     if (activeItems.length === 0) { return []; }
     
@@ -2157,10 +2158,10 @@ async function pollPlayerPosition(): Promise<void> {
                 centerMapOnPlayer();
             }
         } else {
-            // Player not found - show in live distance display
-            const liveDistance = document.getElementById('nav-live-distance');
-            if (liveDistance) {
-                liveDistance.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+            // Player not found - show in distance display
+            const distanceDisplay = document.getElementById('nav-dialog-distance');
+            if (distanceDisplay) {
+                distanceDisplay.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
             }
         }
     } catch (error) {
@@ -2309,6 +2310,12 @@ function recalculateRouteFromPlayer(): void {
                     offset: [0, -18]
                 })
                 .addTo(navMap);
+            
+            // Click marker to toggle completion during navigation
+            marker.on('click', () => {
+                toggleStopCompletion(stop, navCurrentRoute);
+            });
+            
             navStopMarkers.push(marker);
         }
         
@@ -2946,6 +2953,12 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
                 offset: [0, -18]
             })
             .addTo(navMap);
+        
+        // Click marker to toggle completion during navigation
+        marker.on('click', () => {
+            toggleStopCompletion(stop, route);
+        });
+        
         navStopMarkers.push(marker);
     }
     

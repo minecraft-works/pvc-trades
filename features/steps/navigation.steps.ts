@@ -22,26 +22,23 @@ Given('the app is loaded with shops in overworld and nether', async ({ page, pla
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
-Given('player {string} is in the overworld at \\({int}, {int})', async ({ page, playerMock }, _playerName: string, x: number, z: number) => {
+Given('player {string} is in the overworld at \\({int}, {int})', async ({ playerMock }, _playerName: string, x: number, z: number) => {
+    // Just update player position - the app is already loaded via Background step
     playerMock.moveToOverworld(x, z);
-    await page.goto('/');
-    await page.waitForSelector('.search-container', { state: 'visible' });
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
-Given('player {string} is in the nether at \\({int}, {int})', async ({ page, playerMock }, _playerName: string, x: number, z: number) => {
+Given('player {string} is in the nether at \\({int}, {int})', async ({ playerMock }, _playerName: string, x: number, z: number) => {
+    // Just update player position - the app is already loaded via Background step
     playerMock.moveToNether(x, z);
-    await page.goto('/');
-    await page.waitForSelector('.search-container', { state: 'visible' });
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
 Given('I open the navigation dialog with items from both worlds', async ({ page, tileRequests }) => {
-    // Add overworld item
-    const overworldRow = page.locator('.trade-row').filter({ hasText: 'Emerald' });
-    await overworldRow.locator('.add-to-cart-btn').click();
+    // Add overworld item - use specific trade key to avoid ambiguity
+    // The Emerald shop (gives Emerald, costs Diamond) is at 100,64,200
+    const overworldBtn = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await overworldBtn.click();
     
-    // Add nether item
+    // Add nether item - Netherite Scrap (only one match)
     const netherRow = page.locator('.trade-row').filter({ hasText: 'Netherite' });
     await netherRow.locator('.add-to-cart-btn').click();
     
