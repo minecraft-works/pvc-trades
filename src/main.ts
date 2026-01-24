@@ -663,23 +663,29 @@ function sortResults(results: FilterResult[]): void {
     });
 }
 
-// eslint-disable-next-line complexity
+function compareDeviation(ta: Trade, tb: Trade): number {
+    const devA = getDeviation(ta);
+    const devB = getDeviation(tb);
+    if (!devA && !devB) {return 0;}
+    if (!devA) {return 1;}
+    if (!devB) {return -1;}
+    return devA.percent - devB.percent;
+}
+
+function getTotalCostAmount(t: Trade): number {
+    return t.item1.amount + (t.item2?.amount || 0);
+}
+
 function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
     const dir = direction === 'asc' ? 1 : -1;
     const ta = a.trade;
     const tb = b.trade;
     
     switch (column) {
-        case 'dev': {
-            const devA = getDeviation(ta);
-            const devB = getDeviation(tb);
-            if (!devA && !devB) {return 0;}
-            if (!devA) {return 1;}
-            if (!devB) {return -1;}
-            return dir * (devA.percent - devB.percent);
-        }
+        case 'dev':
+            return dir * compareDeviation(ta, tb);
         case 'cost-amt':
-            return dir * ((ta.item1.amount + (ta.item2?.amount || 0)) - (tb.item1.amount + (tb.item2?.amount || 0)));
+            return dir * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
         case 'cost-name':
             return dir * ta.costName.localeCompare(tb.costName);
         case 'result-amt':
@@ -785,38 +791,51 @@ function renderHeader(): void {
     updateSortArrows();
 }
 
-/**
- * Create a trade row DOM element for a single result
- */
-// eslint-disable-next-line complexity
-function createTradeRowElement(result: FilterResult): HTMLElement {
-    const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
-    const showName = displayName ?? t.resultName;
-    const showAmount = displayAmount ?? t.resultAmount;
-    const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
-
+function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
     let costAmt = String(t.item1.amount);
     let costName = t.costName;
     if (t.item2) {
         costAmt += '+' + t.item2.amount;
         costName += ' + ' + formatName(t.item2);
     }
+    return { costAmt, costName };
+}
 
+function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
+    const worldLower = world.toLowerCase();
+    if (worldLower.includes('nether')) {
+        return { abbrev: 'N', title: 'The Nether' };
+    }
+    if (worldLower.includes('end')) {
+        return { abbrev: 'E', title: 'The End' };
+    }
+    return { abbrev: 'O', title: 'Overworld' };
+}
+
+function getDeviationDisplayInfo(t: Trade): { devClass: string; devText: string } {
+    const dev = getDeviation(t);
+    if (!dev) {
+        return { devClass: '', devText: '' };
+    }
+    const devClass = dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
+    return { devClass, devText: dev.text };
+}
+
+/**
+ * Create a trade row DOM element for a single result
+ */
+function createTradeRowElement(result: FilterResult): HTMLElement {
+    const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
+    const showName = displayName ?? t.resultName;
+    const showAmount = displayAmount ?? t.resultAmount;
+    const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
+
+    const { costAmt, costName } = getCostDisplayInfo(t);
     const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
     const resultDisplay = matchResult && currentWantRegex ? highlight(showName, currentWantRegex) : escapeHtml(showName);
 
-    const dev = getDeviation(t);
-    const devClass = dev && dev.isGood !== null ? (dev.isGood ? 'good-deal' : 'bad-deal') : '';
-    const devText = dev ? dev.text : '';
-
-    // Abbreviate world names: O=Overworld, N=Nether, E=End
-    const worldLower = t.world.toLowerCase();
-    const worldAbbrev = worldLower.includes('nether') ? 'N' 
-        : worldLower.includes('end') ? 'E' 
-        : 'O';
-    const worldTitle = worldAbbrev === 'N' ? 'The Nether' 
-        : worldAbbrev === 'E' ? 'The End' 
-        : 'Overworld';
+    const { devClass, devText } = getDeviationDisplayInfo(t);
+    const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
 
     const row = document.createElement('div');
     row.className = 'trade-row';
@@ -825,7 +844,6 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     row.dataset['z'] = String(t.z);
     row.dataset['world'] = t.world;
     
-    // Check if this trade is already in cart
     const tradeKey = getTradeKey(t);
     const isInCart = cart.some(item => getTradeKey(item.trade) === tradeKey);
     const inCartClass = isInCart ? ' in-cart' : '';
@@ -842,13 +860,11 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
     
-    // Add click handler for cart button (stop propagation to prevent row click)
     const cartBtn = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
     cartBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         addToCart(t);
         cartBtn.classList.add('in-cart');
-        // Visual feedback
         cartBtn.classList.add('added');
         setTimeout(() => cartBtn.classList.remove('added'), 200);
     });
@@ -1017,18 +1033,21 @@ let manifestLoadPromise: Promise<void> | null = null;
  * Load the tile manifest (cached globally)
  */
 async function loadTileManifest(): Promise<Set<string>> {
+    // If already loaded, return it
     if (tileManifestCache) {
         return tileManifestCache;
     }
     
-    // Avoid multiple simultaneous fetches
+    // If loading is in progress, wait for it
     if (manifestLoadPromise) {
         await manifestLoadPromise;
         return tileManifestCache!;
     }
     
+    // Start loading - DON'T set tileManifestCache until fetch completes
+    // This prevents race conditions where empty cache is returned
     manifestLoadPromise = (async () => {
-        tileManifestCache = new Set<string>();
+        const newCache = new Set<string>();
         try {
             const response = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
             if (response.ok) {
@@ -1037,12 +1056,14 @@ async function loadTileManifest(): Promise<Set<string>> {
                     // Normalize world name to match what getWorldId returns
                     const normalizedWorld = getWorldId(entry.world);
                     const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
-                    tileManifestCache.add(key);
+                    newCache.add(key);
                 }
             }
         } catch {
             console.warn('Failed to load tile manifest');
         }
+        // Only set the global cache AFTER loading completes
+        tileManifestCache = newCache;
     })();
     
     await manifestLoadPromise;
@@ -1067,16 +1088,18 @@ function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTil
  * @param bounds - Bounds for the tile overlay
  * @param addedToMap - Set tracking tiles already added to this map instance
  */
-// eslint-disable-next-line max-params
-function loadTileToMap(
-    map: L.Map,
-    worldId: string,
-    zoom: number,
-    tx: number,
-    tz: number,
-    bounds: L.LatLngBoundsExpression,
-    addedToMap: Set<string>
-): void {
+interface LoadTileOptions {
+    map: L.Map;
+    worldId: string;
+    zoom: number;
+    tx: number;
+    tz: number;
+    bounds: L.LatLngBoundsExpression;
+    addedToMap: Set<string>;
+}
+
+function loadTileToMap(opts: LoadTileOptions): void {
+    const { map, worldId, zoom, tx, tz, bounds, addedToMap } = opts;
     const mapKey = `z${zoom}:${tx},${tz}`;
     if (addedToMap.has(mapKey)) {
         return;
@@ -1138,10 +1161,329 @@ async function fetchPlayers(): Promise<Player[]> {
     return cachedPlayers;
 }
 
+interface MapTileContext {
+    worldId: string;
+    centerTileX: number;
+    centerTileZ: number;
+    addedToMapZoom4: Set<string>;
+    addedToMapZoom8: Set<string>;
+    manifest: Set<string>;
+}
+
+const ZOOM4_TILE_SIZE = MAP_CONFIG.tileSize * 16;
+
+function getZoom4Coords(z8x: number, z8z: number): { x: number; z: number } {
+    return {
+        x: Math.floor(z8x / 16),
+        z: Math.floor(z8z / 16)
+    };
+}
+
+function loadZoom4TileToShopMap(ctx: MapTileContext, z4x: number, z4z: number): void {
+    const { worldId, centerTileX, centerTileZ, addedToMapZoom4, manifest } = ctx;
+    const mapKey = `z4:${z4x},${z4z}`;
+    if (addedToMapZoom4.has(mapKey)) {return;}
+    addedToMapZoom4.add(mapKey);
+    
+    if (!tileExistsInManifest(manifest, worldId, 8192, z4x, z4z)) {return;}
+    
+    const startZ8X = z4x * 16;
+    const startZ8Z = z4z * 16;
+    const dx = startZ8X - centerTileX;
+    const dy = startZ8Z - centerTileZ;
+    const bounds: L.LatLngBoundsExpression = [
+        [-dy * MAP_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * MAP_CONFIG.tileSize],
+        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + ZOOM4_TILE_SIZE]
+    ];
+    
+    const cacheKey = `${worldId}/4/${z4x}/${z4z}`;
+    const cachedBlobUrl = tileBlobCache.get(cacheKey);
+    if (cachedBlobUrl) {
+        if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
+        return;
+    }
+    
+    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+    fetch(url)
+        .then(response => (response.ok && leafletMap) ? response.blob() : null)
+        .then(blob => {
+            if (blob && leafletMap) {
+                const blobUrl = URL.createObjectURL(blob);
+                tileBlobCache.set(cacheKey, blobUrl);
+                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+            }
+        })
+        .catch(() => {});
+}
+
+function loadZoom8TileToShopMap(ctx: MapTileContext, tx: number, tz: number, dx: number, dy: number): void {
+    const { worldId, addedToMapZoom8, manifest } = ctx;
+    const mapKey = `z8:${tx},${tz}`;
+    if (addedToMapZoom8.has(mapKey)) {return;}
+    addedToMapZoom8.add(mapKey);
+    
+    if (!tileExistsInManifest(manifest, worldId, 512, tx, tz)) {return;}
+    
+    const bounds: L.LatLngBoundsExpression = [
+        [-dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize],
+        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
+    ];
+    
+    const cacheKey = `${worldId}/8/${tx}/${tz}`;
+    const cachedBlobUrl = tileBlobCache.get(cacheKey);
+    if (cachedBlobUrl) {
+        if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
+        return;
+    }
+    
+    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
+    fetch(url)
+        .then(response => (response.ok && leafletMap) ? response.blob() : null)
+        .then(blob => {
+            if (blob && leafletMap) {
+                const blobUrl = URL.createObjectURL(blob);
+                tileBlobCache.set(cacheKey, blobUrl);
+                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+            }
+        })
+        .catch(() => {});
+}
+
+function loadVisibleShopMapTiles(ctx: MapTileContext): void {
+    if (!leafletMap) {return;}
+    const bounds = leafletMap.getBounds();
+    const currentZoom = leafletMap.getZoom();
+    
+    const minDx = Math.floor(bounds.getWest() / MAP_CONFIG.tileSize);
+    const maxDx = Math.ceil(bounds.getEast() / MAP_CONFIG.tileSize);
+    const minDy = -Math.ceil(bounds.getNorth() / MAP_CONFIG.tileSize);
+    const maxDy = -Math.floor(bounds.getSouth() / MAP_CONFIG.tileSize);
+    
+    const zoom4Tiles = new Set<string>();
+    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
+        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
+            const tx = ctx.centerTileX + dx;
+            const tz = ctx.centerTileZ + dy;
+            const z4 = getZoom4Coords(tx, tz);
+            const key = `${z4.x},${z4.z}`;
+            if (!zoom4Tiles.has(key)) {
+                zoom4Tiles.add(key);
+                loadZoom4TileToShopMap(ctx, z4.x, z4.z);
+            }
+        }
+    }
+    
+    if (currentZoom > -2) {
+        for (let dy = minDy; dy <= maxDy; dy++) {
+            for (let dx = minDx; dx <= maxDx; dx++) {
+                const tx = ctx.centerTileX + dx;
+                const tz = ctx.centerTileZ + dy;
+                loadZoom8TileToShopMap(ctx, tx, tz, dx, dy);
+            }
+        }
+    }
+}
+
+interface EdgeMarkerParams {
+    player: Player;
+    angle: number;
+    centerX: number;
+    centerY: number;
+    edgeRadius: number;
+    visibleRadiusMapUnits: number;
+    playerCoords: { lat: number; lng: number };
+    mapCenter: L.LatLng;
+}
+
+function createEdgeMarker(params: EdgeMarkerParams): HTMLElement {
+    const { player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter } = params;
+    const dx = playerCoords.lng - mapCenter.lng;
+    const dy = playerCoords.lat - mapCenter.lat;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const minSize = 4;
+    const maxSize = 12;
+    const logScale = Math.log10(distance / visibleRadiusMapUnits + 1);
+    const size = Math.max(minSize, maxSize - logScale * 4);
+    
+    const edgeX = centerX + edgeRadius * Math.cos(angle);
+    const edgeY = centerY - edgeRadius * Math.sin(angle);
+    
+    const edgeMarker = document.createElement('div');
+    edgeMarker.className = 'player-edge-marker';
+    edgeMarker.title = player.name;
+    edgeMarker.style.left = `${edgeX}px`;
+    edgeMarker.style.top = `${edgeY}px`;
+    edgeMarker.style.width = `${size}px`;
+    edgeMarker.style.height = `${size}px`;
+    
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'player-name';
+    nameLabel.textContent = player.name;
+    
+    const angleDeg = angle * 180 / Math.PI;
+    if (angleDeg > 45 && angleDeg < 135) {
+        nameLabel.classList.add('label-bottom');
+    } else if (angleDeg < -45 && angleDeg > -135) {
+        nameLabel.classList.add('label-top');
+    } else if (edgeX > centerX) {
+        nameLabel.classList.add('label-left');
+    }
+    
+    edgeMarker.appendChild(nameLabel);
+    return edgeMarker;
+}
+
+function updateShopMapPlayerMarkers(
+    dialog: HTMLDialogElement,
+    container: HTMLElement,
+    worldId: string,
+    tileX: number,
+    tileZ: number
+): void {
+    playerMarkersLayer?.clearLayers();
+    dialog.querySelectorAll('.player-edge-marker').forEach(el => el.remove());
+    
+    if (!leafletMap || cachedPlayers.length === 0) {return;}
+    
+    const playersInWorld = cachedPlayers.filter(p => {
+        const pWorld = p.world ? getWorldId(p.world) : 'overworld';
+        return pWorld === worldId;
+    });
+    
+    const mapCenter = leafletMap.getCenter();
+    const containerRect = container.getBoundingClientRect();
+    const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
+    
+    const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
+    const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
+    const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
+    
+    const centerX = containerRect.width / 2;
+    const centerY = containerRect.height / 2;
+    const edgeRadius = containerRect.width / 2 + 8;
+    
+    for (const player of playersInWorld) {
+        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, MAP_CONFIG.tileSize);
+        const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
+        
+        if (clamped.clamped) {
+            const dx = playerCoords.lng - mapCenter.lng;
+            const dy = playerCoords.lat - mapCenter.lat;
+            const angle = Math.atan2(dy, dx);
+            const marker = createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter });
+            dialog.appendChild(marker);
+        } else {
+            L.marker([playerCoords.lat, playerCoords.lng], {
+                icon: L.divIcon({
+                    className: 'leaflet-player-marker',
+                    html: `<span class="player-name">${player.name}</span>`,
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                }),
+                title: player.name
+            }).addTo(playerMarkersLayer!);
+        }
+    }
+}
+
+interface ShopMapSetupParams {
+    container: HTMLElement;
+    coordsEl: HTMLElement;
+    dialog: HTMLDialogElement;
+    worldId: string;
+    worldDisplay: string;
+    x: number;
+    y: number;
+    z: number;
+    tileX: number;
+    tileZ: number;
+    manifest: Set<string>;
+}
+
+function setupShopMap(params: ShopMapSetupParams): void {
+    const { container, coordsEl, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = params;
+    leafletMap = L.map(container, {
+        crs: L.CRS.Simple,
+        minZoom: -5,
+        maxZoom: 2,
+        zoomControl: true,
+        attributionControl: false,
+        zoomSnap: 0,
+        zoomDelta: 0.5
+    });
+    
+    const ctx: MapTileContext = {
+        worldId,
+        centerTileX: tileX,
+        centerTileZ: tileZ,
+        addedToMapZoom4: new Set<string>(),
+        addedToMapZoom8: new Set<string>(),
+        manifest
+    };
+    
+    const loadTiles = () => loadVisibleShopMapTiles(ctx);
+    leafletMap.on('moveend', loadTiles);
+    leafletMap.on('zoomend', loadTiles);
+    
+    const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, MAP_CONFIG.tileSize);
+    L.marker([markerLat, markerLng], {
+        icon: L.divIcon({
+            className: 'leaflet-pin-marker',
+            iconSize: [24, 24],
+            iconAnchor: [4, 24]
+        })
+    }).addTo(leafletMap);
+    
+    playerMarkersLayer = L.layerGroup().addTo(leafletMap);
+    
+    const updateCoordsLabel = (): void => {
+        if (!leafletMap) {return;}
+        const mapCenter = leafletMap.getCenter();
+        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, MAP_CONFIG.tileSize);
+        coordsEl.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
+    };
+    
+    const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
+    
+    const updateZoomClass = () => {
+        if (leafletMap!.getZoom() < 0.5) {
+            container.classList.add('zoomed-out');
+        } else {
+            container.classList.remove('zoomed-out');
+        }
+    };
+    
+    fetchPlayers().then(players => {
+        if (!leafletMap) {return;}
+        cachedPlayers = players;
+        updatePlayerMarkers();
+    });
+    
+    playerRefreshInterval = setInterval(() => {
+        fetchPlayers().then(players => {
+            if (!leafletMap) {return;}
+            cachedPlayers = players;
+            updatePlayerMarkers();
+        });
+    }, 5000);
+    
+    leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
+    leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
+    
+    leafletMap.invalidateSize();
+    const containerSize = leafletMap.getSize();
+    const visibleSize = MAP_CONFIG.tileSize * 3;
+    const smallerDimension = Math.min(containerSize.x, containerSize.y);
+    const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
+    
+    leafletMap.setView([markerLat, markerLng], initialZoom);
+    loadTiles();
+    updateZoomClass();
+}
+
 /**
  * Initialize or update the Leaflet map
  */
-/* eslint-disable max-lines-per-function */
 async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
     const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
     const container = document.getElementById('map-container');
@@ -1152,30 +1494,20 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
     }
     
     const worldId = getWorldId(world);
-    
-    // Show coordinates
-    let worldDisplay = 'Overworld';
-    if (world.includes('nether')) {
-        worldDisplay = 'Nether';
-    } else if (world.includes('end')) {
-        worldDisplay = 'The End';
-    }
+    const worldDisplay = world.includes('nether') ? 'Nether' : world.includes('end') ? 'The End' : 'Overworld';
     coordsEl.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
     
-    // Clear any existing player refresh interval
     if (playerRefreshInterval) {
         clearInterval(playerRefreshInterval);
         playerRefreshInterval = null;
     }
 
-    // Ensure close button is set up
     const closeBtn = dialog.querySelector('#close-map');
     if (closeBtn && !closeBtn.hasAttribute('data-initialized')) {
         closeBtn.setAttribute('data-initialized', 'true');
         closeBtn.addEventListener('click', () => dialog.close());
     }
 
-    // Clear player refresh interval when dialog closes, and reopen cart if needed
     dialog.addEventListener('close', () => {
         if (playerRefreshInterval) {
             clearInterval(playerRefreshInterval);
@@ -1189,453 +1521,19 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         }
     }, { once: true });
     
-    // Calculate which tile this shop is on
     const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
-    
-    // Show dialog first so container has dimensions
     dialog.showModal();
     
-    // Wait for dialog to render
     requestAnimationFrame(async () => {
-        // Destroy old map if it exists (cleaner than reusing)
         if (leafletMap) {
-            try {
-                leafletMap.remove();
-            } catch {
-                // Map already removed
-            }
+            try { leafletMap.remove(); } catch { /* already removed */ }
             leafletMap = null;
         }
         
-        // Create map with CRS.Simple
-        // Free navigation - no bounds restrictions
-        leafletMap = L.map(container, {
-            crs: L.CRS.Simple,
-            minZoom: -5,   // Allow zooming far out
-            maxZoom: 2,    // Allow zooming in
-            zoomControl: true,
-            attributionControl: false,
-            zoomSnap: 0,   // Allow fractional zoom levels
-            zoomDelta: 0.5 // Zoom step when using buttons
-        });
-        
-        // Load tile manifest (uses global cache)
         const manifest = await loadTileManifest();
-        
-        // Helper to check if a tile exists in manifest
-        const tileExists = (world: string, blocksPerTile: number, tx: number, tz: number): boolean => {
-            return tileExistsInManifest(manifest, world, blocksPerTile, tx, tz);
-        };
-        
-        // Track tiles added to THIS map instance (cleared when map is recreated)
-        // Different from tileBlobCache which persists blob URLs across sessions
-        const addedToMapZoom8 = new Set<string>();
-        const addedToMapZoom4 = new Set<string>();
-        
-        // Zoom 4 tile size in map units (8192 blocks / 512 blocks per unit at zoom 8)
-        const zoom4TileSize = MAP_CONFIG.tileSize * 16;  // 512 * 16 = 8192
-        
-        // Calculate zoom 4 tile coords from zoom 8 coords
-        const getZoom4Coords = (z8x: number, z8z: number) => ({
-            x: Math.floor(z8x / 16),
-            z: Math.floor(z8z / 16)
-        });
-        
-        // Load a zoom 4 tile at its proper bounds (non-blocking)
-        const loadZoom4Tile = (z4x: number, z4z: number) => {
-            const mapKey = `z4:${z4x},${z4z}`;
-            if (addedToMapZoom4.has(mapKey)) {
-                return;
-            }
-            addedToMapZoom4.add(mapKey);
-            
-            // Check if tile exists in manifest (zoom 4 = 8192 blocksPerTile)
-            if (!tileExists(worldId, 8192, z4x, z4z)) {
-                return;  // Tile doesn't exist, skip
-            }
-            
-            // Calculate where this tile should be in the map coordinate system
-            // Zoom 4 tile (z4x, z4z) covers zoom 8 tiles from (z4x*16, z4z*16) to (z4x*16+15, z4z*16+15)
-            // We need to express this relative to the center tile (tileX, tileZ)
-            const startZ8X = z4x * 16;
-            const startZ8Z = z4z * 16;
-            
-            // Convert to relative coordinates (dx, dy from center tile)
-            const dx = startZ8X - tileX;
-            const dy = startZ8Z - tileZ;
-            
-            // Calculate bounds (same formula as zoom 8, but 16x larger)
-            const south = -dy * MAP_CONFIG.tileSize - zoom4TileSize;
-            const north = -dy * MAP_CONFIG.tileSize;
-            const west = dx * MAP_CONFIG.tileSize;
-            const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
-            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-            
-            // Global cache key for the tile blob
-            const cacheKey = `${worldId}/4/${z4x}/${z4z}`;
-            
-            // Check if we already have this tile cached
-            const cachedBlobUrl = tileBlobCache.get(cacheKey);
-            if (cachedBlobUrl) {
-                if (leafletMap) {
-                    L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);
-                }
-                return;
-            }
-            
-            // Fire-and-forget: load tile without blocking
-            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
-            fetch(url)
-                .then(response => {
-                    if (response.ok && leafletMap) {
-                        return response.blob();
-                    }
-                    return null;
-                })
-                .then(blob => {
-                    if (blob && leafletMap) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        tileBlobCache.set(cacheKey, blobUrl);  // Cache for reuse
-                        L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
-                    }
-                })
-                .catch(() => {
-                    // Tile doesn't exist, just skip
-                });
-        };
-        
-        // Load a zoom 8 tile (non-blocking)
-        const loadZoom8Tile = (tx: number, tz: number, dx: number, dy: number) => {
-            const mapKey = `z8:${tx},${tz}`;
-            if (addedToMapZoom8.has(mapKey)) {
-                return;
-            }
-            addedToMapZoom8.add(mapKey);
-            
-            // Check if tile exists in manifest (zoom 8 = 512 blocksPerTile)
-            if (!tileExists(worldId, 512, tx, tz)) {
-                return;  // Tile doesn't exist, skip
-            }
-            
-            // Calculate bounds for this tile
-            const south = -dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
-            const north = -dy * MAP_CONFIG.tileSize;
-            const west = dx * MAP_CONFIG.tileSize;
-            const east = dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
-            const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-            
-            // Global cache key for the tile blob
-            const cacheKey = `${worldId}/8/${tx}/${tz}`;
-            
-            // Check if we already have this tile cached
-            const cachedBlobUrl = tileBlobCache.get(cacheKey);
-            if (cachedBlobUrl) {
-                if (leafletMap) {
-                    L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);
-                }
-                return;
-            }
-            
-            // Fire-and-forget: load tile without blocking
-            const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
-            fetch(url)
-                .then(response => {
-                    if (response.ok && leafletMap) {
-                        return response.blob();
-                    }
-                    return null;
-                })
-                .then(blob => {
-                    if (blob && leafletMap) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        tileBlobCache.set(cacheKey, blobUrl);  // Cache for reuse
-                        L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
-                    }
-                })
-                .catch(() => {
-                    // Tile doesn't exist, zoom 4 layer will show
-                });
-        };
-        
-        // Function to load tiles based on current viewport (non-blocking)
-        const loadVisibleTiles = () => {
-            if (!leafletMap) {
-                return;
-            }
-            
-            const bounds = leafletMap.getBounds();
-            const currentZoom = leafletMap.getZoom();
-            
-            // Calculate which zoom 8 tiles are visible
-            const minLat = bounds.getSouth();
-            const maxLat = bounds.getNorth();
-            const minLng = bounds.getWest();
-            const maxLng = bounds.getEast();
-            
-            // Convert bounds to tile coordinates (relative to center)
-            const minDx = Math.floor(minLng / MAP_CONFIG.tileSize);
-            const maxDx = Math.ceil(maxLng / MAP_CONFIG.tileSize);
-            const minDy = -Math.ceil(maxLat / MAP_CONFIG.tileSize);
-            const maxDy = -Math.floor(minLat / MAP_CONFIG.tileSize);
-            
-            // First, load zoom 4 tiles as base layer
-            const zoom4Tiles = new Set<string>();
-            for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
-                for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
-                    const tx = tileX + dx;
-                    const tz = tileZ + dy;
-                    const z4 = getZoom4Coords(tx, tz);
-                    const key = `${z4.x},${z4.z}`;
-                    if (!zoom4Tiles.has(key)) {
-                        zoom4Tiles.add(key);
-                        loadZoom4Tile(z4.x, z4.z);
-                    }
-                }
-            }
-            
-            // Only load zoom 8 tiles when zoomed in enough to see detail
-            // At zoom -2 or below, zoom 8 tiles would be tiny (8x8 pixels or less)
-            // so just use zoom 4 tiles as base layer
-            if (currentZoom > -2) {
-                // Then load zoom 8 tiles on top (they'll overlay the zoom 4 tiles)
-                for (let dy = minDy; dy <= maxDy; dy++) {
-                    for (let dx = minDx; dx <= maxDx; dx++) {
-                        const tx = tileX + dx;
-                        const tz = tileZ + dy;
-                        loadZoom8Tile(tx, tz, dx, dy);
-                    }
-                }
-            }
-        };
-        
-        // Load tiles when map moves or zooms
-        leafletMap.on('moveend', loadVisibleTiles);
-        leafletMap.on('zoomend', loadVisibleTiles);
-        
-        // Marker position relative to center tile
-        // Convert Minecraft coords to Leaflet CRS.Simple coords
-        const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, MAP_CONFIG.tileSize);
-        
-        const latLng = L.latLng(markerLat, markerLng);
-        
-        // Simple pin marker for the shop
-        L.marker(latLng, {
-            icon: L.divIcon({
-                className: 'leaflet-pin-marker',
-                iconSize: [24, 24],
-                iconAnchor: [4, 24]  // Bottom-left corner of pin points to location
-            })
-        }).addTo(leafletMap);
-        
-        // Create layer group for player markers
-        playerMarkersLayer = L.layerGroup().addTo(leafletMap);
-        
-        /**
-         * Update the coordinate label to show current map center
-         */
-        const updateCoordsLabel = (): void => {
-            if (!leafletMap) {return;}
-            const mapCenter = leafletMap.getCenter();
-            const mcCoords = fromLeafletCoordsRelative(
-                mapCenter.lat,
-                mapCenter.lng,
-                tileX,
-                tileZ,
-                MAP_CONFIG.tileSize
-            );
-            coordsEl.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
-        };
-        
-        /**
-         * Update player markers based on current viewport.
-         * Players inside the visible circle appear on the map.
-         * Players outside appear as DOM elements on the circle edge.
-         * Only shows players if the map is showing the overworld (all players assumed to be in overworld).
-         */
-        const updatePlayerMarkers = (): void => {
-            // Clear existing markers first
-            playerMarkersLayer?.clearLayers();
-            const existingEdgeMarkers = dialog.querySelectorAll('.player-edge-marker');
-            existingEdgeMarkers.forEach(el => el.remove());
-            
-            // Only show players that are in the same world as the shop
-            if (!leafletMap || cachedPlayers.length === 0) {return;}
-            
-            // Filter players to only those in the same world as the shop
-            const playersInWorld = cachedPlayers.filter(p => {
-                const pWorld = p.world ? getWorldId(p.world) : 'overworld';
-                return pWorld === worldId;
-            });
-            
-            // Get current map center in Leaflet coords
-            const mapCenter = leafletMap.getCenter();
-            
-            // Calculate visible radius in map units based on current zoom
-            // The container is circular, so visible radius = half the smaller container dimension
-            const containerRect = container.getBoundingClientRect();
-            const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
-            
-            // Convert container pixels to map units at current zoom
-            const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
-            const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
-            const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
-            
-            // Edge marker positioning (in screen space)
-            const centerX = containerRect.width / 2;
-            const centerY = containerRect.height / 2;
-            const edgeRadius = containerRect.width / 2 + 8;  // Slightly outside the circle
-            
-            for (const player of playersInWorld) {
-                // Convert player Minecraft coords to Leaflet coords relative to shop's tile
-                const playerCoords = toLeafletCoordsRelative(
-                    player.position.x,
-                    player.position.z,
-                    tileX,
-                    tileZ,
-                    MAP_CONFIG.tileSize
-                );
-                
-                // Check if player is inside visible circle (centered on current map view)
-                const clamped = clampToCircle(
-                    playerCoords.lat,
-                    playerCoords.lng,
-                    mapCenter.lat,
-                    mapCenter.lng,
-                    visibleRadiusMapUnits
-                );
-                
-                if (clamped.clamped) {
-                    // Player is outside visible area - render as DOM element on circle edge
-                    // Calculate angle from map center to player
-                    const dx = playerCoords.lng - mapCenter.lng;
-                    const dy = playerCoords.lat - mapCenter.lat;
-                    const angle = Math.atan2(dy, dx);
-                    
-                    // Calculate distance for size scaling (logarithmic)
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    // Use log scale: closer = larger, further = smaller
-                    // minSize = 4px, maxSize = 12px
-                    // At visibleRadius distance, size = 12px; at 100x that, size = 4px
-                    const minSize = 4;
-                    const maxSize = 12;
-                    const logScale = Math.log10(distance / visibleRadiusMapUnits + 1);
-                    const size = Math.max(minSize, maxSize - logScale * 4);
-                    
-                    // Position on circle edge (CSS uses inverted Y)
-                    const edgeX = centerX + edgeRadius * Math.cos(angle);
-                    const edgeY = centerY - edgeRadius * Math.sin(angle);  // Invert Y for screen coords
-                    
-                    const edgeMarker = document.createElement('div');
-                    edgeMarker.className = 'player-edge-marker';
-                    edgeMarker.title = player.name;
-                    edgeMarker.style.left = `${edgeX}px`;
-                    edgeMarker.style.top = `${edgeY}px`;
-                    edgeMarker.style.width = `${size}px`;
-                    edgeMarker.style.height = `${size}px`;
-                    
-                    const nameLabel = document.createElement('span');
-                    nameLabel.className = 'player-name';
-                    nameLabel.textContent = player.name;
-                    
-                    // Position label based on marker location to avoid clipping
-                    // Angle is in radians: 0 = right, PI/2 = top, PI = left, -PI/2 = bottom
-                    const angleDeg = angle * 180 / Math.PI;
-                    if (angleDeg > 45 && angleDeg < 135) {
-                        // Top edge - label below
-                        nameLabel.classList.add('label-bottom');
-                    } else if (angleDeg < -45 && angleDeg > -135) {
-                        // Bottom edge - label above
-                        nameLabel.classList.add('label-top');
-                    } else if (Math.abs(angleDeg) > 135 || Math.abs(angleDeg) < 45) {
-                        // Left or right edge - label on opposite side
-                        if (edgeX > centerX) {
-                            nameLabel.classList.add('label-left');  // Marker on right, label on left
-                        }
-                        // Default: label on right (marker on left side)
-                    }
-                    
-                    edgeMarker.appendChild(nameLabel);
-                    
-                    dialog.appendChild(edgeMarker);
-                } else {
-                    // Player is inside visible area - render as Leaflet marker
-                    const playerLatLng = L.latLng(playerCoords.lat, playerCoords.lng);
-                    
-                    L.marker(playerLatLng, {
-                        icon: L.divIcon({
-                            className: 'leaflet-player-marker',
-                            html: `<span class="player-name">${player.name}</span>`,
-                            iconSize: [12, 12],
-                            iconAnchor: [6, 6]  // Center of marker
-                        }),
-                        title: player.name
-                    }).addTo(playerMarkersLayer!);
-                }
-            }
-        };
-        
-        // Fetch players and set up dynamic updates
-        fetchPlayers().then(players => {
-            if (!leafletMap) {return;}
-            cachedPlayers = players;
-            updatePlayerMarkers();
-        });
-
-        // Refresh player positions every 5 seconds
-        playerRefreshInterval = setInterval(() => {
-            fetchPlayers().then(players => {
-                if (!leafletMap) {return;}
-                cachedPlayers = players;
-                updatePlayerMarkers();
-            });
-        }, 5000);
-        
-        // Toggle zoomed-out class based on zoom level for image rendering
-        const updateZoomClass = () => {
-            const zoom = leafletMap!.getZoom();
-            // When zoom is below 0.5, we're zoomed out enough that pixelated causes moiré
-            if (zoom < 0.5) {
-                container.classList.add('zoomed-out');
-            } else {
-                container.classList.remove('zoomed-out');
-            }
-        };
-
-        // Update coordinate label and player markers when map is panned or zoomed
-        leafletMap.on('move', () => {
-            updateCoordsLabel();
-            updatePlayerMarkers();
-        });
-        leafletMap.on('zoomend', () => {
-            updateCoordsLabel();
-            updatePlayerMarkers();
-            updateZoomClass();
-        });
-        
-        // Center on the shop's position (marker coords)
-        const shopCenter = L.latLng(markerLat, markerLng);
-        
-        leafletMap.invalidateSize();
-        
-        // Calculate zoom to show ~3x3 tiles (1536 units) for nice initial view
-        const containerSize = leafletMap.getSize();
-        const visibleSize = MAP_CONFIG.tileSize * 3;  // Show 3 tiles × 512 units
-        const smallerDimension = Math.min(containerSize.x, containerSize.y);
-        
-        // Calculate zoom to fit visible area (3x3)
-        const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
-        
-        // Set view centered on shop at initial zoom (showing ~3x3 tiles)
-        leafletMap.setView(shopCenter, initialZoom);
-        
-        // Load initial visible tiles around the shop
-        loadVisibleTiles();
-        
-        // Apply initial zoom class
-        updateZoomClass();
+        setupShopMap({ container, coordsEl, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest });
     });
 }
-/* eslint-enable max-lines-per-function */
 
 // ============================================================================
 // Cart Dialog
@@ -2092,7 +1990,66 @@ function toggleNavigation(): void {
 /**
  * Poll for player position and update the map
  */
-// eslint-disable-next-line complexity
+interface PlayerPosition {
+    x: number;
+    z: number;
+    world: string;
+    yaw?: number;
+}
+
+function hasPositionMoved(prev: PlayerPosition | null, curr: PlayerPosition, threshold: number): boolean {
+    if (!prev) {return true;}
+    return Math.abs(prev.x - curr.x) > threshold || Math.abs(prev.z - curr.z) > threshold;
+}
+
+function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
+    const distanceDisplay = document.getElementById('nav-dialog-distance');
+    if (distanceDisplay) {
+        distanceDisplay.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+    }
+}
+
+async function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | null): Promise<void> {
+    const playerWorld = player.world ? getWorldId(player.world) : 'overworld';
+    currentPlayerPosition = {
+        x: player.position.x,
+        z: player.position.z,
+        world: playerWorld,
+        yaw: player.rotation?.yaw
+    };
+    // @ts-expect-error - exposing for e2e testing
+    window.__currentPlayerPosition = currentPlayerPosition;
+    
+    // Check if we need to switch the map to a different world
+    const fullRoute = computeRoute(currentPlayerPosition, true);
+    const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
+    
+    if (shouldSwitchMapWorld(previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length)) {
+        navCurrentRoute = fullRoute;
+        await initNavigationMapDialog(fullRoute, playerWorld);
+        updateLiveDistance();
+        return;
+    }
+    
+    updatePlayerMarker();
+    updateLiveDistance();
+    checkAutoAdvance();
+    updateNearbyShopTooltip();
+    
+    const positionMoved = hasPositionMoved(previousPosition, currentPlayerPosition, 1);
+    const shouldRecalcRoute = hasPositionMoved(previousPosition, currentPlayerPosition, 10);
+    
+    if (shouldRecalcRoute) {
+        recalculateRouteFromPlayer();
+    }
+    
+    updatePlayerToNextLine();
+    
+    if (navMode === 'follow' && positionMoved) {
+        centerMapOnPlayer();
+    }
+}
+
 async function pollPlayerPosition(): Promise<void> {
     const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
     const playerName = playerNameInput?.value.trim().toLowerCase();
@@ -2107,68 +2064,9 @@ async function pollPlayerPosition(): Promise<void> {
         
         if (player) {
             const previousPosition = currentPlayerPosition;
-            // Use player's world if available, otherwise assume overworld
-            const playerWorld = player.world ? getWorldId(player.world) : 'overworld';
-            currentPlayerPosition = {
-                x: player.position.x,
-                z: player.position.z,
-                world: playerWorld,
-                yaw: player.rotation?.yaw
-            };
-            // @ts-expect-error - exposing for e2e testing
-            window.__currentPlayerPosition = currentPlayerPosition;
-            
-            // Check if we need to switch the map to a different world
-            // Use pure function for testable logic
-            const fullRoute = computeRoute(currentPlayerPosition, true);
-            const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
-            
-            if (shouldSwitchMapWorld(
-                previousPosition?.world,
-                playerWorld,
-                navMapWorld,
-                shopsInPlayerWorld.length
-            )) {
-                // Player entered a world that has shops - switch the map!
-                navCurrentRoute = fullRoute;
-                // Explicitly tell the map to show the player's world
-                await initNavigationMapDialog(fullRoute, playerWorld);
-                updateLiveDistance();
-                return; // Map was reinitialized, skip the rest
-            }
-            
-            updatePlayerMarker();
-            updateLiveDistance();
-            checkAutoAdvance();
-            updateNearbyShopTooltip();
-            
-            // Check if position actually changed (not just rotation)
-            const positionMoved = !previousPosition || 
-                Math.abs(previousPosition.x - currentPlayerPosition.x) > 1 ||
-                Math.abs(previousPosition.z - currentPlayerPosition.z) > 1;
-            
-            // Recalculate route from new player position if position changed significantly
-            const shouldRecalcRoute = !previousPosition || 
-                Math.abs(previousPosition.x - currentPlayerPosition.x) > 10 ||
-                Math.abs(previousPosition.z - currentPlayerPosition.z) > 10;
-            
-            if (shouldRecalcRoute) {
-                recalculateRouteFromPlayer();
-            }
-            
-            // Update the dotted line from player to next stop
-            updatePlayerToNextLine();
-            
-            // In follow mode, center on player only when position moves
-            if (navMode === 'follow' && positionMoved) {
-                centerMapOnPlayer();
-            }
+            await handleFoundPlayer(player, previousPosition);
         } else {
-            // Player not found - show in distance display
-            const distanceDisplay = document.getElementById('nav-dialog-distance');
-            if (distanceDisplay) {
-                distanceDisplay.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
-            }
+            showPlayerNotFound(playerNameInput);
         }
     } catch (error) {
         console.warn('Failed to poll player position:', error);
@@ -2761,14 +2659,7 @@ function getNextShopWorld(route: RouteStop[]): string | null {
  * @param route - The full route (all worlds)
  * @param targetWorld - Optional: force the map to show this world
  */
-// eslint-disable-next-line complexity, max-lines-per-function
-async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
-    const container = document.getElementById('nav-dialog-map-container');
-    if (!container) {
-        return;
-    }
-    
-    // Clean up existing map
+function cleanupNavMap(): void {
     if (navMap) {
         try {
             navMap.remove();
@@ -2776,13 +2667,153 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
             // Map already removed
         }
         navMap = null;
-        navPlayerMarker = null;  // Map removal also removes the marker
+        navPlayerMarker = null;
         navRoutePolyline = null;
         navPlayerToNextLine = null;
     }
     navStopMarkers = [];
+}
+
+function determineWorldToShow(route: RouteStop[], targetWorld?: string): string {
+    if (targetWorld) {
+        const shopsInTarget = route.filter(stop => getWorldId(stop.world) === targetWorld);
+        if (shopsInTarget.length > 0) {
+            return targetWorld;
+        }
+    } else if (currentPlayerPosition) {
+        const playerWorld = currentPlayerPosition.world;
+        const shopsInPlayerWorld = route.filter(stop => getWorldId(stop.world) === playerWorld);
+        if (shopsInPlayerWorld.length > 0) {
+            return playerWorld;
+        }
+    }
+    return getWorldId(route[0]!.world);
+}
+
+interface TileRange {
+    minTileX: number;
+    maxTileX: number;
+    minTileZ: number;
+    maxTileZ: number;
+    centerTileX: number;
+    centerTileZ: number;
+}
+
+function calculateTileRange(stops: RouteStop[]): TileRange {
+    const xs = stops.map(stop => stop.x);
+    const zs = stops.map(stop => stop.z);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
     
-    // Store the full route (all worlds)
+    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, MAP_CONFIG.tileSize);
+    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, MAP_CONFIG.tileSize);
+    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, MAP_CONFIG.tileSize);
+    
+    return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ };
+}
+
+function loadNavMapTiles(
+    manifest: Set<string>, 
+    worldId: string, 
+    tileRange: TileRange, 
+    addedToMap: Set<string>
+): void {
+    if (!navMap) {return;}
+    const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
+    const zoom4TileSize = MAP_CONFIG.tileSize * 16;
+    
+    const getZoom4Coords = (z8x: number, z8z: number) => ({
+        x: Math.floor(z8x / 16),
+        z: Math.floor(z8z / 16)
+    });
+    
+    // Load zoom 4 tiles as base layer
+    const zoom4Tiles = new Set<string>();
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            const z4 = getZoom4Coords(tx, tz);
+            const key = `${z4.x},${z4.z}`;
+            if (!zoom4Tiles.has(key)) {
+                zoom4Tiles.add(key);
+                if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
+                    const startZ8X = z4.x * 16;
+                    const startZ8Z = z4.z * 16;
+                    const dx = startZ8X - centerTileX;
+                    const dy = startZ8Z - centerTileZ;
+                    const bounds: L.LatLngBoundsExpression = [
+                        [-dy * MAP_CONFIG.tileSize - zoom4TileSize, dx * MAP_CONFIG.tileSize],
+                        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + zoom4TileSize]
+                    ];
+                    loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap });
+                }
+            }
+        }
+    }
+    
+    // Load zoom 8 tiles on top
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
+                const relX = tx - centerTileX;
+                const relZ = tz - centerTileZ;
+                const bounds: L.LatLngBoundsExpression = [
+                    [-relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize, relX * MAP_CONFIG.tileSize],
+                    [-relZ * MAP_CONFIG.tileSize, relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
+                ];
+                loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
+            }
+        }
+    }
+}
+
+function createRouteMarkers(
+    stopsInWorld: RouteStop[], 
+    centerTileX: number, 
+    centerTileZ: number, 
+    route: RouteStop[]
+): L.LatLngExpression[] {
+    if (!navMap) {return [];}
+    const routePoints: L.LatLngExpression[] = [];
+    navStopMarkers = [];
+    
+    for (let i = 0; i < stopsInWorld.length; i++) {
+        const stop = stopsInWorld[i]!;
+        const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
+        routePoints.push([lat, lng]);
+        
+        const markerIcon = L.divIcon({
+            className: 'nav-route-marker',
+            html: `<div class="nav-marker">${i + 1}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        });
+        
+        const tooltipText = stop.cartItem 
+            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+            : `Stop ${i + 1}`;
+        
+        const marker = L.marker([lat, lng], { icon: markerIcon })
+            .bindTooltip(tooltipText, { permanent: false, direction: 'top', offset: [0, -18] })
+            .addTo(navMap);
+        
+        marker.on('click', () => toggleStopCompletion(stop, route));
+        navStopMarkers.push(marker);
+    }
+    
+    return routePoints;
+}
+
+async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
+    const container = document.getElementById('nav-dialog-map-container');
+    if (!container) {
+        return;
+    }
+    
+    cleanupNavMap();
     navCurrentRoute = route;
     
     if (route.length === 0) {
@@ -2791,62 +2822,18 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         return;
     }
     
-    // Clear container
     container.innerHTML = '';
     
-    // Determine which world to show:
-    // 1. If targetWorld is specified, use it (if it has shops)
-    // 2. If player is in a world that has shops, use that world
-    // 3. Otherwise, use the world of the first shop
-    let worldToShow: string;
-    
-    if (targetWorld) {
-        const shopsInTarget = route.filter(stop => getWorldId(stop.world) === targetWorld);
-        if (shopsInTarget.length > 0) {
-            worldToShow = targetWorld;
-        } else {
-            worldToShow = getWorldId(route[0]!.world);
-        }
-    } else if (currentPlayerPosition) {
-        const playerWorld = currentPlayerPosition.world;
-        const shopsInPlayerWorld = route.filter(stop => getWorldId(stop.world) === playerWorld);
-        if (shopsInPlayerWorld.length > 0) {
-            worldToShow = playerWorld;
-        } else {
-            worldToShow = getWorldId(route[0]!.world);
-        }
-    } else {
-        worldToShow = getWorldId(route[0]!.world);
-    }
-    
+    const worldToShow = determineWorldToShow(route, targetWorld);
     navMapWorld = worldToShow;
     
-    // Filter route to shops in the target world only
     const stopsInWorld = route.filter(stop => getWorldId(stop.world) === worldToShow);
     navCurrentWorldRoute = stopsInWorld;
     
-    // Calculate bounds of shops in this world
-    const xs = stopsInWorld.map(stop => stop.x);
-    const zs = stopsInWorld.map(stop => stop.z);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minZ = Math.min(...zs);
-    const maxZ = Math.max(...zs);
+    const tileRange = calculateTileRange(stopsInWorld);
+    navMapCenterTileX = tileRange.centerTileX;
+    navMapCenterTileZ = tileRange.centerTileZ;
     
-    // Calculate center and which tiles we need
-    const centerX = (minX + maxX) / 2;
-    const centerZ = (minZ + maxZ) / 2;
-    
-    // Calculate the tile range needed
-    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, MAP_CONFIG.tileSize);
-    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, MAP_CONFIG.tileSize);
-    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, MAP_CONFIG.tileSize);
-    
-    // Store center tile coords for coordinate conversion in live navigation
-    navMapCenterTileX = centerTileX;
-    navMapCenterTileZ = centerTileZ;
-    
-    // Create map
     navMap = L.map(container, {
         crs: L.CRS.Simple,
         minZoom: -5,
@@ -2856,122 +2843,24 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         maxBoundsViscosity: 1
     });
     
-    // Expose navMap for testing purposes
     // @ts-expect-error - exposing for e2e testing
     window.__navMap = navMap;
     // @ts-expect-error - exposing for e2e testing
     window.__navMapWorld = navMapWorld;
     
-    // Listen for user drag to switch to manual mode
     navMap.on('dragstart', () => {
         if (isNavigating) {
             switchToManualMode();
         }
     });
     
-    // Load tile manifest (uses global cache)
     const manifest = await loadTileManifest();
-    
-    // Track tiles added to this map instance
     const addedToNavMap = new Set<string>();
     
-    // Zoom 4 tile size in map units
-    const zoom4TileSize = MAP_CONFIG.tileSize * 16;
+    loadNavMapTiles(manifest, worldToShow, tileRange, addedToNavMap);
     
-    // Calculate zoom 4 tile coords from zoom 8 coords
-    const getZoom4Coords = (z8x: number, z8z: number) => ({
-        x: Math.floor(z8x / 16),
-        z: Math.floor(z8z / 16)
-    });
+    const routePoints = createRouteMarkers(stopsInWorld, tileRange.centerTileX, tileRange.centerTileZ, route);
     
-    // First load zoom 4 tiles as base layer
-    const zoom4Tiles = new Set<string>();
-    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
-        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            const z4 = getZoom4Coords(tx, tz);
-            const key = `${z4.x},${z4.z}`;
-            if (!zoom4Tiles.has(key)) {
-                zoom4Tiles.add(key);
-                
-                // Check if zoom 4 tile exists in manifest (blocksPerTile = 8192)
-                if (tileExistsInManifest(manifest, worldToShow, 8192, z4.x, z4.z)) {
-                    // Calculate bounds for zoom 4 tile
-                    const startZ8X = z4.x * 16;
-                    const startZ8Z = z4.z * 16;
-                    const dx = startZ8X - centerTileX;
-                    const dy = startZ8Z - centerTileZ;
-                    const south = -dy * MAP_CONFIG.tileSize - zoom4TileSize;
-                    const north = -dy * MAP_CONFIG.tileSize;
-                    const west = dx * MAP_CONFIG.tileSize;
-                    const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
-                    const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-                    
-                    loadTileToMap(navMap, worldToShow, 4, z4.x, z4.z, bounds, addedToNavMap);
-                }
-            }
-        }
-    }
-    
-    // Then load zoom 8 tiles on top
-    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
-        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            // Check if zoom 8 tile exists in manifest (blocksPerTile = 512)
-            if (tileExistsInManifest(manifest, worldToShow, 512, tx, tz)) {
-                // Bounds relative to center tile
-                const relX = tx - centerTileX;
-                const relZ = tz - centerTileZ;
-                const south = -relZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize;
-                const north = -relZ * MAP_CONFIG.tileSize;
-                const west = relX * MAP_CONFIG.tileSize;
-                const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
-                const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
-                
-                loadTileToMap(navMap, worldToShow, 8, tx, tz, bounds, addedToNavMap);
-            }
-        }
-    }
-    
-    // Convert route stops to Leaflet coordinates
-    const routePoints: L.LatLngExpression[] = [];
-    
-    // Clear old markers
-    navStopMarkers = [];
-    
-    for (let i = 0; i < stopsInWorld.length; i++) {
-        const stop = stopsInWorld[i]!;
-        const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
-        routePoints.push([lat, lng]);
-        
-        // Add numbered marker for each stop (no origin marker since we start from player)
-        const markerIcon = L.divIcon({
-            className: 'nav-route-marker',
-            html: `<div class="nav-marker">${i + 1}</div>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
-        });
-        
-        // Tooltip shows item name on hover
-        const tooltipText = stop.cartItem 
-            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-            : `Stop ${i + 1}`;
-        
-        const marker = L.marker([lat, lng], { icon: markerIcon })
-            .bindTooltip(tooltipText, { 
-                permanent: false,
-                direction: 'top',
-                offset: [0, -18]
-            })
-            .addTo(navMap);
-        
-        // Click marker to toggle completion during navigation
-        marker.on('click', () => {
-            toggleStopCompletion(stop, route);
-        });
-        
-        navStopMarkers.push(marker);
-    }
-    
-    // Draw polyline connecting all stops
     navRoutePolyline = L.polyline(routePoints, {
         color: '#3b82f6',
         weight: 3,
@@ -2979,7 +2868,6 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         dashArray: '10, 5'
     }).addTo(navMap);
     
-    // Fit map to show all stops with padding
     if (routePoints.length > 0) {
         const bounds = L.latLngBounds(routePoints);
         navMap.fitBounds(bounds, { padding: [50, 50] });
