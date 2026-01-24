@@ -34,7 +34,8 @@ import {
     calculateRouteDistance,
     computeOptimalOrder,
     isNether,
-    getTradeKey
+    getTradeKey,
+    shouldSwitchMapWorld
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -2110,25 +2111,23 @@ async function pollPlayerPosition(): Promise<void> {
                 yaw: player.rotation?.yaw
             };
             
-            // Check if player changed worlds
-            const worldChanged = previousPosition && previousPosition.world !== playerWorld;
-            
             // Check if we need to switch the map to a different world
-            // Design: When player enters a world that has uncompleted shops, show that world's map
-            if (worldChanged && playerWorld !== navMapWorld) {
-                const fullRoute = computeRoute(currentPlayerPosition, true);
-                
-                // Check if there are any shops in the player's current world
-                const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
-                
-                if (shopsInPlayerWorld.length > 0) {
-                    // Player entered a world that has shops - switch the map!
-                    navCurrentRoute = fullRoute;
-                    // Explicitly tell the map to show the player's world
-                    await initNavigationMapDialog(fullRoute, playerWorld);
-                    updateLiveDistance();
-                    return; // Map was reinitialized, skip the rest
-                }
+            // Use pure function for testable logic
+            const fullRoute = computeRoute(currentPlayerPosition, true);
+            const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
+            
+            if (shouldSwitchMapWorld(
+                previousPosition?.world,
+                playerWorld,
+                navMapWorld,
+                shopsInPlayerWorld.length
+            )) {
+                // Player entered a world that has shops - switch the map!
+                navCurrentRoute = fullRoute;
+                // Explicitly tell the map to show the player's world
+                await initNavigationMapDialog(fullRoute, playerWorld);
+                updateLiveDistance();
+                return; // Map was reinitialized, skip the rest
             }
             
             updatePlayerMarker();

@@ -825,6 +825,40 @@ export function getWorldId(world: string): string {
 }
 
 /**
+ * Determine if the navigation map should switch to a different world.
+ * 
+ * @param previousWorld - The world the player was in before (normalized)
+ * @param currentWorld - The world the player is now in (normalized)
+ * @param currentMapWorld - The world the map is currently showing (normalized)
+ * @param shopsInCurrentWorld - Number of uncompleted shops in the player's current world
+ * @returns true if the map should switch to show the player's current world
+ */
+export function shouldSwitchMapWorld(
+    previousWorld: string | undefined,
+    currentWorld: string,
+    currentMapWorld: string,
+    shopsInCurrentWorld: number
+): boolean {
+    // No previous position - can't determine if world changed
+    if (!previousWorld) {
+        return false;
+    }
+    
+    // Player didn't change worlds
+    if (previousWorld === currentWorld) {
+        return false;
+    }
+    
+    // Map is already showing the player's current world
+    if (currentWorld === currentMapWorld) {
+        return false;
+    }
+    
+    // Player changed worlds AND map is showing different world AND there are shops in player's world
+    return shopsInCurrentWorld > 0;
+}
+
+/**
  * Calculate which tile contains the given coordinates
  */
 export function getTileCoords(x: number, z: number, tileSize: number = 512): { tileX: number; tileZ: number } {
