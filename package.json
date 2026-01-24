@@ -17,6 +17,7 @@
     "test:bdd:headed": "npx bddgen && playwright test --headed",
     "test:bdd:ui": "npx bddgen && playwright test --ui",
     "test:all": "npm run test && npm run test:e2e && npm run test:bdd",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "lint:css": "stylelint styles.css",
     "lint:html": "htmlhint index.html",

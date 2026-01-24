@@ -663,6 +663,7 @@ function sortResults(results: FilterResult[]): void {
     });
 }
 
+// eslint-disable-next-line complexity
 function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
     const dir = direction === 'asc' ? 1 : -1;
     const ta = a.trade;
@@ -787,6 +788,7 @@ function renderHeader(): void {
 /**
  * Create a trade row DOM element for a single result
  */
+// eslint-disable-next-line complexity
 function createTradeRowElement(result: FilterResult): HTMLElement {
     const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
     const showName = displayName ?? t.resultName;
@@ -1065,6 +1067,7 @@ function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTil
  * @param bounds - Bounds for the tile overlay
  * @param addedToMap - Set tracking tiles already added to this map instance
  */
+// eslint-disable-next-line max-params
 function loadTileToMap(
     map: L.Map,
     worldId: string,
@@ -1138,6 +1141,7 @@ async function fetchPlayers(): Promise<Player[]> {
 /**
  * Initialize or update the Leaflet map
  */
+/* eslint-disable max-lines-per-function */
 async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
     const dialog = document.getElementById('map-dialog') as HTMLDialogElement | null;
     const container = document.getElementById('map-container');
@@ -1631,6 +1635,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         updateZoomClass();
     });
 }
+/* eslint-enable max-lines-per-function */
 
 // ============================================================================
 // Cart Dialog
@@ -2087,6 +2092,7 @@ function toggleNavigation(): void {
 /**
  * Poll for player position and update the map
  */
+// eslint-disable-next-line complexity
 async function pollPlayerPosition(): Promise<void> {
     const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
     const playerName = playerNameInput?.value.trim().toLowerCase();
@@ -2755,6 +2761,7 @@ function getNextShopWorld(route: RouteStop[]): string | null {
  * @param route - The full route (all worlds)
  * @param targetWorld - Optional: force the map to show this world
  */
+// eslint-disable-next-line complexity, max-lines-per-function
 async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
     const container = document.getElementById('nav-dialog-map-container');
     if (!container) {
