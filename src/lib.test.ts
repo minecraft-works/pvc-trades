@@ -35,7 +35,9 @@ import {
     toLeafletCoords,
     toLeafletCoordsRelative,
     fromLeafletCoordsRelative,
-    clampToCircle
+    clampToCircle,
+    isNether,
+    getTradeKey
 } from './lib.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 
@@ -902,6 +904,34 @@ describe('getWorldId', () => {
         expect(getWorldId('the_end')).toBe('the_end');
         expect(getWorldId('end')).toBe('the_end');
     });
+
+    test('returns overworld for World (capitalized)', () => {
+        expect(getWorldId('World')).toBe('overworld');
+    });
+
+    test('returns the_nether for World_nether', () => {
+        expect(getWorldId('World_nether')).toBe('the_nether');
+    });
+
+    test('returns the_end for World_the_end', () => {
+        expect(getWorldId('World_the_end')).toBe('the_end');
+    });
+
+    test('handles empty string as overworld', () => {
+        expect(getWorldId('')).toBe('overworld');
+    });
+
+    test('handles mixed case nether variants', () => {
+        expect(getWorldId('THE_NETHER')).toBe('the_nether');
+        expect(getWorldId('The_Nether')).toBe('the_nether');
+        expect(getWorldId('NETHER')).toBe('the_nether');
+    });
+
+    test('handles mixed case end variants', () => {
+        expect(getWorldId('THE_END')).toBe('the_end');
+        expect(getWorldId('The_End')).toBe('the_end');
+        expect(getWorldId('END')).toBe('the_end');
+    });
 });
 
 describe('getTileCoords', () => {
@@ -1586,4 +1616,94 @@ describe('computeOptimalOrder', () => {
         
         // Overworld point (100,0) is closer than nether point (OW-equiv 400,0)
         expect(order[0]).toBe(0);
-    });});
+    });
+});
+
+// ============================================================================
+// isNether tests
+// ============================================================================
+
+describe('isNether', () => {
+    test('returns true for "the_nether"', () => {
+        expect(isNether('the_nether')).toBe(true);
+    });
+
+    test('returns true for "nether"', () => {
+        expect(isNether('nether')).toBe(true);
+    });
+
+    test('returns true for "World_nether"', () => {
+        expect(isNether('World_nether')).toBe(true);
+    });
+
+    test('returns true for "THE_NETHER" (case insensitive)', () => {
+        expect(isNether('THE_NETHER')).toBe(true);
+    });
+
+    test('returns false for "overworld"', () => {
+        expect(isNether('overworld')).toBe(false);
+    });
+
+    test('returns false for "the_end"', () => {
+        expect(isNether('the_end')).toBe(false);
+    });
+
+    test('returns false for empty string', () => {
+        expect(isNether('')).toBe(false);
+    });
+
+    test('returns false for "World"', () => {
+        expect(isNether('World')).toBe(false);
+    });
+});
+
+// ============================================================================
+// getTradeKey tests
+// ============================================================================
+
+describe('getTradeKey', () => {
+    test('generates key from trade coordinates and items', () => {
+        const trade = {
+            x: 100,
+            y: 64,
+            z: -200,
+            world: 'overworld',
+            costName: 'diamond',
+            resultName: 'emerald'
+        };
+        expect(getTradeKey(trade)).toBe('100,64,-200,overworld,emerald,diamond');
+    });
+
+    test('different coordinates produce different keys', () => {
+        const trade1 = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        const trade2 = { x: 101, y: 64, z: 200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        expect(getTradeKey(trade1)).not.toBe(getTradeKey(trade2));
+    });
+
+    test('different worlds produce different keys', () => {
+        const trade1 = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        const trade2 = { x: 100, y: 64, z: 200, world: 'the_nether', costName: 'diamond', resultName: 'emerald' };
+        expect(getTradeKey(trade1)).not.toBe(getTradeKey(trade2));
+    });
+
+    test('different items produce different keys', () => {
+        const trade1 = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        const trade2 = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'gold ingot', resultName: 'emerald' };
+        expect(getTradeKey(trade1)).not.toBe(getTradeKey(trade2));
+    });
+
+    test('same trade produces same key', () => {
+        const trade = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        expect(getTradeKey(trade)).toBe(getTradeKey(trade));
+    });
+
+    test('handles negative coordinates', () => {
+        const trade = { x: -100, y: 64, z: -200, world: 'overworld', costName: 'diamond', resultName: 'emerald' };
+        expect(getTradeKey(trade)).toBe('-100,64,-200,overworld,emerald,diamond');
+    });
+
+    test('handles item names with spaces', () => {
+        const trade = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'gold ingot', resultName: 'iron block' };
+        expect(getTradeKey(trade)).toBe('100,64,200,overworld,iron block,gold ingot');
+    });
+});

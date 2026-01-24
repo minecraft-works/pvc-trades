@@ -795,13 +795,30 @@ export function getTrustedItemValue(
 // ============================================================================
 
 /**
+ * Check if a world name represents the Nether dimension
+ */
+export function isNether(world: string): boolean {
+    return world.toLowerCase().includes('nether');
+}
+
+/**
+ * Generate a unique key for a trade based on its coordinates and items
+ * Used for cart persistence and navigation progress tracking
+ */
+export function getTradeKey(trade: { x: number; y: number; z: number; world: string; costName: string; resultName: string }): string {
+    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
+}
+
+/**
  * Get world ID for tile URL from world name
+ * Handles various Minecraft world name formats case-insensitively
  */
 export function getWorldId(world: string): string {
-    if (world.includes('nether')) {
+    const lower = world.toLowerCase();
+    if (lower.includes('nether')) {
         return 'the_nether';
     }
-    if (world.includes('end')) {
+    if (lower.includes('end')) {
         return 'the_end';
     }
     return 'overworld';

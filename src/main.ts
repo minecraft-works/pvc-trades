@@ -32,7 +32,9 @@ import {
     fromLeafletCoordsRelative,
     clampToCircle,
     calculateRouteDistance,
-    computeOptimalOrder
+    computeOptimalOrder,
+    isNether,
+    getTradeKey
 } from './lib.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
@@ -177,13 +179,6 @@ const DEVIATION_MAX_PERCENT = 999;
 // ============================================================================
 // Shopping Cart Functions
 // ============================================================================
-
-/**
- * Generate a unique key for a trade (used to detect duplicates)
- */
-function getTradeKey(trade: Trade): string {
-    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
-}
 
 /**
  * Load cart from localStorage
@@ -436,13 +431,6 @@ function getShoppingList(): ShoppingList {
     }
     
     return { costs, gains };
-}
-
-/**
- * Check if a point is in the nether
- */
-function isNether(world: string): boolean {
-    return world.toLowerCase().includes('nether');
 }
 
 interface RouteOrigin {
@@ -2114,6 +2102,27 @@ async function pollPlayerPosition(): Promise<void> {
                 yaw: player.rotation?.yaw
             };
             
+            // Check if player changed worlds
+            const worldChanged = previousPosition && previousPosition.world !== playerWorld;
+            
+            // Check if we need to switch the map to a different world
+            // This happens when:
+            // 1. Player enters a new world AND
+            // 2. The next shop in the route is in that world
+            if (worldChanged) {
+                const fullRoute = computeRoute(currentPlayerPosition, true);
+                const nextShopWorld = getNextShopWorld(fullRoute);
+                
+                if (nextShopWorld && nextShopWorld === playerWorld && nextShopWorld !== navMapWorld) {
+                    // Player entered the world where their next shop is - switch the map!
+                    // Store full route before reinitializing
+                    navCurrentRoute = fullRoute;
+                    await initNavigationMapDialog(fullRoute);
+                    updateLiveDistance();
+                    return; // Map was reinitialized, skip the rest
+                }
+            }
+            
             updatePlayerMarker();
             updateLiveDistance();
             checkAutoAdvance();
@@ -2215,13 +2224,16 @@ function updatePlayerMarker(): void {
 
 /**
  * Recalculate route from the current player position and update the map
+ * 
+ * This only updates markers/polylines for the CURRENT world shown on the map.
+ * For world switching, see pollPlayerPosition and checkAutoAdvance.
  */
 function recalculateRouteFromPlayer(): void {
     if (!navMap || !currentPlayerPosition) {
         return;
     }
     
-    // Only recalculate if player is in the same world as the map
+    // Only recalculate map visuals if player is in the same world as the map
     if (currentPlayerPosition.world !== navMapWorld) {
         return;
     }
@@ -2229,13 +2241,16 @@ function recalculateRouteFromPlayer(): void {
     // Compute new route from player position, excluding completed items
     const fullRoute = computeRoute(currentPlayerPosition, true);
     
-    // Filter to only stops in the current map world
-    const newRoute = fullRoute.filter(stop => getWorldId(stop.world) === navMapWorld);
+    // Update the full route
+    navCurrentRoute = fullRoute;
     
-    // Check if route order actually changed
-    const routeChanged = navCurrentRoute.length !== newRoute.length ||
-        newRoute.some((stop, i) => {
-            const oldStop = navCurrentRoute[i];
+    // Filter to only stops in the current map world for display
+    const worldRoute = fullRoute.filter(stop => getWorldId(stop.world) === navMapWorld);
+    
+    // Check if route order actually changed compared to what's displayed
+    const routeChanged = navCurrentWorldRoute.length !== worldRoute.length ||
+        worldRoute.some((stop, i) => {
+            const oldStop = navCurrentWorldRoute[i];
             return !oldStop || stop.x !== oldStop.x || stop.z !== oldStop.z;
         });
     
@@ -2243,7 +2258,7 @@ function recalculateRouteFromPlayer(): void {
         return; // No need to update if route order is the same
     }
     
-    navCurrentRoute = newRoute;
+    navCurrentWorldRoute = worldRoute;
     
     // Remove old route polyline
     if (navRoutePolyline) {
@@ -2257,12 +2272,12 @@ function recalculateRouteFromPlayer(): void {
     }
     navStopMarkers = [];
     
-    // Draw new route if we have stops
-    if (newRoute.length > 0) {
+    // Draw new route if we have stops in this world
+    if (worldRoute.length > 0) {
         const routePoints: L.LatLngExpression[] = [];
         
-        for (let i = 0; i < newRoute.length; i++) {
-            const stop = newRoute[i]!;
+        for (let i = 0; i < worldRoute.length; i++) {
+            const stop = worldRoute[i]!;
             const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, navMapCenterTileX, navMapCenterTileZ, MAP_CONFIG.tileSize);
             routePoints.push([lat, lng]);
             
@@ -2300,6 +2315,7 @@ function recalculateRouteFromPlayer(): void {
 
 /**
  * Update the dotted line from player to the next stop
+ * Only draws the line when player is in the same world as the map
  */
 function updatePlayerToNextLine(): void {
     if (!navMap || !currentPlayerPosition) {
@@ -2312,12 +2328,17 @@ function updatePlayerToNextLine(): void {
         navPlayerToNextLine = null;
     }
     
-    // First stop is always the current target (completed items are filtered out)
-    if (navCurrentRoute.length === 0) {
-        return; // No next stop
+    // Only draw line if player is in the same world as the map
+    if (currentPlayerPosition.world !== navMapWorld) {
+        return;
     }
     
-    const nextStop = navCurrentRoute[0]!;
+    // Use world-filtered route for the line (shows connection to next stop in THIS world)
+    if (navCurrentWorldRoute.length === 0) {
+        return; // No stops in this world
+    }
+    
+    const nextStop = navCurrentWorldRoute[0]!;
     
     // Get player position in Leaflet coordinates
     const playerCoords = toLeafletCoordsRelative(
@@ -2375,6 +2396,10 @@ function updateLiveDistance(): void {
     } else {
         // First stop is always the current target (completed items are filtered out)
         const currentStop = route[0]!;
+        const playerWorld = getWorldId(currentPlayerPosition.world);
+        const stopWorld = getWorldId(currentStop.world);
+        const isSameWorld = playerWorld === stopWorld;
+        
         const distance = calculateRouteDistance(
             currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
             currentStop.x, currentStop.z, currentStop.world
@@ -2383,30 +2408,60 @@ function updateLiveDistance(): void {
         const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
         const quantity = currentStop.cartItem?.quantity ?? 1;
         
-        // Simple display for embedded distance (in cart dialog)
-        distanceHtml = `
-            <span class="distance-label">→ ${itemName}:</span>
-            <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
-        `;
+        // Format world name for display
+        const worldDisplayName = stopWorld === 'the_nether' ? 'the Nether' 
+            : stopWorld === 'the_end' ? 'the End' 
+            : 'Overworld';
+        
+        if (isSameWorld) {
+            // Player is in same world as next shop - show distance
+            distanceHtml = `
+                <span class="distance-label">→ ${itemName}:</span>
+                <span class="distance-value">${Math.round(distance).toLocaleString()} blocks</span>
+            `;
+        } else {
+            // Player is in different world - show travel instruction
+            distanceHtml = `
+                <span class="distance-label">🌍 Travel to ${worldDisplayName}</span>
+                <span class="distance-value">→ ${itemName}</span>
+            `;
+        }
         
         // Detailed display for navigation dialog with coords and items
         const coordsText = `${currentStop.x}, ${currentStop.y}, ${currentStop.z}`;
         const buyText = `${quantity}× ${itemName}`;
         
-        dialogHtml = `
-            <div class="nav-info-row">
-                <span class="nav-info-label">📍</span>
-                <span class="nav-info-coords">${coordsText}</span>
-            </div>
-            <div class="nav-info-row">
-                <span class="nav-info-label">🛒</span>
-                <span class="nav-info-item">${buyText}</span>
-            </div>
-            <div class="nav-info-row">
-                <span class="nav-info-label">↗</span>
-                <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
-            </div>
-        `;
+        if (isSameWorld) {
+            dialogHtml = `
+                <div class="nav-info-row">
+                    <span class="nav-info-label">📍</span>
+                    <span class="nav-info-coords">${coordsText}</span>
+                </div>
+                <div class="nav-info-row">
+                    <span class="nav-info-label">🛒</span>
+                    <span class="nav-info-item">${buyText}</span>
+                </div>
+                <div class="nav-info-row">
+                    <span class="nav-info-label">↗</span>
+                    <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
+                </div>
+            `;
+        } else {
+            dialogHtml = `
+                <div class="nav-info-row">
+                    <span class="nav-info-label">🌍</span>
+                    <span class="nav-info-world">Travel to ${worldDisplayName}</span>
+                </div>
+                <div class="nav-info-row">
+                    <span class="nav-info-label">📍</span>
+                    <span class="nav-info-coords">${coordsText}</span>
+                </div>
+                <div class="nav-info-row">
+                    <span class="nav-info-label">🛒</span>
+                    <span class="nav-info-item">${buyText}</span>
+                </div>
+            `;
+        }
     }
     
     if (liveDistance) {
@@ -2439,7 +2494,19 @@ function checkAutoAdvance(): void {
         saveNavProgress();
         
         // Recalculate route to remove completed item
-        recalculateRouteFromPlayer();
+        const fullRoute = computeRoute(currentPlayerPosition, true);
+        navCurrentRoute = fullRoute;
+        
+        // Check if the next shop is in a different world - if so, switch the map
+        const nextWorld = getNextShopWorld(fullRoute);
+        if (nextWorld && nextWorld !== navMapWorld) {
+            // Next shop is in a different world - reinitialize map for that world
+            void initNavigationMapDialog(fullRoute);
+        } else {
+            // Same world - just update markers and polylines
+            recalculateRouteFromPlayer();
+        }
+        
         updatePlayerToNextLine();
         updateLiveDistance();
         renderCartDialog();
@@ -2533,6 +2600,11 @@ function centerMapOnPlayer(): void {
         return;
     }
     
+    // Only center on player if they're in the same world as the map
+    if (currentPlayerPosition.world !== navMapWorld) {
+        return;
+    }
+    
     const { lat, lng } = toLeafletCoordsRelative(
         currentPlayerPosition.x,
         currentPlayerPosition.z,
@@ -2541,8 +2613,8 @@ function centerMapOnPlayer(): void {
         MAP_CONFIG.tileSize
     );
     
-    // Calculate distance to nearest non-completed shop
-    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
+    // Calculate distance to nearest non-completed shop IN THIS WORLD
+    const route = navCurrentWorldRoute.length > 0 ? navCurrentWorldRoute : [];
     let minDistance = Infinity;
     for (const stop of route) {
         const dx = currentPlayerPosition.x - stop.x;
@@ -2642,11 +2714,27 @@ let navMap: L.Map | null = null;
 let navRoutePolyline: L.Polyline | null = null;
 let navPlayerToNextLine: L.Polyline | null = null;
 let navStopMarkers: L.Marker[] = [];
-let navCurrentRoute: RouteStop[] = [];
-let navMapWorld: string = 'overworld';  // World shown on nav map
+let navCurrentRoute: RouteStop[] = [];  // Full route (all worlds)
+let navCurrentWorldRoute: RouteStop[] = [];  // Route filtered to current map world
+let navMapWorld: string = 'overworld';  // World currently shown on nav map
 
 /**
- * Initialize navigation map inside the circular dialog
+ * Get the world of the next uncompleted shop in the route.
+ * This determines which world the map should show.
+ */
+function getNextShopWorld(route: RouteStop[]): string | null {
+    if (route.length === 0) {
+        return null;
+    }
+    return getWorldId(route[0]!.world);
+}
+
+/**
+ * Initialize navigation map inside the circular dialog.
+ * 
+ * Design principle: The map shows the world where the NEXT UNCOMPLETED shop is.
+ * - If player is in that world: player marker is visible
+ * - If player is in different world: player marker is hidden, UI shows "Travel to [World]"
  */
 async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     const container = document.getElementById('nav-dialog-map-container');
@@ -2662,44 +2750,32 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
             // Map already removed
         }
         navMap = null;
+        navPlayerMarker = null;  // Map removal also removes the marker
+        navRoutePolyline = null;
+        navPlayerToNextLine = null;
     }
+    navStopMarkers = [];
+    
+    // Store the full route (all worlds)
+    navCurrentRoute = route;
     
     if (route.length === 0) {
         container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>';
+        navCurrentWorldRoute = [];
         return;
     }
     
     // Clear container
     container.innerHTML = '';
     
-    // Determine which world to show based on player position and available shops
-    // Priority: 
-    // 1. If player is in a world that has shops, show that world
-    // 2. Otherwise, show the world of the first shop in the route
-    const playerWorld = currentPlayerPosition?.world ?? null;  // Already normalized
-    const routeWorlds = new Set(route.map(stop => getWorldId(stop.world)));
+    // DESIGN: Map shows the world of the FIRST (next) shop in the route
+    // This ensures the player always sees their destination
+    const targetWorld = getWorldId(route[0]!.world);
+    navMapWorld = targetWorld;
     
-    let primaryWorld: string;
-    if (playerWorld && routeWorlds.has(playerWorld)) {
-        // Player is in a world that has shops - show that world
-        primaryWorld = playerWorld;
-    } else {
-        // Player is not in a world with shops - show the first shop's world
-        primaryWorld = getWorldId(route[0]!.world);
-    }
-    navMapWorld = primaryWorld;  // Store for use in route recalculation
-    
-    // Filter route to shops in the primary world only
-    // Shops in other worlds will need separate navigation
-    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === primaryWorld);
-    
-    if (stopsInWorld.length === 0) {
-        container.innerHTML = '<p class="cart-empty" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No shops in current world</p>';
-        return;
-    }
-    
-    // Store filtered route for navigation
-    navCurrentRoute = stopsInWorld;
+    // Filter route to shops in the target world only
+    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === targetWorld);
+    navCurrentWorldRoute = stopsInWorld;
     
     // Calculate bounds of shops in this world
     const xs = stopsInWorld.map(stop => stop.x);
@@ -2764,7 +2840,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 zoom4Tiles.add(key);
                 
                 // Check if zoom 4 tile exists in manifest (blocksPerTile = 8192)
-                if (tileExistsInManifest(manifest, primaryWorld, 8192, z4.x, z4.z)) {
+                if (tileExistsInManifest(manifest, targetWorld, 8192, z4.x, z4.z)) {
                     // Calculate bounds for zoom 4 tile
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
@@ -2776,7 +2852,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                     const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
                     const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                     
-                    loadTileToMap(navMap, primaryWorld, 4, z4.x, z4.z, bounds, addedToNavMap);
+                    loadTileToMap(navMap, targetWorld, 4, z4.x, z4.z, bounds, addedToNavMap);
                 }
             }
         }
@@ -2786,7 +2862,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             // Check if zoom 8 tile exists in manifest (blocksPerTile = 512)
-            if (tileExistsInManifest(manifest, primaryWorld, 512, tx, tz)) {
+            if (tileExistsInManifest(manifest, targetWorld, 512, tx, tz)) {
                 // Bounds relative to center tile
                 const relX = tx - centerTileX;
                 const relZ = tz - centerTileZ;
@@ -2796,7 +2872,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
                 const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                 
-                loadTileToMap(navMap, primaryWorld, 8, tx, tz, bounds, addedToNavMap);
+                loadTileToMap(navMap, targetWorld, 8, tx, tz, bounds, addedToNavMap);
             }
         }
     }
