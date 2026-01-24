@@ -37,7 +37,8 @@ import {
     fromLeafletCoordsRelative,
     clampToCircle,
     isNether,
-    getTradeKey
+    getTradeKey,
+    shouldSwitchMapWorld
 } from './lib.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 
@@ -1705,5 +1706,61 @@ describe('getTradeKey', () => {
     test('handles item names with spaces', () => {
         const trade = { x: 100, y: 64, z: 200, world: 'overworld', costName: 'gold ingot', resultName: 'iron block' };
         expect(getTradeKey(trade)).toBe('100,64,200,overworld,iron block,gold ingot');
+    });
+});
+
+// ============================================================================
+// shouldSwitchMapWorld tests
+// ============================================================================
+
+describe('shouldSwitchMapWorld', () => {
+    // Basic cases - should NOT switch
+    test('returns false when no previous position (first poll)', () => {
+        expect(shouldSwitchMapWorld(undefined, 'the_nether', 'overworld', 5)).toBe(false);
+    });
+
+    test('returns false when player stayed in same world', () => {
+        expect(shouldSwitchMapWorld('overworld', 'overworld', 'overworld', 5)).toBe(false);
+    });
+
+    test('returns false when map already shows player world', () => {
+        expect(shouldSwitchMapWorld('overworld', 'the_nether', 'the_nether', 5)).toBe(false);
+    });
+
+    test('returns false when no shops in player new world', () => {
+        expect(shouldSwitchMapWorld('overworld', 'the_nether', 'overworld', 0)).toBe(false);
+    });
+
+    // Cases where it SHOULD switch
+    test('returns true when player enters nether with nether shops', () => {
+        expect(shouldSwitchMapWorld('overworld', 'the_nether', 'overworld', 3)).toBe(true);
+    });
+
+    test('returns true when player returns to overworld with overworld shops', () => {
+        expect(shouldSwitchMapWorld('the_nether', 'overworld', 'the_nether', 10)).toBe(true);
+    });
+
+    test('returns true when player enters the_end with end shops', () => {
+        expect(shouldSwitchMapWorld('overworld', 'the_end', 'overworld', 1)).toBe(true);
+    });
+
+    // Edge cases
+    test('returns true with exactly 1 shop in new world', () => {
+        expect(shouldSwitchMapWorld('overworld', 'the_nether', 'overworld', 1)).toBe(true);
+    });
+
+    test('handles multiple world transitions correctly', () => {
+        // overworld -> nether (with nether shops)
+        expect(shouldSwitchMapWorld('overworld', 'the_nether', 'overworld', 5)).toBe(true);
+        // nether -> end (with end shops)
+        expect(shouldSwitchMapWorld('the_nether', 'the_end', 'the_nether', 2)).toBe(true);
+        // end -> overworld (with overworld shops)
+        expect(shouldSwitchMapWorld('the_end', 'overworld', 'the_end', 8)).toBe(true);
+    });
+
+    test('returns false when changing worlds but map shows third world with shops there', () => {
+        // Player goes from nether to end, but map shows overworld (and has overworld shops)
+        // This shouldn't happen in practice, but the function should handle it
+        expect(shouldSwitchMapWorld('the_nether', 'the_end', 'overworld', 5)).toBe(true);
     });
 });
