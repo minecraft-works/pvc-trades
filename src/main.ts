@@ -1979,12 +1979,20 @@ async function startNavigation(): Promise<void> {
         }
         
         // Initialize map after dialog is visible (needs dimensions)
-        requestAnimationFrame(() => {
+        requestAnimationFrame(async () => {
             // Compute route from player position (or 0,0 if not found), excluding completed items
             const route = computeRoute(currentPlayerPosition ?? undefined, true);
             navCurrentRoute = route;
             console.log('Route computed from player position:', route.length, 'stops');
-            initNavigationMapDialog(route);
+            
+            // Pass player's world so the map shows where the player is (if they have shops there)
+            const playerWorld = currentPlayerPosition?.world;
+            await initNavigationMapDialog(route, playerWorld);
+            
+            // After map is initialized, center on player if in follow mode
+            if (navMode === 'follow' && currentPlayerPosition) {
+                centerMapOnPlayer();
+            }
             
             // Start polling player position
             pollPlayerPosition();
@@ -2106,18 +2114,18 @@ async function pollPlayerPosition(): Promise<void> {
             const worldChanged = previousPosition && previousPosition.world !== playerWorld;
             
             // Check if we need to switch the map to a different world
-            // This happens when:
-            // 1. Player enters a new world AND
-            // 2. The next shop in the route is in that world
-            if (worldChanged) {
+            // Design: When player enters a world that has uncompleted shops, show that world's map
+            if (worldChanged && playerWorld !== navMapWorld) {
                 const fullRoute = computeRoute(currentPlayerPosition, true);
-                const nextShopWorld = getNextShopWorld(fullRoute);
                 
-                if (nextShopWorld && nextShopWorld === playerWorld && nextShopWorld !== navMapWorld) {
-                    // Player entered the world where their next shop is - switch the map!
-                    // Store full route before reinitializing
+                // Check if there are any shops in the player's current world
+                const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
+                
+                if (shopsInPlayerWorld.length > 0) {
+                    // Player entered a world that has shops - switch the map!
                     navCurrentRoute = fullRoute;
-                    await initNavigationMapDialog(fullRoute);
+                    // Explicitly tell the map to show the player's world
+                    await initNavigationMapDialog(fullRoute, playerWorld);
                     updateLiveDistance();
                     return; // Map was reinitialized, skip the rest
                 }
@@ -2732,11 +2740,14 @@ function getNextShopWorld(route: RouteStop[]): string | null {
 /**
  * Initialize navigation map inside the circular dialog.
  * 
- * Design principle: The map shows the world where the NEXT UNCOMPLETED shop is.
- * - If player is in that world: player marker is visible
- * - If player is in different world: player marker is hidden, UI shows "Travel to [World]"
+ * Design principle: The map shows the world where the player currently is,
+ * IF there are shops to visit in that world. Otherwise, it shows the world
+ * of the first shop in the route.
+ * 
+ * @param route - The full route (all worlds)
+ * @param targetWorld - Optional: force the map to show this world
  */
-async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
+async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
     const container = document.getElementById('nav-dialog-map-container');
     if (!container) {
         return;
@@ -2768,13 +2779,35 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     // Clear container
     container.innerHTML = '';
     
-    // DESIGN: Map shows the world of the FIRST (next) shop in the route
-    // This ensures the player always sees their destination
-    const targetWorld = getWorldId(route[0]!.world);
-    navMapWorld = targetWorld;
+    // Determine which world to show:
+    // 1. If targetWorld is specified, use it (if it has shops)
+    // 2. If player is in a world that has shops, use that world
+    // 3. Otherwise, use the world of the first shop
+    let worldToShow: string;
+    
+    if (targetWorld) {
+        const shopsInTarget = route.filter(stop => getWorldId(stop.world) === targetWorld);
+        if (shopsInTarget.length > 0) {
+            worldToShow = targetWorld;
+        } else {
+            worldToShow = getWorldId(route[0]!.world);
+        }
+    } else if (currentPlayerPosition) {
+        const playerWorld = currentPlayerPosition.world;
+        const shopsInPlayerWorld = route.filter(stop => getWorldId(stop.world) === playerWorld);
+        if (shopsInPlayerWorld.length > 0) {
+            worldToShow = playerWorld;
+        } else {
+            worldToShow = getWorldId(route[0]!.world);
+        }
+    } else {
+        worldToShow = getWorldId(route[0]!.world);
+    }
+    
+    navMapWorld = worldToShow;
     
     // Filter route to shops in the target world only
-    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === targetWorld);
+    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === worldToShow);
     navCurrentWorldRoute = stopsInWorld;
     
     // Calculate bounds of shops in this world
@@ -2840,7 +2873,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 zoom4Tiles.add(key);
                 
                 // Check if zoom 4 tile exists in manifest (blocksPerTile = 8192)
-                if (tileExistsInManifest(manifest, targetWorld, 8192, z4.x, z4.z)) {
+                if (tileExistsInManifest(manifest, worldToShow, 8192, z4.x, z4.z)) {
                     // Calculate bounds for zoom 4 tile
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
@@ -2852,7 +2885,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                     const east = dx * MAP_CONFIG.tileSize + zoom4TileSize;
                     const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                     
-                    loadTileToMap(navMap, targetWorld, 4, z4.x, z4.z, bounds, addedToNavMap);
+                    loadTileToMap(navMap, worldToShow, 4, z4.x, z4.z, bounds, addedToNavMap);
                 }
             }
         }
@@ -2862,7 +2895,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             // Check if zoom 8 tile exists in manifest (blocksPerTile = 512)
-            if (tileExistsInManifest(manifest, targetWorld, 512, tx, tz)) {
+            if (tileExistsInManifest(manifest, worldToShow, 512, tx, tz)) {
                 // Bounds relative to center tile
                 const relX = tx - centerTileX;
                 const relZ = tz - centerTileZ;
@@ -2872,7 +2905,7 @@ async function initNavigationMapDialog(route: RouteStop[]): Promise<void> {
                 const east = relX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize;
                 const bounds: L.LatLngBoundsExpression = [[south, west], [north, east]];
                 
-                loadTileToMap(navMap, targetWorld, 8, tx, tz, bounds, addedToNavMap);
+                loadTileToMap(navMap, worldToShow, 8, tx, tz, bounds, addedToNavMap);
             }
         }
     }
