@@ -37,6 +37,9 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Run BDD scenario tests
+        run: npm run test:bdd
+
       - name: Run E2E layout tests
         run: npm run test:e2e
 
