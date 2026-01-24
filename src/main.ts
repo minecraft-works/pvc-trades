@@ -2859,6 +2859,8 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     // Expose navMap for testing purposes
     // @ts-expect-error - exposing for e2e testing
     window.__navMap = navMap;
+    // @ts-expect-error - exposing for e2e testing
+    window.__navMapWorld = navMapWorld;
     
     // Listen for user drag to switch to manual mode
     navMap.on('dragstart', () => {

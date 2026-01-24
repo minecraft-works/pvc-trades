@@ -11,16 +11,43 @@ Feature: Multi-World Navigation
     Given player "TestPlayer" is in the overworld at (0, 0)
     When I open the navigation dialog with items from both worlds
     Then overworld tiles should be requested first
+    And the map should be showing "overworld" world
+    And no nether tiles should be loaded on the map
 
   @navigation @world-switch
   Scenario: Map initializes with nether tiles when player is in nether
     Given player "TestPlayer" is in the nether at (0, 0)
     When I open the navigation dialog with items from both worlds
     Then nether tiles should be requested first
+    And the map should be showing "nether" world
+    And no overworld tiles should be loaded on the map
 
   @navigation @world-switch @transition
   Scenario: Map transitions to nether tiles when player enters nether
     Given player "TestPlayer" is in the overworld at (0, 0)
     And I open the navigation dialog with items from both worlds
+    And the map should be showing "overworld" world
     When player moves to the nether at (-500, -50)
-    Then nether tiles should be requested
+    Then the map should switch to "nether" world
+    And nether tiles should be requested
+    And the route should show nether shop markers
+
+  @navigation @world-switch @transition
+  Scenario: Map transitions to overworld tiles when player returns from nether
+    Given player "TestPlayer" is in the nether at (-500, -50)
+    And I open the navigation dialog with items from both worlds
+    And the map should be showing "nether" world
+    When player moves to the overworld at (100, 200)
+    Then the map should switch to "overworld" world
+    And overworld tiles should be requested
+    And the route should show overworld shop markers
+
+  @navigation @world-switch @no-shops
+  Scenario: Map stays on current world when entering world without shops
+    Given player "TestPlayer" is in the overworld at (0, 0)
+    And I add only nether items to cart
+    And I start navigation as "TestPlayer"
+    And the map should be showing "nether" world
+    When player moves to the overworld at (100, 200)
+    Then the map should stay on "nether" world
+    And no overworld tiles should be loaded on the map
