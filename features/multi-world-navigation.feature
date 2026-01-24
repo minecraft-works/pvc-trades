@@ -48,6 +48,7 @@ Feature: Multi-World Navigation
     And I add only nether items to cart
     And I start navigation as "TestPlayer"
     And the map should be showing "nether" world
+    And nether tiles should have been loaded
     When player moves to the overworld at (100, 200)
     Then the map should stay on "nether" world
-    And no overworld tiles should be loaded on the map
+    And no new overworld tiles should be loaded

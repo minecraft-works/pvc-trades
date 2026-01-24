@@ -160,15 +160,41 @@ Then('the map should be showing {string} world', async ({ page }, expectedWorld:
 });
 
 Then('no nether tiles should be loaded on the map', async ({ tileRequests }) => {
+    // Verify at least some tiles were loaded (catch "nothing loaded" bug)
+    expect(tileRequests.length).toBeGreaterThan(0);
     // Check that no nether tiles were requested
     const netherTiles = tileRequests.filter(t => t === 'nether');
     expect(netherTiles.length).toBe(0);
 });
 
 Then('no overworld tiles should be loaded on the map', async ({ tileRequests }) => {
+    // Verify at least some tiles were loaded (catch "nothing loaded" bug)
+    expect(tileRequests.length).toBeGreaterThan(0);
     // Check that no overworld tiles were requested
     const overworldTiles = tileRequests.filter(t => t === 'overworld');
     expect(overworldTiles.length).toBe(0);
+});
+
+Then('nether tiles should have been loaded', async ({ tileRequests }) => {
+    const netherTiles = tileRequests.filter(t => t === 'nether');
+    expect(netherTiles.length).toBeGreaterThan(0);
+});
+
+Then('overworld tiles should have been loaded', async ({ tileRequests }) => {
+    const overworldTiles = tileRequests.filter(t => t === 'overworld');
+    expect(overworldTiles.length).toBeGreaterThan(0);
+});
+
+Then('no new overworld tiles should be loaded', async ({ tileRequests }) => {
+    // tileRequests is cleared before player moves, so check it's still empty for overworld
+    const overworldTiles = tileRequests.filter(t => t === 'overworld');
+    expect(overworldTiles.length).toBe(0);
+});
+
+Then('no new nether tiles should be loaded', async ({ tileRequests }) => {
+    // tileRequests is cleared before player moves, so check it's still empty for nether
+    const netherTiles = tileRequests.filter(t => t === 'nether');
+    expect(netherTiles.length).toBe(0);
 });
 
 Then('the map should switch to {string} world', async ({ page }, expectedWorld: string) => {
