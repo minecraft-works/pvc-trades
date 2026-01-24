@@ -151,6 +151,8 @@ let currentGiveRegex: RegExp | null = null;
 
 // Shopping cart state
 let cart: CartItem[] = [];
+// @ts-expect-error - exposing for e2e testing
+window.__cart = cart;
 const CART_STORAGE_KEY = 'pvc-trades-cart';
 let mapOpenedFromCart = false;
 
@@ -2106,6 +2108,8 @@ async function pollPlayerPosition(): Promise<void> {
                 world: playerWorld,
                 yaw: player.rotation?.yaw
             };
+            // @ts-expect-error - exposing for e2e testing
+            window.__currentPlayerPosition = currentPlayerPosition;
             
             // Check if we need to switch the map to a different world
             // Use pure function for testable logic
@@ -2262,6 +2266,8 @@ function recalculateRouteFromPlayer(): void {
     }
     
     navCurrentWorldRoute = worldRoute;
+    // @ts-expect-error - exposing for e2e testing
+    window.__navCurrentWorldRoute = worldRoute;
     
     // Remove old route polyline
     if (navRoutePolyline) {
@@ -2835,6 +2841,10 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         attributionControl: false,
         maxBoundsViscosity: 1
     });
+    
+    // Expose navMap for testing purposes
+    // @ts-expect-error - exposing for e2e testing
+    window.__navMap = navMap;
     
     // Listen for user drag to switch to manual mode
     navMap.on('dragstart', () => {

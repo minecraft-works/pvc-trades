@@ -7,8 +7,7 @@ import {
     setupColoredTileMocks,
     setupMultiWorldDataMock
 } from '../../tests/helpers/navigation-mocks';
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5174/pvc-trades/';
+import { BASE_URL } from '../support/hooks';
 
 // ============ GIVEN Steps ============
 
@@ -17,6 +16,10 @@ Given('the app is loaded with shops in overworld and nether', async function (th
     await setupPlayerApiMock(this.page, this.playerMock);
     await setupColoredTileMocks(this.page);
     await setupMultiWorldDataMock(this.page);
+    
+    // Navigate to the app after setting up mocks
+    await this.page.goto(BASE_URL);
+    await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 2000 });
 });
 
 Given('player {string} is in the overworld at \\({int}, {int})', async function (
@@ -28,7 +31,7 @@ Given('player {string} is in the overworld at \\({int}, {int})', async function 
     this.playerMock.moveToOverworld(x, z);
     await this.page.goto(BASE_URL);
     await this.page.waitForSelector('.search-container', { state: 'visible' });
-    await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
+    await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 2000 });
 });
 
 Given('player {string} is in the nether at \\({int}, {int})', async function (
@@ -40,7 +43,7 @@ Given('player {string} is in the nether at \\({int}, {int})', async function (
     this.playerMock.moveToNether(x, z);
     await this.page.goto(BASE_URL);
     await this.page.waitForSelector('.search-container', { state: 'visible' });
-    await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
+    await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 2000 });
 });
 
 Given('I open the navigation dialog with items from both worlds', async function (this: CustomWorld) {
@@ -58,12 +61,12 @@ Given('I open the navigation dialog with items from both worlds', async function
     await this.page.locator('#tab-navigate').click();
     await this.page.locator('#player-name-input').fill('TestPlayer');
     await this.page.locator('#start-navigation').click();
-    await this.page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 10000 });
+    await this.page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 2000 });
     
     // Wait for initial tiles to load
     await expect.poll(
         () => this.tileRequests.length,
-        { timeout: 5000 }
+        { timeout: 1000 }
     ).toBeGreaterThan(0);
 });
 
@@ -120,7 +123,7 @@ Then('nether tiles should be requested', { timeout: 15000 }, async function (thi
     // Poll until nether tiles are requested (max 10s)
     await expect.poll(
         () => this.tileRequests.filter(t => t === 'nether').length,
-        { timeout: 10000, intervals: [100, 200, 500, 1000] }
+        { timeout: 2000, intervals: [100, 200, 500, 1000] }
     ).toBeGreaterThan(0);
 });
 
@@ -128,6 +131,6 @@ Then('overworld tiles should be requested', { timeout: 15000 }, async function (
     // Poll until overworld tiles are requested (max 10s)
     await expect.poll(
         () => this.tileRequests.filter(t => t === 'overworld').length,
-        { timeout: 10000, intervals: [100, 200, 500, 1000] }
+        { timeout: 2000, intervals: [100, 200, 500, 1000] }
     ).toBeGreaterThan(0);
 });

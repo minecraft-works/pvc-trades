@@ -1,0 +1,655 @@
+[cucumber] Starting dev server...
+(node:62628) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+...................................................F---...F---...F---FF-----.F-------.F-----.F-------.F------.F-----.F------.F------.F-----.F------.F-------.F------.F-----.F----.F----.F-----.F-----.F----.F-----.F-----.F-----.F-----.F-----.F----.F-----.F-----.F-----.F------.F-----.F----.F---.F----.F---.F---.F-----.F-------.F-------.F-----.F------.F-----.F-----.F------.F------.F------.F------.F------.F------.F------.F-------.F--------.F--------.[cucumber] Stopping dev server...
+
+
+Failures:
+
+1) Scenario: Player marker appears on map # features\live-navigation.feature:15
+   ΓêÜ Before # features\support\hooks.ts:101
+   ΓêÜ Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   ├ù And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+       page.waitForSelector: Timeout 10000ms exceeded.
+       Call log:
+       [2m  - waiting for locator('.trade-row') to be visible[22m
+
+           at PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\step-definitions\live-navigation.steps.ts:19:21)
+   - Given player "TestPlayer" is in the overworld at (100, 200) # features\step-definitions\navigation.steps.ts:22
+   - When I start navigation # features\step-definitions\live-navigation.steps.ts:230
+   - Then a player marker should appear on the map at (100, 200) # features\step-definitions\live-navigation.steps.ts:345
+   ΓêÜ After # features\support\hooks.ts:116
+
+2) Scenario: Player marker updates when position changes # features\live-navigation.feature:21
+   ΓêÜ Before # features\support\hooks.ts:101
+   ΓêÜ Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   ├ù And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+       page.waitForSelector: Timeout 10000ms exceeded.
+       Call log:
+       [2m  - waiting for locator('.trade-row') to be visible[22m
+
+           at PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\step-definitions\live-navigation.steps.ts:19:21)
+   - Given I am navigating as "TestPlayer" at (100, 200) # features\step-definitions\live-navigation.steps.ts:29
+   - When the player API returns position (150, 250) # features\step-definitions\live-navigation.steps.ts:248
+   - Then the player marker should move to (150, 250) # features\step-definitions\live-navigation.steps.ts:354
+   ΓêÜ After # features\support\hooks.ts:116
+
+3) Scenario: Player marker shows heading direction # features\live-navigation.feature:27
+   ΓêÜ Before # features\support\hooks.ts:101
+   ΓêÜ Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   ├ù And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+       page.waitForSelector: Target page, context or browser has been closed
+       Call log:
+       [2m  - waiting for locator('.trade-row') to be visible[22m
+
+           at PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\step-definitions\live-navigation.steps.ts:19:21)
+   - Given I am navigating as "TestPlayer" with yaw 90 # features\step-definitions\live-navigation.steps.ts:46
+   - When the player marker renders # features\step-definitions\live-navigation.steps.ts:258
+   - Then it should show an arrow pointing west # features\step-definitions\live-navigation.steps.ts:364
+   ├ù After # features\support\hooks.ts:116
+       browserContext.close: Target page, context or browser has been closed
+       Browser logs:
+
+       <launching> C:\Users\310251331\AppData\Local\ms-playwright\chromium_headless_shell-1208\chrome-headless-shell-win64\chrome-headless-shell.exe --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=C:\TEMP\playwright_chromiumdev_profile-OeHIfM --remote-debugging-pipe --no-startup-window
+       <launched> pid=61008
+       [pid=61008][err] [0124/144136.305:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144136.635:INFO:CONSOLE:827] "[vite] connected.", source: http://localhost:5174/pvc-trades/@vite/client (827)
+       [pid=61008][err] [0124/144137.193:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144138.115:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144138.420:INFO:CONSOLE:827] "[vite] connected.", source: http://localhost:5174/pvc-trades/@vite/client (827)
+       [pid=61008][err] [0124/144139.252:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144140.048:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144140.354:INFO:CONSOLE:827] "[vite] connected.", source: http://localhost:5174/pvc-trades/@vite/client (827)
+       [pid=61008][err] [0124/144141.080:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144141.403:INFO:CONSOLE:827] "[vite] connected.", source: http://localhost:5174/pvc-trades/@vite/client (827)
+       [pid=61008][err] [0124/144142.674:INFO:CONSOLE:733] "[vite] connecting...", source: http://localhost:5174/pvc-trades/@vite/client (733)
+       [pid=61008][err] [0124/144143.001:INFO:CONSOLE:827] "[vite] connected.", source: http://localhost:5174/pvc-trades/@vite/client (827)
+       [pid=61008][err] [0124/144209.354:ERROR:content\browser\network_service_instance_impl.cc:610] Network service crashed or was terminated, restarting service.
+       [pid=61008][err] [0124/144214.367:ERROR:content\browser\gpu\gpu_process_host.cc:996] GPU process exited unexpectedly: exit_code=-1073741510
+       [pid=61008][err] [0124/144214.367:WARNING:content\browser\gpu\gpu_process_host.cc:1438] The GPU process has crashed 1 time(s)
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:117:5)
+
+4) Scenario: Player not found shows error message # features\live-navigation.feature:33
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating as "NonExistentPlayer" # features\step-definitions\live-navigation.steps.ts:62
+   - When the player API is polled # features\step-definitions\live-navigation.steps.ts:262
+   - Then I should see "Player not found" in the distance display # features\step-definitions\live-navigation.steps.ts:369
+   ΓêÜ After # features\support\hooks.ts:116
+
+5) Scenario: Live distance updates as player moves # features\live-navigation.feature:43
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating as "TestPlayer" at (0, 0) # features\step-definitions\live-navigation.steps.ts:29
+   - And the next shop is at (100, 0) # features\step-definitions\live-navigation.steps.ts:93
+   - Then the distance display should show "100 blocks" # features\step-definitions\live-navigation.steps.ts:374
+   - When the player moves to (50, 0) # features\step-definitions\live-navigation.steps.ts:267
+   - Then the distance display should show "50 blocks" # features\step-definitions\live-navigation.steps.ts:374
+   ΓêÜ After # features\support\hooks.ts:116
+
+6) Scenario: Shows travel instruction when in different world # features\live-navigation.feature:51
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating as "TestPlayer" in the overworld # features\step-definitions\live-navigation.steps.ts:82
+   - And the next shop is in the nether # features\step-definitions\live-navigation.steps.ts:98
+   - Then the distance display should show "Travel to the Nether" # features\step-definitions\live-navigation.steps.ts:374
+   ΓêÜ After # features\support\hooks.ts:116
+
+7) Scenario: Auto-completes shop when player arrives # features\live-navigation.feature:61
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating as "TestPlayer" at (0, 0) # features\step-definitions\live-navigation.steps.ts:29
+   - And the next shop is at (100, 200) # features\step-definitions\live-navigation.steps.ts:93
+   - When player moves to (100, 180) # features\step-definitions\live-navigation.steps.ts:272
+   - Then the first shop should be marked as completed # features\step-definitions\live-navigation.steps.ts:389
+   - And the next shop should become the current target # features\step-definitions\live-navigation.steps.ts:399
+   ΓêÜ After # features\support\hooks.ts:116
+
+8) Scenario: Route recalculates after auto-complete # features\live-navigation.feature:69
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating with 3 shops in my route # features\step-definitions\live-navigation.steps.ts:104
+   - When I auto-complete the first shop # features\step-definitions\live-navigation.steps.ts:287
+   - Then the route should have 2 remaining shops # features\step-definitions\live-navigation.steps.ts:405
+   - And the route polyline should update # features\step-definitions\live-navigation.steps.ts:411
+   ΓêÜ After # features\support\hooks.ts:116
+
+9) Scenario: Shows completion message when all shops done # features\live-navigation.feature:76
+   ├ù Before # features\support\hooks.ts:101
+       browser.newContext: Target page, context or browser has been closed
+           at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+   - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+   - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+   - Given I am navigating with 1 shop remaining # features\step-definitions\live-navigation.steps.ts:123
+   - When I auto-complete the last shop # features\step-definitions\live-navigation.steps.ts:294
+   - Then I should see "Route complete! ≡ƒÄë" # features\step-definitions\live-navigation.steps.ts:417
+   ΓêÜ After # features\support\hooks.ts:116
+
+10) Scenario: Click timeline dot to mark shop complete # features\live-navigation.feature:86
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I am navigating with shops in my route # features\step-definitions\live-navigation.steps.ts:137
+    - When I click the dot for the first shop # features\step-definitions\live-navigation.steps.ts:300
+    - Then the shop should be marked as completed # features\step-definitions\live-navigation.steps.ts:422
+    - And the dot should show a checkmark # features\step-definitions\live-navigation.steps.ts:427
+    ΓêÜ After # features\support\hooks.ts:116
+
+11) Scenario: Click completed dot to unmark # features\live-navigation.feature:93
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given a shop is marked as completed # features\step-definitions\live-navigation.steps.ts:152
+    - When I click the dot for that shop # features\step-definitions\live-navigation.steps.ts:305
+    - Then the shop should be unmarked # features\step-definitions\live-navigation.steps.ts:432
+    - And the dot should be empty # features\step-definitions\live-navigation.steps.ts:438
+    ΓêÜ After # features\support\hooks.ts:116
+
+12) Scenario: Manual completion syncs across dialogs # features\live-navigation.feature:100
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I am navigating and have the cart dialog visible # features\step-definitions\live-navigation.steps.ts:207
+    - When I mark a shop as complete in the navigation dialog # features\step-definitions\live-navigation.steps.ts:310
+    - Then the cart dialog should also show it as complete # features\step-definitions\live-navigation.steps.ts:444
+    ΓêÜ After # features\support\hooks.ts:116
+
+13) Scenario: Route recalculates when player moves significantly # features\live-navigation.feature:110
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I am navigating as "TestPlayer" at (0, 0) # features\step-definitions\live-navigation.steps.ts:29
+    - And the route is optimized from (0, 0) # features\step-definitions\live-navigation.steps.ts:191
+    - When player moves more than 10 blocks to (100, 100) # features\step-definitions\live-navigation.steps.ts:277
+    - Then the route should be recalculated from (100, 100) # features\step-definitions\live-navigation.steps.ts:450
+    ΓêÜ After # features\support\hooks.ts:116
+
+14) Scenario: Dotted line updates from player to next stop # features\live-navigation.feature:117
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I am navigating as "TestPlayer" at (0, 0) # features\step-definitions\live-navigation.steps.ts:29
+    - And the next shop is at (100, 200) # features\step-definitions\live-navigation.steps.ts:93
+    - Then a dotted green line should connect player to shop # features\step-definitions\live-navigation.steps.ts:460
+    - When player moves to (50, 100) # features\step-definitions\live-navigation.steps.ts:272
+    - Then the dotted line should update to new positions # features\step-definitions\live-navigation.steps.ts:466
+    ΓêÜ After # features\support\hooks.ts:116
+
+15) Scenario: Completed shops persist after page reload # features\live-navigation.feature:129
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I mark shop 1 as complete # features\step-definitions\live-navigation.steps.ts:159
+    - When I reload the page # features\step-definitions\live-navigation.steps.ts:315
+    - And I start navigation again # features\step-definitions\live-navigation.steps.ts:320
+    - Then shop 1 should still be marked as complete # features\step-definitions\live-navigation.steps.ts:472
+    ΓêÜ After # features\support\hooks.ts:116
+
+16) Scenario: Progress syncs with cart changes # features\live-navigation.feature:136
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - And I have items from multiple shops in my cart # features\step-definitions\live-navigation.steps.ts:17
+    - Given I have completed some shops # features\step-definitions\live-navigation.steps.ts:177
+    - When I remove a completed item from the cart # features\step-definitions\live-navigation.steps.ts:328
+    - Then that completion status should be removed # features\step-definitions\live-navigation.steps.ts:477
+    ΓêÜ After # features\support\hooks.ts:116
+
+17) Scenario: Map initializes with overworld tiles when player is in overworld # features\multi-world-navigation.feature:10
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - Given player "TestPlayer" is in the overworld at (0, 0) # features\step-definitions\navigation.steps.ts:22
+    - When I open the navigation dialog with items from both worlds # features\step-definitions\navigation.steps.ts:46
+    - Then overworld tiles should be requested first # features\step-definitions\navigation.steps.ts:109
+    ΓêÜ After # features\support\hooks.ts:116
+
+18) Scenario: Map initializes with nether tiles when player is in nether # features\multi-world-navigation.feature:16
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - Given player "TestPlayer" is in the nether at (0, 0) # features\step-definitions\navigation.steps.ts:34
+    - When I open the navigation dialog with items from both worlds # features\step-definitions\navigation.steps.ts:46
+    - Then nether tiles should be requested first # features\step-definitions\navigation.steps.ts:114
+    ΓêÜ After # features\support\hooks.ts:116
+
+19) Scenario: Map transitions to nether tiles when player enters nether # features\multi-world-navigation.feature:22
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in overworld and nether # features\step-definitions\navigation.steps.ts:15
+    - Given player "TestPlayer" is in the overworld at (0, 0) # features\step-definitions\navigation.steps.ts:22
+    - And I open the navigation dialog with items from both worlds # features\step-definitions\navigation.steps.ts:46
+    - When player moves to the nether at (-500, -50) # features\step-definitions\navigation.steps.ts:85
+    - Then nether tiles should be requested # features\step-definitions\navigation.steps.ts:119
+    ΓêÜ After # features\support\hooks.ts:116
+
+20) Scenario: Timeline shows all shops in order # features\route-display.feature:14
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have 3 items from different shops in my cart # features\step-definitions\route.steps.ts:61
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then I should see 3 stops in the timeline # features\step-definitions\route.steps.ts:267
+    - And they should be numbered 1, 2, 3 # features\step-definitions\route.steps.ts:272
+    ΓêÜ After # features\support\hooks.ts:116
+
+21) Scenario: Timeline shows item details # features\route-display.feature:21
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I add a trade for "Diamond" quantity 5 to my cart # features\step-definitions\route.steps.ts:78
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then the timeline should show "5├ù Diamond" # features\step-definitions\route.steps.ts:283
+    ΓêÜ After # features\support\hooks.ts:116
+
+22) Scenario: Timeline shows both coordinate systems # features\route-display.feature:27
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I add an overworld shop at (800, 400) to my cart # features\step-definitions\route.steps.ts:91
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then I should see overworld coords "800, 400" # features\step-definitions\route.steps.ts:288
+    - And I should see nether equivalent "100, 50" # features\step-definitions\route.steps.ts:293
+    ΓêÜ After # features\support\hooks.ts:116
+
+23) Scenario: Nether shop shows nether coords primary # features\route-display.feature:34
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I add a nether shop at (100, 50) to my cart # features\step-definitions\route.steps.ts:101
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then I should see nether coords "100, 50" # features\step-definitions\route.steps.ts:298
+    - And I should see overworld equivalent "800, 400" # features\step-definitions\route.steps.ts:303
+    ΓêÜ After # features\support\hooks.ts:116
+
+24) Scenario: Completed stops show checkmark # features\route-display.feature:41
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have a shop marked as complete # features\step-definitions\route.steps.ts:126
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then the completed stop should show a checkmark # features\step-definitions\route.steps.ts:308
+    - And it should have completed styling # features\step-definitions\route.steps.ts:313
+    ΓêÜ After # features\support\hooks.ts:116
+
+25) Scenario: Shows total route distance # features\route-display.feature:52
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have items from shops spread across the world # features\step-definitions\route.steps.ts:195
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then I should see the total distance in blocks # features\step-definitions\route.steps.ts:318
+    - And I should see the nether-equivalent distance # features\step-definitions\route.steps.ts:326
+    ΓêÜ After # features\support\hooks.ts:116
+
+26) Scenario: Distance accounts for nether travel # features\route-display.feature:59
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have a shop at (0, 0) overworld # features\step-definitions\route.steps.ts:110
+    - And a shop at (0, 0) nether (equivalent to 0, 0 overworld) # features\step-definitions\route.steps.ts:115
+    - When I open the navigate tab # features\step-definitions\route.steps.ts:206
+    - Then the distance should be 0 blocks # features\step-definitions\route.steps.ts:332
+    ΓêÜ After # features\support\hooks.ts:116
+
+27) Scenario: Distance updates when cart changes # features\route-display.feature:66
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have 2 items showing 500 blocks distance # features\step-definitions\route.steps.ts:141
+    - When I remove one item from the cart # features\step-definitions\route.steps.ts:212
+    - Then the distance should update to reflect shorter route # features\step-definitions\route.steps.ts:339
+    ΓêÜ After # features\support\hooks.ts:116
+
+28) Scenario: Route recalculates when item added # features\route-display.feature:76
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have 2 items in my cart with optimized route # features\step-definitions\route.steps.ts:153
+    - When I add a 3rd item closer to the start # features\step-definitions\route.steps.ts:223
+    - Then the route order may change # features\step-definitions\route.steps.ts:344
+    - And the distance should update # features\step-definitions\route.steps.ts:349
+    ΓêÜ After # features\support\hooks.ts:116
+
+29) Scenario: Route recalculates when item removed # features\route-display.feature:83
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have 3 items in my cart # features\step-definitions\route.steps.ts:161
+    - When I remove the middle item # features\step-definitions\route.steps.ts:234
+    - Then the route should have 2 items # features\step-definitions\route.steps.ts:354
+    - And the timeline should update # features\step-definitions\route.steps.ts:364
+    ΓêÜ After # features\support\hooks.ts:116
+
+30) Scenario: Route recalculates when quantity changes to zero # features\route-display.feature:90
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I have 2 items in my cart # features\step-definitions\route.steps.ts:161
+    - When I decrease one item's quantity to zero # features\step-definitions\route.steps.ts:245
+    - And I close and reopen the cart # features\step-definitions\route.steps.ts:252
+    - Then the route should have 1 item # features\step-definitions\route.steps.ts:359
+    ΓêÜ After # features\support\hooks.ts:116
+
+31) Scenario: Click timeline stop opens map (when not navigating) # features\route-display.feature:101
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I am viewing the navigate tab # features\step-definitions\route.steps.ts:169
+    - And navigation is not active # features\step-definitions\route.steps.ts:175
+    - When I click on a shop stop # features\step-definitions\route.steps.ts:258
+    - Then the map dialog should open # features\step-definitions\route.steps.ts:369
+    - And it should be centered on that shop # features\step-definitions\route.steps.ts:374
+    ΓêÜ After # features\support\hooks.ts:116
+
+32) Scenario: Click timeline stop toggles completion (when navigating) # features\route-display.feature:109
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I am actively navigating # features\step-definitions\route.steps.ts:181
+    - When I click on a shop stop # features\step-definitions\route.steps.ts:258
+    - Then the stop should toggle completion # features\step-definitions\route.steps.ts:380
+    - And the map should stay open # features\step-definitions\route.steps.ts:388
+    ΓêÜ After # features\support\hooks.ts:116
+
+33) Scenario: Filter results by "want" item # features\search-and-filter.feature:10
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - When I search for "emerald" in the want field # features\step-definitions\search.steps.ts:27
+    - Then only trades offering emerald should be displayed # features\step-definitions\search.steps.ts:64
+    - And the result count should decrease # features\step-definitions\search.steps.ts:108
+    ΓêÜ After # features\support\hooks.ts:116
+
+34) Scenario: Filter results by "give" item # features\search-and-filter.feature:16
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - When I search for "diamond" in the give field # features\step-definitions\search.steps.ts:40
+    - Then only trades accepting diamond should be displayed # features\step-definitions\search.steps.ts:78
+    ΓêÜ After # features\support\hooks.ts:116
+
+35) Scenario: Combined filter with both fields # features\search-and-filter.feature:21
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - Given I search for "emerald" in the want field # features\step-definitions\search.steps.ts:27
+    - When I search for "diamond" in the give field # features\step-definitions\search.steps.ts:40
+    - Then only trades offering emerald for diamond should be displayed # features\step-definitions\search.steps.ts:91
+    ΓêÜ After # features\support\hooks.ts:116
+
+36) Scenario: No results shows message # features\search-and-filter.feature:27
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - When I search for "nonexistent_item_xyz" in the want field # features\step-definitions\search.steps.ts:27
+    - Then I should see "No trades found" message # features\step-definitions\search.steps.ts:117
+    ΓêÜ After # features\support\hooks.ts:116
+
+37) Scenario: Search terms are highlighted in results # features\search-and-filter.feature:32
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - When I search for "emerald" in the want field # features\step-definitions\search.steps.ts:27
+    - Then "emerald" should be highlighted in the result rows # features\step-definitions\search.steps.ts:124
+    ΓêÜ After # features\support\hooks.ts:116
+
+38) Scenario: Click column header to sort # features\search-and-filter.feature:37
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with mock shop data # features\step-definitions\search.steps.ts:12
+    - When I click the "result-amt" column header # features\step-definitions\search.steps.ts:48
+    - Then results should be sorted by result amount descending # features\step-definitions\search.steps.ts:136
+    - When I click the "result-amt" column header again # features\step-definitions\search.steps.ts:54
+    - Then results should be sorted by result amount ascending # features\step-definitions\search.steps.ts:162
+    ΓêÜ After # features\support\hooks.ts:116
+
+39) Scenario: Tooltip appears when entering shop area # features\shop-tooltip.feature:11
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given I am navigating as "TestPlayer" # features\step-definitions\live-navigation.steps.ts:62
+    - And the shop at (100, 100) has 2 items to buy # features\step-definitions\tooltip.steps.ts:276
+    - When player enters within 100 blocks of (100, 100) # features\step-definitions\tooltip.steps.ts:340
+    - Then a shopping list tooltip should appear # features\step-definitions\tooltip.steps.ts:386
+    - And it should list both items with quantities # features\step-definitions\tooltip.steps.ts:392
+    ΓêÜ After # features\support\hooks.ts:116
+
+40) Scenario: Tooltip shows only uncompleted items # features\shop-tooltip.feature:19
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given I am navigating as "TestPlayer" # features\step-definitions\live-navigation.steps.ts:62
+    - And the shop at (100, 100) has 3 items # features\step-definitions\tooltip.steps.ts:285
+    - And 1 item is already marked complete # features\step-definitions\tooltip.steps.ts:294
+    - When player enters the shop area # features\step-definitions\tooltip.steps.ts:352
+    - Then the tooltip should show only 2 items # features\step-definitions\tooltip.steps.ts:397
+    ΓêÜ After # features\support\hooks.ts:116
+
+41) Scenario: Tooltip auto-hides after 4 seconds # features\shop-tooltip.feature:27
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given the shop tooltip is visible # features\step-definitions\tooltip.steps.ts:303
+    - When 4 seconds pass # features\step-definitions\tooltip.steps.ts:359
+    - Then the tooltip should hide automatically # features\step-definitions\tooltip.steps.ts:403
+    ΓêÜ After # features\support\hooks.ts:116
+
+42) Scenario: Tooltip only shows once per shop entry # features\shop-tooltip.feature:33
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given player has entered the shop area # features\step-definitions\tooltip.steps.ts:311
+    - And the tooltip appeared and hid # features\step-definitions\tooltip.steps.ts:318
+    - When player moves within the shop area # features\step-definitions\tooltip.steps.ts:363
+    - Then the tooltip should not reappear # features\step-definitions\tooltip.steps.ts:408
+    ΓêÜ After # features\support\hooks.ts:116
+
+43) Scenario: Re-entering shop shows tooltip again # features\shop-tooltip.feature:40
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given player entered and left the shop area # features\step-definitions\tooltip.steps.ts:326
+    - When player enters the shop area again # features\step-definitions\tooltip.steps.ts:371
+    - Then the tooltip should appear again # features\step-definitions\tooltip.steps.ts:412
+    ΓêÜ After # features\support\hooks.ts:116
+
+44) Scenario: Shows nearest shop when multiple in range # features\shop-tooltip.feature:46
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have multiple items from the same shop in my cart # features\step-definitions\live-navigation.steps.ts:196
+    - Given there are 2 shops within 100 blocks # features\step-definitions\tooltip.steps.ts:336
+    - When player is closest to shop A # features\step-definitions\tooltip.steps.ts:378
+    - Then the tooltip should show shop A's items # features\step-definitions\tooltip.steps.ts:416
+    ΓêÜ After # features\support\hooks.ts:116
+
+45) Scenario: Zoom in when very close to shop (< 50 blocks) # features\zoom-behavior.feature:16
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given the next shop is at (100, 100) # features\step-definitions\live-navigation.steps.ts:93
+    - When player is at (100, 60) # features\step-definitions\zoom.steps.ts:87
+    - Then the map should be at zoom level 1 (maximum) # features\step-definitions\zoom.steps.ts:125
+    ΓêÜ After # features\support\hooks.ts:116
+
+46) Scenario: Medium zoom when close (50-150 blocks) # features\zoom-behavior.feature:22
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given the next shop is at (100, 100) # features\step-definitions\live-navigation.steps.ts:93
+    - When player is at (100, 0) # features\step-definitions\zoom.steps.ts:87
+    - Then the map should be at zoom level 0 # features\step-definitions\zoom.steps.ts:139
+    ΓêÜ After # features\support\hooks.ts:116
+
+47) Scenario: Zoom out when moderately far (150-400 blocks) # features\zoom-behavior.feature:28
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given the next shop is at (100, 100) # features\step-definitions\live-navigation.steps.ts:93
+    - When player is at (100, -200) # features\step-definitions\zoom.steps.ts:87
+    - Then the map should be at zoom level -1 # features\step-definitions\zoom.steps.ts:139
+    ΓêÜ After # features\support\hooks.ts:116
+
+48) Scenario: Further zoom out (400-800 blocks) # features\zoom-behavior.feature:34
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given the next shop is at (100, 100) # features\step-definitions\live-navigation.steps.ts:93
+    - When player is at (100, -500) # features\step-definitions\zoom.steps.ts:87
+    - Then the map should be at zoom level -2 # features\step-definitions\zoom.steps.ts:139
+    ΓêÜ After # features\support\hooks.ts:116
+
+49) Scenario: Maximum zoom out when far (> 800 blocks) # features\zoom-behavior.feature:40
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given the next shop is at (100, 100) # features\step-definitions\live-navigation.steps.ts:93
+    - When player is at (100, -1000) # features\step-definitions\zoom.steps.ts:87
+    - Then the map should be at zoom level -3 # features\step-definitions\zoom.steps.ts:139
+    ΓêÜ After # features\support\hooks.ts:116
+
+50) Scenario: Follow mode centers on player # features\zoom-behavior.feature:50
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given I am in follow mode # features\step-definitions\zoom.steps.ts:44
+    - When player moves to (200, 300) # features\step-definitions\live-navigation.steps.ts:272
+    - Then the map should center on (200, 300) # features\step-definitions\zoom.steps.ts:154
+    ΓêÜ After # features\support\hooks.ts:116
+
+51) Scenario: Zoom adjusts smoothly with flyTo animation # features\zoom-behavior.feature:56
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given I am in follow mode at zoom -2 # features\step-definitions\zoom.steps.ts:49
+    - When player moves close to a shop # features\step-definitions\zoom.steps.ts:94
+    - Then the map should animate to zoom 1 # features\step-definitions\zoom.steps.ts:160
+    ΓêÜ After # features\support\hooks.ts:116
+
+52) Scenario: Dragging map switches to manual mode # features\zoom-behavior.feature:66
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given I am in follow mode # features\step-definitions\zoom.steps.ts:44
+    - When I drag the map # features\step-definitions\zoom.steps.ts:100
+    - Then I should switch to manual mode # features\step-definitions\zoom.steps.ts:177
+    - And the re-center button should appear # features\step-definitions\zoom.steps.ts:183
+    ΓêÜ After # features\support\hooks.ts:116
+
+53) Scenario: Re-center button returns to follow mode # features\zoom-behavior.feature:73
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given I am in manual mode # features\step-definitions\zoom.steps.ts:55
+    - When I click the re-center button # features\step-definitions\zoom.steps.ts:109
+    - Then I should switch to follow mode # features\step-definitions\zoom.steps.ts:188
+    - And the map should center on player # features\step-definitions\zoom.steps.ts:193
+    - And the re-center button should hide # features\step-definitions\zoom.steps.ts:198
+    ΓêÜ After # features\support\hooks.ts:116
+
+54) Scenario: Manual mode preserves user zoom # features\zoom-behavior.feature:81
+    ├ù Before # features\support\hooks.ts:101
+        browser.newContext: Target page, context or browser has been closed
+            at async PlaywrightWorld.<anonymous> (D:\_projects\pvc-trades\features\support\hooks.ts:103:20)
+    - Given the app is loaded with shops in the overworld # features\step-definitions\zoom.steps.ts:17
+    - And I have items in my cart # features\step-definitions\zoom.steps.ts:27
+    - And I start navigation as "TestPlayer" # features\step-definitions\zoom.steps.ts:33
+    - Given I am in manual mode # features\step-definitions\zoom.steps.ts:55
+    - And I manually zoom to level -1 # features\step-definitions\zoom.steps.ts:65
+    - When player position updates # features\step-definitions\zoom.steps.ts:115
+    - Then the map should stay at zoom -1 # features\step-definitions\zoom.steps.ts:209
+    - And the map should not re-center # features\step-definitions\zoom.steps.ts:224
+    ΓêÜ After # features\support\hooks.ts:116
+
+61 scenarios (54 failed, 7 passed)
+325 steps (3 failed, 284 skipped, 38 passed)
+0m42.764s (executing steps: 0m38.647s)

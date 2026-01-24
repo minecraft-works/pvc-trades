@@ -1,100 +1,81 @@
-import { Before, After, BeforeAll, AfterAll } from '@cucumber/cucumber';
+import { Before, After, BeforeAll, AfterAll, Status } from '@cucumber/cucumber';
 import { chromium, Browser } from '@playwright/test';
-import { spawn, ChildProcess, exec } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { CustomWorld } from './world';
 
+// Shared browser instance for all scenarios (faster than launching per scenario)
 let browser: Browser;
-let devServer: ChildProcess | null = null;
+let serverProcess: ChildProcess | null = null;
 
-async function waitForServer(url: string, timeout = 30000): Promise<boolean> {
+export const BASE_URL = process.env.BASE_URL || 'http://localhost:5173/pvc-trades/';
+
+async function waitForServer(url: string, timeout = 30000): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeout) {
         try {
-            const response = await fetch(url, { method: 'HEAD' });
+            const response = await fetch(url.replace(/\/$/, ''));
             if (response.ok) {
-                return true;
+                return;
             }
         } catch {
             // Server not ready yet
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(r => setTimeout(r, 200));
     }
-    return false;
+    throw new Error(`Server failed to start at ${url} within ${timeout}ms`);
 }
 
-/**
- * Kill a process tree on Windows using taskkill, or SIGTERM on Unix
- * On Windows, shell:true spawns cmd.exe which doesn't forward SIGTERM to children
- */
-function killProcessTree(proc: ChildProcess): Promise<void> {
-    return new Promise((resolve) => {
-        if (!proc.pid) {
-            resolve();
-            return;
+async function startServer(): Promise<ChildProcess> {
+    // Check if server is already running
+    try {
+        const response = await fetch(BASE_URL.replace(/\/$/, ''));
+        if (response.ok) {
+            console.log('Server already running');
+            return null as unknown as ChildProcess;
         }
-        
-        if (process.platform === 'win32') {
-            // Use taskkill with /T (tree) and /F (force) to kill all child processes
-            exec(`taskkill /PID ${proc.pid} /T /F`, (err) => {
-                if (err) {
-                    // Process might already be dead, that's fine
-                    console.log('[cucumber] taskkill error (process may already be dead):', err.message);
-                }
-                resolve();
-            });
-        } else {
-            proc.kill('SIGTERM');
-            resolve();
+    } catch {
+        // Server not running, start it
+    }
+
+    console.log('Starting dev server...');
+    const proc = spawn('npm', ['run', 'dev'], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true
+    });
+
+    proc.stdout?.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('Local:')) {
+            console.log('Server started');
         }
     });
+
+    proc.stderr?.on('data', (data) => {
+        console.error('Server error:', data.toString());
+    });
+
+    await waitForServer(BASE_URL);
+    return proc;
 }
 
-BeforeAll({ timeout: 60000 }, async function () {
-    // Start dev server
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5174/pvc-trades/';
+BeforeAll(async function () {
+    // Start server if not running
+    serverProcess = await startServer();
     
-    // Check if server is already running (check the actual app URL, not just root)
-    const serverAlreadyRunning = await waitForServer(baseUrl, 2000);
-    
-    if (!serverAlreadyRunning) {
-        console.log('[cucumber] Starting dev server...');
-        devServer = spawn('npm', ['run', 'dev'], {
-            shell: true,
-            stdio: 'pipe',
-            cwd: process.cwd()
-        });
-        
-        devServer.stdout?.on('data', (data) => {
-            const output = data.toString();
-            if (output.includes('Local:')) {
-                console.log('[cucumber] Dev server ready');
-            }
-        });
-        
-        devServer.stderr?.on('data', (data) => {
-            console.error('[cucumber] Dev server error:', data.toString());
-        });
-        
-        const ready = await waitForServer(baseUrl, 30000);
-        if (!ready) {
-            throw new Error(`Dev server failed to start within 30 seconds. URL: ${baseUrl}`);
-        }
-    } else {
-        console.log('[cucumber] Using existing dev server');
-    }
-    
+    // Launch browser once for all tests
     browser = await chromium.launch({ 
         headless: process.env.HEADED !== 'true'
     });
 });
 
 AfterAll(async function () {
-    await browser.close();
-    
-    if (devServer) {
-        console.log('[cucumber] Stopping dev server...');
-        await killProcessTree(devServer);
-        devServer = null;
+    if (browser) {
+        await browser.close();
+    }
+    if (serverProcess) {
+        serverProcess.kill();
+        serverProcess = null;
     }
 });
 
@@ -104,15 +85,24 @@ Before(async function (this: CustomWorld) {
     this.page = await this.context.newPage();
     this.tileRequests = [];
     
-    // Track tile requests
+    // Track tile requests for debugging
     this.page.on('request', req => {
         if (req.url().includes('/tiles/') && req.url().endsWith('.png')) {
             const world = req.url().includes('/the_nether/') ? 'nether' : 'overworld';
-            this.tileRequests.push(world);
+            this.tileRequests.push(`${world}:${req.url()}`);
         }
     });
 });
 
-After(async function (this: CustomWorld) {
-    await this.context?.close();
+After(async function (this: CustomWorld, scenario) {
+    // Take screenshot on failure for debugging
+    if (scenario.result?.status === Status.FAILED && this.page) {
+        const screenshot = await this.page.screenshot();
+        this.attach(screenshot, 'image/png');
+    }
+    
+    // Close context (releases resources)
+    if (this.context) {
+        await this.context.close();
+    }
 });
