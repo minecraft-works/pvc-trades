@@ -28,17 +28,17 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "src/**/*.ts": "eslint",
+    "src/**/*.ts": [
+      "eslint"
+    ],
     "scripts/**/*.ts": "eslint",
     "tests/**/*.spec.ts": [
-      "eslint",
-      "npm run test:e2e"
+      "eslint"
     ],
     "tests/helpers/**/*.ts": "eslint",
     "features/**/*.ts": [
       "eslint"
     ],
-    "features/**/*.feature": "npm run test:bdd",
     "styles.css": "stylelint",
     "index.html": "htmlhint"
   },

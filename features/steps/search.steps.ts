@@ -49,7 +49,12 @@ When('I click the {string} column header again', async ({ page }, columnId: stri
 // ============================================================================
 
 Then('only trades offering {word} should be displayed', async ({ page }, item: string) => {
-    const rows = page.locator('.trade-row');
+    // Wait for filtering to complete - first row should contain the search term
+    const firstRow = page.locator('.trade-row').first();
+    await expect(firstRow).toContainText(new RegExp(item, 'i'), { timeout: 5000 });
+    
+    // Now verify all visible rows
+    const rows = page.locator('.trade-row:visible');
     const count = await rows.count();
     
     expect(count).toBeGreaterThan(0);
@@ -62,7 +67,12 @@ Then('only trades offering {word} should be displayed', async ({ page }, item: s
 });
 
 Then('only trades accepting {word} should be displayed', async ({ page }, item: string) => {
-    const rows = page.locator('.trade-row');
+    // Wait for filtering to complete - first row should contain the search term
+    const firstRow = page.locator('.trade-row').first();
+    await expect(firstRow).toContainText(new RegExp(item, 'i'), { timeout: 5000 });
+    
+    // Now verify all visible rows
+    const rows = page.locator('.trade-row:visible');
     const count = await rows.count();
     
     expect(count).toBeGreaterThan(0);
@@ -75,7 +85,12 @@ Then('only trades accepting {word} should be displayed', async ({ page }, item: 
 });
 
 Then('only trades offering {word} for {word} should be displayed', async ({ page }, wantItem: string, giveItem: string) => {
-    const rows = page.locator('.trade-row');
+    // Wait for filtering to complete - first row should contain both search terms
+    const firstRow = page.locator('.trade-row').first();
+    await expect(firstRow).toContainText(new RegExp(wantItem, 'i'), { timeout: 5000 });
+    
+    // Now verify all visible rows
+    const rows = page.locator('.trade-row:visible');
     const count = await rows.count();
     
     expect(count).toBeGreaterThan(0);
