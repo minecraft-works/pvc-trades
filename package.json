@@ -33,7 +33,11 @@
       "npm run test:e2e"
     ],
     "tests/helpers/**/*.ts": "eslint",
-    "features/**/*.ts": "eslint",
+    "features/**/*.ts": [
+      "eslint",
+      "npm run test:cucumber"
+    ],
+    "features/**/*.feature": "npm run test:cucumber",
     "styles.css": "stylelint",
     "index.html": "htmlhint"
   },
