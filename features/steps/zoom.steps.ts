@@ -36,14 +36,7 @@ Given('I have items in my cart', async ({ page }) => {
     await emeraldRow.locator('.add-to-cart-btn').click();
 });
 
-Given('I start navigation as {string}', async ({ page }, playerName: string) => {
-    await page.locator('#open-cart').click();
-    await page.waitForSelector('#cart-dialog', { state: 'visible' });
-    await page.locator('#tab-navigate').click();
-    await page.locator('#player-name-input').fill(playerName);
-    await page.locator('#start-navigation').click();
-    await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
-});
+// Note: 'I start navigation as {string}' is defined in navigation.steps.ts
 
 // Note: 'the next shop is at (x, z)' is defined in live-navigation.steps.ts
 

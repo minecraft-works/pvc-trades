@@ -30,11 +30,11 @@ export default tseslint.config(
             'semi': ['error', 'always'],
             'quotes': ['error', 'single', { avoidEscape: true }],
             // Complexity rules
-            'complexity': ['warn', { max: 15 }],
-            'max-depth': ['warn', { max: 4 }],
-            'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true, skipComments: true }],
-            'max-params': ['warn', { max: 5 }],
-            'max-nested-callbacks': ['warn', { max: 3 }]
+            'complexity': ['error', { max: 15 }],
+            'max-depth': ['error', { max: 4 }],
+            'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
+            'max-params': ['error', { max: 5 }],
+            'max-nested-callbacks': ['error', { max: 3 }]
         }
     }
 );
