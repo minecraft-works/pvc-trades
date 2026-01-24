@@ -1979,12 +1979,20 @@ async function startNavigation(): Promise<void> {
         }
         
         // Initialize map after dialog is visible (needs dimensions)
-        requestAnimationFrame(() => {
+        requestAnimationFrame(async () => {
             // Compute route from player position (or 0,0 if not found), excluding completed items
             const route = computeRoute(currentPlayerPosition ?? undefined, true);
             navCurrentRoute = route;
             console.log('Route computed from player position:', route.length, 'stops');
-            initNavigationMapDialog(route);
+            
+            // Pass player's world so the map shows where the player is (if they have shops there)
+            const playerWorld = currentPlayerPosition?.world;
+            await initNavigationMapDialog(route, playerWorld);
+            
+            // After map is initialized, center on player if in follow mode
+            if (navMode === 'follow' && currentPlayerPosition) {
+                centerMapOnPlayer();
+            }
             
             // Start polling player position
             pollPlayerPosition();
