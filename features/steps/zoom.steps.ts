@@ -9,6 +9,12 @@ import {
     setupMultiWorldDataMock
 } from '../../tests/helpers/navigation-mocks';
 
+// Selector constants to avoid string duplication
+const SELECTOR_TRADE_ROW = '.trade-row';
+const SELECTOR_ADD_TO_CART = '.add-to-cart-btn';
+const SELECTOR_MAP_CONTAINER = '#nav-dialog-map-container';
+const SELECTOR_RECENTER_BUTTON = '#nav-dialog-recenter, #recenter-map';
+
 // ============================================================================
 // GIVEN Steps
 // ============================================================================
@@ -25,20 +31,75 @@ Given('the app is loaded with shops in the overworld', async ({ page, playerMock
     await setupMultiWorldDataMock(page);
     
     await page.goto('/');
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: 5000 });
+});
+
+Given('the app is loaded with shops in the nether', async ({ page, playerMock }) => {
+    // Clear localStorage before loading to ensure clean state
+    await page.addInitScript(() => {
+        localStorage.removeItem('pvc-trades-cart');
+        localStorage.removeItem('pvc-trades-nav-progress');
+    });
+    
+    // Start player in the nether
+    playerMock.moveToNether(0, 0);
+    
+    await setupPlayerApiMock(page, playerMock);
+    await setupColoredTileMocks(page);
+    await setupMultiWorldDataMock(page);
+    
+    await page.goto('/');
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: 5000 });
 });
 
 Given('I have items in my cart', async ({ page }) => {
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 3000 });
-    // Find the trade row for the Overworld Shop at (100, 200) - it sells Emeralds
-    // The row should contain "Emerald" as the result item from the test data
-    const emeraldRow = page.locator('.trade-row').filter({ hasText: 'Emerald' }).filter({ hasText: 'Diamond' }).first();
-    await emeraldRow.locator('.add-to-cart-btn').click();
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: 3000 });
+    // Add items from MULTIPLE shops so the route has more than one stop
+    // This ensures when we auto-advance on one shop, there's still a route to calculate zoom from
+    // First shop: Overworld Shop at (100, 200) - sells Emeralds
+    const emeraldRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Emerald' }).filter({ hasText: 'Diamond' }).first();
+    await emeraldRow.locator(SELECTOR_ADD_TO_CART).click();
+    
+    // Second shop: Far Overworld Shop at (800, 400) - sells Iron Ingots
+    const ironRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Iron Ingot' }).first();
+    await ironRow.locator(SELECTOR_ADD_TO_CART).click();
+});
+
+Given('I have nether items in my cart', async ({ page }) => {
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: 3000 });
+    // Find a nether shop item - Netherite Scrap or Blaze Rod
+    const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Netherite' }).first();
+    await netherRow.locator(SELECTOR_ADD_TO_CART).click();
 });
 
 // Note: 'I start navigation as {string}' is defined in navigation.steps.ts
 
 // Note: 'the next shop is at (x, z)' is defined in live-navigation.steps.ts
+
+Given('I start navigation as {string} in the nether', async ({ page, playerMock }, _playerName: string) => {
+    // Set player position in the nether
+    playerMock.moveToNether(0, 0);
+    
+    // Open the cart dialog and start navigation
+    await page.locator('.cart-badge').click();
+    const cartDialog = page.locator('#cart-dialog');
+    await expect(cartDialog).toBeVisible();
+    
+    // Click start navigation button
+    const navButton = page.locator('#start-navigation');
+    await navButton.click();
+    
+    // Wait for navigation dialog to appear
+    const navDialog = page.locator('#navigation-dialog');
+    await expect(navDialog).toBeVisible();
+});
+
+Given(String.raw`the next nether shop is at \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
+    // The mock data already sets up shops - this step documents the expected shop position
+    // The nether shop position should match the mock data
+    // Wait for navigation to initialize
+    await page.waitForTimeout(500);
+});
 
 Given('I am in follow mode', async () => {
     // Default mode is follow
@@ -49,7 +110,7 @@ Given('I am in follow mode at zoom {int}', async ({ playerMock }, _zoom: number)
 });
 
 Given('I am in manual mode', async ({ page }) => {
-    const mapContainer = page.locator('#nav-dialog-map-container');
+    const mapContainer = page.locator(SELECTOR_MAP_CONTAINER);
     await mapContainer.dragTo(mapContainer, {
         sourcePosition: { x: 100, y: 100 },
         targetPosition: { x: 150, y: 150 }
@@ -58,11 +119,11 @@ Given('I am in manual mode', async ({ page }) => {
 
 Given('I manually zoom to level {int}', async ({ page }, zoomLevel: number) => {
     if (zoomLevel > 0) {
-        for (let i = 0; i < zoomLevel; i++) {
+        for (let index = 0; index < zoomLevel; index++) {
             await page.locator('.leaflet-control-zoom-in').click();
         }
     } else {
-        for (let i = 0; i > zoomLevel; i--) {
+        for (let index = 0; index > zoomLevel; index--) {
             await page.locator('.leaflet-control-zoom-out').click();
         }
     }
@@ -72,8 +133,14 @@ Given('I manually zoom to level {int}', async ({ page }, zoomLevel: number) => {
 // WHEN Steps
 // ============================================================================
 
-When('player is at \\({int}, {int})', async ({ page, playerMock }, x: number, z: number) => {
+When(String.raw`player is at \({int}, {int})`, async ({ page, playerMock }, x: number, z: number) => {
     playerMock.setPosition(x, z);
+    // Wait for polling to pick up position change and update zoom
+    await page.waitForTimeout(1500);
+});
+
+When(String.raw`player is at \({int}, {int}) in the nether`, async ({ page, playerMock }, x: number, z: number) => {
+    playerMock.moveToNether(x, z);
     // Wait for polling to pick up position change and update zoom
     await page.waitForTimeout(1500);
 });
@@ -81,15 +148,15 @@ When('player is at \\({int}, {int})', async ({ page, playerMock }, x: number, z:
 // Note: 'player moves to (x, z)' is defined in live-navigation.steps.ts
 
 When('player moves close to a shop', async ({ page, playerMock }) => {
-    // Move to just outside arrival radius (50 blocks) but still "close" (50-150 range = zoom 0)
-    // Shop is at (100, 200), so 100, 148 is 52 blocks away
-    playerMock.setPosition(100, 148);
+    // Move to within zoom 2 range (< 60 blocks) but outside auto-advance (>= 50 blocks)
+    // Shop is at (100, 200), so 100, 145 is 55 blocks away -> zoom 2
+    playerMock.setPosition(100, 145);
     // Wait for polling to pick up position change and update zoom
     await page.waitForTimeout(1500);
 });
 
 When('I drag the map', async ({ page }) => {
-    const mapContainer = page.locator('#nav-dialog-map-container');
+    const mapContainer = page.locator(SELECTOR_MAP_CONTAINER);
     await mapContainer.dragTo(mapContainer, {
         sourcePosition: { x: 100, y: 100 },
         targetPosition: { x: 200, y: 200 }
@@ -97,8 +164,8 @@ When('I drag the map', async ({ page }) => {
 });
 
 When('I click the re-center button', async ({ page }) => {
-    const recenterBtn = page.locator('#nav-dialog-recenter, #recenter-map');
-    await recenterBtn.first().click();
+    const recenterButton = page.locator(SELECTOR_RECENTER_BUTTON);
+    await recenterButton.first().click();
 });
 
 When('player position updates', async ({ playerMock }) => {
@@ -109,10 +176,10 @@ When('player position updates', async ({ playerMock }) => {
 // THEN Steps
 // ============================================================================
 
-Then('the map should be at zoom level {int} \\(maximum)', async ({ page }, zoomLevel: number) => {
+Then(String.raw`the map should be at zoom level {int} \(maximum)`, async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
         // @ts-expect-error - testing global
-        const map = window.__navMap;
+        const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
@@ -125,7 +192,7 @@ Then('the map should be at zoom level {int} \\(maximum)', async ({ page }, zoomL
 Then('the map should be at zoom level {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
         // @ts-expect-error - testing global
-        const map = window.__navMap;
+        const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
@@ -135,7 +202,7 @@ Then('the map should be at zoom level {int}', async ({ page }, zoomLevel: number
     }
 });
 
-Then('the map should center on \\({int}, {int})', async ({ page }, _x: number, _z: number) => {
+Then(String.raw`the map should center on \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
     const marker = page.locator('.nav-player-marker');
     await expect(marker).toBeVisible();
 });
@@ -143,7 +210,7 @@ Then('the map should center on \\({int}, {int})', async ({ page }, _x: number, _
 Then('the map should animate to zoom {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
         // @ts-expect-error - testing global
-        const map = window.__navMap;
+        const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
@@ -153,13 +220,13 @@ Then('the map should animate to zoom {int}', async ({ page }, zoomLevel: number)
 });
 
 Then('I should switch to manual mode', async ({ page }) => {
-    const recenterBtn = page.locator('#nav-dialog-recenter, #recenter-map').first();
-    await expect(recenterBtn).not.toHaveClass(/hidden/, { timeout: 2000 });
+    const recenterButton = page.locator(SELECTOR_RECENTER_BUTTON).first();
+    await expect(recenterButton).not.toHaveClass(/hidden/, { timeout: 2000 });
 });
 
 Then('the re-center button should appear', async ({ page }) => {
-    const recenterBtn = page.locator('#nav-dialog-recenter, #recenter-map').first();
-    await expect(recenterBtn).toBeVisible({ timeout: 2000 });
+    const recenterButton = page.locator(SELECTOR_RECENTER_BUTTON).first();
+    await expect(recenterButton).toBeVisible({ timeout: 2000 });
 });
 
 Then('I should switch to follow mode', async () => {
@@ -172,10 +239,10 @@ Then('the map should center on player', async ({ page }) => {
 });
 
 Then('the re-center button should hide', async ({ page }) => {
-    const recenterBtn = page.locator('#nav-dialog-recenter, #recenter-map');
-    const isHidden = await recenterBtn.first().evaluate(el => 
-        el.classList.contains('hidden') || 
-        window.getComputedStyle(el).display === 'none'
+    const recenterButton = page.locator(SELECTOR_RECENTER_BUTTON);
+    const isHidden = await recenterButton.first().evaluate(element => 
+        element.classList.contains('hidden') || 
+        globalThis.getComputedStyle(element).display === 'none'
     ).catch(() => true);
     
     expect(isHidden).toBe(true);
@@ -184,7 +251,7 @@ Then('the re-center button should hide', async ({ page }) => {
 Then('the map should stay at zoom {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
         // @ts-expect-error - testing global
-        const map = window.__navMap;
+        const map = globalThis.__navMap;
         return map?.getZoom();
     });
     

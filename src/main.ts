@@ -2167,7 +2167,8 @@ function updatePlayerMarker(): void {
     
     // Only show player marker if player is in the same world as the map
     // When worlds differ, marker stays hidden until player enters correct world
-    if (currentPlayerPosition.world !== navMapWorld) {
+    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
+    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
         if (navPlayerMarker) {
             navPlayerMarker.setOpacity(0);  // Hide but don't remove
         }
@@ -2230,7 +2231,8 @@ function recalculateRouteFromPlayer(): void {
     }
     
     // Only recalculate map visuals if player is in the same world as the map
-    if (currentPlayerPosition.world !== navMapWorld) {
+    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
+    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
         return;
     }
     
@@ -2333,7 +2335,8 @@ function updatePlayerToNextLine(): void {
     }
     
     // Only draw line if player is in the same world as the map
-    if (currentPlayerPosition.world !== navMapWorld) {
+    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
+    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
         return;
     }
     
@@ -2595,8 +2598,37 @@ function updateNearbyShopTooltip(): void {
 }
 
 /**
+ * Calculate zoom level based on overworld-equivalent distance.
+ * Nether distances are multiplied by 8 to account for portal scaling.
+ * 
+ * Distance thresholds (in overworld-equivalent blocks):
+ *   - < 60 blocks: zoom 2 (maximum - arriving at shop, before auto-advance at 50)
+ *   - 60-100 blocks: zoom 1 (close)
+ *   - 100-300 blocks: zoom 0 (medium)
+ *   - 300-600 blocks: zoom -1 (far)
+ *   - 600-1200 blocks: zoom -2 (very far)
+ *   - > 1200 blocks: zoom -3 (maximum out)
+ */
+function getZoomForDistance(overworldEquivalentDistance: number): number {
+    if (overworldEquivalentDistance < 60) {
+        return 2;  // Maximum zoom - arriving at shop
+    } else if (overworldEquivalentDistance < 100) {
+        return 1;  // Close
+    } else if (overworldEquivalentDistance < 300) {
+        return 0;  // Medium
+    } else if (overworldEquivalentDistance < 600) {
+        return -1; // Far
+    } else if (overworldEquivalentDistance < 1200) {
+        return -2; // Very far
+    } else {
+        return -3; // Maximum out
+    }
+}
+
+/**
  * Center the navigation map on the player position
- * Zoom level adjusts based on distance to nearest shop
+ * Zoom level adjusts based on overworld-equivalent distance to nearest shop
+ * (Nether distances are multiplied by 8 to account for portal scaling)
  */
 function centerMapOnPlayer(): void {
     if (!navMap || !currentPlayerPosition) {
@@ -2604,7 +2636,8 @@ function centerMapOnPlayer(): void {
     }
     
     // Only center on player if they're in the same world as the map
-    if (currentPlayerPosition.world !== navMapWorld) {
+    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
+    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
         return;
     }
     
@@ -2616,36 +2649,28 @@ function centerMapOnPlayer(): void {
         MAP_CONFIG.tileSize
     );
     
-    // Calculate distance to nearest non-completed shop IN THIS WORLD
+    // Calculate overworld-equivalent distance to nearest non-completed shop IN THIS WORLD
     const route = navCurrentWorldRoute.length > 0 ? navCurrentWorldRoute : [];
     let minDistance = Infinity;
+    const isNether = currentPlayerPosition.world.toLowerCase().includes('nether');
+    
     for (const stop of route) {
         const deltaX = currentPlayerPosition.x - stop.x;
         const deltaZ = currentPlayerPosition.z - stop.z;
-        const distance = Math.hypot(deltaX, deltaZ);
+        let distance = Math.hypot(deltaX, deltaZ);
+        
+        // In nether, multiply distance by 8 to get overworld-equivalent
+        // This makes zoom behavior consistent: 100 nether blocks feels like 800 OW blocks
+        if (isNether) {
+            distance *= 8;
+        }
+        
         if (distance < minDistance) {
             minDistance = distance;
         }
     }
     
-    // Zoom levels: closer = more zoomed in
-    // Distance < 50 blocks: zoom 1 (very close - max zoom)
-    // Distance 50-150: zoom 0 (close)
-    // Distance 150-400: zoom -1
-    // Distance 400-800: zoom -2
-    // Distance > 800: zoom -3
-    let zoom: number;
-    if (minDistance < 50) {
-        zoom = 1;
-    } else if (minDistance < 150) {
-        zoom = 0;
-    } else if (minDistance < 400) {
-        zoom = -1;
-    } else if (minDistance < 800) {
-        zoom = -2;
-    } else {
-        zoom = -3;
-    }
+    const zoom = getZoomForDistance(minDistance);
     
     // Use flyTo for smoother animation instead of setView
     navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
@@ -2941,6 +2966,8 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     
     const stopsInWorld = route.filter(stop => getWorldId(stop.world) === worldToShow);
     navCurrentWorldRoute = stopsInWorld;
+    // @ts-expect-error - exposing for e2e testing
+    globalThis.__navCurrentWorldRoute = stopsInWorld;
     
     const tileRange = calculateTileRange(stopsInWorld);
     navMapCenterTileX = tileRange.centerTileX;
