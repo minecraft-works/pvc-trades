@@ -38,7 +38,7 @@ import {
     shouldSwitchMapWorld
 } from './library.js';
 
-import { debugNavigation, debugWorldSwitch, debugPlayerPoll, debugMap } from './debug.js';
+import { debugNavigation, debugWorldSwitch, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
 
@@ -1070,32 +1070,41 @@ let manifestLoadPromise: Promise<void> | undefined;
 async function loadTileManifest(): Promise<Set<string>> {
     // If already loaded, return it
     if (tileManifestCache !== undefined) {
+        debugTiles('manifest: returning cached manifest size=%d', tileManifestCache.size);
         return tileManifestCache;
     }
     
     // If loading is in progress, wait for it
     if (manifestLoadPromise !== undefined) {
+        debugTiles('manifest: waiting for in-progress load');
         await manifestLoadPromise;
+        debugTiles('manifest: in-progress load complete size=%d', tileManifestCache!.size);
         return tileManifestCache!;
     }
     
     // Start loading - DON'T set tileManifestCache until fetch completes
     // This prevents race conditions where empty cache is returned
+    debugTiles('manifest: starting fresh load from %s/manifest.json', MAP_CONFIG.baseUrl);
     manifestLoadPromise = (async () => {
         const newCache = new Set<string>();
         try {
             const response = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
             if (response.ok) {
                 const manifest = await response.json() as Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }>;
+                debugTiles('manifest: fetched %d entries', manifest.length);
                 for (const entry of manifest) {
                     // Normalize world name to match what getWorldId returns
                     const normalizedWorld = getWorldId(entry.world);
                     const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
                     newCache.add(key);
                 }
+                debugTiles('manifest: processed into %d unique keys', newCache.size);
+            } else {
+                debugTiles('manifest: fetch failed status=%d', response.status);
             }
-        } catch {
+        } catch (error) {
             console.warn('Failed to load tile manifest');
+            debugTiles('manifest: fetch error %o', error);
         }
         // Only set the global cache AFTER loading completes
         tileManifestCache = newCache;
@@ -1110,7 +1119,9 @@ async function loadTileManifest(): Promise<Set<string>> {
  */
 function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTile: number, tx: number, tz: number): boolean {
     const key = `${world}/${blocksPerTile}/${tx}/${tz}`;
-    return manifest.has(key);
+    const exists = manifest.has(key);
+    debugTiles('checkManifest: key=%s exists=%s', key, exists);
+    return exists;
 }
 
 /**
@@ -1137,6 +1148,7 @@ function loadTileToMap(options: LoadTileOptions): void {
     const { map, worldId, zoom, tx, tz, bounds, addedToMap } = options;
     const mapKey = `z${zoom}:${tx},${tz}`;
     if (addedToMap.has(mapKey)) {
+        debugTiles('loadTile: SKIP already added mapKey=%s', mapKey);
         return;
     }
     addedToMap.add(mapKey);
@@ -1146,17 +1158,21 @@ function loadTileToMap(options: LoadTileOptions): void {
     // Check if we already have this tile cached
     const cachedBlobUrl = tileBlobCache.get(cacheKey);
     if (cachedBlobUrl) {
+        debugTiles('loadTile: CACHE HIT cacheKey=%s', cacheKey);
         L.imageOverlay(cachedBlobUrl, bounds).addTo(map);
         return;
     }
     
     // Fire-and-forget: load tile without blocking
     const url = `${MAP_CONFIG.baseUrl}/${worldId}/${zoom}/${tx}/${tz}.png`;
+    debugTiles('loadTile: FETCH url=%s', url);
     fetch(url)
         .then(response => {
             if (!response.ok) {
+                debugTiles('loadTile: FETCH FAIL url=%s status=%d', url, response.status);
                 return;
             }
+            debugTiles('loadTile: FETCH OK url=%s', url);
             return response.blob();
         })
         .then(blob => {
@@ -1165,12 +1181,15 @@ function loadTileToMap(options: LoadTileOptions): void {
                 tileBlobCache.set(cacheKey, blobUrl);
                 // Check map still exists before adding
                 if (map.getContainer()?.isConnected) {
+                    debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
                     L.imageOverlay(blobUrl, bounds).addTo(map);
+                } else {
+                    debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
                 }
             }
         })
-        .catch(() => {
-            // Tile doesn't exist, skip
+        .catch((error) => {
+            debugTiles('loadTile: ERROR url=%s error=%o', url, error);
         });
 }
 
@@ -2794,6 +2813,15 @@ function loadNavMapTiles(
     const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
     const zoom4TileSize = MAP_CONFIG.tileSize * 16;
     
+    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d]', 
+        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ);
+    debugTiles('loadNavMapTiles: manifest size=%d, checking zoom4 (8192) and zoom8 (512) tiles', manifest.size);
+    
+    let zoom4Loaded = 0;
+    let zoom4Skipped = 0;
+    let zoom8Loaded = 0;
+    let zoom8Skipped = 0;
+    
     // Load zoom 4 tiles as base layer
     const zoom4Tiles = new Set<string>();
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
@@ -2803,6 +2831,7 @@ function loadNavMapTiles(
             if (!zoom4Tiles.has(key)) {
                 zoom4Tiles.add(key);
                 if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
+                    zoom4Loaded++;
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
                     const dx = startZ8X - centerTileX;
@@ -2812,15 +2841,20 @@ function loadNavMapTiles(
                         [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + zoom4TileSize]
                     ];
                     loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap });
+                } else {
+                    zoom4Skipped++;
                 }
             }
         }
     }
     
+    debugTiles('loadNavMapTiles: zoom4 loaded=%d skipped=%d (not in manifest)', zoom4Loaded, zoom4Skipped);
+    
     // Load zoom 8 tiles on top
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
+                zoom8Loaded++;
                 const relativeX = tx - centerTileX;
                 const relativeZ = tz - centerTileZ;
                 const bounds: L.LatLngBoundsExpression = [
@@ -2828,9 +2862,14 @@ function loadNavMapTiles(
                     [-relativeZ * MAP_CONFIG.tileSize, relativeX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
                 ];
                 loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
+            } else {
+                zoom8Skipped++;
             }
         }
     }
+    
+    debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', zoom8Loaded, zoom8Skipped);
+    debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', zoom4Loaded + zoom8Loaded, zoom4Loaded, zoom8Loaded);
 }
 
 function createRouteMarkers(
