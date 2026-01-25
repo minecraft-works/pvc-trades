@@ -31,6 +31,7 @@ Feature: Multi-World Navigation
     Then the map should switch to "nether" world
     And nether tiles should be requested
     And the route should show nether shop markers
+    And the map should be centered on the player
 
   @navigation @world-switch @transition
   Scenario: Map transitions to overworld tiles when player returns from nether
@@ -41,6 +42,7 @@ Feature: Multi-World Navigation
     Then the map should switch to "overworld" world
     And overworld tiles should be requested
     And the route should show overworld shop markers
+    And the map should be centered on the player
 
   @navigation @world-switch @no-shops
   Scenario: Map stays on current world when entering world without shops

@@ -2960,6 +2960,10 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     globalThis.__navMap = navMap;
     // @ts-expect-error - exposing for e2e testing
     globalThis.__navMapWorld = navMapWorld;
+    // @ts-expect-error - exposing for e2e testing
+    globalThis.__navMapCenterTileX = tileRange.centerTileX;
+    // @ts-expect-error - exposing for e2e testing
+    globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
     
     navMap.on('dragstart', () => {
         if (isNavigating) {
