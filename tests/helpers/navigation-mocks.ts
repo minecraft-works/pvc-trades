@@ -62,17 +62,17 @@ const crcTable: number[] = [];
 for (let n = 0; n < 256; n++) {
     let c = n;
     for (let k = 0; k < 8; k++) {
-        c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        c = (c & 1) ? (0xED_B8_83_20 ^ (c >>> 1)) : (c >>> 1);
     }
     crcTable[n] = c;
 }
 
 function crc32(data: Buffer): Buffer {
-    let crc = 0xffffffff;
-    for (let i = 0; i < data.length; i++) {
-        crc = crcTable[(crc ^ data[i]!) & 0xff]! ^ (crc >>> 8);
+    let crc = 0xFF_FF_FF_FF;
+    for (const datum of data) {
+        crc = crcTable[(crc ^ datum!) & 0xFF]! ^ (crc >>> 8);
     }
-    crc = crc ^ 0xffffffff;
+    crc = crc ^ 0xFF_FF_FF_FF;
     const result = Buffer.alloc(4);
     result.writeUInt32BE(crc >>> 0, 0);
     return result;
@@ -118,7 +118,7 @@ export function createPlayerMock(initialWorld: string = 'World'): PlayerMock {
     const state: PlayerState = {
         uuid: 'test-uuid-1234',
         name: 'TestPlayer',
-        foreign: false,
+        foreign: initialWorld === 'World_nether' || initialWorld.toLowerCase().includes('nether'),
         position: {
             x: 0,
             y: 64,
@@ -139,17 +139,20 @@ export function createPlayerMock(initialWorld: string = 'World'): PlayerMock {
             state.position.z = z;
             if (world) {
                 state.world = world;
+                state.foreign = world === 'World_nether' || world.toLowerCase().includes('nether');
             }
         },
         moveToNether(x = -100, z = -12) {
             state.position.x = x;
             state.position.z = z;
             state.world = 'World_nether';
+            state.foreign = true;
         },
         moveToOverworld(x = 0, z = 0) {
             state.position.x = x;
             state.position.z = z;
             state.world = 'World';
+            state.foreign = false;
         }
     };
 }
@@ -322,10 +325,10 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
 
     // Sample color from the center of any loaded tile image
     const color = await page.evaluate(() => {
-        const container = document.getElementById('nav-dialog-map-container');
+        const container = document.querySelector('#nav-dialog-map-container');
         if (!container) {
             console.log('[sampleMapColor] No container found');
-            return null;
+            return null; // eslint-disable-line unicorn/no-null -- browser context
         }
 
         // Find any image overlay in the Leaflet pane
@@ -333,7 +336,7 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
         console.log(`[sampleMapColor] Found ${images.length} image layers`);
         
         if (images.length === 0) {
-            return null;
+            return null; // eslint-disable-line unicorn/no-null -- browser context
         }
         
         // Find a loaded image
@@ -346,25 +349,25 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
             const canvas = document.createElement('canvas');
             canvas.width = 1;
             canvas.height = 1;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
+            const context = canvas.getContext('2d');
+            if (!context) {
                 continue;
             }
 
             try {
-                ctx.drawImage(img, 0, 0, 1, 1);
-                const pixel = ctx.getImageData(0, 0, 1, 1).data;
+                context.drawImage(img, 0, 0, 1, 1);
+                const pixel = context.getImageData(0, 0, 1, 1).data;
                 console.log(`[sampleMapColor] Sampled pixel: R=${pixel[0]}, G=${pixel[1]}, B=${pixel[2]}`);
                 return { r: pixel[0], g: pixel[1], b: pixel[2] };
-            } catch (e) {
-                console.log('[sampleMapColor] Error sampling image:', e);
+            } catch (error) {
+                console.log('[sampleMapColor] Error sampling image:', error);
                 // CORS or other error, try next image
                 continue;
             }
         }
         
         console.log('[sampleMapColor] No valid image found to sample');
-        return null;
+        return null; // eslint-disable-line unicorn/no-null -- browser context
     });
 
     return color;
@@ -400,7 +403,7 @@ export function isRedColor(color: RGB | null): boolean {
 export async function waitForMapWorld(
     page: Page, 
     expectedWorld: 'overworld' | 'nether',
-    timeout: number = 10000
+    timeout: number = 10_000
 ): Promise<boolean> {
     const checkColor = expectedWorld === 'overworld' ? isBlueColor : isRedColor;
     const startTime = Date.now();
