@@ -68,6 +68,9 @@ jobs:
           restore-keys: |
             map-tiles-v5-
 
+      - name: Fetch trade data
+        run: npm run fetch-data
+
       - name: Fetch map tiles (only missing)
         run: npm run fetch-tiles
 
