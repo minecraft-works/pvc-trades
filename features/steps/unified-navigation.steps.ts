@@ -279,6 +279,14 @@ Then('the route should go from player to nearest shop', async ({ page }) => {
 });
 
 Then('the distance should be calculated using 8x nether coordinates', async ({ page }) => {
+    // Wait for the route to be populated
+    await expect.poll(async () => {
+        return await page.evaluate(() => {
+            // @ts-expect-error - exposed for testing
+            return globalThis.__navCurrentWorldRoute?.length ?? 0;
+        });
+    }, { timeout: DEFAULT_TIMEOUT }).toBeGreaterThan(0);
+    
     // Get the nether shop's coordinates and the displayed distance
     const data = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing

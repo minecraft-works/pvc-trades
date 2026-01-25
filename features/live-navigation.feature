@@ -62,7 +62,7 @@ Feature: Live Navigation
   Scenario: Auto-completes shop when player arrives
     Given I am navigating as "TestPlayer" at (0, 0)
     And the next shop is at (100, 200)
-    When player moves to (100, 180)
+    When player moves to (100, 197)
     Then the first shop should be marked as completed
     And the next shop should become the current target
 

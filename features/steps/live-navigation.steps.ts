@@ -245,13 +245,16 @@ When('the player moves to \\({int}, {int})', async ({ playerMock }, x: number, z
 });
 
 When('I auto-complete the first shop', async ({ page, playerMock }) => {
-    playerMock.setPosition(100, 180);
+    // Move player within 8 blocks of the shop at (100, 200)
+    // The new auto-advance threshold is 8 blocks in X/Z AND Y
+    playerMock.setPosition(100, 197);
     // Wait for polling to pick up and trigger auto-advance
     await page.waitForTimeout(2500);
 });
 
 When('I auto-complete the last shop', async ({ page, playerMock }) => {
-    playerMock.setPosition(100, 180);
+    // Move player within 8 blocks of the shop at (100, 200)
+    playerMock.setPosition(100, 197);
     // Wait for polling to pick up and trigger auto-advance
     await page.waitForTimeout(2500);
 });
