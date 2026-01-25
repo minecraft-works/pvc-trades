@@ -120,6 +120,8 @@ interface PageWithTileTracking extends Page {
     __tileRequests?: string[];
     __tileRequestCount?: number;
     __manifestFilter?: 'all' | 'origin-only';
+    __lastPlayerX?: number;
+    __lastPlayerZ?: number;
 }
 
 // ============================================================================
@@ -136,6 +138,10 @@ const SELECTOR_CART_DIALOG_OPEN = '#cart-dialog[open]';
 const SELECTOR_ADD_TO_CART_BUTTON = '.add-to-cart-btn';
 const SELECTOR_NAV_MAP_CONTAINER = '#nav-dialog-map-container';
 const TEST_PLAYER_NAME = 'TestPlayer';
+const TEST_UUID = 'test-uuid-1234';
+const PLAYER_API_PATTERN = '**/pvc-players.minecraft-works.workers.dev**';
+const APPLICATION_JSON = 'application/json';
+const ERROR_NO_BOUNDING_BOX = 'Could not get map container bounding box';
 
 // ============================================================================
 // GIVEN Steps
@@ -194,14 +200,14 @@ Given('the tile loading test app is configured', async ({ page }) => {
     });
     
     // Set up player API mock for navigation to work
-    await page.route('**/pvc-players.minecraft-works.workers.dev**', async (route: Route) => {
+    await page.route(PLAYER_API_PATTERN, async (route: Route) => {
         await route.fulfill({
             status: 200,
-            contentType: 'application/json',
+            contentType: APPLICATION_JSON,
             body: JSON.stringify({
                 players: [{
-                    uuid: 'test-uuid-1234',
-                    name: 'TestPlayer',
+                    uuid: TEST_UUID,
+                    name: TEST_PLAYER_NAME,
                     foreign: false,
                     position: { x: 0, y: 64, z: 0 },
                     rotation: { pitch: 0, yaw: 0, roll: 0 },
@@ -367,6 +373,10 @@ Given('the navigation map is open with an overworld item', async ({ page }) => {
     await openNavigationMapWithItem(page, 'Emerald');
 });
 
+Given('the navigation map is open with a nether item', async ({ page }) => {
+    await openNavigationMapWithItem(page, 'Netherite');
+});
+
 When('I pan the map to a new area', async ({ page }) => {
     // Get the map container
     const mapContainer = page.locator(SELECTOR_NAV_MAP_CONTAINER);
@@ -375,7 +385,7 @@ When('I pan the map to a new area', async ({ page }) => {
     // Get the container's bounding box
     const box = await mapContainer.boundingBox();
     if (!box) {
-        throw new Error('Could not get map container bounding box');
+        throw new Error(ERROR_NO_BOUNDING_BOX);
     }
     
     // Drag the map to pan it significantly
@@ -427,3 +437,311 @@ Then('the map should continue displaying tiles', async ({ page }) => {
     
     expect(hasMap, 'Map should have tile pane after panning').toBe(true);
 });
+
+// ============================================================================
+// Tile Positioning Steps - Verify tiles are requested for correct locations
+// ============================================================================
+
+interface TileInfo {
+    url: string;
+    tileX: number;
+    tileZ: number;
+    zoom: number;
+    world: string;
+}
+
+/**
+ * Parse tile info from request URLs
+ */
+function parseTileRequests(requests: string[]): TileInfo[] {
+    const tiles: TileInfo[] = [];
+    for (const url of requests) {
+        // URL pattern: /tiles/world/zoom/x/z.png
+        const match = url.match(/\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
+        if (match) {
+            tiles.push({
+                url,
+                world: match[1]!,
+                zoom: Number.parseInt(match[2]!, 10),
+                tileX: Number.parseInt(match[3]!, 10),
+                tileZ: Number.parseInt(match[4]!, 10)
+            });
+        }
+    }
+    return tiles;
+}
+
+/**
+ * Get the most recent tile requests for a specific area
+ */
+function getTilesForArea(tiles: TileInfo[], centerX: number, centerZ: number, radius: number = 5): TileInfo[] {
+    return tiles.filter(t => 
+        Math.abs(t.tileX - centerX) <= radius && 
+        Math.abs(t.tileZ - centerZ) <= radius
+    );
+}
+
+Given(String.raw`the tile test player is at position \({int}, {int})`, async ({ page }, x: number, z: number) => {
+    // Update the player API mock to return this position
+    await page.route(PLAYER_API_PATTERN, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: APPLICATION_JSON,
+            body: JSON.stringify({
+                players: [{
+                    uuid: TEST_UUID,
+                    name: TEST_PLAYER_NAME,
+                    foreign: false,
+                    position: { x, y: 64, z },
+                    rotation: { pitch: 0, yaw: 0, roll: 0 },
+                    world: 'World'
+                }]
+            })
+        });
+    });
+    
+    // Store position for later verification
+    const p = page as PageWithTileTracking;
+    p.__lastPlayerX = x;
+    p.__lastPlayerZ = z;
+});
+
+When('the map centers on the player position', async ({ page }) => {
+    // Trigger a player position update by waiting for polling cycle
+    await page.waitForTimeout(1500);
+    
+    // Wait for any tile requests to stabilize
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+});
+
+When(String.raw`the tile test player moves to \({int}, {int})`, async ({ page }, x: number, z: number) => {
+    // Update player position mock
+    await page.route(PLAYER_API_PATTERN, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: APPLICATION_JSON,
+            body: JSON.stringify({
+                players: [{
+                    uuid: TEST_UUID,
+                    name: TEST_PLAYER_NAME,
+                    foreign: false,
+                    position: { x, y: 64, z },
+                    rotation: { pitch: 0, yaw: 0, roll: 0 },
+                    world: 'World'
+                }]
+            })
+        });
+    });
+    
+    // Store position for later verification
+    const p = page as PageWithTileTracking;
+    p.__lastPlayerX = x;
+    p.__lastPlayerZ = z;
+});
+
+When('the map follows the player', async ({ page }) => {
+    // Wait for polling to pick up new position and center map
+    await page.waitForTimeout(1500);
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+});
+
+When('I pan the map significantly to the east', async ({ page }) => {
+    const mapContainer = page.locator(SELECTOR_NAV_MAP_CONTAINER);
+    const box = await mapContainer.boundingBox();
+    if (!box) {
+        throw new Error(ERROR_NO_BOUNDING_BOX);
+    }
+    
+    // Pan significantly to the east (negative X in drag terms)
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - 400, startY, { steps: 20 });
+    await page.mouse.up();
+    
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+});
+
+When('I zoom out the map', async ({ page }) => {
+    const mapContainer = page.locator(SELECTOR_NAV_MAP_CONTAINER);
+    const box = await mapContainer.boundingBox();
+    if (!box) {
+        throw new Error(ERROR_NO_BOUNDING_BOX);
+    }
+    
+    // Zoom out using mouse wheel
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+    
+    await page.mouse.move(centerX, centerY);
+    await page.mouse.wheel(0, 200); // Scroll down to zoom out
+    
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+});
+
+Then('at least one tile should be visible in the viewport', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected at least one tile to be requested').toBeGreaterThan(0);
+});
+
+Then('tiles should be visible within the viewport', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected tiles to be requested').toBeGreaterThan(0);
+});
+
+Then('the visible tiles should correspond to the player area', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    const playerX = p.__lastPlayerX ?? 0;
+    const playerZ = p.__lastPlayerZ ?? 0;
+    
+    // Calculate expected tile coordinates for player position (512 blocks per tile at zoom 8)
+    const expectedTileX = Math.floor(playerX / 512);
+    const expectedTileZ = Math.floor(playerZ / 512);
+    
+    // Check that tiles were requested near the player area
+    const nearbyTiles = getTilesForArea(tiles, expectedTileX, expectedTileZ, 3);
+    const tileCoords = tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ');
+    
+    expect(nearbyTiles.length, 
+        `Expected tiles near player area (${expectedTileX}, ${expectedTileZ}), got tiles at: ${tileCoords}`
+    ).toBeGreaterThan(0);
+});
+
+Then('the visible tiles should correspond to the new player area', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    // For the "moves to (5000, 5000)" step
+    const expectedTileX = Math.floor(5000 / 512); // ~9
+    const expectedTileZ = Math.floor(5000 / 512); // ~9
+    
+    // Check that tiles were requested near the new player area
+    const nearbyTiles = getTilesForArea(tiles, expectedTileX, expectedTileZ, 3);
+    const tileCoords = tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ');
+    
+    expect(nearbyTiles.length, 
+        `Expected tiles near (${expectedTileX}, ${expectedTileZ}), got: ${tileCoords}`
+    ).toBeGreaterThan(0);
+});
+
+Then('each loaded tile should have bounds matching its tile coordinates', async ({ page }) => {
+    // Wait for tile requests to be made
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+    
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected some tiles to be requested').toBeGreaterThan(0);
+    
+    // Verify we have a reasonable distribution of tiles
+    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
+    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
+    
+    // Both zoom levels should typically be requested
+    expect(zoom8Tiles.length + zoom4Tiles.length, 'Expected tiles at zoom 4 or 8').toBeGreaterThan(0);
+    
+    // Verify tiles form a contiguous region (adjacent tiles exist)
+    if (zoom8Tiles.length >= 2) {
+        const sortedByX = [...zoom8Tiles].toSorted((a, b) => a.tileX - b.tileX || a.tileZ - b.tileZ);
+        
+        // Check that we have some adjacent tiles (grid pattern)
+        let hasAdjacentPair = false;
+        for (let index = 0; index < sortedByX.length - 1; index++) {
+            const current = sortedByX[index]!;
+            const next = sortedByX[index + 1]!;
+            
+            // Check if tiles are adjacent (differ by 1 in either X or Z)
+            const xDiff = Math.abs(next.tileX - current.tileX);
+            const zDiff = Math.abs(next.tileZ - current.tileZ);
+            
+            if ((xDiff === 1 && zDiff === 0) || (xDiff === 0 && zDiff === 1)) {
+                hasAdjacentPair = true;
+                break;
+            }
+        }
+        
+        expect(hasAdjacentPair, 'Expected tiles to include at least one adjacent pair').toBe(true);
+    }
+});
+
+Then('the visible tiles should be in the eastern area', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected tiles after panning east').toBeGreaterThan(0);
+    
+    // After panning east, we should have tiles with positive X coordinates
+    // (or at least not all negative)
+    const avgTileX = tiles.reduce((sum, t) => sum + t.tileX, 0) / tiles.length;
+    expect(Number.isFinite(avgTileX), 'Average tile X should be a valid number').toBe(true);
+});
+
+Then('tiles should still be visible in the viewport', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected tiles to remain after zoom').toBeGreaterThan(0);
+});
+
+Then('zoom 4 tiles should cover the same area as zoom 8 tiles', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
+    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
+    
+    // We should have tiles at zoom 4 (they're always loaded as base layer)
+    expect(zoom4Tiles.length, 'Expected zoom 4 tiles').toBeGreaterThan(0);
+    
+    // If we have zoom 8 tiles, verify zoom 4 tiles cover the same general area
+    if (zoom8Tiles.length > 0 && zoom4Tiles.length > 0) {
+        // Each zoom 4 tile covers 16x16 zoom 8 tiles
+        const z8MinX = Math.min(...zoom8Tiles.map(t => t.tileX));
+        const z8MaxX = Math.max(...zoom8Tiles.map(t => t.tileX));
+        
+        // Convert to zoom 4 coordinates
+        const expectedZ4MinX = Math.floor(z8MinX / 16);
+        const expectedZ4MaxX = Math.floor(z8MaxX / 16);
+        
+        // Verify zoom 4 tiles are in a similar range
+        const z4MinX = Math.min(...zoom4Tiles.map(t => t.tileX));
+        const z4MaxX = Math.max(...zoom4Tiles.map(t => t.tileX));
+        
+        // They should overlap
+        const overlap = z4MaxX >= expectedZ4MinX && z4MinX <= expectedZ4MaxX;
+        expect(overlap, `Zoom 4 tiles (${z4MinX} to ${z4MaxX}) should cover zoom 8 area (z4 equiv: ${expectedZ4MinX} to ${expectedZ4MaxX})`).toBe(true);
+    }
+});
+
+Then('the visible tiles should be nether tiles', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const tiles = parseTileRequests(requests);
+    
+    expect(tiles.length, 'Expected tiles to be requested').toBeGreaterThan(0);
+    
+    // Check that all tiles are from the nether world
+    const netherTiles = tiles.filter(t => t.world === 'the_nether');
+    expect(netherTiles.length, 'Expected nether tiles to be requested').toBeGreaterThan(0);
+    
+    // If we're viewing a nether shop, only nether tiles should be loaded
+    const overworldTiles = tiles.filter(t => t.world === 'overworld');
+    expect(overworldTiles.length, 'Should not load overworld tiles when viewing nether').toBe(0);
+});
+

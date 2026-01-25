@@ -2,13 +2,20 @@
 
 This document outlines all scenarios that should be tested, categorized by test type.
 
+## Quick Reference
+
+For implementation guidance, see:
+- [docs/testing-guide.md](docs/testing-guide.md) - How to write tests
+- [docs/code-patterns.md](docs/code-patterns.md) - Code patterns to follow
+- [features/steps/fixtures.ts](features/steps/fixtures.ts) - Shared test fixtures
+
 ## Legend
 
-| Test Type | Description |
-|-----------|-------------|
-| **Cucumber** | Browser integration tests - requires real browser, network mocking, timing |
-| **Unit** | Pure function tests - input/output, no browser needed |
-| **E2E** | Already covered in Playwright E2E tests |
+| Test Type | Description | Location |
+|-----------|-------------|----------|
+| **Cucumber** | Browser integration tests - requires real browser, network mocking, timing | `features/*.feature` |
+| **Unit** | Pure function tests - input/output, no browser needed | `src/*.test.ts` |
+| **E2E** | Already covered in Playwright E2E tests | `tests/*.spec.ts` |
 
 ---
 
@@ -239,3 +246,99 @@ This document outlines all scenarios that should be tested, categorized by test 
 | `shop-tooltip.feature` | 6 | 📝 Created |
 
 **Total: 60 scenarios** (3 implemented, 57 to implement)
+---
+
+## Implementation Guidance
+
+### Adding a New BDD Scenario
+
+1. **Choose the right feature file** based on the category above
+2. **Add scenario to feature file** following Gherkin syntax:
+   ```gherkin
+   @tag
+   Scenario: Descriptive name
+     Given precondition
+     When action
+     Then expected result
+   ```
+3. **Create/update step definitions** in `features/steps/`
+4. **Run `npx bddgen`** to generate Playwright test code
+5. **Run `npm run test:e2e`** to execute tests
+
+### Step Definition Template
+
+```typescript
+// features/steps/your-feature.steps.ts
+import { expect } from '@playwright/test';
+import { Given, When, Then } from './fixtures';
+
+Given('precondition step', async ({ page }) => {
+    // Setup code
+});
+
+When('action step', async ({ page }) => {
+    // Action code
+});
+
+Then('assertion step', async ({ page }) => {
+    await expect(page.locator('.element')).toBeVisible();
+});
+```
+
+### Mock Data Requirements
+
+Most scenarios need mock data. Use `page.route()` to intercept:
+
+```typescript
+await page.route('**/data.json', route => {
+    route.fulfill({
+        body: JSON.stringify(mockShopData)
+    });
+});
+```
+
+See [features/steps/fixtures.ts](features/steps/fixtures.ts) for mock data examples.
+
+### Testing Navigation Scenarios
+
+Navigation tests require:
+1. Mock `players.json` endpoint with player position
+2. Update mock between polls to simulate movement
+3. Use `page.waitForResponse()` to sync with polls
+
+```typescript
+let playerPosition = { x: 0, z: 0 };
+
+await page.route('**/players.json', route => {
+    route.fulfill({
+        body: JSON.stringify({
+            players: [{ name: 'TestPlayer', position: playerPosition }]
+        })
+    });
+});
+
+// Simulate player movement
+playerPosition = { x: 100, z: 100 };
+await page.waitForResponse('**/players.json');
+```
+
+### Common Assertions
+
+```typescript
+// Element visibility
+await expect(page.locator('#element')).toBeVisible();
+await expect(page.locator('#element')).toBeHidden();
+
+// Text content
+await expect(page.locator('.badge')).toHaveText('5');
+await expect(page.locator('.message')).toContainText('success');
+
+// Count
+await expect(page.locator('.trade-row')).toHaveCount(10);
+
+// CSS class
+await expect(page.locator('.btn')).toHaveClass(/active/);
+
+// Attribute
+await expect(page.locator('input')).toHaveAttribute('disabled', '');
+```

@@ -6,6 +6,42 @@
  * - Search state management
  * - Rendering trade results and UI components
  * - Dynmap integration for map display
+ * 
+ * ## FILE NAVIGATION (for AI assistants)
+ * 
+ * This file is organized into sections marked with `// ===...` separators.
+ * Use these line numbers to jump to sections:
+ * 
+ * | Section | Line | Description |
+ * |---------|------|-------------|
+ * | Types | ~68 | Local interfaces (DeviationResult) |
+ * | Dialog Utilities | ~79 | setupDialogBackdropClose, openDialog |
+ * | State | ~128 | Global state variables |
+ * | Constants | ~188 | CSS classes, selectors, magic numbers |
+ * | Shopping Cart Functions | ~209 | Cart CRUD operations |
+ * | Navigation Progress | ~303 | Route completion tracking |
+ * | DOM Helpers | ~538 | getElement helper |
+ * | Data Loading | ~552 | loadShops, processRawData |
+ * | Search & Sort | ~610 | debouncedSearch, sortByColumn |
+ * | Deviation Calculation | ~743 | getDeviation, deviationCache |
+ * | Rendering | ~779 | createTradeRowElement, renderResults |
+ * | Matrix Dialog | ~947 | Exchange rate matrix UI |
+ * | Map Dialog | ~1034 | Leaflet map, tile loading |
+ * | Cart Dialog | ~1613 | Cart items, timeline |
+ * | Tab Switching | ~1817 | Cart dialog tabs |
+ * | Live Navigation | ~1879 | Player polling, auto-advance |
+ * | Shop Tooltip | ~2521 | Proximity-based shop info |
+ * | Navigation Map | ~2738 | Navigation-specific map |
+ * | Initialization | ~3107 | DOMContentLoaded setup |
+ * 
+ * ## KEY PATTERNS
+ * 
+ * - State persistence: localStorage with try/catch
+ * - Event delegation: Single listener on parent for dynamic children
+ * - Virtual scrolling: For trade list performance
+ * - Leaflet maps: Custom tile loading with caching
+ * 
+ * @module main
  */
 
 import {
@@ -2861,19 +2897,27 @@ function calculateTileRangeFromView(centerTileX: number, centerTileZ: number): T
     return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX: viewCenterTileX, centerTileZ: viewCenterTileZ };
 }
 
+interface LoadNavMapTilesOptions {
+    manifest: Set<string>;
+    worldId: string;
+    tileRange: TileRange;
+    addedToMap: Set<string>;
+    mapCenterTileX?: number;
+    mapCenterTileZ?: number;
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Nested loops for tile loading across zoom levels
-function loadNavMapTiles(
-    manifest: Set<string>, 
-    worldId: string, 
-    tileRange: TileRange, 
-    addedToMap: Set<string>
-): void {
+function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
+    const { manifest, worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
     if (!navMap) {return;}
     const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
+    // Use map center for positioning (relative to Leaflet origin), fall back to tileRange center
+    const positionCenterX = mapCenterTileX ?? centerTileX;
+    const positionCenterZ = mapCenterTileZ ?? centerTileZ;
     const zoom4TileSize = MAP_CONFIG.tileSize * 16;
     
-    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d]', 
-        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ);
+    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d]', 
+        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ);
     debugTiles('loadNavMapTiles: manifest size=%d, checking zoom4 (8192) and zoom8 (512) tiles', manifest.size);
     
     let zoom4Loaded = 0;
@@ -2893,8 +2937,8 @@ function loadNavMapTiles(
                     zoom4Loaded++;
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
-                    const dx = startZ8X - centerTileX;
-                    const dy = startZ8Z - centerTileZ;
+                    const dx = startZ8X - positionCenterX;
+                    const dy = startZ8Z - positionCenterZ;
                     const bounds: L.LatLngBoundsExpression = [
                         [-dy * MAP_CONFIG.tileSize - zoom4TileSize, dx * MAP_CONFIG.tileSize],
                         [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + zoom4TileSize]
@@ -2914,8 +2958,8 @@ function loadNavMapTiles(
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
                 zoom8Loaded++;
-                const relativeX = tx - centerTileX;
-                const relativeZ = tz - centerTileZ;
+                const relativeX = tx - positionCenterX;
+                const relativeZ = tz - positionCenterZ;
                 const bounds: L.LatLngBoundsExpression = [
                     [-relativeZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize, relativeX * MAP_CONFIG.tileSize],
                     [-relativeZ * MAP_CONFIG.tileSize, relativeX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
@@ -3031,7 +3075,7 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     const addedToNavMap = new Set<string>();
     
     // Initial tile load for shop-centered view
-    loadNavMapTiles(manifest, worldToShow, tileRange, addedToNavMap);
+    loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
     
     // Dynamic tile loading when map moves (e.g., when centering on player)
     const loadVisibleNavMapTiles = () => {
@@ -3039,7 +3083,15 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
         if (viewTileRange) {
             debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]', 
                 viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
-            loadNavMapTiles(manifest, worldToShow, viewTileRange, addedToNavMap);
+            // Pass the original map center for correct tile positioning relative to Leaflet origin
+            loadNavMapTiles({ 
+                manifest, 
+                worldId: worldToShow, 
+                tileRange: viewTileRange, 
+                addedToMap: addedToNavMap, 
+                mapCenterTileX: navMapCenterTileX, 
+                mapCenterTileZ: navMapCenterTileZ 
+            });
         }
     };
     navMap.on('moveend', loadVisibleNavMapTiles);

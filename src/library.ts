@@ -78,10 +78,31 @@ class ConfigStore {
 export const configStore = new ConfigStore();
 
 // Convenience exports (delegate to store)
+
+/**
+ * Get the current application configuration.
+ * Returns default config if not yet loaded.
+ * 
+ * @returns The current AppConfig object
+ * 
+ * @example
+ * const config = getConfig();
+ * console.log(config.dynmap.baseUrl);
+ */
 export function getConfig(): AppConfig {
     return configStore.get();
 }
 
+/**
+ * Load application configuration from config.json.
+ * Falls back to default config on error.
+ * 
+ * @returns Promise resolving to the loaded AppConfig
+ * 
+ * @example
+ * await loadConfig();
+ * const config = getConfig();
+ */
 export async function loadConfig(): Promise<AppConfig> {
     return configStore.load();
 }
@@ -123,10 +144,28 @@ class CoreBlocksStore {
 
 export const coreBlocksStore = new CoreBlocksStore();
 
+/**
+ * Get the list of core currency blocks used for ratio calculations.
+ * 
+ * @returns Array of block names (e.g., ['Emerald Block', 'Diamond Block'])
+ * 
+ * @example
+ * const coreBlocks = getCoreBlocks();
+ * const isCoreBlock = coreBlocks.includes('Diamond Block');
+ */
 export function getCoreBlocks(): string[] {
     return coreBlocksStore.get();
 }
 
+/**
+ * Load core currency blocks from core_currencies.json.
+ * 
+ * @returns Promise resolving to array of block names
+ * 
+ * @example
+ * await loadBaseItems();
+ * const blocks = getCoreBlocks();
+ */
 export async function loadBaseItems(): Promise<string[]> {
     return coreBlocksStore.load();
 }
@@ -171,6 +210,16 @@ class BlockConversionsStore {
 
 export const blockConversionsStore = new BlockConversionsStore();
 
+/**
+ * Load block-to-ingot conversion ratios from block_conversions.json.
+ * Used for calculating block values from ingot values (e.g., Diamond Block = 9 Diamonds).
+ * 
+ * @returns Promise resolving to BlockConversions map
+ * 
+ * @example
+ * await loadFixedRatios();
+ * // Now blockConversionsStore contains { 'diamond block': { base: 'diamond', multiplier: 9 } }
+ */
 export async function loadFixedRatios(): Promise<BlockConversions> {
     return blockConversionsStore.load();
 }
@@ -189,6 +238,19 @@ function normalize(s: string): string {
     return result;
 }
 
+/**
+ * Check if text matches a search query with flexible matching.
+ * Handles underscores, spaces, and word-order variations.
+ * 
+ * @param text - The text to search in
+ * @param query - The search query
+ * @returns true if text matches query
+ * 
+ * @example
+ * matchesQuery('Diamond Pickaxe', 'diamond')     // true
+ * matchesQuery('cooked_beef', 'cookedbeef')      // true
+ * matchesQuery('Golden Apple', 'apple golden')  // true
+ */
 export function matchesQuery(text: string, query: string): boolean {
     const textNorm = normalize(text);
     const queryNorm = normalize(query);
@@ -198,6 +260,18 @@ export function matchesQuery(text: string, query: string): boolean {
     return words.every(word => text.includes(word));
 }
 
+/**
+ * Check if item enchantments match the required enchantments from a mapping rule.
+ * Item may have extra enchants, but must have all required ones at correct levels.
+ * 
+ * @param itemEnchants - Enchantments on the item
+ * @param ruleEnchants - Required enchantments from mapping rule
+ * @returns true if all required enchants match
+ * 
+ * @example
+ * enchantsMatch({ efficiency: 5, unbreaking: 3 }, { efficiency: 5 }) // true
+ * enchantsMatch({ efficiency: 4 }, { efficiency: 5 })                // false
+ */
 export function enchantsMatch(
     itemEnchants: Record<string, number> | undefined,
     ruleEnchants: Record<string, number> | undefined
@@ -213,6 +287,17 @@ export function enchantsMatch(
 // Formatting Functions
 // ============================================================================
 
+/**
+ * Format an item name for display (title case).
+ * Uses item.name if present, otherwise formats item.type.
+ * 
+ * @param item - The item to format
+ * @returns Formatted display name
+ * 
+ * @example
+ * formatName({ type: 'DIAMOND_PICKAXE', name: '', amount: 1 }) // 'Diamond pickaxe'
+ * formatName({ type: 'ITEM', name: 'Vote Diamond', amount: 1 }) // 'Vote diamond'
+ */
 export function formatName(item: Item): string {
     const text = item.name || item.type.replaceAll('_', ' ');
     if (!text) { return ''; }
@@ -220,6 +305,19 @@ export function formatName(item: Item): string {
     return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+/**
+ * Apply custom mapping rules to transform item types.
+ * Used for special items like vote certificates or custom enchants.
+ * Mutates the item in place.
+ * 
+ * @param item - The item to transform (mutated)
+ * @param mappingRules - Array of mapping rules to check
+ * 
+ * @example
+ * const item = { type: 'PAPER', name: '50 Votes Certificate', amount: 1 };
+ * applyMapping(item, mappingRules);
+ * // item.type might now be 'Vote Certificate'
+ */
 export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]): void {
     if (!item) { return; }
     const type = item.type.replace('minecraft:', '').toUpperCase();
@@ -235,6 +333,17 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
     }
 }
 
+/**
+ * Create a flexible regex from a search pattern.
+ * Supports wildcards (*) and flexible spacing (underscores, spaces, no separator).
+ * 
+ * @param pattern - Search pattern with optional wildcards
+ * @returns RegExp for matching
+ * 
+ * @example
+ * getRegex('diamond*').test('Diamond Pickaxe')  // true
+ * getRegex('cooked').test('cooked_beef')        // true
+ */
 export function getRegex(pattern: string): RegExp {
     const withPlaceholder = pattern.replaceAll('*', '\u0000');
     const escaped = withPlaceholder.replaceAll(/[.+^${}()|[\]\\]/g, String.raw`\$&`);
@@ -247,6 +356,16 @@ export function getRegex(pattern: string): RegExp {
 // Shulker Box Parsing
 // ============================================================================
 
+/**
+ * Parse shulker box lore to extract contained items and quantities.
+ * 
+ * @param lore - Array of lore lines from shulker box item
+ * @returns Parsed result with items array and default display values
+ * 
+ * @example
+ * parseShulkerContents(['- 64x DIAMOND', '- 32x GOLD_INGOT'])
+ * // { items: [{key: 'diamond', name: 'Diamond', total: 64}, ...], defaultName: 'Diamond', defaultTotal: 64 }
+ */
 export function parseShulkerContents(lore: string[]): ShulkerParseResult {
     const counts: Record<string, number> = {};
     for (const line of lore) {
@@ -289,10 +408,30 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
     "'": '&#39;'
 };
 
+/**
+ * Escape special HTML characters to prevent XSS.
+ * 
+ * @param text - Raw text to escape
+ * @returns HTML-safe string
+ * 
+ * @example
+ * escapeHtml('<script>alert(1)</script>') // '&lt;script&gt;alert(1)&lt;/script&gt;'
+ */
 export function escapeHtml(text: string): string {
     return text.replaceAll(/[&<>"']/g, c => HTML_ESCAPE_MAP[c] ?? c);
 }
 
+/**
+ * Highlight matching text with <mark> tags.
+ * Text is HTML-escaped before highlighting.
+ * 
+ * @param text - Text to highlight in
+ * @param regex - Pattern to match and highlight
+ * @returns HTML string with matches wrapped in <mark>
+ * 
+ * @example
+ * highlight('Diamond Pickaxe', /diamond/i) // '<mark>Diamond</mark> Pickaxe'
+ */
 export function highlight(text: string, regex: RegExp): string {
     const escaped = escapeHtml(text);
     return escaped.replace(regex, m => `<mark>${m}</mark>`);
@@ -302,6 +441,15 @@ export function highlight(text: string, regex: RegExp): string {
 // Location & Distance Functions
 // ============================================================================
 
+/**
+ * Parse a location string into coordinates.
+ * 
+ * @param location - Comma-separated coordinate string "x, y, z"
+ * @returns Coordinates object with x, y, z
+ * 
+ * @example
+ * parseLocation('100, 64, -200') // { x: 100, y: 64, z: -200 }
+ */
 export function parseLocation(location: string): Coordinates {
     const coords = location.split(', ');
     return {
@@ -315,6 +463,19 @@ export function parseLocation(location: string): Coordinates {
 // Trade Processing
 // ============================================================================
 
+/**
+ * Process a raw shop recipe into a normalized Trade object.
+ * Applies mapping rules and handles shulker box contents.
+ * 
+ * @param recipe - Raw recipe from shop data
+ * @param shop - Shop containing the recipe (for location/world)
+ * @param mappingRules - Custom item mapping rules
+ * @returns Normalized Trade object
+ * 
+ * @example
+ * const trade = processTrade(recipe, shop, mappingRules);
+ * console.log(trade.resultName, trade.costName, trade.x, trade.z);
+ */
 export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRule[]): Trade {
     const { x, y, z } = parseLocation(shop.location);
     const world = shop.world.replace('minecraft:', '');
@@ -403,6 +564,19 @@ function checkWantQueryMatch(
     return { matchResult: false, displayName: trade.resultName, displayAmount: trade.resultAmount };
 }
 
+/**
+ * Filter a trade based on "want" (result) and "give" (cost) queries.
+ * Returns undefined if trade doesn't match or has zero stock.
+ * 
+ * @param trade - Trade to filter
+ * @param wantQuery - Filter for items you want to receive (empty = any)
+ * @param giveQuery - Filter for items you give away (empty = any)
+ * @returns FilterResult if matches, undefined otherwise
+ * 
+ * @example
+ * const result = filterTrade(trade, 'diamond', 'emerald');
+ * if (result) console.log(result.displayName, result.displayAmount);
+ */
 export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string): FilterResult | undefined {
     if (trade.stock === 0) { return undefined; }
 
@@ -425,6 +599,18 @@ export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string):
 // Sorting
 // ============================================================================
 
+/**
+ * Sort filter results by a specified column and direction.
+ * Mutates and returns the array.
+ * 
+ * @param results - Array of filter results to sort
+ * @param column - Column to sort by ('result-amt', 'cost-name', 'stock', etc.)
+ * @param direction - 'asc' or 'desc'
+ * @returns The sorted array (same reference)
+ * 
+ * @example
+ * sortResults(results, 'result-amt', 'desc'); // Sort by amount descending
+ */
 export function sortResults(
     results: FilterResult[],
     column: SortColumn,
@@ -682,7 +868,16 @@ function deriveTransitiveValue(
 }
 
 /**
- * Calculate item values including transitive derivation through intermediaries
+ * Calculate item values in emeralds using trades and transitive derivation.
+ * Iteratively expands knowledge by using known values as intermediaries.
+ * 
+ * @param trades - Array of processed trades
+ * @param baseCurrency - Base currency name (usually 'Emerald')
+ * @returns Map of item names to value entries with buy/sell prices
+ * 
+ * @example
+ * const values = calculateItemValues(trades, 'Emerald');
+ * const diamondValue = getTrustedItemValue('Diamond', values);
  */
 export function calculateItemValues(trades: TradeInput[], baseCurrency: string): ItemValues {
     const config = configStore.get();
@@ -718,7 +913,16 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
 // ============================================================================
 
 /**
- * Calculate median of price values (extracts .price from objects if needed)
+ * Calculate median of price values.
+ * Handles both PriceEntry objects and raw numbers.
+ * 
+ * @param array - Array of price entries or numbers
+ * @returns Median value, or undefined for empty array
+ * 
+ * @example
+ * median([10, 20, 30])           // 20
+ * median([{price: 10}, {price: 20}]) // 15
+ * median([])                     // undefined
  */
 export function median(array: PriceEntry[] | number[]): number | undefined {
     if (array.length === 0) { return undefined; }
@@ -732,7 +936,15 @@ export function median(array: PriceEntry[] | number[]): number | undefined {
 }
 
 /**
- * Count independent shops (>shopClusterDistance blocks apart) for a price array
+ * Count independent shops (shops > shopClusterDistance blocks apart).
+ * Prevents a single mega-shop from dominating price calculations.
+ * 
+ * @param priceArray - Array of prices with coordinates
+ * @returns Number of independent shop clusters
+ * 
+ * @example
+ * // Two shops 100 blocks apart = 2 independent shops
+ * countIndependentShops([{price: 10, x: 0, y: 64, z: 0}, {price: 12, x: 100, y: 64, z: 0}]) // 2
  */
 export function countIndependentShops(priceArray: PriceEntry[]): number {
     const config = configStore.get();
@@ -762,7 +974,19 @@ export function countIndependentShops(priceArray: PriceEntry[]): number {
 }
 
 /**
- * Check if an item has enough independent shops (>=minShops) for its data to be trusted
+ * Check if an item has enough independent shops for its data to be trusted.
+ * For core blocks, requires >= minShops to prevent single-source manipulation.
+ * 
+ * @param entry - Item value entry with buy/sell prices
+ * @param minShops - Minimum required independent shops (default from config)
+ * @returns true if enough independent data exists
+ * 
+ * @example
+ * if (hasEnoughIndependentData(entry, 3)) {
+ *     // Safe to use market price
+ * } else {
+ *     // Fall back to crafting value
+ * }
  */
 export function hasEnoughIndependentData(entry: ItemValueEntry, minShops?: number): boolean {
     const config = configStore.get();
@@ -835,8 +1059,17 @@ function getReverseConversionValue(
 
 /**
  * Get trusted emerald value for an item.
- * For core blocks, requires >=minShops independent shops.
- * Falls back to block conversions if direct value unavailable.
+ * For core blocks, requires >= minShops independent shops.
+ * Falls back to block conversions (e.g., Diamond Block = 9 × Diamond value).
+ * 
+ * @param itemName - Item name to look up
+ * @param itemValues - Map of item values from calculateItemValues
+ * @param options - Optional settings like minShops threshold
+ * @returns Emerald value per item, or undefined if untrusted
+ * 
+ * @example
+ * const value = getTrustedItemValue('Diamond', itemValues);
+ * if (value) console.log(`1 Diamond = ${value} Emeralds`);
  */
 export function getTrustedItemValue(
     itemName: string,
@@ -872,23 +1105,45 @@ export function getTrustedItemValue(
 // ============================================================================
 
 /**
- * Check if a world name represents the Nether dimension
+ * Check if a world name represents the Nether dimension.
+ * 
+ * @param world - World name (e.g., 'world_nether', 'minecraft:the_nether')
+ * @returns true if world is the Nether
+ * 
+ * @example
+ * isNether('world_nether')        // true
+ * isNether('minecraft:the_nether') // true
+ * isNether('world')               // false
  */
 export function isNether(world: string): boolean {
     return world.toLowerCase().includes('nether');
 }
 
 /**
- * Generate a unique key for a trade based on its coordinates and items
- * Used for cart persistence and navigation progress tracking
+ * Generate a unique key for a trade based on coordinates and items.
+ * Used for cart persistence and navigation progress tracking.
+ * 
+ * @param trade - Trade with location and item info
+ * @returns Unique string key
+ * 
+ * @example
+ * getTradeKey(trade) // '100,64,-200,overworld,Diamond,Emerald'
  */
 export function getTradeKey(trade: { x: number; y: number; z: number; world: string; costName: string; resultName: string }): string {
     return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
 }
 
 /**
- * Get world ID for tile URL from world name
- * Handles various Minecraft world name formats case-insensitively
+ * Get world ID for tile URLs from world name.
+ * Normalizes various Minecraft world name formats to tile path names.
+ * 
+ * @param world - World name in any format
+ * @returns Normalized world ID ('overworld', 'the_nether', or 'the_end')
+ * 
+ * @example
+ * getWorldId('world')              // 'overworld'
+ * getWorldId('minecraft:the_nether') // 'the_nether'
+ * getWorldId('world_the_end')      // 'the_end'
  */
 export function getWorldId(world: string): string {
     const lower = world.toLowerCase();
@@ -936,7 +1191,15 @@ export function shouldSwitchMapWorld(
 }
 
 /**
- * Calculate which tile contains the given coordinates
+ * Calculate which tile contains the given Minecraft coordinates.
+ * 
+ * @param x - Minecraft X coordinate
+ * @param z - Minecraft Z coordinate
+ * @param tileSize - Size of tiles in blocks (default 512)
+ * @returns Tile coordinates { tileX, tileZ }
+ * 
+ * @example
+ * getTileCoords(600, -100) // { tileX: 1, tileZ: -1 }
  */
 export function getTileCoords(x: number, z: number, tileSize: number = 512): { tileX: number; tileZ: number } {
     return {
@@ -946,7 +1209,15 @@ export function getTileCoords(x: number, z: number, tileSize: number = 512): { t
 }
 
 /**
- * Calculate offset within a tile (0 to tileSize-1)
+ * Calculate offset within a tile (0 to tileSize-1).
+ * 
+ * @param x - Minecraft X coordinate
+ * @param z - Minecraft Z coordinate
+ * @param tileSize - Size of tiles in blocks (default 512)
+ * @returns Offset within tile { offsetX, offsetZ }
+ * 
+ * @example
+ * getTileOffset(600, -100, 512) // { offsetX: 88, offsetZ: 412 }
  */
 export function getTileOffset(x: number, z: number, tileSize: number = 512): { offsetX: number; offsetZ: number } {
     const { tileX, tileZ } = getTileCoords(x, z, tileSize);
@@ -957,16 +1228,31 @@ export function getTileOffset(x: number, z: number, tileSize: number = 512): { o
 }
 
 /**
- * Calculate zoom level needed to fit a given size in a container
- * In CRS.Simple: pixels = units × 2^zoom
+ * Calculate Leaflet zoom level needed to fit content in a container.
+ * Uses CRS.Simple formula: pixels = units × 2^zoom
+ * 
+ * @param containerSize - Container size in pixels
+ * @param contentSize - Content size in coordinate units
+ * @returns Zoom level (can be fractional)
+ * 
+ * @example
+ * calculateFitZoom(800, 512) // ~0.64 (content slightly smaller than container)
  */
 export function calculateFitZoom(containerSize: number, contentSize: number): number {
     return Math.log2(containerSize / contentSize);
 }
 
 /**
- * Convert Minecraft coordinates to Leaflet CRS.Simple latLng
- * In CRS.Simple, lat = y (negative for down), lng = x
+ * Convert Minecraft coordinates to Leaflet CRS.Simple latLng.
+ * In CRS.Simple, lat = -z (inverted), lng = x.
+ * 
+ * @param x - Minecraft X coordinate
+ * @param z - Minecraft Z coordinate
+ * @param tileSize - Tile size for offset calculation
+ * @returns Leaflet-compatible { lat, lng }
+ * 
+ * @example
+ * toLeafletCoords(100, 200) // { lat: -200 % 512, lng: 100 % 512 }
  */
 export function toLeafletCoords(
     x: number,
@@ -1073,7 +1359,17 @@ export interface RoutePoint {
 }
 
 /**
- * Convert nether coords to overworld-equivalent for distance calculation
+ * Convert coordinates to overworld-equivalent for distance calculation.
+ * Nether coordinates are multiplied by 8 (1 nether block = 8 overworld blocks).
+ * 
+ * @param x - X coordinate
+ * @param z - Z coordinate
+ * @param world - World name
+ * @returns Overworld-equivalent coordinates
+ * 
+ * @example
+ * toOverworldEquivalent(100, 50, 'the_nether')  // { x: 800, z: 400 }
+ * toOverworldEquivalent(100, 50, 'overworld')   // { x: 100, z: 50 }
  */
 export function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
     if (world.toLowerCase().includes('nether')) {
@@ -1083,7 +1379,23 @@ export function toOverworldEquivalent(x: number, z: number, world: string): { x:
 }
 
 /**
- * Calculate distance between two points (using overworld-equivalent coords)
+ * Calculate distance between two points in overworld-equivalent coordinates.
+ * Automatically converts nether coordinates for accurate cross-world distances.
+ * 
+ * @param x1 - First point X
+ * @param z1 - First point Z
+ * @param world1 - First point world
+ * @param x2 - Second point X
+ * @param z2 - Second point Z
+ * @param world2 - Second point world
+ * @returns Distance in overworld blocks
+ * 
+ * @example
+ * // Same-world distance
+ * calculateRouteDistance(0, 0, 'overworld', 100, 100, 'overworld') // ~141.4
+ * 
+ * // Cross-world: nether point at (100, 100) = overworld (800, 800)
+ * calculateRouteDistance(0, 0, 'overworld', 100, 100, 'the_nether') // ~1131.4
  */
 // eslint-disable-next-line max-params
 export function calculateRouteDistance(
@@ -1096,8 +1408,17 @@ export function calculateRouteDistance(
 }
 
 /**
- * Build distance matrix for points (including origin at index 0)
- * Origin defaults to (0, 0) in overworld but can be customized
+ * Build distance matrix for route optimization.
+ * Index 0 is the origin; indices 1-n are the points.
+ * 
+ * @param points - Array of route points to visit
+ * @param origin - Starting position (defaults to 0,0 in overworld)
+ * @returns 2D matrix where matrix[i][j] = distance from i to j
+ * 
+ * @example
+ * const matrix = buildDistanceMatrix(shops, playerPosition);
+ * // matrix[0][1] = distance from player to first shop
+ * // matrix[1][2] = distance from first shop to second shop
  */
 export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): number[][] {
     const n = points.length + 1; // +1 for origin
@@ -1130,8 +1451,16 @@ export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): 
 }
 
 /**
- * Nearest-neighbor heuristic to get initial route order
- * Returns indices into points array (not including origin)
+ * Generate initial route using nearest-neighbor heuristic.
+ * Starts from origin and greedily visits the closest unvisited point.
+ * 
+ * @param points - Points to visit
+ * @param distributionMatrix - Pre-computed distance matrix
+ * @returns Array of indices into points array in visit order
+ * 
+ * @example
+ * const order = nearestNeighborOrder(shops, distMatrix);
+ * // order = [2, 0, 1] means visit shops[2], then shops[0], then shops[1]
  */
 export function nearestNeighborOrder(points: RoutePoint[], distributionMatrix: number[][]): number[] {
     if (points.length === 0) {return [];}
@@ -1165,7 +1494,14 @@ export function nearestNeighborOrder(points: RoutePoint[], distributionMatrix: n
 }
 
 /**
- * Calculate total route length for a given order (starting from origin)
+ * Calculate total route length for a given visit order.
+ * 
+ * @param order - Array of point indices in visit order
+ * @param distributionMatrix - Pre-computed distance matrix
+ * @returns Total distance in overworld blocks
+ * 
+ * @example
+ * const totalDist = calculateOrderDistance([0, 2, 1], distMatrix);
  */
 export function calculateOrderDistance(order: number[], distributionMatrix: number[][]): number {
     if (order.length === 0) {return 0;}
@@ -1226,8 +1562,22 @@ function applyTwoOptSwap(result: number[], startIndex: number, endIndex: number)
 }
 
 /**
- * 2-opt optimization: iteratively swap edges to improve route
- * Returns a new optimized order array
+ * Optimize route using 2-opt edge swapping.
+ * 
+ * Algorithm:
+ * 1. For each pair of non-adjacent edges
+ * 2. Try reversing the segment between them
+ * 3. Keep the swap if it reduces total distance
+ * 4. Repeat until no improvement found
+ * 
+ * Time complexity: O(n²) per iteration, typically 2-5 iterations.
+ * 
+ * @param order - Initial route order
+ * @param distributionMatrix - Pre-computed distance matrix
+ * @returns Optimized route order (new array)
+ * 
+ * @example
+ * const optimized = twoOptOptimize(nearestNeighborOrder(points, matrix), matrix);
  */
 export function twoOptOptimize(order: number[], distributionMatrix: number[][]): number[] {
     if (order.length < 3) {return [...order];}
@@ -1254,10 +1604,17 @@ export function twoOptOptimize(order: number[], distributionMatrix: number[][]):
 }
 
 /**
- * Compute optimized route order using nearest-neighbor + 2-opt
- * Returns indices into the points array in optimal visit order
+ * Compute optimized route order using nearest-neighbor + 2-opt.
+ * Solves an approximate Traveling Salesman Problem (TSP).
+ * 
  * @param points - Array of route points to visit
  * @param origin - Optional starting position (defaults to 0,0 in overworld)
+ * @returns Indices into points array in optimal visit order
+ * 
+ * @example
+ * const cartItems = getCartItems();
+ * const order = computeOptimalOrder(cartItems, playerPosition);
+ * const optimizedRoute = order.map(i => cartItems[i]);
  */
 export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): number[] {
     if (points.length === 0) {return [];}
