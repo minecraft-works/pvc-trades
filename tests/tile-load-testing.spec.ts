@@ -153,6 +153,30 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
         requestTimes: []
     };
     
+    // Mock config endpoint - must be set up BEFORE page.goto()
+    await page.route('**/config.json', async route => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 0,
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
+            })
+        });
+    });
+    
     // Mock data endpoint - must be set up BEFORE page.goto()
     await page.route('**/data.json', async route => {
         await route.fulfill({

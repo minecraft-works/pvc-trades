@@ -24,6 +24,8 @@ import {
     type NormalizeResult,
     type TrustedValueOptions,
     type TradeInput,
+    type ShoppingList,
+    type RouteStop,
     AppConfigSchema,
     BlockConversionsSchema,
     DEFAULT_CONFIG
@@ -1629,4 +1631,122 @@ export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): 
     order = twoOptOptimize(order, distributionMatrix);
     
     return order;
+}
+
+// ============================================================================
+// Shopping & Navigation Helpers (Pure Functions)
+// ============================================================================
+
+/**
+ * Aggregate shopping list costs and gains from cart items.
+ * Pure function - takes cart items, returns aggregated totals.
+ * 
+ * @param cartItems - Array of cart items with trade and quantity
+ * @returns ShoppingList with costs and gains maps
+ * 
+ * @example
+ * const list = aggregateShoppingList(cart);
+ * console.log(list.costs.get('Diamond')); // Total diamonds needed
+ */
+export function aggregateShoppingList(cartItems: Array<{ trade: Trade; quantity: number }>): ShoppingList {
+    const costs = new Map<string, number>();
+    const gains = new Map<string, number>();
+    
+    for (const cartItem of cartItems) {
+        const { trade, quantity } = cartItem;
+        // Aggregate costs
+        const cost1Name = formatName(trade.item1);
+        const cost1Amount = trade.item1.amount * quantity;
+        costs.set(cost1Name, (costs.get(cost1Name) ?? 0) + cost1Amount);
+        
+        if (trade.item2) {
+            const cost2Name = formatName(trade.item2);
+            const cost2Amount = trade.item2.amount * quantity;
+            costs.set(cost2Name, (costs.get(cost2Name) ?? 0) + cost2Amount);
+        }
+        
+        // Aggregate gains
+        const gainAmount = trade.resultAmount * quantity;
+        gains.set(trade.resultName, (gains.get(trade.resultName) ?? 0) + gainAmount);
+    }
+    
+    return { costs, gains };
+}
+
+/**
+ * Calculate total route distance across all stops.
+ * Accounts for cross-dimension travel (overworld/nether coordinate scaling).
+ * 
+ * @param route - Array of route stops to calculate distance for
+ * @param startX - Starting X coordinate (default 0)
+ * @param startZ - Starting Z coordinate (default 0)
+ * @param startWorld - Starting world (default 'overworld')
+ * @returns Total distance in blocks
+ * 
+ * @example
+ * const route = computeRoute(cart);
+ * const distance = calculateTotalRouteDistance(route, playerX, playerZ, 'overworld');
+ */
+export function calculateTotalRouteDistance(
+    route: RouteStop[],
+    startX = 0,
+    startZ = 0,
+    startWorld = 'overworld'
+): number {
+    if (route.length === 0) { return 0; }
+    
+    let total = 0;
+    let previousX = startX;
+    let previousZ = startZ;
+    let previousWorld = startWorld;
+    
+    for (const stop of route) {
+        total += calculateRouteDistance(previousX, previousZ, previousWorld, stop.x, stop.z, stop.world);
+        previousX = stop.x;
+        previousZ = stop.z;
+        previousWorld = stop.world;
+    }
+    
+    return total;
+}
+
+/**
+ * Build marker HTML content for a route stop.
+ * Pure function for generating Leaflet marker HTML.
+ * 
+ * @param isCompleted - Whether the stop is marked as visited
+ * @param index - Display index for incomplete stops (ignored if completed)
+ * @param isNetherStop - Whether this is a nether stop (shows fire indicator)
+ * @returns HTML string for the marker content
+ */
+export function buildMarkerContent(isCompleted: boolean, index: number, isNetherStop: boolean): string {
+    const netherIndicator = isNetherStop ? '<span class="nether-indicator">🔥</span>' : '';
+    if (isCompleted) {
+        return `<div class="nav-marker nav-marker--completed">✓${netherIndicator}</div>`;
+    }
+    return `<div class="nav-marker">${index}${netherIndicator}</div>`;
+}
+
+/**
+ * Build tooltip text for a route stop.
+ * Shows item info and coordinates, with special formatting for nether stops.
+ * 
+ * @param stop - The route stop to build tooltip for
+ * @param isCompleted - Whether the stop is marked as visited
+ * @returns Multi-line tooltip string
+ */
+export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string {
+    let text = stop.cartItem 
+        ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+        : 'Stop';
+    
+    if (isCompleted) {
+        text = `✓ ${text} (completed)`;
+    }
+    
+    if (stop.isNether) {
+        text += `\nNether: ${stop.x}, ${stop.z}`;
+        text += `\n(OW: ${stop.displayX}, ${stop.displayZ})`;
+    }
+    return text;
 }

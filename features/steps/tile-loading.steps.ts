@@ -190,6 +190,30 @@ Given('the tile loading test app is configured', async ({ page }) => {
         });
     });
     
+    // Set up config.json mock to use local data.json path
+    await page.route('**/config.json', async (route: Route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 0,
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
+            })
+        });
+    });
+    
     // Set up mock shop data
     await page.route('**/data.json', async (route: Route) => {
         await route.fulfill({
@@ -233,8 +257,14 @@ Given('the manifest only includes tiles near origin', async ({ page }) => {
 
 /**
  * Wait for tile requests to stabilize (no new requests for a period of time)
+ * Requires at least one tile request before considering stable, unless forceMinimum is false
  */
-async function waitForTileRequestsToStabilize(page: Page, stableMs: number = 1000, timeout: number = 10_000): Promise<void> {
+async function waitForTileRequestsToStabilize(
+    page: Page, 
+    stableMs: number = 1000, 
+    timeout: number = 10_000,
+    requireAtLeastOne: boolean = true
+): Promise<void> {
     const p = page as PageWithTileTracking;
     const startTime = Date.now();
     let lastCount = p.__tileRequests?.length ?? 0;
@@ -245,10 +275,10 @@ async function waitForTileRequestsToStabilize(page: Page, stableMs: number = 100
         if (currentCount !== lastCount) {
             lastCount = currentCount;
             lastChangeTime = Date.now();
-        } else if (Date.now() - lastChangeTime >= stableMs) {
-            // No new requests for stableMs - we're done
-            return;
-        }
+        } else if (Date.now() - lastChangeTime >= stableMs && // Only consider stable if we have at least one tile (when required)
+            (!requireAtLeastOne || currentCount > 0)) {
+                return;
+            }
         await page.waitForTimeout(100);
     }
 }
@@ -352,8 +382,9 @@ Then('only tiles near origin should be requested', async ({ page }) => {
     // Since manifest only has tiles near origin (range -5 to +5),
     // no tiles far from origin should be requested
     // For a shop at 50000, 50000, that would be tile ~97 at zoom 8
+    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     const farTileRequests = p.__tileRequests?.filter(url => {
-        const match = url.match(/\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
+        const match = tilePattern.exec(url);
         if (!match) {
             return false;
         }
@@ -455,9 +486,10 @@ interface TileInfo {
  */
 function parseTileRequests(requests: string[]): TileInfo[] {
     const tiles: TileInfo[] = [];
+    // URL pattern: /tiles/world/zoom/x/z.png
+    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     for (const url of requests) {
-        // URL pattern: /tiles/world/zoom/x/z.png
-        const match = url.match(/\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
+        const match = tileUrlPattern.exec(url);
         if (match) {
             tiles.push({
                 url,

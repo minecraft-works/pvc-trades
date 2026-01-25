@@ -5,6 +5,8 @@ import { defineBddConfig, cucumberReporter } from 'playwright-bdd';
 const bddTestDir = defineBddConfig({
     featuresRoot: './features',
     steps: './features/steps/*.ts',
+    // Skip scenarios tagged with @skip
+    tags: 'not @skip',
 });
 
 export default defineConfig({
