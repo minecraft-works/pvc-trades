@@ -71,7 +71,11 @@ import {
     computeOptimalOrder,
     isNether,
     toOverworldEquivalent,
-    getTradeKey
+    getTradeKey,
+    aggregateShoppingList,
+    calculateTotalRouteDistance,
+    buildMarkerContent,
+    buildStopTooltip
 } from './library.js';
 
 import { debugNavigation, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
@@ -219,6 +223,9 @@ let navPlayerMarker: L.Marker | undefined;
 
 // Auto-advance threshold in blocks
 const NAV_ARRIVAL_THRESHOLD = 8;
+
+// Shop data refresh interval (assigned for potential future stop functionality)
+let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
 // ============================================================================
 // Constants
@@ -481,28 +488,7 @@ function refreshCartButtonStates(): void {
  * Aggregate cart into shopping lists
  */
 function getShoppingList(): ShoppingList {
-    const costs = new Map<string, number>();
-    const gains = new Map<string, number>();
-    
-    for (const cartItem of cart) {
-        const { trade, quantity } = cartItem;
-        // Aggregate costs
-        const cost1Name = formatName(trade.item1);
-        const cost1Amount = trade.item1.amount * quantity;
-        costs.set(cost1Name, (costs.get(cost1Name) ?? 0) + cost1Amount);
-        
-        if (trade.item2) {
-            const cost2Name = formatName(trade.item2);
-            const cost2Amount = trade.item2.amount * quantity;
-            costs.set(cost2Name, (costs.get(cost2Name) ?? 0) + cost2Amount);
-        }
-        
-        // Aggregate gains
-        const gainAmount = trade.resultAmount * quantity;
-        gains.set(trade.resultName, (gains.get(trade.resultName) ?? 0) + gainAmount);
-    }
-    
-    return { costs, gains };
+    return aggregateShoppingList(cart);
 }
 
 interface RouteOrigin {
@@ -584,27 +570,6 @@ function getAllCartStops(): RouteStop[] {
     });
 }
 
-/**
- * Calculate total route distance
- */
-function calculateTotalRouteDistance(route: RouteStop[]): number {
-    if (route.length === 0) { return 0; }
-    
-    let total = 0;
-    let previousX = 0;
-    let previousZ = 0;
-    let previousWorld = 'overworld';
-    
-    for (const stop of route) {
-        total += calculateRouteDistance(previousX, previousZ, previousWorld, stop.x, stop.z, stop.world);
-        previousX = stop.x;
-        previousZ = stop.z;
-        previousWorld = stop.world;
-    }
-    
-    return total;
-}
-
 // ============================================================================
 // DOM Helpers
 // ============================================================================
@@ -622,6 +587,52 @@ function getInputValue(id: string): string {
 // ============================================================================
 // Data Loading
 // ============================================================================
+
+/**
+ * Refresh shop data from remote API
+ * Returns the number of new trades detected (for future highlighting feature)
+ */
+async function refreshShopData(): Promise<number> {
+    try {
+        const config = getConfig();
+        const response = await fetch(config.dataUrl);
+        
+        if (!response.ok) {
+            console.warn('Failed to refresh shop data:', response.status);
+            return 0;
+        }
+        
+        const data = (await response.json()) as ShopData;
+        const previousTradeCount = allTrades.length;
+        
+        processShops(data.data);
+        
+        // Recalculate item values
+        itemValues = calculateItemValues(allTrades.map(t => ({
+            resultName: t.resultName,
+            resultAmount: t.resultAmount,
+            costName: t.costName,
+            costAmount: t.item1.amount,
+            item2: t.item2,
+            x: t.x, y: t.y, z: t.z
+        })), 'emerald');
+        
+        ratioGraph = buildRatioGraph(itemValues);
+        
+        // Refresh the search results
+        search();
+        
+        const newTradeCount = allTrades.length - previousTradeCount;
+        if (newTradeCount > 0) {
+            console.log(`Shop data refreshed: ${newTradeCount} new trades`);
+        }
+        
+        return Math.max(0, newTradeCount);
+    } catch (error) {
+        console.warn('Error refreshing shop data:', error);
+        return 0;
+    }
+}
 
 async function loadShops(): Promise<void> {
     try {
@@ -661,6 +672,11 @@ async function loadShops(): Promise<void> {
 
         renderHeader();
         search(); // Show all trades on load
+        
+        // Start background refresh interval
+        if (config.dataRefreshMs && config.dataRefreshMs > 0) {
+            _shopRefreshInterval = setInterval(() => void refreshShopData(), config.dataRefreshMs);
+        }
     } catch (error) {
         console.error('Failed to load shop data:', error);
         getElement('results').innerHTML =
@@ -2939,32 +2955,6 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     
     debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', zoom8Loaded, zoom8Skipped);
     debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', zoom4Loaded + zoom8Loaded, zoom4Loaded, zoom8Loaded);
-}
-
-/** Build marker HTML content for a route stop. */
-function buildMarkerContent(isCompleted: boolean, index: number, isNether: boolean): string {
-    const netherIndicator = isNether ? '<span class="nether-indicator">🔥</span>' : '';
-    if (isCompleted) {
-        return `<div class="nav-marker nav-marker--completed">✓${netherIndicator}</div>`;
-    }
-    return `<div class="nav-marker">${index}${netherIndicator}</div>`;
-}
-
-/** Build tooltip text for a route stop. */
-function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string {
-    let text = stop.cartItem 
-        ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-        : 'Stop';
-    
-    if (isCompleted) {
-        text = `✓ ${text} (completed)`;
-    }
-    
-    if (stop.isNether) {
-        text += `\nNether: ${stop.x}, ${stop.z}`;
-        text += `\n(OW: ${stop.displayX}, ${stop.displayZ})`;
-    }
-    return text;
 }
 
 /**

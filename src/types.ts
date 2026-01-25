@@ -24,6 +24,7 @@ const AnalysisConfigSchema = z.object({
 
 export const AppConfigSchema = z.object({
     dataUrl: z.string().min(1),
+    dataRefreshMs: z.number().int().positive().optional().default(60_000),
     dynmap: DynmapConfigSchema,
     analysis: AnalysisConfigSchema
 });
@@ -291,6 +292,7 @@ export interface PlayersData {
 
 export const DEFAULT_CONFIG: AppConfig = {
     dataUrl: 'https://web.peacefulvanilla.club/shops/data.json',
+    dataRefreshMs: 60_000,
     dynmap: {
         baseUrl: 'https://web.peacefulvanilla.club/maps',
         tileSize: 128,
