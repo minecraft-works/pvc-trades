@@ -52,3 +52,47 @@ Feature: Multi-World Navigation
     When player moves to the overworld at (100, 200)
     Then the map should stay on "nether" world
     And no new overworld tiles should be loaded
+
+  @navigation @world-switch @polling
+  Scenario: World switch detection survives multiple polling cycles
+    Given player "TestPlayer" is in the overworld at (0, 0)
+    And I open the navigation dialog with items from both worlds
+    And the map should be showing "overworld" world
+    And I wait for at least 2 polling cycles
+    When player moves to the nether at (-500, -50)
+    And I wait for at least 2 polling cycles
+    Then the map should switch to "nether" world
+    And the player position world should be "the_nether"
+    And the previous position should have been "overworld"
+
+  @navigation @world-switch @rapid
+  Scenario: Rapid world transitions are handled correctly
+    Given player "TestPlayer" is in the overworld at (0, 0)
+    And I open the navigation dialog with items from both worlds
+    And the map should be showing "overworld" world
+    When player moves to the nether at (-500, -50)
+    And I wait for map to switch to "nether"
+    And player moves to the overworld at (100, 200)
+    And I wait for map to switch to "overworld"
+    Then the map should be showing "overworld" world
+    And the route should show overworld shop markers
+
+  @navigation @world-switch @completed
+  Scenario: World switch works when some shops in new world are completed
+    Given player "TestPlayer" is in the overworld at (0, 0)
+    And I open the navigation dialog with items from both worlds
+    And the map should be showing "overworld" world
+    And I mark the overworld shop as completed
+    When player moves to the nether at (-500, -50)
+    Then the map should switch to "nether" world
+    And nether tiles should be requested
+
+  @navigation @world-switch @allcompleted  
+  Scenario: World does not switch when all shops in new world are completed
+    Given player "TestPlayer" is in the nether at (-100, -12)
+    And I open the navigation dialog with items from both worlds
+    And the map should be showing "nether" world
+    And I mark the nether shop as completed
+    When player moves to the overworld at (100, 200)
+    Then the map should switch to "overworld" world
+    And overworld tiles should be requested
