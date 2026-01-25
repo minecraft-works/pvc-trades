@@ -1,0 +1,144 @@
+# Rules for AI Code Assistants
+
+# Project: PVC Trades - Minecraft Shop Trade Viewer
+
+## Project Context
+- TypeScript 5.9 with strict mode
+- Vite 7.x build tool
+- Playwright-BDD for behavioral testing
+- Vitest for unit testing
+- ESLint 9 with SonarJS, Unicorn plugins
+- Leaflet for interactive maps
+
+## File Organization Rules
+
+### Where to Put Code
+
+| Code Type | Location | Examples |
+|-----------|----------|----------|
+| Pure calculations | `src/library.ts` | `calculateRouteDistance()`, `median()`, `filterTrade()` |
+| Zod schemas | `src/types.ts` | `AppConfigSchema`, `TradeSchema` |
+| TypeScript types | `src/types.ts` | `Trade`, `CartItem`, `FilterResult` |
+| DOM manipulation | `src/main.ts` | `renderCart()`, `openDialog()` |
+| Event handlers | `src/main.ts` | `handleAddToCart()`, `handleSearch()` |
+| BDD scenarios | `features/*.feature` | Browser integration tests |
+| Step definitions | `features/steps/*.steps.ts` | Playwright step implementations |
+| Unit tests | `src/*.test.ts` | Pure function tests (library.test.ts) |
+
+### Import Rules
+
+```typescript
+// ✅ ALWAYS use .js extension for local imports (ESM)
+import { calculateDistance } from './library.js';
+import type { Trade } from './types.js';
+
+// ✅ External packages - no extension
+import * as L from 'leaflet';
+import { z } from 'zod';
+```
+
+## Coding Conventions
+
+### Naming
+- `camelCase` for functions/variables
+- `PascalCase` for types/interfaces/classes
+- `SCREAMING_SNAKE_CASE` for constants
+- Prefix unused params with `_` (e.g., `_event`, `_index`)
+
+### Function Rules
+- Max 5 parameters; use options object for more
+- Early returns over nested conditionals
+- JSDoc for all exported functions
+- Max cyclomatic complexity: 15
+
+### TypeScript Rules
+- Prefer `undefined` over `null`
+- Use `unknown` for external data, validate with Zod
+- No `any` except in tests with justification
+
+### DOM Rules
+- Use event delegation for dynamic content
+- Always escape HTML with `escapeHtml()`
+- Use `getElement<T>()` helper for type-safe access
+
+## Testing Expectations
+
+### Unit Tests (Vitest)
+- Location: Adjacent to source (`src/*.test.ts`)
+- Coverage thresholds: 80% lines, functions, branches, statements
+- Mock external dependencies
+
+### BDD Tests (Playwright-BDD)
+- Location: `features/*.feature` + `features/steps/*.steps.ts`
+- Always mock API responses
+- Use fixtures from `features/steps/fixtures.ts`
+
+### Test Commands
+```bash
+npm test           # Unit tests
+npm run test:e2e   # BDD tests with headed browser
+npm run test:ci    # BDD tests headless
+```
+
+## Domain Knowledge
+
+### Minecraft Coordinate System
+- Overworld: Standard coordinates
+- Nether: 8:1 ratio (nether coords × 8 = overworld equivalent)
+- The End: Separate dimension, no ratio
+
+### Key Concepts
+- **Trade**: Shop offer - give items to receive items
+- **Deviation**: Price difference from market median
+- **Core Blocks**: Base currencies (Emerald, Diamond, Gold, Iron, Netherite)
+- **Route**: Optimized visiting order for cart items
+- **Independent Shops**: Shops >16 blocks apart
+
+## Common Patterns
+
+### State Persistence
+```typescript
+// Always wrap in try/catch
+try {
+    const stored = localStorage.getItem(KEY);
+    if (stored) { data = JSON.parse(stored); }
+} catch { /* use fallback */ }
+```
+
+### External Data
+```typescript
+// Always validate with Zod
+const data: unknown = await response.json();
+const result = Schema.safeParse(data);
+if (!result.success) { return fallback; }
+return result.data;
+```
+
+### Dialog Pattern
+```typescript
+function openDialog(id: string, prepare?: () => void): void {
+    const dialog = getElement<HTMLDialogElement>(id);
+    if (prepare) { prepare(); }
+    dialog.showModal();
+}
+```
+
+## Commit Messages
+
+Follow Conventional Commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation
+- `refactor:` - Code restructuring
+- `test:` - Test changes
+- `chore:` - Maintenance
+
+Breaking changes: Add `!` after type or `BREAKING CHANGE:` in footer.
+
+## Do NOT
+
+- Use `.forEach()` - use `for...of` instead
+- Use `null` - use `undefined`
+- Skip HTML escaping for dynamic content
+- Add listeners inside loops (use delegation)
+- Commit code that fails `npm run typecheck` or `npm run lint`

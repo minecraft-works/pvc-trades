@@ -6,6 +6,42 @@
  * - Search state management
  * - Rendering trade results and UI components
  * - Dynmap integration for map display
+ * 
+ * ## FILE NAVIGATION (for AI assistants)
+ * 
+ * This file is organized into sections marked with `// ===...` separators.
+ * Use these line numbers to jump to sections:
+ * 
+ * | Section | Line | Description |
+ * |---------|------|-------------|
+ * | Types | ~68 | Local interfaces (DeviationResult) |
+ * | Dialog Utilities | ~79 | setupDialogBackdropClose, openDialog |
+ * | State | ~128 | Global state variables |
+ * | Constants | ~188 | CSS classes, selectors, magic numbers |
+ * | Shopping Cart Functions | ~209 | Cart CRUD operations |
+ * | Navigation Progress | ~303 | Route completion tracking |
+ * | DOM Helpers | ~538 | getElement helper |
+ * | Data Loading | ~552 | loadShops, processRawData |
+ * | Search & Sort | ~610 | debouncedSearch, sortByColumn |
+ * | Deviation Calculation | ~743 | getDeviation, deviationCache |
+ * | Rendering | ~779 | createTradeRowElement, renderResults |
+ * | Matrix Dialog | ~947 | Exchange rate matrix UI |
+ * | Map Dialog | ~1034 | Leaflet map, tile loading |
+ * | Cart Dialog | ~1613 | Cart items, timeline |
+ * | Tab Switching | ~1817 | Cart dialog tabs |
+ * | Live Navigation | ~1879 | Player polling, auto-advance |
+ * | Shop Tooltip | ~2521 | Proximity-based shop info |
+ * | Navigation Map | ~2738 | Navigation-specific map |
+ * | Initialization | ~3107 | DOMContentLoaded setup |
+ * 
+ * ## KEY PATTERNS
+ * 
+ * - State persistence: localStorage with try/catch
+ * - Event delegation: Single listener on parent for dynamic children
+ * - Virtual scrolling: For trade list performance
+ * - Leaflet maps: Custom tile loading with caching
+ * 
+ * @module main
  */
 
 import {
