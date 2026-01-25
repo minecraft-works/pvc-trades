@@ -8,8 +8,12 @@ const bddTestDir = defineBddConfig({
 });
 
 export default defineConfig({
-    // Use generated BDD tests directory
-    testDir: bddTestDir,
+    // Include both BDD tests and regular spec tests
+    testDir: '.',
+    testMatch: [
+        `${bddTestDir}/**/*.spec.js`,
+        'tests/**/*.spec.ts'
+    ],
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,

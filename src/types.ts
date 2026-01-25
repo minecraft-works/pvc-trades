@@ -9,7 +9,7 @@ import { z } from 'zod';
 // ============================================================================
 
 const DynmapConfigSchema = z.object({
-    baseUrl: z.string().url(),
+    baseUrl: z.url(),
     tileSize: z.number().int().positive(),
     defaultZoom: z.number().int().min(0).max(10),
     maxZoomLevel: z.number().int().positive(),

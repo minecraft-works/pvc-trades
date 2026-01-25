@@ -1,0 +1,22 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": ["src/library.ts", "src/types.ts"],
+    "out": "docs/api",
+    "name": "PVC Trades API Documentation",
+    "readme": "none",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeInternal": true,
+    "includeVersion": true,
+    "categoryOrder": [
+        "Search",
+        "Values",
+        "Routing",
+        "Coordinates",
+        "Utilities",
+        "*"
+    ],
+    "navigationLinks": {
+        "GitHub": "https://github.com/minecraft-works/pvc-trades"
+    }
+}

@@ -32,3 +32,8 @@ players.json
 # Generated BDD test files
 .features-gen/
 reports/
+# Stryker mutation testing
+.stryker-tmp/
+
+# Generated API docs
+docs/api/

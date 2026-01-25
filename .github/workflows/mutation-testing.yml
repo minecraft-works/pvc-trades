@@ -1,0 +1,40 @@
+name: Mutation Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      mutate_pattern:
+        description: 'Files to mutate (glob pattern)'
+        required: false
+        default: 'src/library.ts'
+        type: string
+
+jobs:
+  mutation-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Stryker mutation testing
+        run: npx stryker run --mutate "${{ github.event.inputs.mutate_pattern }}"
+        env:
+          CI: true
+
+      - name: Upload mutation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stryker-report
+          path: reports/mutation/
+          retention-days: 30
