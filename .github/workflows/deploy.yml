@@ -61,7 +61,7 @@ jobs:
         run: npm run test:e2e
 
       - name: Cache map tiles
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: public/tiles
           key: map-tiles-v5-pyramid
