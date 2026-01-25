@@ -38,6 +38,8 @@ import {
     shouldSwitchMapWorld
 } from './library.js';
 
+import { debugNavigation, debugWorldSwitch, debugPlayerPoll, debugMap } from './debug.js';
+
 import VirtualScroller from 'virtual-scroller/dom';
 
 import type {
@@ -1875,6 +1877,8 @@ async function startNavigation(): Promise<void> {
         return;
     }
     
+    debugNavigation('Starting navigation player=%s cartSize=%d', playerNameInput.value.trim(), cart.length);
+    
     isNavigating = true;
     navMode = 'follow';
     saveNavMode();
@@ -1905,8 +1909,10 @@ async function startNavigation(): Promise<void> {
                     world: playerWorld,
                     yaw: player.rotation?.yaw
                 };
+                debugNavigation('Initial player position world=%s x=%d z=%d', playerWorld, player.position.x, player.position.z);
             }
         } catch (error) {
+            debugNavigation('Failed to get initial player position: %s', error);
             console.warn('Failed to get initial player position:', error);
         }
         
@@ -1918,6 +1924,9 @@ async function startNavigation(): Promise<void> {
             
             // Pass player's world so the map shows where the player is (if they have shops there)
             const playerWorld = currentPlayerPosition?.world;
+            
+            debugNavigation('Initializing map stops=%d targetWorld=%s worlds=%o', route.length, playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
+            
             await initNavigationMapDialog(route, playerWorld);
             
             // After map is initialized, center on player if in follow mode
@@ -2052,7 +2061,13 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
     const fullRoute = computeRoute(currentPlayerPosition, true);
     const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
     
-    if (shouldSwitchMapWorld(previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length)) {
+    const shouldSwitch = shouldSwitchMapWorld(previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length);
+    
+    debugWorldSwitch('Checking prev=%s curr=%s map=%s shopsInNew=%d shouldSwitch=%s', 
+        previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length, shouldSwitch);
+    
+    if (shouldSwitch) {
+        debugWorldSwitch('Switching map from=%s to=%s shopsInNew=%d', navMapWorld, playerWorld, shopsInPlayerWorld.length);
         navCurrentRoute = fullRoute;
         await initNavigationMapDialog(fullRoute, playerWorld);
         updateLiveDistance();
@@ -2092,11 +2107,15 @@ async function pollPlayerPosition(): Promise<void> {
         
         if (player) {
             const previousPosition = currentPlayerPosition;
+            debugPlayerPoll('Player found name=%s world=%s x=%d z=%d prevWorld=%s', 
+                player.name, player.world, player.position.x, player.position.z, previousPosition?.world);
             await handleFoundPlayer(player, previousPosition);
         } else {
+            debugPlayerPoll('Player not found: %s', playerName);
             showPlayerNotFound(playerNameInput);
         }
     } catch (error) {
+        debugPlayerPoll('Poll failed: %s', error);
         console.warn('Failed to poll player position:', error);
     }
 }
@@ -2705,16 +2724,24 @@ function determineWorldToShow(route: RouteStop[], targetWorld?: string): string 
     if (targetWorld) {
         const shopsInTarget = route.filter(stop => getWorldId(stop.world) === targetWorld);
         if (shopsInTarget.length > 0) {
+            debugMap('determineWorldToShow: using targetWorld=%s shops=%d', targetWorld, shopsInTarget.length);
             return targetWorld;
         }
+        debugMap('determineWorldToShow: targetWorld=%s has no shops, routeWorlds=%o', 
+            targetWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
     } else if (currentPlayerPosition) {
         const playerWorld = currentPlayerPosition.world;
         const shopsInPlayerWorld = route.filter(stop => getWorldId(stop.world) === playerWorld);
         if (shopsInPlayerWorld.length > 0) {
+            debugMap('determineWorldToShow: using playerWorld=%s shops=%d', playerWorld, shopsInPlayerWorld.length);
             return playerWorld;
         }
+        debugMap('determineWorldToShow: playerWorld=%s has no shops, routeWorlds=%o', 
+            playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
     }
-    return getWorldId(route[0]!.world);
+    const fallback = getWorldId(route[0]!.world);
+    debugMap('determineWorldToShow: using first stop world=%s', fallback);
+    return fallback;
 }
 
 interface TileRange {
@@ -2833,6 +2860,7 @@ function createRouteMarkers(
 async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
     const container = document.querySelector('#nav-dialog-map-container');
     if (!container) {
+        debugMap('Map container not found');
         return;
     }
     
@@ -2842,6 +2870,7 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     if (route.length === 0) {
         container.innerHTML = `<p class="${CLASS_CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
         navCurrentWorldRoute = [];
+        debugMap('Empty route, no map displayed');
         return;
     }
     
@@ -2849,6 +2878,9 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     
     const worldToShow = determineWorldToShow(route, targetWorld);
     navMapWorld = worldToShow;
+    
+    debugMap('Map initialized targetWorld=%s worldToShow=%s stops=%d stopsInWorld=%d', 
+        targetWorld, worldToShow, route.length, route.filter(stop => getWorldId(stop.world) === worldToShow).length);
     
     const stopsInWorld = route.filter(stop => getWorldId(stop.world) === worldToShow);
     navCurrentWorldRoute = stopsInWorld;
