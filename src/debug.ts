@@ -2,13 +2,16 @@
  * Debug loggers for production troubleshooting.
  * 
  * Enable in browser console:
- *   localStorage.setItem('debug', 'pvc:*');           // all logs
- *   localStorage.setItem('debug', 'pvc:worldswitch'); // specific namespace
+ *   localStorage.debug = 'pvc:*';           // all logs
+ *   localStorage.debug = 'pvc:worldswitch'; // specific namespace
  * 
  * Then reload the page.
  * 
+ * IMPORTANT: In Chrome/Edge, you must enable "Verbose" log level
+ * in the Console filter dropdown to see debug output.
+ * 
  * Disable:
- *   localStorage.removeItem('debug');
+ *   delete localStorage.debug;
  */
 import Debug from 'debug';
 

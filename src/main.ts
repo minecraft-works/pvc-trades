@@ -1175,6 +1175,19 @@ function loadTileToMap(options: LoadTileOptions): void {
 }
 
 /**
+ * Determine which world a player is in.
+ * Uses the `world` field if available, otherwise falls back to `foreign` flag.
+ * `foreign: true` means the player is in the nether (different server in linked network).
+ */
+function getPlayerWorld(player: Player): string {
+    if (player.world) {
+        return getWorldId(player.world);
+    }
+    // Fallback: foreign=true means nether, false means overworld
+    return player.foreign ? WORLD_NETHER : WORLD_OVERWORLD;
+}
+
+/**
  * Fetch player positions from API
  * Returns empty array if fetch fails (no dots shown)
  */
@@ -1902,7 +1915,7 @@ async function startNavigation(): Promise<void> {
             const player = players.find(p => p.name.toLowerCase() === playerName);
             
             if (player) {
-                const playerWorld = player.world ? getWorldId(player.world) : WORLD_OVERWORLD;
+                const playerWorld = getPlayerWorld(player);
                 currentPlayerPosition = {
                     x: player.position.x,
                     z: player.position.z,
@@ -2047,7 +2060,7 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
 }
 
 async function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): Promise<void> {
-    const playerWorld = player.world ? getWorldId(player.world) : 'overworld';
+    const playerWorld = getPlayerWorld(player);
     currentPlayerPosition = {
         x: player.position.x,
         z: player.position.z,
