@@ -203,8 +203,8 @@ export function enchantsMatch(
     ruleEnchants: Record<string, number> | undefined
 ): boolean {
     if (!itemEnchants || !ruleEnchants) { return false; }
-    for (const [key, val] of Object.entries(ruleEnchants)) {
-        if (itemEnchants[key] !== val) { return false; }
+    for (const [key, value] of Object.entries(ruleEnchants)) {
+        if (itemEnchants[key] !== value) { return false; }
     }
     return true;
 }
@@ -236,11 +236,11 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
 }
 
 export function getRegex(pattern: string): RegExp {
-    const withPlaceholder = pattern.replaceAll('*', '\x00');
+    const withPlaceholder = pattern.replaceAll('*', '\u0000');
     const escaped = withPlaceholder.replaceAll(/[.+^${}()|[\]\\]/g, String.raw`\$&`);
     const chars = [...escaped];
     const flexible = chars.join('[_ ]*');
-    return new RegExp(flexible.replaceAll('\x00', '.*'), 'i');
+    return new RegExp(flexible.replaceAll('\u0000', '.*'), 'i');
 }
 
 // ============================================================================
@@ -328,7 +328,7 @@ export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRu
     let resultAmount: number;
     let loreText = '';
     let isShulker = false;
-    let shulkerItems: ShulkerItem[] | null = null;
+    let shulkerItems: ShulkerItem[] | undefined = undefined;
 
     if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
         const parsed = parseShulkerContents(lore);
@@ -366,34 +366,51 @@ export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRu
 // Trade Filtering
 // ============================================================================
 
-export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string): FilterResult | null {
-    if (trade.stock === 0) { return null; }
+interface ShulkerMatchResult {
+    matched: boolean;
+    name: string;
+    amount: number;
+}
 
-    let matchResult = false;
-    let displayName = trade.resultName;
-    let displayAmount = trade.resultAmount;
-
-    if (wantQuery) {
-        if (matchesQuery(trade.resultText, wantQuery)) {
-            matchResult = true;
-        } else if (trade.shulkerItems) {
-            const matched = trade.shulkerItems.find(item =>
-                matchesQuery(item.key, wantQuery) || matchesQuery(item.name.toLowerCase(), wantQuery)
-            );
-            if (matched) {
-                matchResult = true;
-                displayName = matched.name;
-                displayAmount = matched.total;
-            }
-        }
-    } else {
-        matchResult = true;
+function findMatchingShulkerItem(
+    shulkerItems: ShulkerItem[] | undefined,
+    query: string
+): ShulkerMatchResult | undefined {
+    if (!shulkerItems) { return undefined; }
+    const matched = shulkerItems.find(item =>
+        matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
+    );
+    if (matched) {
+        return { matched: true, name: matched.name, amount: matched.total };
     }
+    return undefined;
+}
 
+function checkWantQueryMatch(
+    trade: Trade,
+    wantQuery: string
+): { matchResult: boolean; displayName: string; displayAmount: number } {
+    if (!wantQuery) {
+        return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
+    }
+    if (matchesQuery(trade.resultText, wantQuery)) {
+        return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
+    }
+    const shulkerMatch = findMatchingShulkerItem(trade.shulkerItems, wantQuery);
+    if (shulkerMatch) {
+        return { matchResult: true, displayName: shulkerMatch.name, displayAmount: shulkerMatch.amount };
+    }
+    return { matchResult: false, displayName: trade.resultName, displayAmount: trade.resultAmount };
+}
+
+export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string): FilterResult | undefined {
+    if (trade.stock === 0) { return undefined; }
+
+    const { matchResult, displayName, displayAmount } = checkWantQueryMatch(trade, wantQuery);
     const matchCost = giveQuery ? matchesQuery(trade.costText, giveQuery) : true;
 
-    if (wantQuery && !matchResult) { return null; }
-    if (giveQuery && !matchCost) { return null; }
+    if (wantQuery && !matchResult) { return undefined; }
+    if (giveQuery && !matchCost) { return undefined; }
 
     return {
         trade,
@@ -413,41 +430,49 @@ export function sortResults(
     column: SortColumn,
     direction: SortDirection
 ): FilterResult[] {
-    const dir = direction === 'asc' ? 1 : -1;
+    const sortDirection = direction === 'asc' ? 1 : -1;
 
     results.sort((a, b) => {
-        const ta = a.trade;
-        const tb = b.trade;
-        let av: number;
-        let bv: number;
+        const tradeA = a.trade;
+        const tradeB = b.trade;
+        let valueA: number;
+        let valueB: number;
 
         switch (column) {
-            case 'cost-amt':
-                av = ta.item1.amount + (ta.item2?.amount || 0);
-                bv = tb.item1.amount + (tb.item2?.amount || 0);
+            case 'cost-amt': {
+                valueA = tradeA.item1.amount + (tradeA.item2?.amount || 0);
+                valueB = tradeB.item1.amount + (tradeB.item2?.amount || 0);
                 break;
-            case 'cost-name':
-                return dir * ta.costName.localeCompare(tb.costName);
-            case 'result-amt':
-                av = ta.resultAmount;
-                bv = tb.resultAmount;
+            }
+            case 'cost-name': {
+                return sortDirection * tradeA.costName.localeCompare(tradeB.costName);
+            }
+            case 'result-amt': {
+                valueA = tradeA.resultAmount;
+                valueB = tradeB.resultAmount;
                 break;
-            case 'result-name':
-                return dir * ta.resultName.localeCompare(tb.resultName);
-            case 'stock':
-                av = ta.displayStock;
-                bv = tb.displayStock;
+            }
+            case 'result-name': {
+                return sortDirection * tradeA.resultName.localeCompare(tradeB.resultName);
+            }
+            case 'stock': {
+                valueA = tradeA.displayStock;
+                valueB = tradeB.displayStock;
                 break;
-            case 'world':
-                return dir * ta.world.localeCompare(tb.world);
-            case 'distance':
-                av = Math.hypot(ta.x, ta.z);
-                bv = Math.hypot(tb.x, tb.z);
+            }
+            case 'world': {
+                return sortDirection * tradeA.world.localeCompare(tradeB.world);
+            }
+            case 'distance': {
+                valueA = Math.hypot(tradeA.x, tradeA.z);
+                valueB = Math.hypot(tradeB.x, tradeB.z);
                 break;
-            default:
+            }
+            default: {
                 return 0;
+            }
         }
-        return dir * (av - bv);
+        return sortDirection * (valueA - valueB);
     });
 
     return results;
@@ -457,82 +482,91 @@ export function sortResults(
 // Ratio Graph
 // ============================================================================
 
+function addRatioToGraph(graph: RatioGraph, from: string, to: string, ratio: number): void {
+    if (ratio === undefined || !Number.isFinite(ratio) || ratio <= 0) { return; }
+    const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
+    const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
+
+    if (!graph.has(key)) {
+        graph.set(key, ratio);
+        graph.set(reverseKey, 1 / ratio);
+    }
+}
+
+function buildEmeraldValuesFromTrades(itemValues: ItemValues): Map<string, number> {
+    const emeraldValues = new Map<string, number>();
+
+    for (const [key, entry] of itemValues.entries()) {
+        const medianBuy = median(entry.buyPrices);
+        const medianSell = median(entry.sellPrices);
+        const value = medianBuy !== undefined && medianSell !== undefined
+            ? (medianBuy + medianSell) / 2
+            : medianBuy ?? medianSell;
+        if (value !== undefined) {
+            emeraldValues.set(key, value);
+        }
+    }
+
+    emeraldValues.set('emerald', 1);
+    return emeraldValues;
+}
+
+function addBlockConversionValues(
+    emeraldValues: Map<string, number>,
+    blockConversions: BlockConversions
+): void {
+    for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
+        const baseValue = emeraldValues.get(base.toLowerCase());
+        if (baseValue !== undefined) {
+            emeraldValues.set(blockName.toLowerCase(), baseValue * multiplier);
+        }
+    }
+}
+
+function calculateCoreBlockRatios(
+    graph: RatioGraph,
+    coreBlocksLower: string[],
+    emeraldValues: Map<string, number>
+): void {
+    for (const blockA of coreBlocksLower) {
+        const valueA = emeraldValues.get(blockA);
+        if (valueA === undefined) { continue; }
+
+        for (const blockB of coreBlocksLower) {
+            if (blockA === blockB) { continue; }
+            const valueB = emeraldValues.get(blockB);
+            if (valueB === undefined) { continue; }
+
+            addRatioToGraph(graph, blockA, blockB, valueA / valueB);
+        }
+    }
+}
+
 /**
  * Build a ratio graph for the core blocks
  * Combines: fixed ratios (block↔ingot), shop trades, and transitive deductions
  * Returns: Map of "itemA->itemB" => ratio (1 itemA = ratio itemB)
  */
-// eslint-disable-next-line complexity
 export function buildRatioGraph(itemValues: ItemValues): RatioGraph {
     const graph: RatioGraph = new Map();
     const coreBlocks = coreBlocksStore.get();
     const blockConversions = blockConversionsStore.get();
     const coreBlocksLower = coreBlocks.map(b => b.toLowerCase());
 
-    function addRatio(from: string, to: string, ratio: number): void {
-        if (ratio === null || ratio === undefined || !Number.isFinite(ratio) || ratio <= 0) { return; }
-        const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
-        const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
-
-        if (!graph.has(key)) {
-            graph.set(key, ratio);
-            graph.set(reverseKey, 1 / ratio);
-        }
-    }
-
-    // Get emerald values for all items from itemValues
-    const emeraldValues = new Map<string, number>();
-
-    for (const [key, entry] of itemValues.entries()) {
-        const medianBuy = median(entry.buyPrices);
-        const medianSell = median(entry.sellPrices);
-        let value: number | null = null;
-        if (medianBuy !== null && medianSell !== null) {
-            value = (medianBuy + medianSell) / 2;
-        } else {
-            value = medianBuy ?? medianSell;
-        }
-        if (value !== null) {
-            emeraldValues.set(key, value);
-        }
-    }
-
-    // Emerald itself has value 1
-    emeraldValues.set('emerald', 1);
-
-    // Add block values from their ingot values using fixed multipliers
-    for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
-        const baseValue = emeraldValues.get(base.toLowerCase());
-        if (baseValue !== null && baseValue !== undefined) {
-            emeraldValues.set(blockName.toLowerCase(), baseValue * multiplier);
-        }
-    }
-
-    // Calculate ratios between all core blocks using their emerald values
-    for (const blockA of coreBlocksLower) {
-        const valueA = emeraldValues.get(blockA);
-        if (valueA === null || valueA === undefined) { continue; }
-
-        for (const blockB of coreBlocksLower) {
-            if (blockA === blockB) { continue; }
-            const valueB = emeraldValues.get(blockB);
-            if (valueB === null || valueB === undefined) { continue; }
-
-            // 1 blockA = (valueA / valueB) blockB
-            addRatio(blockA, blockB, valueA / valueB);
-        }
-    }
+    const emeraldValues = buildEmeraldValuesFromTrades(itemValues);
+    addBlockConversionValues(emeraldValues, blockConversions);
+    calculateCoreBlockRatios(graph, coreBlocksLower, emeraldValues);
 
     return graph;
 }
 
 /**
  * Get the ratio between two items from the ratio graph
- * Returns null if no path exists
+ * Returns undefined if no path exists
  */
-export function getRatio(graph: RatioGraph, from: string, to: string): number | null {
+export function getRatio(graph: RatioGraph, from: string, to: string): number | undefined {
     const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
-    return graph.get(key) ?? null;
+    return graph.get(key);
 }
 
 // ============================================================================
@@ -583,18 +617,73 @@ function addValue(
         values.set(key, { name: item, buyPrices: [], sellPrices: [] });
     }
     const entry = values.get(key)!;
-    const priceObj: PriceEntry = { price, x, y, z };
+    const priceObject: PriceEntry = { price, x, y, z };
     if (type === 'buy') {
-        entry.buyPrices.push(priceObj);
+        entry.buyPrices.push(priceObject);
     } else {
-        entry.sellPrices.push(priceObj);
+        entry.sellPrices.push(priceObject);
     }
+}
+
+function processDirectTrade(
+    trade: TradeInput,
+    baseCurrency: string,
+    values: ItemValues
+): void {
+    const costAsBase = normalizeToBaseCurrency(trade.costName, trade.costAmount, baseCurrency);
+    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
+
+    if (costAsBase.matches === resultAsBase.matches) { return; }
+
+    if (costAsBase.matches) {
+        const pricePerItem = costAsBase.amount / trade.resultAmount;
+        addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+    } else if (resultAsBase.matches) {
+        const pricePerItem = resultAsBase.amount / trade.costAmount;
+        addValue(values, trade.costName, pricePerItem, 'sell', trade.x, trade.y, trade.z);
+    }
+}
+
+function deriveTransitiveValue(
+    trade: TradeInput,
+    baseCurrency: string,
+    values: ItemValues
+): boolean {
+    const costKey = trade.costName.toLowerCase();
+    const resultKey = trade.resultName.toLowerCase();
+
+    const costIsBase = normalizeToBaseCurrency(trade.costName, 1, baseCurrency).matches;
+    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
+    if (costIsBase || resultIsBase) { return false; }
+
+    const costEntry = values.get(costKey);
+    const resultEntry = values.get(resultKey);
+    let changed = false;
+
+    if (costEntry && !resultEntry) {
+        const costValue = getTrustedItemValue(trade.costName, values);
+        if (costValue !== undefined) {
+            const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
+            addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+            changed = true;
+        }
+    }
+
+    if (resultEntry && !costEntry) {
+        const resultValue = getTrustedItemValue(trade.resultName, values);
+        if (resultValue !== undefined) {
+            const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
+            addValue(values, trade.costName, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+            changed = true;
+        }
+    }
+
+    return changed;
 }
 
 /**
  * Calculate item values including transitive derivation through intermediaries
  */
-// eslint-disable-next-line complexity
 export function calculateItemValues(trades: TradeInput[], baseCurrency: string): ItemValues {
     const config = configStore.get();
     const values: ItemValues = new Map();
@@ -602,19 +691,7 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
     // Phase 1: Direct trades with base currency
     for (const trade of trades) {
         if (trade.item2) { continue; }
-
-        const costAsBase = normalizeToBaseCurrency(trade.costName, trade.costAmount, baseCurrency);
-        const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
-
-        if (costAsBase.matches === resultAsBase.matches) { continue; }
-
-        if (costAsBase.matches) {
-            const pricePerItem = costAsBase.amount / trade.resultAmount;
-            addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
-        } else if (resultAsBase.matches) {
-            const pricePerItem = resultAsBase.amount / trade.costAmount;
-            addValue(values, trade.costName, pricePerItem, 'sell', trade.x, trade.y, trade.z);
-        }
+        processDirectTrade(trade, baseCurrency, values);
     }
 
     // Phase 2: Extend using known item values as intermediaries
@@ -627,37 +704,8 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
 
         for (const trade of trades) {
             if (trade.item2) { continue; }
-
-            const costKey = trade.costName.toLowerCase();
-            const resultKey = trade.resultName.toLowerCase();
-
-            const costIsBase = normalizeToBaseCurrency(trade.costName, 1, baseCurrency).matches;
-            const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
-            if (costIsBase || resultIsBase) { continue; }
-
-            const costEntry = values.get(costKey);
-            const resultEntry = values.get(resultKey);
-
-            // Cost is known and trusted, result is unknown → derive result's buy price
-            if (costEntry && !resultEntry) {
-                const costValue = getTrustedItemValue(trade.costName, values);
-                if (costValue !== null) {
-                    const totalCost = trade.costAmount * costValue;
-                    const pricePerResult = totalCost / trade.resultAmount;
-                    addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
-                    changed = true;
-                }
-            }
-
-            // Result is known and trusted, cost is unknown → derive cost's sell price
-            if (resultEntry && !costEntry) {
-                const resultValue = getTrustedItemValue(trade.resultName, values);
-                if (resultValue !== null) {
-                    const totalResult = trade.resultAmount * resultValue;
-                    const pricePerCost = totalResult / trade.costAmount;
-                    addValue(values, trade.costName, pricePerCost, 'sell', trade.x, trade.y, trade.z);
-                    changed = true;
-                }
+            if (deriveTransitiveValue(trade, baseCurrency, values)) {
+                changed = true;
             }
         }
     }
@@ -672,10 +720,10 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
 /**
  * Calculate median of price values (extracts .price from objects if needed)
  */
-export function median(arr: PriceEntry[] | number[]): number | null {
-    if (arr.length === 0) { return null; }
-    const prices = arr.map(p => typeof p === 'object' ? p.price : p);
-    const sorted = [...prices].sort((a, b) => a - b);
+export function median(array: PriceEntry[] | number[]): number | undefined {
+    if (array.length === 0) { return undefined; }
+    const prices = array.map(p => typeof p === 'object' ? p.price : p);
+    const sorted = prices.toSorted((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     if (sorted.length % 2) {
         return sorted[mid]!;
@@ -700,8 +748,8 @@ export function countIndependentShops(priceArray: PriceEntry[]): number {
     for (const loc of locations) {
         let foundCluster = false;
         for (const cluster of clusters) {
-            const dist = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z - cluster.z);
-            if (dist <= config.analysis.shopClusterDistance) {
+            const distribution = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z - cluster.z);
+            if (distribution <= config.analysis.shopClusterDistance) {
                 foundCluster = true;
                 break;
             }
@@ -724,17 +772,77 @@ export function hasEnoughIndependentData(entry: ItemValueEntry, minShops?: numbe
     return Math.max(buyIndependent, sellIndependent) >= threshold;
 }
 
+function getMedianValue(
+    buyPrices: PriceEntry[],
+    sellPrices: PriceEntry[]
+): number | undefined {
+    const buy = median(buyPrices);
+    const sell = median(sellPrices);
+    if (buy !== undefined && sell !== undefined) { return (buy + sell) / 2; }
+    return buy ?? sell;
+}
+
+function getDirectTradeValue(
+    entry: ItemValueEntry | undefined,
+    isCoreBlock: boolean,
+    minShops: number
+): number | undefined {
+    if (!entry) { return undefined; }
+    if (isCoreBlock && !hasEnoughIndependentData(entry, minShops)) { return undefined; }
+    return getMedianValue(entry.buyPrices, entry.sellPrices);
+}
+
+function getBlockConversionValue(
+    itemKey: string,
+    itemValues: ItemValues,
+    blockConversions: BlockConversions,
+    isCoreBlock: boolean,
+    minShops: number
+): number | undefined {
+    const blockInfo = blockConversions[itemKey];
+    if (!blockInfo) { return undefined; }
+
+    const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
+    if (!baseEntry) { return undefined; }
+    if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
+
+    const baseValue = getMedianValue(baseEntry.buyPrices, baseEntry.sellPrices);
+    if (baseValue === undefined) { return undefined; }
+    return baseValue * blockInfo.multiplier;
+}
+
+function getReverseConversionValue(
+    itemKey: string,
+    itemValues: ItemValues,
+    blockConversions: BlockConversions,
+    isCoreBlock: boolean,
+    minShops: number
+): number | undefined {
+    for (const [blockKey, conversion] of Object.entries(blockConversions)) {
+        if (conversion.base.toLowerCase() !== itemKey) { continue; }
+
+        const blockEntry = itemValues.get(blockKey);
+        if (!blockEntry) { continue; }
+        if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
+
+        const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
+        if (blockValue !== undefined) {
+            return blockValue / conversion.multiplier;
+        }
+    }
+    return undefined;
+}
+
 /**
  * Get trusted emerald value for an item.
  * For core blocks, requires >=minShops independent shops.
  * Falls back to block conversions if direct value unavailable.
  */
-// eslint-disable-next-line complexity
 export function getTrustedItemValue(
     itemName: string,
     itemValues: ItemValues,
     options: TrustedValueOptions = {}
-): number | null {
+): number | undefined {
     const { minShops = 3 } = options;
     const blockConversions = blockConversionsStore.get();
     const coreBlocks = coreBlocksStore.get();
@@ -747,51 +855,16 @@ export function getTrustedItemValue(
     const coreBlocksLower = coreBlocks.map(b => b.toLowerCase());
     const isCoreBlock = coreBlocksLower.includes(itemKey);
 
-    // Check direct value from trades
-    const entry = itemValues.get(itemKey);
-    if (entry) {
-        if (isCoreBlock && !hasEnoughIndependentData(entry, minShops)) {
-            // Don't trust, fall through to conversion fallback
-        } else {
-            const buy = median(entry.buyPrices);
-            const sell = median(entry.sellPrices);
-            if (buy !== null || sell !== null) {
-                if (buy !== null && sell !== null) { return (buy + sell) / 2; }
-                return buy ?? sell;
-            }
-        }
-    }
+    // Try direct value from trades
+    const directValue = getDirectTradeValue(itemValues.get(itemKey), isCoreBlock, minShops);
+    if (directValue !== undefined) { return directValue; }
 
-    // Fall back to block conversions (block = ingot × multiplier)
-    const blockInfo = blockConversions[itemKey];
-    if (blockInfo) {
-        const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
-        if (baseEntry && (!isCoreBlock || hasEnoughIndependentData(baseEntry, minShops))) {
-            const baseBuy = median(baseEntry.buyPrices);
-            const baseSell = median(baseEntry.sellPrices);
-            const baseValue = baseBuy ?? baseSell;
-            if (baseValue !== null) {
-                return baseValue * blockInfo.multiplier;
-            }
-        }
-    }
+    // Try block conversion (block = ingot × multiplier)
+    const conversionValue = getBlockConversionValue(itemKey, itemValues, blockConversions, isCoreBlock, minShops);
+    if (conversionValue !== undefined) { return conversionValue; }
 
     // Try reverse conversion (ingot from block)
-    for (const [blockKey, conv] of Object.entries(blockConversions)) {
-        if (conv.base.toLowerCase() === itemKey) {
-            const blockEntry = itemValues.get(blockKey);
-            if (blockEntry && (!isCoreBlock || hasEnoughIndependentData(blockEntry, minShops))) {
-                const blockBuy = median(blockEntry.buyPrices);
-                const blockSell = median(blockEntry.sellPrices);
-                const blockValue = blockBuy ?? blockSell;
-                if (blockValue !== null) {
-                    return blockValue / conv.multiplier;
-                }
-            }
-        }
-    }
-
-    return null;
+    return getReverseConversionValue(itemKey, itemValues, blockConversions, isCoreBlock, minShops);
 }
 
 // ============================================================================
@@ -971,7 +1044,7 @@ export function clampToCircle(
 ): { lat: number; lng: number; clamped: boolean } {
     const dx = lng - centerLng;
     const dy = lat - centerLat;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const distance = Math.hypot(dx, dy);
     
     if (distance <= radius) {
         return { lat, lng, clamped: false };
@@ -1028,28 +1101,28 @@ export function calculateRouteDistance(
  */
 export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): number[][] {
     const n = points.length + 1; // +1 for origin
-    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    const matrix: number[][] = Array.from({ length: n }, () => Array.from({ length: n }, () => 0));
     
     const originX = origin?.x ?? 0;
     const originZ = origin?.z ?? 0;
     const originWorld = origin?.world ?? 'overworld';
     
     // Origin is at index 0
-    for (let i = 0; i < points.length; i++) {
-        const point = points[i]!;
-        const distFromOrigin = calculateRouteDistance(originX, originZ, originWorld, point.x, point.z, point.world);
-        matrix[0]![i + 1] = distFromOrigin;
-        matrix[i + 1]![0] = distFromOrigin;
+    for (const [index, point_] of points.entries()) {
+        const point = point_!;
+        const distributionFromOrigin = calculateRouteDistance(originX, originZ, originWorld, point.x, point.z, point.world);
+        matrix[0]![index + 1] = distributionFromOrigin;
+        matrix[index + 1]![0] = distributionFromOrigin;
     }
     
     // Distances between points
-    for (let i = 0; i < points.length; i++) {
-        for (let j = i + 1; j < points.length; j++) {
-            const a = points[i]!;
-            const b = points[j]!;
-            const dist = calculateRouteDistance(a.x, a.z, a.world, b.x, b.z, b.world);
-            matrix[i + 1]![j + 1] = dist;
-            matrix[j + 1]![i + 1] = dist;
+    for (let index = 0; index < points.length; index++) {
+        for (let index_ = index + 1; index_ < points.length; index_++) {
+            const a = points[index]!;
+            const b = points[index_]!;
+            const distribution = calculateRouteDistance(a.x, a.z, a.world, b.x, b.z, b.world);
+            matrix[index + 1]![index_ + 1] = distribution;
+            matrix[index_ + 1]![index + 1] = distribution;
         }
     }
     
@@ -1060,7 +1133,7 @@ export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): 
  * Nearest-neighbor heuristic to get initial route order
  * Returns indices into points array (not including origin)
  */
-export function nearestNeighborOrder(points: RoutePoint[], distMatrix: number[][]): number[] {
+export function nearestNeighborOrder(points: RoutePoint[], distributionMatrix: number[][]): number[] {
     if (points.length === 0) {return [];}
     if (points.length === 1) {return [0];}
     
@@ -1069,22 +1142,22 @@ export function nearestNeighborOrder(points: RoutePoint[], distMatrix: number[][
     let current = 0; // Start at origin (index 0 in matrix)
     
     while (order.length < points.length) {
-        let nearestIdx = -1;
-        let nearestDist = Infinity;
+        let nearestIndex = -1;
+        let nearestDistribution = Infinity;
         
-        for (let i = 0; i < points.length; i++) {
-            if (visited.has(i)) {continue;}
-            const dist = distMatrix[current]![i + 1]!; // +1 because origin is at 0
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearestIdx = i;
+        for (let index = 0; index < points.length; index++) {
+            if (visited.has(index)) {continue;}
+            const distribution = distributionMatrix[current]![index + 1]!; // +1 because origin is at 0
+            if (distribution < nearestDistribution) {
+                nearestDistribution = distribution;
+                nearestIndex = index;
             }
         }
         
-        if (nearestIdx !== -1) {
-            order.push(nearestIdx);
-            visited.add(nearestIdx);
-            current = nearestIdx + 1; // +1 for matrix index
+        if (nearestIndex !== -1) {
+            order.push(nearestIndex);
+            visited.add(nearestIndex);
+            current = nearestIndex + 1; // +1 for matrix index
         }
     }
     
@@ -1094,23 +1167,69 @@ export function nearestNeighborOrder(points: RoutePoint[], distMatrix: number[][
 /**
  * Calculate total route length for a given order (starting from origin)
  */
-export function calculateOrderDistance(order: number[], distMatrix: number[][]): number {
+export function calculateOrderDistance(order: number[], distributionMatrix: number[][]): number {
     if (order.length === 0) {return 0;}
     
-    let total = distMatrix[0]![order[0]! + 1]!; // Origin to first
+    let total = distributionMatrix[0]![order[0]! + 1]!; // Origin to first
     
-    for (let i = 0; i < order.length - 1; i++) {
-        total += distMatrix[order[i]! + 1]![order[i + 1]! + 1]!;
+    for (let index = 0; index < order.length - 1; index++) {
+        total += distributionMatrix[order[index]! + 1]![order[index + 1]! + 1]!;
     }
     
     return total;
+}
+
+interface TwoOptEdgeIndices {
+    previousI: number;
+    currentI: number;
+    currentJ: number;
+    nextJ: number;
+}
+
+function calculateEdgeIndices(
+    result: number[],
+    startIndex: number,
+    endIndex: number
+): TwoOptEdgeIndices {
+    return {
+        previousI: startIndex === 0 ? 0 : result[startIndex - 1]! + 1,
+        currentI: result[startIndex]! + 1,
+        currentJ: result[endIndex]! + 1,
+        nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
+    };
+}
+
+function shouldSwapEdges(
+    distributionMatrix: number[][],
+    indices: TwoOptEdgeIndices
+): boolean {
+    const { previousI, currentI, currentJ, nextJ } = indices;
+
+    // Current cost: prevI→currI + currJ→nextJ
+    let currentCost = distributionMatrix[previousI]![currentI]!;
+    if (nextJ !== -1) {
+        currentCost += distributionMatrix[currentJ]![nextJ]!;
+    }
+
+    // New cost: prevI→currJ + currI→nextJ
+    let newCost = distributionMatrix[previousI]![currentJ]!;
+    if (nextJ !== -1) {
+        newCost += distributionMatrix[currentI]![nextJ]!;
+    }
+
+    return newCost < currentCost - 0.001;
+}
+
+function applyTwoOptSwap(result: number[], startIndex: number, endIndex: number): void {
+    const segment = result.slice(startIndex, endIndex + 1).toReversed();
+    result.splice(startIndex, endIndex - startIndex + 1, ...segment);
 }
 
 /**
  * 2-opt optimization: iteratively swap edges to improve route
  * Returns a new optimized order array
  */
-export function twoOptOptimize(order: number[], distMatrix: number[][]): number[] {
+export function twoOptOptimize(order: number[], distributionMatrix: number[][]): number[] {
     if (order.length < 3) {return [...order];}
     
     const result = [...order];
@@ -1119,30 +1238,12 @@ export function twoOptOptimize(order: number[], distMatrix: number[][]): number[
     while (improved) {
         improved = false;
         
-        for (let i = 0; i < result.length - 1; i++) {
-            for (let j = i + 2; j < result.length; j++) {
-                // Calculate current distance for edges (i-1 to i) and (j to j+1)
-                const prevI = i === 0 ? 0 : result[i - 1]! + 1;
-                const currI = result[i]! + 1;
-                const currJ = result[j]! + 1;
-                const nextJ = j === result.length - 1 ? -1 : result[j + 1]! + 1;
+        for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
+            for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
+                const indices = calculateEdgeIndices(result, startIndex, endIndex);
                 
-                // Current cost: prevI→currI + currJ→nextJ
-                let currentCost = distMatrix[prevI]![currI]!;
-                if (nextJ !== -1) {
-                    currentCost += distMatrix[currJ]![nextJ]!;
-                }
-                
-                // New cost if we reverse segment [i, j]: prevI→currJ + currI→nextJ
-                let newCost = distMatrix[prevI]![currJ]!;
-                if (nextJ !== -1) {
-                    newCost += distMatrix[currI]![nextJ]!;
-                }
-                
-                if (newCost < currentCost - 0.001) { // Small epsilon for float comparison
-                    // Reverse segment from i to j
-                    const segment = result.slice(i, j + 1).reverse();
-                    result.splice(i, j - i + 1, ...segment);
+                if (shouldSwapEdges(distributionMatrix, indices)) {
+                    applyTwoOptSwap(result, startIndex, endIndex);
                     improved = true;
                 }
             }
@@ -1163,13 +1264,13 @@ export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): 
     if (points.length === 1) {return [0];}
     
     // Build distance matrix
-    const distMatrix = buildDistanceMatrix(points, origin);
+    const distributionMatrix = buildDistanceMatrix(points, origin);
     
     // Get initial order using nearest-neighbor
-    let order = nearestNeighborOrder(points, distMatrix);
+    let order = nearestNeighborOrder(points, distributionMatrix);
     
     // Optimize with 2-opt
-    order = twoOptOptimize(order, distMatrix);
+    order = twoOptOptimize(order, distributionMatrix);
     
     return order;
 }
