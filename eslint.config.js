@@ -102,5 +102,20 @@ export default tseslint.config(
             // Unicorn adjustments for getElementById pattern
             'unicorn/prefer-query-selector': 'warn'
         }
+    },
+    // Relaxed rules for spec tests - these are large legacy test files
+    {
+        files: ['tests/**/*.spec.ts'],
+        rules: {
+            // Allow longer functions in test files
+            'max-lines-per-function': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
+            // Duplicate strings are common in test selectors
+            'sonarjs/no-duplicate-string': 'off',
+            // Nested callbacks are common in test assertions
+            'max-nested-callbacks': ['error', { max: 5 }],
+            // Allow unsafe any in tests
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off'
+        }
     }
 );
