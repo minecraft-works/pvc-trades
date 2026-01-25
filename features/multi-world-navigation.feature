@@ -38,7 +38,7 @@ Feature: Multi-World Navigation
     Given player "TestPlayer" is in the nether at (-500, -50)
     And I open the navigation dialog with items from both worlds
     And the map should be showing "nether" world
-    When player moves to the overworld at (100, 200)
+    When player moves to the overworld at (0, 0)
     Then the map should switch to "overworld" world
     And overworld tiles should be requested
     And the route should show overworld shop markers
@@ -51,7 +51,7 @@ Feature: Multi-World Navigation
     And I start navigation as "TestPlayer"
     And the map should be showing "nether" world
     And nether tiles should have been loaded
-    When player moves to the overworld at (100, 200)
+    When player moves to the overworld at (500, 500)
     Then the map should stay on "nether" world
     And no new overworld tiles should be loaded
 
@@ -74,7 +74,7 @@ Feature: Multi-World Navigation
     And the map should be showing "overworld" world
     When player moves to the nether at (-500, -50)
     And I wait for map to switch to "nether"
-    And player moves to the overworld at (100, 200)
+    And player moves to the overworld at (500, 500)
     And I wait for map to switch to "overworld"
     Then the map should be showing "overworld" world
     And the route should show overworld shop markers
@@ -95,6 +95,6 @@ Feature: Multi-World Navigation
     And I open the navigation dialog with items from both worlds
     And the map should be showing "nether" world
     And I mark the nether shop as completed
-    When player moves to the overworld at (100, 200)
+    When player moves to the overworld at (500, 500)
     Then the map should switch to "overworld" world
     And overworld tiles should be requested

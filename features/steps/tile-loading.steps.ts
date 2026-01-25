@@ -134,6 +134,7 @@ const SELECTOR_START_NAVIGATION = '#start-navigation';
 const SELECTOR_NAV_DIALOG_OPEN = '#nav-dialog[open]';
 const SELECTOR_CART_DIALOG_OPEN = '#cart-dialog[open]';
 const SELECTOR_ADD_TO_CART_BUTTON = '.add-to-cart-btn';
+const SELECTOR_NAV_MAP_CONTAINER = '#nav-dialog-map-container';
 const TEST_PLAYER_NAME = 'TestPlayer';
 
 // ============================================================================
@@ -356,4 +357,73 @@ Then('only tiles near origin should be requested', async ({ page }) => {
     }) ?? [];
     
     expect(farTileRequests.length, 'Should not request tiles far from origin').toBe(0);
+});
+
+// ============================================================================
+// Dynamic Tile Loading Steps
+// ============================================================================
+
+Given('the navigation map is open with an overworld item', async ({ page }) => {
+    await openNavigationMapWithItem(page, 'Emerald');
+});
+
+When('I pan the map to a new area', async ({ page }) => {
+    // Get the map container
+    const mapContainer = page.locator(SELECTOR_NAV_MAP_CONTAINER);
+    await expect(mapContainer).toBeVisible();
+    
+    // Get the container's bounding box
+    const box = await mapContainer.boundingBox();
+    if (!box) {
+        throw new Error('Could not get map container bounding box');
+    }
+    
+    // Drag the map to pan it significantly
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - 200, startY - 200, { steps: 10 });
+    await page.mouse.up();
+    
+    // Wait for tile requests to stabilize after pan
+    await waitForTileRequestsToStabilize(page, 500, 5000);
+});
+
+Then('the map should display tiles at the player location', async ({ page }) => {
+    // Check that tiles were requested - the map is making tile requests
+    const p = page as PageWithTileTracking;
+    const requestCount = p.__tileRequests?.length ?? 0;
+    
+    // As long as tile requests were made, the map is trying to display tiles
+    // The actual image loading may fail for non-existent tiles in our mock
+    expect(requestCount, 'Map should have made tile requests').toBeGreaterThan(0);
+    
+    // Also check that the Leaflet map container exists and has tile layers
+    const hasMap = await page.evaluate((selector) => {
+        const mapContainer = document.querySelector(selector);
+        if (!mapContainer) {
+            return false;
+        }
+        // Check for Leaflet tile pane which is always present when tiles are being managed
+        const tilePane = mapContainer.querySelector('.leaflet-tile-pane');
+        return tilePane !== null;
+    }, SELECTOR_NAV_MAP_CONTAINER);
+    
+    expect(hasMap, 'Map should have tile pane').toBe(true);
+});
+
+Then('the map should continue displaying tiles', async ({ page }) => {
+    // Verify the map is still functional after panning
+    const hasMap = await page.evaluate((selector) => {
+        const mapContainer = document.querySelector(selector);
+        if (!mapContainer) {
+            return false;
+        }
+        const tilePane = mapContainer.querySelector('.leaflet-tile-pane');
+        return tilePane !== null;
+    }, SELECTOR_NAV_MAP_CONTAINER);
+    
+    expect(hasMap, 'Map should have tile pane after panning').toBe(true);
 });

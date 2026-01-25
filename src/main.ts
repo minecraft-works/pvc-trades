@@ -2832,6 +2832,35 @@ function calculateTileRange(stops: RouteStop[]): TileRange {
     return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ };
 }
 
+/**
+ * Calculate tile range from current map view bounds (for dynamic tile loading)
+ */
+function calculateTileRangeFromView(centerTileX: number, centerTileZ: number): TileRange | undefined {
+    if (!navMap) {return undefined;}
+    
+    const bounds = navMap.getBounds();
+    
+    // Convert leaflet bounds to tile coordinates
+    // Leaflet uses (lat, lng) where lat is up/down and lng is left/right
+    // Our tiles use: dx = (lng) / tileSize, dz = (-lat) / tileSize
+    const minDx = Math.floor(bounds.getWest() / MAP_CONFIG.tileSize);
+    const maxDx = Math.ceil(bounds.getEast() / MAP_CONFIG.tileSize);
+    const minDz = -Math.ceil(bounds.getNorth() / MAP_CONFIG.tileSize);
+    const maxDz = -Math.floor(bounds.getSouth() / MAP_CONFIG.tileSize);
+    
+    // Convert relative deltas to absolute tile coordinates
+    const minTileX = centerTileX + minDx;
+    const maxTileX = centerTileX + maxDx;
+    const minTileZ = centerTileZ + minDz;
+    const maxTileZ = centerTileZ + maxDz;
+    
+    // Recalculate center based on view bounds
+    const viewCenterTileX = Math.floor((minTileX + maxTileX) / 2);
+    const viewCenterTileZ = Math.floor((minTileZ + maxTileZ) / 2);
+    
+    return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX: viewCenterTileX, centerTileZ: viewCenterTileZ };
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Nested loops for tile loading across zoom levels
 function loadNavMapTiles(
     manifest: Set<string>, 
@@ -3001,7 +3030,20 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     const manifest = await loadTileManifest();
     const addedToNavMap = new Set<string>();
     
+    // Initial tile load for shop-centered view
     loadNavMapTiles(manifest, worldToShow, tileRange, addedToNavMap);
+    
+    // Dynamic tile loading when map moves (e.g., when centering on player)
+    const loadVisibleNavMapTiles = () => {
+        const viewTileRange = calculateTileRangeFromView(navMapCenterTileX, navMapCenterTileZ);
+        if (viewTileRange) {
+            debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]', 
+                viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
+            loadNavMapTiles(manifest, worldToShow, viewTileRange, addedToNavMap);
+        }
+    };
+    navMap.on('moveend', loadVisibleNavMapTiles);
+    navMap.on('zoomend', loadVisibleNavMapTiles);
     
     const routePoints = createRouteMarkers(stopsInWorld, tileRange.centerTileX, tileRange.centerTileZ, route);
     

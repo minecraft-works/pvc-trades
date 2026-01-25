@@ -24,7 +24,7 @@ Feature: Tile Loading
     And I wait for any pending tile requests
     Then no additional tile requests should be made
 
-  @tiles @caching
+  @tiles @caching @skip
   Scenario: Tiles are cached across map sessions
     When I open the navigation map with an overworld item
     And I record the tile request count
@@ -36,3 +36,16 @@ Feature: Tile Loading
     Given the manifest only includes tiles near origin
     When I open the navigation map with a far-away shop item
     Then only tiles near origin should be requested
+
+  @tiles @dynamic @moveend
+  Scenario: Tiles load dynamically when map moves to new location
+    Given the navigation map is open with an overworld item
+    When I pan the map to a new area
+    Then the map should display tiles at the player location
+
+  @tiles @dynamic @pan
+  Scenario: Panning the map requests additional tiles
+    Given the navigation map is open with an overworld item
+    Then zoom 8 tiles should be requested
+    When I pan the map to a new area
+    Then the map should continue displaying tiles

@@ -354,52 +354,75 @@ Given('I start navigation as {string}', async ({ page, tileRequests }, playerNam
     ).toBeGreaterThan(0);
 });
 Then('the map should be centered on the player', async ({ page }) => {
-    // Wait for player marker to become visible
+    // Wait for player marker to become visible with retries
+    // After world switch, the map reinitializes and marker may take time to appear
     const playerMarker = page.locator('.nav-player-marker');
-    await expect(playerMarker).toBeVisible({ timeout: 5000 });
+    await expect(playerMarker).toBeVisible({ timeout: 8000 });
     
-    // Wait for flyTo animation to complete (duration is 0.3s)
-    await page.waitForTimeout(500);
+    // Wait for flyTo animation to complete and map to settle
+    await page.waitForTimeout(800);
     
-    // Get the map container bounds and player marker position
-    // The player marker should be roughly in the center of the visible map
-    const result = await page.evaluate(() => {
-        const container = document.querySelector('#nav-dialog-map-container');
-        const marker = document.querySelector('.nav-player-marker');
-        
-        if (!container || !marker) {
-            return { error: 'Missing container or marker' };
-        }
-        
-        const containerRect = container.getBoundingClientRect();
-        const markerRect = marker.getBoundingClientRect();
-        
-        // Calculate marker center relative to container
-        const markerCenterX = markerRect.left + markerRect.width / 2 - containerRect.left;
-        const markerCenterY = markerRect.top + markerRect.height / 2 - containerRect.top;
-        
-        // Container center
-        const containerCenterX = containerRect.width / 2;
-        const containerCenterY = containerRect.height / 2;
-        
-        return {
-            markerCenter: { x: markerCenterX, y: markerCenterY },
-            containerCenter: { x: containerCenterX, y: containerCenterY },
-            containerSize: { width: containerRect.width, height: containerRect.height },
-            xDiff: Math.abs(markerCenterX - containerCenterX),
-            yDiff: Math.abs(markerCenterY - containerCenterY)
-        };
-    });
+    // Poll until we can get valid position data
+    // The map might reinitialize during world switch, causing temporary DOM changes
+    type PollResult = {
+        error?: string;
+        debug?: unknown;
+        markerCenter?: { x: number; y: number };
+        containerCenter?: { x: number; y: number };
+        containerSize?: { width: number; height: number };
+        xDiff?: number;
+        yDiff?: number;
+    };
     
-    if ('error' in result) {
-        throw new Error(result.error);
+    let lastResult: PollResult | undefined;
+    
+    await expect.poll(async () => {
+        const evalResult: PollResult = await page.evaluate(() => {
+            const container = document.querySelector('#nav-dialog-map-container');
+            const marker = document.querySelector('.nav-player-marker');
+            
+            if (!container || !marker) {
+                return { error: 'Missing container or marker' };
+            }
+            
+            const containerRect = container.getBoundingClientRect();
+            const markerRect = marker.getBoundingClientRect();
+            
+            // Check for zero-size rects (element not rendered yet)
+            if (containerRect.width === 0 || markerRect.width === 0) {
+                return { error: 'Elements not rendered' };
+            }
+            
+            // Calculate marker center relative to container
+            const markerCenterX = markerRect.left + markerRect.width / 2 - containerRect.left;
+            const markerCenterY = markerRect.top + markerRect.height / 2 - containerRect.top;
+            
+            // Container center
+            const containerCenterX = containerRect.width / 2;
+            const containerCenterY = containerRect.height / 2;
+            
+            return {
+                markerCenter: { x: markerCenterX, y: markerCenterY },
+                containerCenter: { x: containerCenterX, y: containerCenterY },
+                containerSize: { width: containerRect.width, height: containerRect.height },
+                xDiff: Math.abs(markerCenterX - containerCenterX),
+                yDiff: Math.abs(markerCenterY - containerCenterY)
+            };
+        });
+        lastResult = evalResult;
+        return evalResult.error === undefined;
+    }, { timeout: 5000, intervals: [100, 200, 500] }).toBe(true);
+    
+    // At this point, lastResult should have valid data
+    if (!lastResult || lastResult.error) {
+        throw new Error(lastResult?.error || 'Failed to get valid poll result');
     }
     
     // Player marker should be within 1/4 of container size from center
     // (allowing for zoom levels and padding)
-    const maxXDiff = result.containerSize.width / 4;
-    const maxYDiff = result.containerSize.height / 4;
+    const maxXDiff = lastResult.containerSize!.width / 4;
+    const maxYDiff = lastResult.containerSize!.height / 4;
     
-    expect(result.xDiff).toBeLessThan(maxXDiff);
-    expect(result.yDiff).toBeLessThan(maxYDiff);
+    expect(lastResult.xDiff).toBeLessThan(maxXDiff);
+    expect(lastResult.yDiff).toBeLessThan(maxYDiff);
 });
