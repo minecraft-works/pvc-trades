@@ -745,3 +745,25 @@ Then('the visible tiles should be nether tiles', async ({ page }) => {
     expect(overworldTiles.length, 'Should not load overworld tiles when viewing nether').toBe(0);
 });
 
+// ============================================================================
+// Unified View Steps
+// ============================================================================
+
+Then('overworld tile requests should be made', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const overworldRequests = requests.filter(url => url.includes('/overworld/'));
+    expect(overworldRequests.length, 'Expected overworld tile requests').toBeGreaterThan(0);
+});
+
+Then('no nether tile requests should be made', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    const netherRequests = requests.filter(url => url.includes('/the_nether/'));
+    expect(netherRequests.length, 'Expected no nether tile requests in unified view').toBe(0);
+});
+
+Then('nether shop markers should be visible', async ({ page }) => {
+    const netherMarker = page.locator('.nav-route-marker--nether');
+    await expect(netherMarker.first()).toBeVisible({ timeout: 5000 });
+});

@@ -18,7 +18,7 @@ export default tseslint.config(
             sourceType: 'module',
             parserOptions: {
                 projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'tests/*.spec.ts'],
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'tests/*.spec.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts'],
                     defaultProject: './tsconfig.eslint.json'
                 },
                 tsconfigRootDir: import.meta.dirname

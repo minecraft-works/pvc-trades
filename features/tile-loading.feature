@@ -12,10 +12,11 @@ Feature: Tile Loading
     Then zoom 8 tiles should be requested
     And zoom 4 tiles should be requested
 
-  @tiles @loading @nether
-  Scenario: Nether tiles load from correct path when viewing nether shop
+  @tiles @loading @nether @unified
+  Scenario: Unified view shows overworld tiles even for nether shops
     When I open the navigation map with a nether item
-    Then nether tile requests should include "/the_nether/" in path
+    Then overworld tile requests should be made
+    And no nether tile requests should be made
 
   @tiles @loading @request-counting
   Scenario: Tiles are only requested once per session
@@ -86,11 +87,12 @@ Feature: Tile Loading
     Then tiles should still be visible in the viewport
     And zoom 4 tiles should cover the same area as zoom 8 tiles
 
-  @tiles @positioning @nether
-  Scenario: Nether tiles are positioned correctly
+  @tiles @positioning @nether @unified
+  Scenario: Nether shops positioned at overworld-equivalent on unified map
     Given the navigation map is open with a nether item
     Then at least one tile should be visible in the viewport
-    And the visible tiles should be nether tiles
+    And nether shop markers should be visible
+    And only overworld tiles should be loaded
 
   @tiles @positioning @follow-mode
   Scenario: Tiles load correctly when map follows moving player

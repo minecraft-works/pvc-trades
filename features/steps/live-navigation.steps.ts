@@ -286,6 +286,12 @@ Then('the distance display should show {string}', async ({ page }, text: string)
     await expect(distanceDisplay.first()).toContainText(text, { timeout: 5000 });
 });
 
+Then('the distance display should show a fire indicator for nether', async ({ page }) => {
+    // In unified view, nether shops are marked with a fire emoji 🔥
+    const distanceDisplay = page.locator('#nav-dialog-distance, #nav-live-distance');
+    await expect(distanceDisplay.first()).toContainText('🔥', { timeout: 5000 });
+});
+
 Then('the first shop should be marked as completed', async ({ page }) => {
     // Close nav dialog if open to access cart
     const navDialog = page.locator('#nav-dialog[open]');

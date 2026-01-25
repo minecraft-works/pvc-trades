@@ -170,6 +170,12 @@ export interface RouteStop {
     y: number;
     z: number;
     world: string;
+    /** Overworld-equivalent X coordinate for unified map display (nether coords ×8) */
+    displayX: number;
+    /** Overworld-equivalent Z coordinate for unified map display (nether coords ×8) */
+    displayZ: number;
+    /** Whether this stop is in the nether (for visual styling) */
+    isNether: boolean;
     cartItem?: CartItem;  // Only for shop stops
     portalAction?: 'enter' | 'exit';  // Only for portal stops
 }
