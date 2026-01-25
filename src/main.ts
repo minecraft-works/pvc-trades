@@ -214,11 +214,11 @@ let navProgress: NavigationProgress = {
 let isNavigating = false;
 let navMode: NavigationMode = 'follow';
 let navPlayerRefreshInterval: ReturnType<typeof setInterval> | undefined;
-let currentPlayerPosition: { x: number; z: number; world: string; yaw?: number } | undefined;
+let currentPlayerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
 let navPlayerMarker: L.Marker | undefined;
 
 // Auto-advance threshold in blocks
-const NAV_ARRIVAL_THRESHOLD = 50;
+const NAV_ARRIVAL_THRESHOLD = 8;
 
 // ============================================================================
 // Constants
@@ -558,6 +558,30 @@ function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop
     }
     
     return route;
+}
+
+/**
+ * Get all cart items as RouteStops (for display purposes - includes completed items)
+ * Completed items are included but can be identified via navProgress.completedKeys
+ */
+function getAllCartStops(): RouteStop[] {
+    const activeItems = cart.filter(item => item.quantity > 0);
+    
+    return activeItems.map(item => {
+        const stopIsNether = isNether(item.trade.world);
+        const displayCoords = toOverworldEquivalent(item.trade.x, item.trade.z, item.trade.world);
+        return {
+            type: 'shop' as const,
+            x: item.trade.x,
+            y: item.trade.y,
+            z: item.trade.z,
+            world: item.trade.world,
+            displayX: displayCoords.x,
+            displayZ: displayCoords.z,
+            isNether: stopIsNether,
+            cartItem: item
+        };
+    });
 }
 
 /**
@@ -1984,11 +2008,12 @@ async function startNavigation(): Promise<void> {
                 const playerWorld = getPlayerWorld(player);
                 currentPlayerPosition = {
                     x: player.position.x,
+                    y: player.position.y,
                     z: player.position.z,
                     world: playerWorld,
                     yaw: player.rotation?.yaw
                 };
-                debugNavigation('Initial player position world=%s x=%d z=%d', playerWorld, player.position.x, player.position.z);
+                debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
             }
         } catch (error) {
             debugNavigation('Failed to get initial player position: %s', error);
@@ -2129,6 +2154,7 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
     const playerWorld = getPlayerWorld(player);
     currentPlayerPosition = {
         x: player.position.x,
+        y: player.position.y,
         z: player.position.z,
         world: playerWorld,
         yaw: player.rotation?.yaw
@@ -2251,43 +2277,37 @@ function updatePlayerMarker(): void {
 /**
  * Recalculate route from the current player position and update the map
  * 
- * This only updates markers/polylines for the CURRENT world shown on the map.
- * For world switching, see pollPlayerPosition and checkAutoAdvance.
+ * UNIFIED VIEW: Updates markers for all shops (both worlds) on the single map.
+ * Completed shops are shown with checkmarks, incomplete with numbers.
  */
 function recalculateRouteFromPlayer(): void {
     if (!navMap || !currentPlayerPosition) {
         return;
     }
     
-    // Only recalculate map visuals if player is in the same world as the map
-    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
-    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
-        return;
-    }
-    
-    // Compute new route from player position, excluding completed items
+    // Compute new route from player position, excluding completed items (for navCurrentRoute)
     const fullRoute = computeRoute(currentPlayerPosition, true);
     
-    // Update the full route
+    // Update the full route (incomplete shops only - for navigation logic)
     navCurrentRoute = fullRoute;
     
-    // Filter to only stops in the current map world for display
-    const worldRoute = fullRoute.filter(stop => getWorldId(stop.world) === navMapWorld);
+    // UNIFIED VIEW: Get all cart stops (including completed) for display
+    const allStops = getAllCartStops();
     
-    // Check if route order actually changed compared to what's displayed
-    const routeChanged = navCurrentWorldRoute.length !== worldRoute.length ||
-        worldRoute.some((stop, index) => {
+    // Check if the number of stops changed (items added/removed)
+    const stopsChanged = navCurrentWorldRoute.length !== allStops.length ||
+        allStops.some((stop, index) => {
             const oldStop = navCurrentWorldRoute[index];
             return !oldStop || stop.x !== oldStop.x || stop.z !== oldStop.z;
         });
     
-    if (!routeChanged) {
-        return; // No need to update if route order is the same
+    if (!stopsChanged) {
+        return; // No need to update if stop list is the same
     }
     
-    navCurrentWorldRoute = worldRoute;
+    navCurrentWorldRoute = allStops;
     // @ts-expect-error - exposing for e2e testing
-    globalThis.__navCurrentWorldRoute = worldRoute;
+    globalThis.__navCurrentWorldRoute = allStops;
     
     // Remove old route polyline
     if (navRoutePolyline) {
@@ -2301,50 +2321,19 @@ function recalculateRouteFromPlayer(): void {
     }
     navStopMarkers = [];
     
-    // Draw new route if we have stops in this world
-    if (worldRoute.length > 0) {
-        const routePoints: L.LatLngExpression[] = [];
+    // Draw new route with all stops (completed shown with checkmarks)
+    if (allStops.length > 0) {
+        const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navProgress.completedKeys);
         
-        for (const [index, element] of worldRoute.entries()) {
-            const stop = element!;
-            const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, navMapCenterTileX, navMapCenterTileZ, MAP_CONFIG.tileSize);
-            routePoints.push([lat, lng]);
-            
-            // Add numbered marker for each stop
-            const markerIcon = L.divIcon({
-                className: 'nav-route-marker',
-                html: `<div class="nav-marker">${index + 1}</div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-            });
-            
-            const tooltipText = stop.cartItem 
-                ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-                : `Stop ${index + 1}`;
-            
-            const marker = L.marker([lat, lng], { icon: markerIcon })
-                .bindTooltip(tooltipText, { 
-                    permanent: false,
-                    direction: 'top',
-                    offset: [0, -18]
-                })
-                .addTo(navMap);
-            
-            // Click marker to toggle completion during navigation
-            marker.on('click', () => {
-                toggleStopCompletion(stop, navCurrentRoute);
-            });
-            
-            navStopMarkers.push(marker);
+        // Redraw polyline (only connecting incomplete shops)
+        if (routePoints.length > 0) {
+            navRoutePolyline = L.polyline(routePoints, {
+                color: '#3b82f6',
+                weight: 3,
+                opacity: 0.8,
+                dashArray: '10, 5'
+            }).addTo(navMap);
         }
-        
-        // Draw polyline connecting all stops (solid line between shops)
-        navRoutePolyline = L.polyline(routePoints, {
-            color: '#3b82f6',
-            weight: 3,
-            opacity: 0.8,
-            dashArray: '10, 5'
-        }).addTo(navMap);
     }
 }
 
@@ -2363,12 +2352,14 @@ function updatePlayerToNextLine(): void {
         navPlayerToNextLine = undefined;
     }
     
-    // UNIFIED VIEW: Use all stops (navCurrentWorldRoute now contains full route)
-    if (navCurrentWorldRoute.length === 0) {
-        return; // No stops
-    }
+    // UNIFIED VIEW: Find the first INCOMPLETE stop to draw line to
+    const nextStop = navCurrentWorldRoute.find(stop => 
+        stop.cartItem && !navProgress.completedKeys.has(getTradeKey(stop.cartItem.trade))
+    );
     
-    const nextStop = navCurrentWorldRoute[0]!;
+    if (!nextStop) {
+        return; // No incomplete stops
+    }
     
     // UNIFIED VIEW: Use overworld-equivalent coordinates for player
     const playerDisplayCoords = toOverworldEquivalent(
@@ -2484,39 +2475,79 @@ function updateLiveDistance(): void {
 }
 
 /**
+ * Update route markers when a shop is completed
+ * Re-renders all markers with current completion state (completed = checkmark, incomplete = number)
+ */
+function updateRouteMarkersForCompletion(): void {
+    if (!navMap) {
+        return;
+    }
+    
+    // Remove old stop markers
+    for (const marker of navStopMarkers) {
+        navMap.removeLayer(marker);
+    }
+    navStopMarkers = [];
+    
+    // Remove old route polyline
+    if (navRoutePolyline) {
+        navMap.removeLayer(navRoutePolyline);
+        navRoutePolyline = undefined;
+    }
+    
+    // Get all cart stops for display
+    const allStops = getAllCartStops();
+    if (allStops.length === 0) {
+        return;
+    }
+    
+    // Re-create markers with updated completion state
+    const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navProgress.completedKeys);
+    
+    // Redraw polyline (only connecting incomplete shops)
+    if (routePoints.length > 0) {
+        navRoutePolyline = L.polyline(routePoints, {
+            color: '#3b82f6',
+            weight: 3,
+            opacity: 0.8,
+            dashArray: '10, 5'
+        }).addTo(navMap);
+    }
+}
+
+/**
  * Check if player is close enough to auto-advance to next stop
+ * Requires player to be within NAV_ARRIVAL_THRESHOLD blocks in X/Z AND Y directions
  */
 function checkAutoAdvance(): void {
     if (!currentPlayerPosition || navCurrentRoute.length === 0) {
         return;
     }
     
-    // First stop is always the current target (completed items are filtered out)
-    const currentStop = navCurrentRoute[0]!;
+    // Find the first incomplete stop in the route
+    const currentStop = navCurrentRoute.find(stop => 
+        stop.cartItem && !navProgress.completedKeys.has(getTradeKey(stop.cartItem.trade))
+    );
+    if (!currentStop?.cartItem) {
+        return;
+    }
+    
     const distance = calculateRouteDistance(
         currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
         currentStop.x, currentStop.z, currentStop.world
     );
     
-    if (distance < NAV_ARRIVAL_THRESHOLD && currentStop.cartItem) {
+    // Check Y distance separately (must be within threshold in all directions)
+    const yDistance = Math.abs(currentPlayerPosition.y - currentStop.y);
+    
+    if (distance < NAV_ARRIVAL_THRESHOLD && yDistance < NAV_ARRIVAL_THRESHOLD) {
         // Auto-complete this stop
         const key = getTradeKey(currentStop.cartItem.trade);
         navProgress.completedKeys.add(key);
         saveNavProgress();
         
-        // Recalculate route to remove completed item
-        const fullRoute = computeRoute(currentPlayerPosition, true);
-        navCurrentRoute = fullRoute;
-        
-        // Check if the next shop is in a different world - if so, switch the map
-        const nextWorld = getNextShopWorld(fullRoute);
-        if (nextWorld && nextWorld !== navMapWorld) {
-            // Next shop is in a different world - reinitialize map for that world
-            void initNavigationMapDialog(fullRoute);
-        } else {
-            // Same world - just update markers and polylines
-            recalculateRouteFromPlayer();
-        }
+        // Update markers to show completion (keep completed shops visible with checkmark)
+        updateRouteMarkersForCompletion();
         
         updatePlayerToNextLine();
         updateLiveDistance();
@@ -2748,17 +2779,6 @@ let navCurrentWorldRoute: RouteStop[] = [];  // Route filtered to current map wo
 let navMapWorld: string = WORLD_OVERWORLD;  // World currently shown on nav map
 
 /**
- * Get the world of the next uncompleted shop in the route.
- * This determines which world the map should show.
- */
-function getNextShopWorld(route: RouteStop[]): string | undefined {
-    if (route.length === 0) {
-        return undefined;
-    }
-    return getWorldId(route[0]!.world);
-}
-
-/**
  * Initialize navigation map inside the circular dialog.
  * 
  * Design principle: The map shows the world where the player currently is,
@@ -2921,50 +2941,73 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', zoom4Loaded + zoom8Loaded, zoom4Loaded, zoom8Loaded);
 }
 
+/** Build marker HTML content for a route stop. */
+function buildMarkerContent(isCompleted: boolean, index: number, isNether: boolean): string {
+    const netherIndicator = isNether ? '<span class="nether-indicator">🔥</span>' : '';
+    if (isCompleted) {
+        return `<div class="nav-marker nav-marker--completed">✓${netherIndicator}</div>`;
+    }
+    return `<div class="nav-marker">${index}${netherIndicator}</div>`;
+}
+
+/** Build tooltip text for a route stop. */
+function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string {
+    let text = stop.cartItem 
+        ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
+        : 'Stop';
+    
+    if (isCompleted) {
+        text = `✓ ${text} (completed)`;
+    }
+    
+    if (stop.isNether) {
+        text += `\nNether: ${stop.x}, ${stop.z}`;
+        text += `\n(OW: ${stop.displayX}, ${stop.displayZ})`;
+    }
+    return text;
+}
+
 /**
  * Create route markers for unified view using display coordinates.
  * Nether shops are positioned at overworld-equivalent coords and styled differently.
  */
 function createRouteMarkersUnified(
-    route: RouteStop[], 
+    allStops: RouteStop[], 
     centerTileX: number, 
-    centerTileZ: number
+    centerTileZ: number,
+    completedKeys: Set<string>
 ): L.LatLngExpression[] {
     if (!navMap) {return [];}
     const routePoints: L.LatLngExpression[] = [];
     navStopMarkers = [];
     
-    for (const [index, stop] of route.entries()) {
-        // Use displayX/displayZ for positioning (overworld-equivalent)
+    let incompleteIndex = 0;
+    
+    for (const stop of allStops) {
         const { lat, lng } = toLeafletCoordsRelative(stop.displayX, stop.displayZ, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
-        routePoints.push([lat, lng]);
+        const isCompleted = Boolean(stop.cartItem && completedKeys.has(getTradeKey(stop.cartItem.trade)));
         
-        // Add nether class for styling if this is a nether shop
+        if (!isCompleted) {
+            routePoints.push([lat, lng]);
+            incompleteIndex++;
+        }
+        
         const netherClass = stop.isNether ? ' nav-route-marker--nether' : '';
-        const netherIndicator = stop.isNether ? '<span class="nether-indicator">🔥</span>' : '';
+        const completedClass = isCompleted ? ' nav-route-marker--completed' : '';
+        const displayIndex = isCompleted ? 0 : incompleteIndex;
         
         const markerIcon = L.divIcon({
-            className: `nav-route-marker${netherClass}`,
-            html: `<div class="nav-marker">${index + 1}${netherIndicator}</div>`,
+            className: `nav-route-marker${netherClass}${completedClass}`,
+            html: buildMarkerContent(isCompleted, displayIndex, stop.isNether),
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
         
-        // Build tooltip with both coordinate systems for nether shops
-        let tooltipText = stop.cartItem 
-            ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
-            : `Stop ${index + 1}`;
-        
-        if (stop.isNether) {
-            tooltipText += `\nNether: ${stop.x}, ${stop.z}`;
-            tooltipText += `\n(OW: ${stop.displayX}, ${stop.displayZ})`;
-        }
-        
         const marker = L.marker([lat, lng], { icon: markerIcon })
-            .bindTooltip(tooltipText, { permanent: false, direction: 'top', offset: [0, -18] })
+            .bindTooltip(buildStopTooltip(stop, isCompleted), { permanent: false, direction: 'top', offset: [0, -18] })
             .addTo(navMap);
         
-        marker.on('click', () => toggleStopCompletion(stop, route));
+        marker.on('click', () => toggleStopCompletion(stop, allStops));
         navStopMarkers.push(marker);
     }
     
@@ -2983,7 +3026,10 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     // @ts-expect-error - exposing for e2e testing
     globalThis.__navCurrentRoute = navCurrentRoute;
     
-    if (route.length === 0) {
+    // Get ALL cart stops for display (including completed ones)
+    const allStops = getAllCartStops();
+    
+    if (allStops.length === 0) {
         container.innerHTML = `<p class="${CLASS_CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
         navCurrentWorldRoute = [];
         debugMap('Empty route, no map displayed');
@@ -2997,17 +3043,18 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     navMapWorld = worldToShow;
     
     // All stops are shown on unified map (using displayX/displayZ for positioning)
-    navCurrentWorldRoute = route;
+    navCurrentWorldRoute = allStops;
     // @ts-expect-error - exposing for e2e testing
-    globalThis.__navCurrentWorldRoute = route;
+    globalThis.__navCurrentWorldRoute = allStops;
     
-    debugMap('Unified map: stops=%d overworldStops=%d netherStops=%d', 
-        route.length, 
-        route.filter(s => !s.isNether).length,
-        route.filter(s => s.isNether).length);
+    debugMap('Unified map: stops=%d overworldStops=%d netherStops=%d completedStops=%d', 
+        allStops.length, 
+        allStops.filter(s => !s.isNether).length,
+        allStops.filter(s => s.isNether).length,
+        [...navProgress.completedKeys].length);
     
-    // Calculate tile range using display coordinates (overworld-equivalent)
-    const tileRange = calculateTileRangeUnified(route);
+    // Calculate tile range using ALL stops (including completed) for proper map bounds
+    const tileRange = calculateTileRangeUnified(allStops);
     navMapCenterTileX = tileRange.centerTileX;
     navMapCenterTileZ = tileRange.centerTileZ;
     
@@ -3062,7 +3109,8 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     navMap.on('zoomend', loadVisibleNavMapTiles);
     
     // Create markers using display coordinates (unified view)
-    const routePoints = createRouteMarkersUnified(route, tileRange.centerTileX, tileRange.centerTileZ);
+    // Pass completedKeys so completed shops show checkmarks instead of numbers
+    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navProgress.completedKeys);
     
     navRoutePolyline = L.polyline(routePoints, {
         color: '#3b82f6',

@@ -148,7 +148,7 @@ When(String.raw`player is at \({int}, {int}) in the nether`, async ({ page, play
 // Note: 'player moves to (x, z)' is defined in live-navigation.steps.ts
 
 When('player moves close to a shop', async ({ page, playerMock }) => {
-    // Move to within zoom 2 range (< 60 blocks) but outside auto-advance (>= 50 blocks)
+    // Move to within zoom 2 range (< 60 blocks) but outside auto-advance (>= 8 blocks)
     // Shop is at (100, 200), so 100, 145 is 55 blocks away -> zoom 2
     playerMock.setPosition(100, 145);
     // Wait for polling to pick up position change and update zoom

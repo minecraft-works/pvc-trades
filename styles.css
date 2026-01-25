@@ -863,6 +863,23 @@ mark {
     font-size: 12px;
 }
 
+/* Completed shop markers - muted with checkmark */
+.nav-route-marker--completed .nav-marker,
+.nav-marker--completed {
+    background: #6b7280;
+    border-color: #9ca3af;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+/* Completed nether markers - muted red */
+.nav-route-marker--nether.nav-route-marker--completed .nav-marker {
+    background: #7f1d1d;
+    border-color: #b45309;
+    opacity: 0.8;
+}
+
 .nav-marker-origin {
     background: #22c55e;
     font-size: 1.1rem;
