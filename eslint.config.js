@@ -6,7 +6,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 
 export default tseslint.config(
     js.configs.recommended,
-    ...tseslint.configs.recommended,
+    ...tseslint.configs.recommendedTypeChecked,
     unicorn.configs.recommended,
     sonarjs.configs.recommended,
     {
@@ -16,6 +16,13 @@ export default tseslint.config(
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
+            parserOptions: {
+                projectService: {
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'tests/*.spec.ts'],
+                    defaultProject: './tsconfig.eslint.json'
+                },
+                tsconfigRootDir: import.meta.dirname
+            },
             globals: {
                 window: 'readonly',
                 document: 'readonly',
@@ -71,7 +78,29 @@ export default tseslint.config(
             'unicorn/prefer-top-level-await': 'error',
             'unicorn/consistent-function-scoping': 'error',
             'unicorn/no-array-callback-reference': 'error',
-            'unicorn/prefer-global-this': 'error'
+            'unicorn/prefer-global-this': 'error',
+
+            // Type-checked rules - allow some common patterns
+            '@typescript-eslint/no-non-null-assertion': 'warn',
+            '@typescript-eslint/restrict-template-expressions': ['error', {
+                allowNumber: true,
+                allowBoolean: true
+            }],
+            '@typescript-eslint/no-unnecessary-condition': 'warn',
+            '@typescript-eslint/no-confusing-void-expression': 'off',
+            '@typescript-eslint/restrict-plus-operands': ['error', {
+                allowNumberAndString: true
+            }],
+            '@typescript-eslint/no-misused-spread': 'warn',
+            '@typescript-eslint/no-floating-promises': 'warn',
+            '@typescript-eslint/no-misused-promises': 'warn',
+            '@typescript-eslint/require-await': 'warn',
+            '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+            '@typescript-eslint/use-unknown-in-catch-callback-variable': 'warn',
+            '@typescript-eslint/no-deprecated': 'warn',
+            
+            // Unicorn adjustments for getElementById pattern
+            'unicorn/prefer-query-selector': 'warn'
         }
     }
 );

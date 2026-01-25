@@ -183,7 +183,7 @@ const SORT_ASC: SortDirection = 'asc';
 const SORT_DESC: SortDirection = 'desc';
 
 // Multi-column sort state
-const activeSorts: Map<SortColumn, SortDirection> = new Map([['dev', SORT_ASC]]);
+const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT_ASC]]);
 
 let cachedRegex: RegExp | undefined;
 let cachedPattern = '';
@@ -252,7 +252,10 @@ function loadCart(): void {
     try {
         const stored = localStorage.getItem(CART_STORAGE_KEY);
         if (stored) {
-            cart = JSON.parse(stored);
+            const parsed: unknown = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                cart = parsed as CartItem[];
+            }
         }
     } catch {
         cart = [];
@@ -346,11 +349,14 @@ function loadNavProgress(): void {
     try {
         const stored = localStorage.getItem(NAV_STORAGE_KEY);
         if (stored) {
-            const data = JSON.parse(stored);
-            navProgress = {
-                completedKeys: new Set(data.completedKeys),
-                currentIndex: data.currentIndex ?? 0
-            };
+            const data: unknown = JSON.parse(stored);
+            if (data && typeof data === 'object' && 'completedKeys' in data) {
+                const typedData = data as { completedKeys?: string[]; currentIndex?: number };
+                navProgress = {
+                    completedKeys: new Set(typedData.completedKeys),
+                    currentIndex: typedData.currentIndex ?? 0
+                };
+            }
         }
     } catch {
         navProgress = { completedKeys: new Set(), currentIndex: 0 };
@@ -574,8 +580,8 @@ function calculateTotalRouteDistance(route: RouteStop[]): number {
 // DOM Helpers
 // ============================================================================
 
-function getElement<T extends HTMLElement>(id: string): T {
-    const element = document.querySelector<T>(`#${id}`);
+function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
+    const element = document.getElementById(id) as T | null;
     if (!element) { throw new Error(`Element #${id} not found`); }
     return element;
 }

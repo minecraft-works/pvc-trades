@@ -1389,7 +1389,7 @@ describe('nearestNeighborOrder', () => {
         const order = nearestNeighborOrder(points, matrix);
         
         expect(order.length).toBe(3);
-        expect(order.toSorted()).toEqual([0, 1, 2]);
+        expect(order.toSorted((a, b) => a - b)).toEqual([0, 1, 2]);
     });
 
     test('follows greedy path', () => {
@@ -1551,7 +1551,7 @@ describe('computeOptimalOrder', () => {
         
         // Both are same distance, order depends on implementation
         expect(order.length).toBe(2);
-        expect(order.toSorted()).toEqual([0, 1]);
+        expect(order.toSorted((a, b) => a - b)).toEqual([0, 1]);
     });
 
     test('visits all points exactly once', () => {

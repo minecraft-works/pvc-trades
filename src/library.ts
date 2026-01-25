@@ -368,8 +368,9 @@ export function getRegex(pattern: string): RegExp {
  */
 export function parseShulkerContents(lore: string[]): ShulkerParseResult {
     const counts: Record<string, number> = {};
+    const shulkerRegex = /-\s*(\d+)x\s+(.+)/i;
     for (const line of lore) {
-        const match = line.match(/-\s*(\d+)x\s+(.+)/i);
+        const match = shulkerRegex.exec(line);
         if (match && match[1] && match[2]) {
             const amt = Number.parseInt(match[1], 10);
             const item = match[2].trim();
@@ -669,7 +670,7 @@ export function sortResults(
 // ============================================================================
 
 function addRatioToGraph(graph: RatioGraph, from: string, to: string, ratio: number): void {
-    if (ratio === undefined || !Number.isFinite(ratio) || ratio <= 0) { return; }
+    if (!Number.isFinite(ratio) || ratio <= 0) { return; }
     const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
     const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
 
@@ -950,9 +951,7 @@ export function countIndependentShops(priceArray: PriceEntry[]): number {
     const config = configStore.get();
     if (priceArray.length === 0) { return 0; }
 
-    const locations = priceArray
-        .filter(p => p && p.x !== undefined && p.y !== undefined && p.z !== undefined)
-        .map(p => ({ x: p.x, y: p.y, z: p.z }));
+    const locations = priceArray.map(p => ({ x: p.x, y: p.y, z: p.z }));
 
     if (locations.length === 0) { return priceArray.length; }
 
