@@ -849,9 +849,34 @@ mark {
     box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
 }
 
+/* Nether shop markers - red/orange tint */
+.nav-route-marker--nether .nav-marker {
+    background: #dc2626;
+    border-color: #fbbf24;
+    box-shadow: 0 2px 8px rgb(220 38 38 / 50%);
+}
+
+.nav-route-marker--nether .nether-indicator {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    font-size: 12px;
+}
+
 .nav-marker-origin {
     background: #22c55e;
     font-size: 1.1rem;
+}
+
+/* Player marker nether styling */
+.nav-player-marker--nether .nav-player-dot {
+    background: #dc2626;
+    border-color: #fbbf24;
+    box-shadow: 0 0 8px rgb(220 38 38 / 70%);
+}
+
+.nav-player-marker--nether .nav-player-arrow {
+    border-bottom-color: #dc2626;
 }
 
 .cart-route-section {

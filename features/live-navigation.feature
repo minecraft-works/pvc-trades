@@ -47,11 +47,12 @@ Feature: Live Navigation
     When the player moves to (50, 100)
     Then the distance display should show "112 blocks"
 
-  @navigation @distance
-  Scenario: Shows travel instruction when in different world
+  @navigation @distance @nether
+  Scenario: Shows distance to nether shop using overworld-equivalent coordinates
     Given I am navigating as "TestPlayer" in the overworld
     And the next shop is in the nether
-    Then the distance display should show "Travel to the Nether"
+    Then the distance display should show "blocks"
+    And the distance display should show a fire indicator for nether
 
   # ============================================================================
   # Auto-Advance

@@ -70,11 +70,11 @@ import {
     calculateRouteDistance,
     computeOptimalOrder,
     isNether,
-    getTradeKey,
-    shouldSwitchMapWorld
+    toOverworldEquivalent,
+    getTradeKey
 } from './library.js';
 
-import { debugNavigation, debugWorldSwitch, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
+import { debugNavigation, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
 
@@ -239,7 +239,7 @@ const DIALOG_ID_CART = 'cart-dialog';
 const DIALOG_ID_MATRIX = 'matrix-dialog';
 const WORLD_OVERWORLD = 'overworld';
 const WORLD_NETHER = 'the_nether';
-const WORLD_END = 'the_end';
+const _WORLD_END = 'the_end'; // Reserved for future End dimension support
 
 // ============================================================================
 // Shopping Cart Functions
@@ -542,12 +542,17 @@ function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop
     
     for (const index of order) {
         const item = activeItems[index]!;
+        const stopIsNether = isNether(item.trade.world);
+        const displayCoords = toOverworldEquivalent(item.trade.x, item.trade.z, item.trade.world);
         route.push({
             type: 'shop',
             x: item.trade.x,
             y: item.trade.y,
             z: item.trade.z,
             world: item.trade.world,
+            displayX: displayCoords.x,
+            displayZ: displayCoords.z,
+            isNether: stopIsNether,
             cartItem: item
         });
     }
@@ -2131,27 +2136,8 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
     // @ts-expect-error - exposing for e2e testing
     globalThis.__currentPlayerPosition = currentPlayerPosition;
     
-    // Check if we need to switch the map to a different world
-    const fullRoute = computeRoute(currentPlayerPosition, true);
-    const shopsInPlayerWorld = fullRoute.filter(stop => getWorldId(stop.world) === playerWorld);
-    
-    const shouldSwitch = shouldSwitchMapWorld(previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length);
-    
-    debugWorldSwitch('Checking prev=%s curr=%s map=%s shopsInNew=%d shouldSwitch=%s', 
-        previousPosition?.world, playerWorld, navMapWorld, shopsInPlayerWorld.length, shouldSwitch);
-    
-    if (shouldSwitch) {
-        debugWorldSwitch('Switching map from=%s to=%s shopsInNew=%d', navMapWorld, playerWorld, shopsInPlayerWorld.length);
-        navCurrentRoute = fullRoute;
-        await initNavigationMapDialog(fullRoute, playerWorld);
-        // After world switch, show player marker and center on player (not shops)
-        updatePlayerMarker();
-        updateLiveDistance();
-        if (navMode === 'follow') {
-            centerMapOnPlayer();
-        }
-        return;
-    }
+    // UNIFIED VIEW: No world switching needed - all stops on one map
+    // Just update marker, distance, and check for auto-advance
     
     updatePlayerMarker();
     updateLiveDistance();
@@ -2207,19 +2193,17 @@ function updatePlayerMarker(): void {
         return;
     }
     
-    // Only show player marker if player is in the same world as the map
-    // When worlds differ, marker stays hidden until player enters correct world
-    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
-    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
-        if (navPlayerMarker) {
-            navPlayerMarker.setOpacity(0);  // Hide but don't remove
-        }
-        return;
-    }
+    // UNIFIED VIEW: Always show player at overworld-equivalent position
+    const playerIsNether = isNether(currentPlayerPosition.world);
+    const displayCoords = toOverworldEquivalent(
+        currentPlayerPosition.x, 
+        currentPlayerPosition.z, 
+        currentPlayerPosition.world
+    );
     
     const { lat, lng } = toLeafletCoordsRelative(
-        currentPlayerPosition.x,
-        currentPlayerPosition.z,
+        displayCoords.x,
+        displayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
         MAP_CONFIG.tileSize
@@ -2231,6 +2215,9 @@ function updatePlayerMarker(): void {
     const rotation = currentPlayerPosition.yaw === undefined ? 0 : currentPlayerPosition.yaw + 180;
     const hasHeading = currentPlayerPosition.yaw !== undefined;
     
+    // Add nether styling class when player is in nether
+    const netherClass = playerIsNether ? ' nav-player-marker--nether' : '';
+    
     const playerIconHtml = hasHeading
         ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg) translate(-50%, -100%)"></div></div>`
         : '<div class="nav-player-dot"></div>';
@@ -2238,10 +2225,10 @@ function updatePlayerMarker(): void {
     if (navPlayerMarker) {
         // Update existing marker position and rotation
         navPlayerMarker.setLatLng([lat, lng]);
-        navPlayerMarker.setOpacity(1);  // Ensure visible when in correct world
-        // Update icon to reflect new heading
+        navPlayerMarker.setOpacity(1);
+        // Update icon to reflect new heading and nether state
         const playerIcon = L.divIcon({
-            className: 'nav-player-marker',
+            className: `nav-player-marker${netherClass}`,
             html: playerIconHtml,
             iconSize: [26, 26],
             iconAnchor: [13, 13]
@@ -2250,7 +2237,7 @@ function updatePlayerMarker(): void {
     } else {
         // Create new marker
         const playerIcon = L.divIcon({
-            className: 'nav-player-marker',
+            className: `nav-player-marker${netherClass}`,
             html: playerIconHtml,
             iconSize: [26, 26],
             iconAnchor: [13, 13]
@@ -2376,32 +2363,33 @@ function updatePlayerToNextLine(): void {
         navPlayerToNextLine = undefined;
     }
     
-    // Only draw line if player is in the same world as the map
-    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
-    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
-        return;
-    }
-    
-    // Use world-filtered route for the line (shows connection to next stop in THIS world)
+    // UNIFIED VIEW: Use all stops (navCurrentWorldRoute now contains full route)
     if (navCurrentWorldRoute.length === 0) {
-        return; // No stops in this world
+        return; // No stops
     }
     
     const nextStop = navCurrentWorldRoute[0]!;
     
-    // Get player position in Leaflet coordinates
-    const playerCoords = toLeafletCoordsRelative(
+    // UNIFIED VIEW: Use overworld-equivalent coordinates for player
+    const playerDisplayCoords = toOverworldEquivalent(
         currentPlayerPosition.x,
         currentPlayerPosition.z,
+        currentPlayerPosition.world
+    );
+    
+    // Get player position in Leaflet coordinates
+    const playerCoords = toLeafletCoordsRelative(
+        playerDisplayCoords.x,
+        playerDisplayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
         MAP_CONFIG.tileSize
     );
     
-    // Get next stop position in Leaflet coordinates
+    // Get next stop position in Leaflet coordinates (using displayX/displayZ)
     const stopCoords = toLeafletCoordsRelative(
-        nextStop.x,
-        nextStop.z,
+        nextStop.displayX,
+        nextStop.displayZ,
         navMapCenterTileX,
         navMapCenterTileZ,
         MAP_CONFIG.tileSize
@@ -2420,19 +2408,6 @@ function updatePlayerToNextLine(): void {
             dashArray: '5, 8' // Shorter dash pattern for distinction
         }
     ).addTo(navMap);
-}
-
-/**
- * Get world display name for navigation UI
- */
-function getWorldDisplayNameForNav(worldId: string): string {
-    if (worldId === WORLD_NETHER) {
-        return 'the Nether';
-    }
-    if (worldId === WORLD_END) {
-        return 'the End';
-    }
-    return 'Overworld';
 }
 
 /**
@@ -2458,10 +2433,11 @@ function updateLiveDistance(): void {
     } else {
         // First stop is always the current target (completed items are filtered out)
         const currentStop = route[0]!;
-        const playerWorld = getWorldId(currentPlayerPosition.world);
         const stopWorld = getWorldId(currentStop.world);
-        const isSameWorld = playerWorld === stopWorld;
+        const isNetherShop = stopWorld.includes('nether');
         
+        // In unified view, distance is always calculated using overworld-equivalent coords
+        // (calculateRouteDistance internally converts nether coords × 8)
         const distance = calculateRouteDistance(
             currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
             currentStop.x, currentStop.z, currentStop.world
@@ -2470,43 +2446,31 @@ function updateLiveDistance(): void {
         const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
         const quantity = currentStop.cartItem?.quantity ?? 1;
         
-        // Format world name for display
-        const worldDisplayName = getWorldDisplayNameForNav(stopWorld);
-        
         const distanceText = Math.round(distance).toLocaleString();
-        distanceHtml = isSameWorld
-            ? `<span class="distance-label">→ ${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`
-            : `<span class="distance-label">🌍 Travel to ${worldDisplayName}</span><span class="distance-value">→ ${itemName}</span>`;
+        
+        // Unified view: always show distance, add world indicator for nether shops
+        const worldIndicator = isNetherShop ? '🔥 ' : '';
+        distanceHtml = `<span class="distance-label">→ ${worldIndicator}${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`;
         
         // Detailed display for navigation dialog with coords and items
-        const coordsText = `${currentStop.x}, ${currentStop.y}, ${currentStop.z}`;
+        // For nether shops, show both original coords and display coords
+        const coordsText = isNetherShop 
+            ? `${currentStop.x}, ${currentStop.y}, ${currentStop.z} (Nether → OW: ${currentStop.displayX}, ${currentStop.displayZ})`
+            : `${currentStop.x}, ${currentStop.y}, ${currentStop.z}`;
         const buyText = `${quantity}× ${itemName}`;
         
-        dialogHtml = isSameWorld ? `
+        dialogHtml = `
                 <div class="nav-info-row">
                     <span class="nav-info-label">📍</span>
                     <span class="nav-info-coords">${coordsText}</span>
                 </div>
                 <div class="nav-info-row">
                     <span class="nav-info-label">🛒</span>
-                    <span class="nav-info-item">${buyText}</span>
+                    <span class="nav-info-item">${worldIndicator}${buyText}</span>
                 </div>
                 <div class="nav-info-row">
                     <span class="nav-info-label">↗</span>
                     <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
-                </div>
-            ` : `
-                <div class="nav-info-row">
-                    <span class="nav-info-label">🌍</span>
-                    <span class="nav-info-world">Travel to ${worldDisplayName}</span>
-                </div>
-                <div class="nav-info-row">
-                    <span class="nav-info-label">📍</span>
-                    <span class="nav-info-coords">${coordsText}</span>
-                </div>
-                <div class="nav-info-row">
-                    <span class="nav-info-label">🛒</span>
-                    <span class="nav-info-item">${buyText}</span>
                 </div>
             `;
     }
@@ -2677,35 +2641,30 @@ function centerMapOnPlayer(): void {
         return;
     }
     
-    // Only center on player if they're in the same world as the map
-    // Use getWorldId to normalize world names (e.g., "World" -> "overworld")
-    if (getWorldId(currentPlayerPosition.world) !== navMapWorld) {
-        return;
-    }
-    
-    const { lat, lng } = toLeafletCoordsRelative(
+    // UNIFIED VIEW: Use overworld-equivalent coordinates
+    const displayCoords = toOverworldEquivalent(
         currentPlayerPosition.x,
         currentPlayerPosition.z,
+        currentPlayerPosition.world
+    );
+    
+    const { lat, lng } = toLeafletCoordsRelative(
+        displayCoords.x,
+        displayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
         MAP_CONFIG.tileSize
     );
     
-    // Calculate overworld-equivalent distance to nearest non-completed shop IN THIS WORLD
+    // Calculate distance to nearest non-completed shop using display coords
     const route = navCurrentWorldRoute.length > 0 ? navCurrentWorldRoute : [];
     let minDistance = Infinity;
-    const isNether = currentPlayerPosition.world.toLowerCase().includes('nether');
     
     for (const stop of route) {
-        const deltaX = currentPlayerPosition.x - stop.x;
-        const deltaZ = currentPlayerPosition.z - stop.z;
-        let distance = Math.hypot(deltaX, deltaZ);
-        
-        // In nether, multiply distance by 8 to get overworld-equivalent
-        // This makes zoom behavior consistent: 100 nether blocks feels like 800 OW blocks
-        if (isNether) {
-            distance *= 8;
-        }
+        // Use displayX/displayZ for consistent distance calculation
+        const deltaX = displayCoords.x - stop.displayX;
+        const deltaZ = displayCoords.z - stop.displayZ;
+        const distance = Math.hypot(deltaX, deltaZ);
         
         if (distance < minDistance) {
             minDistance = distance;
@@ -2824,30 +2783,6 @@ function cleanupNavMap(): void {
     navStopMarkers = [];
 }
 
-function determineWorldToShow(route: RouteStop[], targetWorld?: string): string {
-    if (targetWorld) {
-        const shopsInTarget = route.filter(stop => getWorldId(stop.world) === targetWorld);
-        if (shopsInTarget.length > 0) {
-            debugMap('determineWorldToShow: using targetWorld=%s shops=%d', targetWorld, shopsInTarget.length);
-            return targetWorld;
-        }
-        debugMap('determineWorldToShow: targetWorld=%s has no shops, routeWorlds=%o', 
-            targetWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
-    } else if (currentPlayerPosition) {
-        const playerWorld = currentPlayerPosition.world;
-        const shopsInPlayerWorld = route.filter(stop => getWorldId(stop.world) === playerWorld);
-        if (shopsInPlayerWorld.length > 0) {
-            debugMap('determineWorldToShow: using playerWorld=%s shops=%d', playerWorld, shopsInPlayerWorld.length);
-            return playerWorld;
-        }
-        debugMap('determineWorldToShow: playerWorld=%s has no shops, routeWorlds=%o', 
-            playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
-    }
-    const fallback = getWorldId(route[0]!.world);
-    debugMap('determineWorldToShow: using first stop world=%s', fallback);
-    return fallback;
-}
-
 interface TileRange {
     minTileX: number;
     maxTileX: number;
@@ -2857,9 +2792,14 @@ interface TileRange {
     centerTileZ: number;
 }
 
-function calculateTileRange(stops: RouteStop[]): TileRange {
-    const xs = stops.map(stop => stop.x);
-    const zs = stops.map(stop => stop.z);
+/**
+ * Calculate tile range using overworld-equivalent (display) coordinates for unified view.
+ * This ensures nether shops at (100, 50) are positioned at (800, 400) in overworld tiles.
+ */
+function calculateTileRangeUnified(stops: RouteStop[]): TileRange {
+    // Use displayX/displayZ which are already overworld-equivalent
+    const xs = stops.map(stop => stop.displayX);
+    const zs = stops.map(stop => stop.displayZ);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minZ = Math.min(...zs);
@@ -2981,31 +2921,44 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', zoom4Loaded + zoom8Loaded, zoom4Loaded, zoom8Loaded);
 }
 
-function createRouteMarkers(
-    stopsInWorld: RouteStop[], 
+/**
+ * Create route markers for unified view using display coordinates.
+ * Nether shops are positioned at overworld-equivalent coords and styled differently.
+ */
+function createRouteMarkersUnified(
+    route: RouteStop[], 
     centerTileX: number, 
-    centerTileZ: number, 
-    route: RouteStop[]
+    centerTileZ: number
 ): L.LatLngExpression[] {
     if (!navMap) {return [];}
     const routePoints: L.LatLngExpression[] = [];
     navStopMarkers = [];
     
-    for (const [index, element] of stopsInWorld.entries()) {
-        const stop = element!;
-        const { lat, lng } = toLeafletCoordsRelative(stop.x, stop.z, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
+    for (const [index, stop] of route.entries()) {
+        // Use displayX/displayZ for positioning (overworld-equivalent)
+        const { lat, lng } = toLeafletCoordsRelative(stop.displayX, stop.displayZ, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
         routePoints.push([lat, lng]);
         
+        // Add nether class for styling if this is a nether shop
+        const netherClass = stop.isNether ? ' nav-route-marker--nether' : '';
+        const netherIndicator = stop.isNether ? '<span class="nether-indicator">🔥</span>' : '';
+        
         const markerIcon = L.divIcon({
-            className: 'nav-route-marker',
-            html: `<div class="nav-marker">${index + 1}</div>`,
+            className: `nav-route-marker${netherClass}`,
+            html: `<div class="nav-marker">${index + 1}${netherIndicator}</div>`,
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
         
-        const tooltipText = stop.cartItem 
+        // Build tooltip with both coordinate systems for nether shops
+        let tooltipText = stop.cartItem 
             ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
             : `Stop ${index + 1}`;
+        
+        if (stop.isNether) {
+            tooltipText += `\nNether: ${stop.x}, ${stop.z}`;
+            tooltipText += `\n(OW: ${stop.displayX}, ${stop.displayZ})`;
+        }
         
         const marker = L.marker([lat, lng], { icon: markerIcon })
             .bindTooltip(tooltipText, { permanent: false, direction: 'top', offset: [0, -18] })
@@ -3018,7 +2971,7 @@ function createRouteMarkers(
     return routePoints;
 }
 
-async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
+async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string): Promise<void> {
     const container = document.querySelector('#nav-dialog-map-container');
     if (!container) {
         debugMap('Map container not found');
@@ -3027,6 +2980,8 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     
     cleanupNavMap();
     navCurrentRoute = route;
+    // @ts-expect-error - exposing for e2e testing
+    globalThis.__navCurrentRoute = navCurrentRoute;
     
     if (route.length === 0) {
         container.innerHTML = `<p class="${CLASS_CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
@@ -3037,18 +2992,22 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     
     container.innerHTML = '';
     
-    const worldToShow = determineWorldToShow(route, targetWorld);
+    // UNIFIED VIEW: Always use overworld tiles and show ALL stops
+    const worldToShow = 'overworld';
     navMapWorld = worldToShow;
     
-    debugMap('Map initialized targetWorld=%s worldToShow=%s stops=%d stopsInWorld=%d', 
-        targetWorld, worldToShow, route.length, route.filter(stop => getWorldId(stop.world) === worldToShow).length);
-    
-    const stopsInWorld = route.filter(stop => getWorldId(stop.world) === worldToShow);
-    navCurrentWorldRoute = stopsInWorld;
+    // All stops are shown on unified map (using displayX/displayZ for positioning)
+    navCurrentWorldRoute = route;
     // @ts-expect-error - exposing for e2e testing
-    globalThis.__navCurrentWorldRoute = stopsInWorld;
+    globalThis.__navCurrentWorldRoute = route;
     
-    const tileRange = calculateTileRange(stopsInWorld);
+    debugMap('Unified map: stops=%d overworldStops=%d netherStops=%d', 
+        route.length, 
+        route.filter(s => !s.isNether).length,
+        route.filter(s => s.isNether).length);
+    
+    // Calculate tile range using display coordinates (overworld-equivalent)
+    const tileRange = calculateTileRangeUnified(route);
     navMapCenterTileX = tileRange.centerTileX;
     navMapCenterTileZ = tileRange.centerTileZ;
     
@@ -3080,16 +3039,15 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     const manifest = await loadTileManifest();
     const addedToNavMap = new Set<string>();
     
-    // Initial tile load for shop-centered view
+    // Always load overworld tiles for unified view
     loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
     
-    // Dynamic tile loading when map moves (e.g., when centering on player)
+    // Dynamic tile loading when map moves
     const loadVisibleNavMapTiles = () => {
         const viewTileRange = calculateTileRangeFromView(navMapCenterTileX, navMapCenterTileZ);
         if (viewTileRange) {
             debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]', 
                 viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
-            // Pass the original map center for correct tile positioning relative to Leaflet origin
             loadNavMapTiles({ 
                 manifest, 
                 worldId: worldToShow, 
@@ -3103,7 +3061,8 @@ async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string)
     navMap.on('moveend', loadVisibleNavMapTiles);
     navMap.on('zoomend', loadVisibleNavMapTiles);
     
-    const routePoints = createRouteMarkers(stopsInWorld, tileRange.centerTileX, tileRange.centerTileZ, route);
+    // Create markers using display coordinates (unified view)
+    const routePoints = createRouteMarkersUnified(route, tileRange.centerTileX, tileRange.centerTileZ);
     
     navRoutePolyline = L.polyline(routePoints, {
         color: '#3b82f6',
