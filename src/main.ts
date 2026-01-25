@@ -2102,7 +2102,12 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
         debugWorldSwitch('Switching map from=%s to=%s shopsInNew=%d', navMapWorld, playerWorld, shopsInPlayerWorld.length);
         navCurrentRoute = fullRoute;
         await initNavigationMapDialog(fullRoute, playerWorld);
+        // After world switch, show player marker and center on player (not shops)
+        updatePlayerMarker();
         updateLiveDistance();
+        if (navMode === 'follow') {
+            centerMapOnPlayer();
+        }
         return;
     }
     
