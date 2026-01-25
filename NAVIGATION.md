@@ -176,10 +176,15 @@ When player is within **50 blocks** of current shop:
 ### Player Position Polling
 
 ```
-Dynmap API → /up/world/{world}/
-           → players[].x, y, z, world
-           → Poll every {playerRefreshMs} (config.json)
+Player API → pvc-players.minecraft-works.workers.dev
+          → players[].x, y, z, foreign
+          → Poll every {playerRefreshMs} (config.json)
 ```
+
+**World Detection**:
+- API returns `foreign: true` for Nether, `foreign: false` for Overworld
+- Optional `world` field may also be present (e.g., "World" or "World_nether")
+- Code uses `getPlayerWorld()` which prefers `world` if available, falls back to `foreign` flag
 
 ### Distance Calculation
 

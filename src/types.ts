@@ -267,10 +267,12 @@ export interface PlayerRotation {
 export interface Player {
     uuid: string;
     name: string;
+    /** Whether the player is in a "foreign" dimension (nether). true = nether, false = overworld */
     foreign: boolean;
     position: PlayerPosition;
     rotation?: PlayerRotation;  // Player's look direction
-    world?: string;  // Optional - if provided, indicates which dimension the player is in
+    /** Optional world name from dynmap. If absent, use `foreign` flag to determine dimension */
+    world?: string;
 }
 
 export interface PlayersData {
