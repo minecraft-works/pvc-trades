@@ -52,5 +52,6 @@ Feature: Cart Management
     Given I have items in the cart
     And some items are marked as completed
     When I click clear cart
-    Then all items should be removed
+    Then the cart dialog should be closed
+    And all items should be removed
     And navigation progress should be reset

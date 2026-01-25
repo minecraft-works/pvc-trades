@@ -3095,7 +3095,7 @@ document.addEventListener('DOMContentLoaded', () => {
     getElement('clear-cart').addEventListener('click', () => {
         clearCart();
         refreshCartButtonStates();
-        renderCartDialog();
+        cartDialog.close();
     });
     
     // Tab switching
