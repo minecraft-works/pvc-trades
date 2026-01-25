@@ -8,12 +8,9 @@ const bddTestDir = defineBddConfig({
 });
 
 export default defineConfig({
-    // Include both BDD tests and regular spec tests
-    testDir: '.',
-    testMatch: [
-        `${bddTestDir}/**/*.spec.js`,
-        'tests/**/*.spec.ts'
-    ],
+    // BDD tests have their own testDir, regular tests use 'tests' dir
+    testDir: bddTestDir,
+    testMatch: '**/*.spec.js',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
@@ -38,6 +35,12 @@ export default defineConfig({
     projects: [
         {
             name: 'chromium',
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'chromium-spec',
+            testDir: './tests',
+            testMatch: '**/*.spec.ts',
             use: { ...devices['Desktop Chrome'] },
         },
     ],
