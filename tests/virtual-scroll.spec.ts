@@ -19,15 +19,23 @@ const VIEWPORT = { width: 1280, height: 720 };
 // Generate a large mock dataset to test virtualization
 function generateLargeMockData(count: number) {
     const shops = [];
-    for (let i = 0; i < count; i++) {
+    for (let index = 0; index < count; index++) {
+        // Determine world type based on index
+        let worldType = 'world';
+        if (index % 3 === 0) {
+            worldType = 'world_nether';
+        } else if (index % 3 === 1) {
+            worldType = 'world_the_end';
+        }
+
         shops.push({
-            location: `${i * 10}.0, 69.0, ${i * 5}.0`,
-            world: i % 3 === 0 ? 'world_nether' : i % 3 === 1 ? 'world_the_end' : 'world',
+            location: `${index * 10}.0, 69.0, ${index * 5}.0`,
+            world: worldType,
             recipes: [
                 {
-                    resultItem: { type: 'DIAMOND', name: 'Diamond', amount: (i % 10) + 1 },
-                    item1: { type: 'EMERALD', name: 'Emerald', amount: ((i % 20) + 1) * 2 },
-                    stock: (i % 100) + 1
+                    resultItem: { type: 'DIAMOND', name: 'Diamond', amount: (index % 10) + 1 },
+                    item1: { type: 'EMERALD', name: 'Emerald', amount: ((index % 20) + 1) * 2 },
+                    stock: (index % 100) + 1
                 }
             ]
         });
@@ -40,6 +48,20 @@ const LARGE_MOCK_DATA = generateLargeMockData(500);
 
 // Helper to set up mock routes with large dataset
 async function setupLargeMockRoutes(page: Page): Promise<void> {
+    // Mock config.json to prevent fetching from Cloudflare Worker
+    await page.route('**/config.json', route => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 0,
+                dynmap: { tiles: 'tiles/{world}/{z}/{x}_{y}.png', baseUrl: '' },
+                analysis: { minIndependentShops: 3, independentShopDistance: 16 }
+            })
+        });
+    });
+
     await page.route('**/data.json', route => {
         route.fulfill({
             status: 200,
@@ -53,7 +75,7 @@ async function setupLargeMockRoutes(page: Page): Promise<void> {
 async function waitForAppReady(page: Page): Promise<void> {
     await page.waitForSelector('.search-container', { state: 'visible' });
     // Wait for trades to render
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
+    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10_000 });
 }
 
 test.describe('Virtual Scrolling - DOM Efficiency', () => {
@@ -78,9 +100,9 @@ test.describe('Virtual Scrolling - DOM Efficiency', () => {
         const results = page.locator('#results');
         
         // Virtual scroller adds padding-top and padding-bottom to simulate scroll space
-        const paddingBottom = await results.evaluate(el => {
-            const style = getComputedStyle(el);
-            return parseInt(style.paddingBottom, 10);
+        const paddingBottom = await results.evaluate(element => {
+            const style = getComputedStyle(element);
+            return Number.parseInt(style.paddingBottom, 10);
         });
         
         // With 500 items, there should be significant padding for off-screen items
@@ -153,7 +175,7 @@ test.describe('Virtual Scrolling - DOM Efficiency', () => {
         const middleCount = await getRowCount();
 
         // Scroll to near bottom
-        await page.evaluate(() => window.scrollBy(0, 10000));
+        await page.evaluate(() => window.scrollBy(0, 10_000));
         await page.waitForTimeout(200);
         const bottomCount = await getRowCount();
 
@@ -256,11 +278,11 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         expect(rowColCount, 'Row should have 9 columns').toBe(9);
 
         // Check alignment of visible columns
-        for (let i = 0; i < headerCount; i++) {
-            const headerCol = headerCols.nth(i);
-            const rowCol = firstRowCols.nth(i);
+        for (let index = 0; index < headerCount; index++) {
+            const headerCol = headerCols.nth(index);
+            const rowCol = firstRowCols.nth(index);
 
-            const headerDisplay = await headerCol.evaluate(el => getComputedStyle(el).display);
+            const headerDisplay = await headerCol.evaluate(element => getComputedStyle(element).display);
             if (headerDisplay === 'none') { continue; }
 
             const headerBox = await headerCol.boundingBox();
@@ -270,7 +292,7 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
                 // Left edges should align (allow 2px tolerance)
                 expect(
                     Math.abs(headerBox.x - rowBox.x),
-                    `Column ${i} should align after scroll`
+                    `Column ${index} should align after scroll`
                 ).toBeLessThanOrEqual(2);
             }
         }
@@ -283,8 +305,8 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         const header = page.locator('#table-header');
         const firstRow = page.locator('.trade-row').first();
 
-        const headerGrid = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
-        const rowGrid = await firstRow.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const headerGrid = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
+        const rowGrid = await firstRow.evaluate(element => getComputedStyle(element).gridTemplateColumns);
 
         // Both should have the same column definition
         expect(headerGrid).toBe(rowGrid);
@@ -296,8 +318,8 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
             const count = await rows.count();
             const heights: number[] = [];
             
-            for (let i = 0; i < Math.min(count, 5); i++) {
-                const box = await rows.nth(i).boundingBox();
+            for (let index = 0; index < Math.min(count, 5); index++) {
+                const box = await rows.nth(index).boundingBox();
                 if (box) {heights.push(box.height);}
             }
             return heights;
@@ -365,7 +387,7 @@ test.describe('Virtual Scrolling - Performance', () => {
         // Perform rapid scrolling
         const startTime = Date.now();
         
-        for (let i = 0; i < 10; i++) {
+        for (let index = 0; index < 10; index++) {
             await page.evaluate(() => window.scrollBy(0, 500));
             await page.waitForTimeout(50);
         }
@@ -393,26 +415,26 @@ test.describe('Virtual Scrolling - CSS Properties', () => {
 
     test('#results container is block display for virtual scroller', async ({ page }) => {
         const results = page.locator('#results');
-        const display = await results.evaluate(el => getComputedStyle(el).display);
+        const display = await results.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('block');
     });
 
     test('#table-container is simple block without grid', async ({ page }) => {
         const container = page.locator('#table-container');
-        const display = await container.evaluate(el => getComputedStyle(el).display);
+        const display = await container.evaluate(element => getComputedStyle(element).display);
         // Should be block, not grid (grid moved to header and rows individually)
         expect(display).toBe('block');
     });
 
     test('#table-header has its own grid layout', async ({ page }) => {
         const header = page.locator('#table-header');
-        const display = await header.evaluate(el => getComputedStyle(el).display);
+        const display = await header.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('grid');
     });
 
     test('trade rows have grid layout', async ({ page }) => {
         const row = page.locator('.trade-row').first();
-        const display = await row.evaluate(el => getComputedStyle(el).display);
+        const display = await row.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('grid');
     });
 

@@ -840,7 +840,7 @@ test.describe('CSS Layout - Map Dialog', () => {
         // Should show world and coordinates - pattern: "world: X, Y, Z"
         const text = await coords.textContent();
         // eslint-disable-next-line sonarjs/slow-regex -- simple coordinate pattern, no backtracking risk
-        expect(text).toMatch(/[a-z]+: ?-?\\d+, ?-?\\d+, ?-?\\d+/i);
+        expect(text).toMatch(/[a-z]+: ?-?\d+, ?-?\d+, ?-?\d+/i);
     });
 
     test('map dialog closes via close button', async ({ page }) => {
