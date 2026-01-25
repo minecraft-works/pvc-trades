@@ -71,6 +71,30 @@ const MOCK_SHOP_DATA = {
 
 // Helper to set up mock routes
 async function setupMockRoutes(page: Page): Promise<void> {
+    // Mock config.json to use local data.json instead of Cloudflare Worker
+    await page.route('**/config.json', route => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 0,
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
+            })
+        });
+    });
+
     await page.route('**/data.json', route => {
         route.fulfill({
             status: 200,
@@ -89,7 +113,7 @@ async function waitForAppReady(page: Page): Promise<void> {
 // Helper to wait for all trades to be visible (trades show on load)
 async function showAllTrades(page: Page): Promise<void> {
     // Trades are shown automatically on load, just wait for them
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
+    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10_000 });
 }
 
 test.describe('CSS Layout - Table Structure', () => {
@@ -102,16 +126,16 @@ test.describe('CSS Layout - Table Structure', () => {
 
     test('table container is block layout (virtual scroll compatible)', async ({ page }) => {
         const container = page.locator('#table-container');
-        const display = await container.evaluate(el => getComputedStyle(el).display);
+        const display = await container.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('block');
     });
 
     test('table header uses CSS grid with 9 visible columns', async ({ page }) => {
         const header = page.locator('#table-header');
-        const display = await header.evaluate(el => getComputedStyle(el).display);
+        const display = await header.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('grid');
         
-        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         // Should have 9 column values (including cart button column)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
         expect(columnCount).toBe(9);
@@ -147,12 +171,12 @@ test.describe('CSS Layout - Trade Rows', () => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();
         
-        for (let i = 0; i < Math.min(rowCount, 5); i++) {
-            const row = rows.nth(i);
+        for (let index = 0; index < Math.min(rowCount, 5); index++) {
+            const row = rows.nth(index);
             const columns = row.locator('.col, .add-to-cart-btn');
             const colCount = await columns.count();
             // 9 columns: amt, name, amt, name, deal, stock, distance, world, cart button
-            expect(colCount, `Row ${i} should have exactly 9 columns in DOM`).toBe(9);
+            expect(colCount, `Row ${index} should have exactly 9 columns in DOM`).toBe(9);
         }
     });
 
@@ -170,32 +194,32 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(rowCount, 'Row should have 9 columns').toBe(9);
         
         // Check each column's left edge alignment
-        for (let i = 0; i < headerCount; i++) {
-            const headerCol = headerCols.nth(i);
-            const rowCol = firstRowCols.nth(i);
+        for (let index = 0; index < headerCount; index++) {
+            const headerCol = headerCols.nth(index);
+            const rowCol = firstRowCols.nth(index);
             
             // Skip hidden columns (display: none)
-            const headerDisplay = await headerCol.evaluate(el => getComputedStyle(el).display);
+            const headerDisplay = await headerCol.evaluate(element => getComputedStyle(element).display);
             if (headerDisplay === 'none') {continue;}
             
             const headerBox = await headerCol.boundingBox();
             const rowBox = await rowCol.boundingBox();
             
-            expect(headerBox, `Header column ${i} should have bounding box`).toBeTruthy();
-            expect(rowBox, `Row column ${i} should have bounding box`).toBeTruthy();
+            expect(headerBox, `Header column ${index} should have bounding box`).toBeTruthy();
+            expect(rowBox, `Row column ${index} should have bounding box`).toBeTruthy();
             
             // Left edges should align (allow 1px tolerance for rounding)
             expect(
                 Math.abs(headerBox!.x - rowBox!.x),
-                `Column ${i} left edges should align (header: ${headerBox!.x}, row: ${rowBox!.x})`
+                `Column ${index} left edges should align (header: ${headerBox!.x}, row: ${rowBox!.x})`
             ).toBeLessThanOrEqual(1);
             
             // Skip cart button column (index 8) as button has different width than header
-            if (i < 8) {
+            if (index < 8) {
                 // Widths should match (allow 1px tolerance)
                 expect(
                     Math.abs(headerBox!.width - rowBox!.width),
-                    `Column ${i} widths should match (header: ${headerBox!.width}, row: ${rowBox!.width})`
+                    `Column ${index} widths should match (header: ${headerBox!.width}, row: ${rowBox!.width})`
                 ).toBeLessThanOrEqual(1);
             }
         }
@@ -208,18 +232,18 @@ test.describe('CSS Layout - Trade Rows', () => {
         
         const count = await headerCols.count();
         
-        for (let i = 0; i < count; i++) {
-            const headerJustify = await headerCols.nth(i).evaluate(
-                el => getComputedStyle(el).justifyContent
+        for (let index = 0; index < count; index++) {
+            const headerJustify = await headerCols.nth(index).evaluate(
+                element => getComputedStyle(element).justifyContent
             );
-            const rowJustify = await firstRowCols.nth(i).evaluate(
-                el => getComputedStyle(el).justifyContent
+            const rowJustify = await firstRowCols.nth(index).evaluate(
+                element => getComputedStyle(element).justifyContent
             );
             
             // Both should have the same justify-content (text alignment in flex)
             expect(
                 headerJustify,
-                `Column ${i} header (${headerJustify}) and cell (${rowJustify}) should have matching alignment`
+                `Column ${index} header (${headerJustify}) and cell (${rowJustify}) should have matching alignment`
             ).toBe(rowJustify);
         }
     });
@@ -247,17 +271,17 @@ test.describe('CSS Layout - Trade Rows', () => {
         const columns = firstRow.locator('.col');
         const count = await columns.count();
 
-        for (let i = 0; i < count; i++) {
-            const col = columns.nth(i);
+        for (let index = 0; index < count; index++) {
+            const col = columns.nth(index);
             
             // Skip hidden columns (display: none)
-            const display = await col.evaluate(el => getComputedStyle(el).display);
+            const display = await col.evaluate(element => getComputedStyle(element).display);
             if (display === 'none') {continue;}
             
             const box = await col.boundingBox();
             
             // Each visible column should have at least some width (not collapsed)
-            expect(box?.width, `Column ${i} should have width > 0`).toBeGreaterThan(0);
+            expect(box?.width, `Column ${index} should have width > 0`).toBeGreaterThan(0);
         }
     });
 
@@ -268,8 +292,8 @@ test.describe('CSS Layout - Trade Rows', () => {
         const count = await columns.count();
 
         const heights: number[] = [];
-        for (let i = 0; i < count; i++) {
-            const col = columns.nth(i);
+        for (let index = 0; index < count; index++) {
+            const col = columns.nth(index);
             const box = await col.boundingBox();
             if (box) {
                 heights.push(Math.round(box.height));
@@ -294,17 +318,17 @@ test.describe('CSS Layout - Trade Rows', () => {
 
             // Get bounding boxes for visible columns with actual width
             const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
-            for (let i = 0; i < count; i++) {
-                const col = columns.nth(i);
+            for (let index = 0; index < count; index++) {
+                const col = columns.nth(index);
                 
                 // Check if element is actually displayed (not display: none)
-                const display = await col.evaluate(el => getComputedStyle(el).display);
+                const display = await col.evaluate(element => getComputedStyle(element).display);
                 if (display === 'none') {continue;}
                 
                 const box = await col.boundingBox();
                 // Only include columns that have actual visible width (> 1px)
                 if (box && box.width > 1) {
-                    boxes.push({ index: i, box: { x: box.x, width: box.width } });
+                    boxes.push({ index: index, box: { x: box.x, width: box.width } });
                 }
             }
 
@@ -312,9 +336,9 @@ test.describe('CSS Layout - Trade Rows', () => {
             boxes.sort((a, b) => a.box.x - b.box.x);
 
             // Check that each column ends before the next one starts
-            for (let i = 0; i < boxes.length - 1; i++) {
-                const current = boxes[i];
-                const next = boxes[i + 1];
+            for (let index = 0; index < boxes.length - 1; index++) {
+                const current = boxes[index];
+                const next = boxes[index + 1];
                 const currentEnd = current.box.x + current.box.width;
                 
                 expect(
@@ -335,21 +359,21 @@ test.describe('CSS Layout - Trade Rows', () => {
             const nameColumns = row.locator('.col.cost-name, .col.result-name');
             const count = await nameColumns.count();
 
-            for (let i = 0; i < count; i++) {
-                const col = nameColumns.nth(i);
+            for (let index = 0; index < count; index++) {
+                const col = nameColumns.nth(index);
                 const colBox = await col.boundingBox();
                 
                 if (colBox) {
                     // Get the scroll width (actual content width) vs client width (visible width)
-                    const { scrollWidth, clientWidth } = await col.evaluate(el => ({
-                        scrollWidth: el.scrollWidth,
-                        clientWidth: el.clientWidth
+                    const { scrollWidth, clientWidth } = await col.evaluate(element => ({
+                        scrollWidth: element.scrollWidth,
+                        clientWidth: element.clientWidth
                     }));
 
                     // If content overflows, it should be clipped (overflow: hidden)
                     if (scrollWidth > clientWidth) {
-                        const overflow = await col.evaluate(el => getComputedStyle(el).overflow);
-                        expect(overflow, `Row ${r} column ${i}: overflowing content should be hidden`).toBe('hidden');
+                        const overflow = await col.evaluate(element => getComputedStyle(element).overflow);
+                        expect(overflow, `Row ${r} column ${index}: overflowing content should be hidden`).toBe('hidden');
                     }
                 }
             }
@@ -361,11 +385,11 @@ test.describe('CSS Layout - Trade Rows', () => {
         const costNames = page.locator('.col.cost-name');
         const count = await costNames.count();
 
-        for (let i = 0; i < Math.min(count, 5); i++) { // Check first 5 rows
-            const nameCol = costNames.nth(i);
-            const overflow = await nameCol.evaluate(el => getComputedStyle(el).overflow);
-            const textOverflow = await nameCol.evaluate(el => getComputedStyle(el).textOverflow);
-            const whiteSpace = await nameCol.evaluate(el => getComputedStyle(el).whiteSpace);
+        for (let index = 0; index < Math.min(count, 5); index++) { // Check first 5 rows
+            const nameCol = costNames.nth(index);
+            const overflow = await nameCol.evaluate(element => getComputedStyle(element).overflow);
+            const textOverflow = await nameCol.evaluate(element => getComputedStyle(element).textOverflow);
+            const whiteSpace = await nameCol.evaluate(element => getComputedStyle(element).whiteSpace);
 
             expect(overflow).toBe('hidden');
             expect(textOverflow).toBe('ellipsis');
@@ -379,7 +403,7 @@ test.describe('CSS Layout - Trade Rows', () => {
 
         if (count > 0) {
             const justifyContent = await costAmts.first().evaluate(
-                el => getComputedStyle(el).justifyContent
+                element => getComputedStyle(element).justifyContent
             );
             expect(justifyContent).toBe('flex-end');
         }
@@ -387,7 +411,7 @@ test.describe('CSS Layout - Trade Rows', () => {
 
     test('numeric columns use monospace font', async ({ page }) => {
         const amtCols = page.locator('.col.cost-amt').first();
-        const fontFamily = await amtCols.evaluate(el => getComputedStyle(el).fontFamily);
+        const fontFamily = await amtCols.evaluate(element => getComputedStyle(element).fontFamily);
         
         // Should contain 'monospace' in font stack
         expect(fontFamily.toLowerCase()).toContain('monospace');
@@ -397,12 +421,12 @@ test.describe('CSS Layout - Trade Rows', () => {
         // Virtual scrolling is used instead of content-visibility
         // Verify that #results is a block element that can receive padding from virtual scroller
         const results = page.locator('#results');
-        const display = await results.evaluate(el => getComputedStyle(el).display);
+        const display = await results.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('block');
         
         // Each trade row should be a grid for column layout
         const row = page.locator('.trade-row').first();
-        const rowDisplay = await row.evaluate(el => getComputedStyle(el).display);
+        const rowDisplay = await row.evaluate(element => getComputedStyle(element).display);
         expect(rowDisplay).toBe('grid');
     });
 });
@@ -417,7 +441,7 @@ test.describe('CSS Layout - Search Container', () => {
 
     test('search container is sticky positioned', async ({ page }) => {
         const container = page.locator('.search-container');
-        const position = await container.evaluate(el => getComputedStyle(el).position);
+        const position = await container.evaluate(element => getComputedStyle(element).position);
         expect(position).toBe('sticky');
     });
 
@@ -442,7 +466,7 @@ test.describe('CSS Layout - Search Container', () => {
 
     test('search box uses flexbox layout', async ({ page }) => {
         const searchBox = page.locator('.search-box');
-        const display = await searchBox.evaluate(el => getComputedStyle(el).display);
+        const display = await searchBox.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('flex');
     });
 });
@@ -476,7 +500,7 @@ test.describe('CSS Layout - CSS Custom Properties', () => {
 
     test('body uses CSS variable for background', async ({ page }) => {
         const body = page.locator('body');
-        const bgColor = await body.evaluate(el => getComputedStyle(el).backgroundColor);
+        const bgColor = await body.evaluate(element => getComputedStyle(element).backgroundColor);
         
         // Should resolve to a valid color (rgb format)
         expect(bgColor).toMatch(/^rgb/);
@@ -493,7 +517,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
     test('search inputs stay on single row on mobile', async ({ page }) => {
         const searchBox = page.locator('.search-box');
-        const flexWrap = await searchBox.evaluate(el => getComputedStyle(el).flexWrap);
+        const flexWrap = await searchBox.evaluate(element => getComputedStyle(element).flexWrap);
         expect(flexWrap).toBe('nowrap');
         
         // Verify all 3 items are on the same row (same Y position)
@@ -516,7 +540,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
     test('table header adjusts columns for mobile', async ({ page }) => {
         const header = page.locator('#table-header');
-        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         
         // Mobile shows 9 columns: #, name, #, name, deal, stock, distance, world, cart button
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
@@ -525,7 +549,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
     test('search container has reduced padding on mobile', async ({ page }) => {
         const container = page.locator('.search-container');
-        const padding = await container.evaluate(el => getComputedStyle(el).padding);
+        const padding = await container.evaluate(element => getComputedStyle(element).padding);
         
         // Mobile padding should be 12px (vs 20px on desktop)
         expect(padding).toBe('12px');
@@ -545,17 +569,17 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
             // Get bounding boxes for visible columns with actual width
             const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
-            for (let i = 0; i < count; i++) {
-                const col = columns.nth(i);
+            for (let index = 0; index < count; index++) {
+                const col = columns.nth(index);
                 
                 // Check if element is actually displayed (not display: none)
-                const display = await col.evaluate(el => getComputedStyle(el).display);
+                const display = await col.evaluate(element => getComputedStyle(element).display);
                 if (display === 'none') {continue;}
                 
                 const box = await col.boundingBox();
                 // Only include columns that have actual visible width (> 1px)
                 if (box && box.width > 1) {
-                    boxes.push({ index: i, box: { x: box.x, width: box.width } });
+                    boxes.push({ index: index, box: { x: box.x, width: box.width } });
                 }
             }
 
@@ -563,9 +587,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
             boxes.sort((a, b) => a.box.x - b.box.x);
 
             // Check that each column ends before the next one starts
-            for (let i = 0; i < boxes.length - 1; i++) {
-                const current = boxes[i];
-                const next = boxes[i + 1];
+            for (let index = 0; index < boxes.length - 1; index++) {
+                const current = boxes[index];
+                const next = boxes[index + 1];
                 const currentEnd = current.box.x + current.box.width;
                 
                 expect(
@@ -585,8 +609,8 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
         // Check that distance column has proper styling
         const col = distanceCols.first();
-        const styles = await col.evaluate(el => {
-            const style = getComputedStyle(el);
+        const styles = await col.evaluate(element => {
+            const style = getComputedStyle(element);
             return {
                 display: style.display,
                 justifyContent: style.justifyContent,
@@ -608,8 +632,8 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         const header = page.locator('#table-header');
         const firstRow = page.locator('.trade-row').first();
 
-        const headerCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
-        const rowCols = await firstRow.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const headerCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
+        const rowCols = await firstRow.evaluate(element => getComputedStyle(element).gridTemplateColumns);
 
         // Both should have the same grid template (7 columns on mobile)
         expect(headerCols).toBe(rowCols);
@@ -618,8 +642,8 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
     test('cart button column has border-radius for rounded corners', async ({ page }) => {
         await showAllTrades(page);
 
-        const cartBtn = page.locator('.trade-row .add-to-cart-btn').first();
-        const borderRadius = await cartBtn.evaluate(el => getComputedStyle(el).borderRadius);
+        const cartButton = page.locator('.trade-row .add-to-cart-btn').first();
+        const borderRadius = await cartButton.evaluate(element => getComputedStyle(element).borderRadius);
 
         // Should have border radius
         expect(borderRadius).toMatch(/4px/);
@@ -672,8 +696,8 @@ test.describe('CSS Layout - Matrix Dialog', () => {
         await page.click('#open-matrix');
         const dialog = page.locator('#matrix-dialog');
         
-        const position = await dialog.evaluate(el => getComputedStyle(el).position);
-        const borderRadius = await dialog.evaluate(el => getComputedStyle(el).borderRadius);
+        const position = await dialog.evaluate(element => getComputedStyle(element).position);
+        const borderRadius = await dialog.evaluate(element => getComputedStyle(element).borderRadius);
         
         expect(position).toBe('fixed');
         expect(borderRadius).not.toBe('0px');
@@ -768,10 +792,10 @@ test.describe('CSS Layout - Map Dialog', () => {
         const container = page.locator('#map-container');
         await expect(container).toBeVisible();
         
-        const borderRadius = await container.evaluate(el => getComputedStyle(el).borderRadius);
+        const borderRadius = await container.evaluate(element => getComputedStyle(element).borderRadius);
         expect(borderRadius).toBe('50%');
         
-        const overflow = await container.evaluate(el => getComputedStyle(el).overflow);
+        const overflow = await container.evaluate(element => getComputedStyle(element).overflow);
         expect(overflow).toBe('hidden');
     });
 
@@ -791,19 +815,19 @@ test.describe('CSS Layout - Map Dialog', () => {
         const firstRow = page.locator('.trade-row').first();
         await firstRow.click();
         
-        const closeBtn = page.locator('#close-map');
-        await expect(closeBtn).toBeVisible();
+        const closeButton = page.locator('#close-map');
+        await expect(closeButton).toBeVisible();
         
-        const position = await closeBtn.evaluate(el => getComputedStyle(el).position);
+        const position = await closeButton.evaluate(element => getComputedStyle(element).position);
         expect(position).toBe('absolute');
         
-        const btnBox = await closeBtn.boundingBox();
+        const buttonBox = await closeButton.boundingBox();
         const dialogBox = await page.locator('#map-dialog').boundingBox();
-        expect(btnBox).not.toBeNull();
+        expect(buttonBox).not.toBeNull();
         expect(dialogBox).not.toBeNull();
         
         // Close button should be near top-right of dialog
-        expect(btnBox!.x + btnBox!.width).toBeCloseTo(dialogBox!.x + dialogBox!.width - 8, 10);
+        expect(buttonBox!.x + buttonBox!.width).toBeCloseTo(dialogBox!.x + dialogBox!.width - 8, 10);
     });
 
     test('map dialog shows coordinates label', async ({ page }) => {
@@ -813,9 +837,10 @@ test.describe('CSS Layout - Map Dialog', () => {
         const coords = page.locator('#map-coords');
         await expect(coords).toBeVisible();
         
-        // Should show world and coordinates
+        // Should show world and coordinates - pattern: "world: X, Y, Z"
         const text = await coords.textContent();
-        expect(text).toMatch(/\w+:\s*-?\d+,\s*-?\d+,\s*-?\d+/);
+        // eslint-disable-next-line sonarjs/slow-regex -- simple coordinate pattern, no backtracking risk
+        expect(text).toMatch(/[a-z]+: ?-?\\d+, ?-?\\d+, ?-?\\d+/i);
     });
 
     test('map dialog closes via close button', async ({ page }) => {
@@ -949,7 +974,7 @@ test.describe('Map Dialog - Player Markers Structure', () => {
         await expect(dialog).toBeVisible();
 
         // Dialog position should support absolute positioned children
-        const position = await dialog.evaluate(el => getComputedStyle(el).position);
+        const position = await dialog.evaluate(element => getComputedStyle(element).position);
         expect(position).toBe('fixed');
     });
 
@@ -961,9 +986,9 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
         // Verify the CSS class exists
         const hasPlayerNameStyle = await page.evaluate(() => {
-            const rules = Array.from(document.styleSheets)
+            const rules = [...document.styleSheets]
                 .flatMap(s => {
-                    try { return Array.from(s.cssRules); }
+                    try { return [...s.cssRules]; }
                     catch { return []; }
                 })
                 .filter(r => r.cssText.includes('.player-name'));
@@ -980,9 +1005,9 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
         // Verify the CSS class exists
         const hasEdgeMarkerStyle = await page.evaluate(() => {
-            const rules = Array.from(document.styleSheets)
+            const rules = [...document.styleSheets]
                 .flatMap(s => {
-                    try { return Array.from(s.cssRules); }
+                    try { return [...s.cssRules]; }
                     catch { return []; }
                 })
                 .filter(r => r.cssText.includes('.player-edge-marker'));
@@ -1065,8 +1090,8 @@ test.describe('CSS Layout - Visual Invariants', () => {
         const testCount = Math.min(count, 10);
         
         const heights: number[] = [];
-        for (let i = 0; i < testCount; i++) {
-            const row = rows.nth(i);
+        for (let index = 0; index < testCount; index++) {
+            const row = rows.nth(index);
             const firstCol = row.locator('.col').first();
             const box = await firstCol.boundingBox();
             if (box) {
@@ -1086,13 +1111,13 @@ test.describe('CSS Layout - Visual Invariants', () => {
         const badDeal = page.locator('.col.dev.bad-deal').first();
 
         if (await goodDeal.count() > 0) {
-            const goodColor = await goodDeal.evaluate(el => getComputedStyle(el).color);
+            const goodColor = await goodDeal.evaluate(element => getComputedStyle(element).color);
             // Should be greenish color (rgb values where green > red)
             expect(goodColor).toMatch(/^rgb/);
         }
 
         if (await badDeal.count() > 0) {
-            const badColor = await badDeal.evaluate(el => getComputedStyle(el).color);
+            const badColor = await badDeal.evaluate(element => getComputedStyle(element).color);
             // Should be reddish color
             expect(badColor).toMatch(/^rgb/);
         }
@@ -1117,8 +1142,8 @@ test.describe('CSS Layout - Visual Invariants', () => {
         
         if (count > 0) {
             // Check that world cells contain single-letter abbreviations
-            for (let i = 0; i < Math.min(count, 5); i++) {
-                const text = await worldCells.nth(i).textContent();
+            for (let index = 0; index < Math.min(count, 5); index++) {
+                const text = await worldCells.nth(index).textContent();
                 expect(['O', 'N', 'E']).toContain(text?.trim());
             }
         }
@@ -1126,21 +1151,21 @@ test.describe('CSS Layout - Visual Invariants', () => {
 
     test('deal column is sorted by default on page load', async ({ page }) => {
         // The Deal (dev) header should have sort arrow text on load
-        const devHeader = page.locator('#table-header .col.dev-header');
-        await expect(devHeader).toBeVisible();
+        const developmentHeader = page.locator('#table-header .col.dev-header');
+        await expect(developmentHeader).toBeVisible();
         
         // Check that the header text includes the sort arrow (ascending = best deals first)
         // Arrow is before label for right-aligned columns
-        const headerText = await devHeader.textContent();
+        const headerText = await developmentHeader.textContent();
         expect(headerText?.trim()).toBe('↑Deal');
     });
 
     test('active sort column header has blue color', async ({ page }) => {
         // The Deal header should have active-sort class and blue color
-        const devHeader = page.locator('#table-header .col.dev-header');
-        await expect(devHeader).toHaveClass(/active-sort/);
+        const developmentHeader = page.locator('#table-header .col.dev-header');
+        await expect(developmentHeader).toHaveClass(/active-sort/);
         
-        const color = await devHeader.evaluate(el => getComputedStyle(el).color);
+        const color = await developmentHeader.evaluate(element => getComputedStyle(element).color);
         // Should be blue (#4a9eff = rgb(74, 158, 255))
         expect(color).toBe('rgb(74, 158, 255)');
     });
@@ -1150,8 +1175,8 @@ test.describe('CSS Layout - Visual Invariants', () => {
         const allText: string[] = [];
         
         const count = await worldCells.count();
-        for (let i = 0; i < count; i++) {
-            const text = await worldCells.nth(i).textContent();
+        for (let index = 0; index < count; index++) {
+            const text = await worldCells.nth(index).textContent();
             if (text) {allText.push(text.trim());}
         }
         
@@ -1201,8 +1226,8 @@ test.describe('CSS Layout - Distance Column', () => {
         
         expect(count).toBeGreaterThan(0);
         
-        for (let i = 0; i < Math.min(count, 5); i++) {
-            const text = await distanceCells.nth(i).textContent();
+        for (let index = 0; index < Math.min(count, 5); index++) {
+            const text = await distanceCells.nth(index).textContent();
             // Should be a number (distance from origin)
             expect(text?.trim()).toMatch(/^\d+$/);
         }
@@ -1210,7 +1235,7 @@ test.describe('CSS Layout - Distance Column', () => {
 
     test('distance column is right-aligned', async ({ page }) => {
         const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
-        const justifyContent = await distanceHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const justifyContent = await distanceHeader.evaluate(element => getComputedStyle(element).justifyContent);
         expect(justifyContent).toBe('flex-end');
     });
 
@@ -1300,7 +1325,7 @@ test.describe('CSS Layout - Sorting', () => {
         const text = await nameHeader.textContent();
         
         // Arrow should be at the end (left-aligned column)
-        expect(text?.charAt(text.length - 1)).toMatch(/[↑↓]/);
+        expect(text?.at(-1)).toMatch(/[↑↓]/);
     });
 
     test('distance column can be sorted', async ({ page }) => {
@@ -1347,7 +1372,7 @@ test.describe('CSS Layout - Header Alignment', () => {
 
     test('world column header is right-aligned', async ({ page }) => {
         const worldHeader = page.locator('#table-header .col.world-header');
-        const justifyContent = await worldHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const justifyContent = await worldHeader.evaluate(element => getComputedStyle(element).justifyContent);
         expect(justifyContent).toBe('flex-end');
     });
 
@@ -1356,7 +1381,7 @@ test.describe('CSS Layout - Header Alignment', () => {
         const count = await worldCells.count();
         
         if (count > 0) {
-            const justifyContent = await worldCells.first().evaluate(el => getComputedStyle(el).justifyContent);
+            const justifyContent = await worldCells.first().evaluate(element => getComputedStyle(element).justifyContent);
             expect(justifyContent).toBe('flex-end');
         }
     });
@@ -1366,20 +1391,20 @@ test.describe('CSS Layout - Header Alignment', () => {
         const count = await distanceCells.count();
         
         if (count > 0) {
-            const justifyContent = await distanceCells.first().evaluate(el => getComputedStyle(el).justifyContent);
+            const justifyContent = await distanceCells.first().evaluate(element => getComputedStyle(element).justifyContent);
             expect(justifyContent).toBe('flex-end');
         }
     });
 
     test('deal column header is right-aligned', async ({ page }) => {
-        const devHeader = page.locator('#table-header .col.dev-header');
-        const justifyContent = await devHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const developmentHeader = page.locator('#table-header .col.dev-header');
+        const justifyContent = await developmentHeader.evaluate(element => getComputedStyle(element).justifyContent);
         expect(justifyContent).toBe('flex-end');
     });
 
     test('stock column header is right-aligned', async ({ page }) => {
         const stockHeader = page.locator('#table-header .col.stock-header');
-        const justifyContent = await stockHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const justifyContent = await stockHeader.evaluate(element => getComputedStyle(element).justifyContent);
         expect(justifyContent).toBe('flex-end');
     });
 
@@ -1389,8 +1414,8 @@ test.describe('CSS Layout - Header Alignment', () => {
         
         // Flex containers default to flex-start for justify-content
         // or they may have no explicit justify-content set
-        const resultJustify = await resultNameHeader.evaluate(el => getComputedStyle(el).justifyContent);
-        const costJustify = await costNameHeader.evaluate(el => getComputedStyle(el).justifyContent);
+        const resultJustify = await resultNameHeader.evaluate(element => getComputedStyle(element).justifyContent);
+        const costJustify = await costNameHeader.evaluate(element => getComputedStyle(element).justifyContent);
         
         // Should be left-aligned (flex-start or normal)
         expect(['flex-start', 'normal', 'start']).toContain(resultJustify);
@@ -1412,21 +1437,21 @@ test.describe('CSS Layout - Mobile Distance Column', () => {
     });
 
     test('mobile distance header shows "Dist" label', async ({ page }) => {
-        const mobileDistHeader = page.locator('#table-header .col.distance-header.mobile-only');
-        await expect(mobileDistHeader).toBeVisible();
+        const mobileDistributionHeader = page.locator('#table-header .col.distance-header.mobile-only');
+        await expect(mobileDistributionHeader).toBeVisible();
         
-        const text = await mobileDistHeader.textContent();
+        const text = await mobileDistributionHeader.textContent();
         expect(text?.toLowerCase()).toContain('dist');
     });
 
     test('desktop distance header is hidden on mobile', async ({ page }) => {
-        const desktopDistHeader = page.locator('#table-header .col.distance-header.desktop-only');
-        await expect(desktopDistHeader).not.toBeVisible();
+        const desktopDistributionHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        await expect(desktopDistributionHeader).not.toBeVisible();
     });
 
     test('mobile uses 9-column grid layout', async ({ page }) => {
         const header = page.locator('#table-header');
-        const gridCols = await header.evaluate(el => getComputedStyle(el).gridTemplateColumns);
+        const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
         expect(columnCount).toBe(9);
     });

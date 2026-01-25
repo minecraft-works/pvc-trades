@@ -44,6 +44,30 @@ const MOCK_SHOP_DATA = {
 };
 
 async function setupMockRoutes(page: Page): Promise<void> {
+    // Mock config.json to use local data.json instead of Cloudflare Worker
+    await page.route('**/config.json', route => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 0,
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
+            })
+        });
+    });
+
     await page.route('**/data.json', route => {
         route.fulfill({
             status: 200,
@@ -55,7 +79,7 @@ async function setupMockRoutes(page: Page): Promise<void> {
 
 async function waitForAppReady(page: Page): Promise<void> {
     await page.waitForSelector('.search-container', { state: 'visible' });
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10000 });
+    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10_000 });
 }
 
 test.describe('Shopping Cart Basics', () => {
@@ -192,7 +216,7 @@ test.describe('Cart Dialog', () => {
         await page.locator('#close-cart').click();
 
         // Dialog should not have the 'open' attribute
-        const isOpen = await dialog.evaluate((el: HTMLDialogElement) => el.open);
+        const isOpen = await dialog.evaluate((element: HTMLDialogElement) => element.open);
         expect(isOpen).toBe(false);
     });
 });
@@ -210,9 +234,9 @@ test.describe('Cart Quantity Management', () => {
 
     test('should increment quantity when adding same item twice', async ({ page }) => {
         // Add same item twice
-        const firstAddBtn = page.locator('.add-to-cart-btn').first();
-        await firstAddBtn.click();
-        await firstAddBtn.click();
+        const firstAddButton = page.locator('.add-to-cart-btn').first();
+        await firstAddButton.click();
+        await firstAddButton.click();
 
         // Badge should show "2" (1 unique item, quantity 2)
         const badge = page.locator('#cart-badge');
@@ -267,8 +291,8 @@ test.describe('Navigation Tab', () => {
         await page.locator('#tab-navigate').click();
 
         // Should have Start Navigation button (correct ID)
-        const startBtn = page.locator('#start-navigation');
-        await expect(startBtn).toBeVisible();
+        const startButton = page.locator('#start-navigation');
+        await expect(startButton).toBeVisible();
     });
 });
 
@@ -299,7 +323,7 @@ test.describe('Navigation Flow', () => {
         // Navigation dialog should be visible (correct ID: nav-dialog)
         const navDialog = page.locator('#nav-dialog');
         // Wait a bit longer for dialog to open and initialize
-        await navDialog.waitFor({ state: 'visible', timeout: 10000 });
+        await navDialog.waitFor({ state: 'visible', timeout: 10_000 });
         await expect(navDialog).toBeVisible();
     });
 
@@ -310,7 +334,7 @@ test.describe('Navigation Flow', () => {
 
         // Cart dialog should be closed
         const cartDialog = page.locator('#cart-dialog');
-        const isOpen = await cartDialog.evaluate((el: HTMLDialogElement) => el.open);
+        const isOpen = await cartDialog.evaluate((element: HTMLDialogElement) => element.open);
         expect(isOpen).toBe(false);
     });
 });

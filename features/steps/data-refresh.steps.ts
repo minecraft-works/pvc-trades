@@ -190,7 +190,7 @@ Then('the highlight should fade after a moment', async ({ page }) => {
 });
 
 Then('I should not see the new {string} trade', async ({ page }, itemName: string) => {
-    const visibleTrades = page.locator(`${SELECTOR_TRADE_ROW}:visible`);
+    const visibleTrades = page.locator(SELECTOR_TRADE_ROW).filter({ visible: true });
     const count = await visibleTrades.count();
     
     for (let index = 0; index < count; index++) {
