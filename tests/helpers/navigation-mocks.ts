@@ -158,6 +158,49 @@ export function createPlayerMock(initialWorld: string = 'World'): PlayerMock {
 }
 
 /**
+ * Multi-player mock for testing multiple players on map
+ */
+export interface MultiPlayerMock {
+    /** All player states */
+    players: PlayerState[];
+    /** Add a player */
+    addPlayer(name: string, x: number, z: number, world: string): void;
+    /** Clear all players */
+    clear(): void;
+    /** Get player by name */
+    getPlayer(name: string): PlayerState | undefined;
+}
+
+/**
+ * Creates a multi-player mock for testing player markers
+ */
+export function createMultiPlayerMock(): MultiPlayerMock {
+    const players: PlayerState[] = [];
+    let nextId = 1;
+
+    return {
+        players,
+        addPlayer(name: string, x: number, z: number, world: string) {
+            const isNether = world === 'World_nether' || world.toLowerCase().includes('nether');
+            players.push({
+                uuid: `test-uuid-${nextId++}`,
+                name,
+                foreign: isNether,
+                position: { x, y: 64, z },
+                rotation: { pitch: 0, yaw: 0, roll: 0 },
+                world: isNether ? 'World_nether' : 'World'
+            });
+        },
+        clear() {
+            players.length = 0;
+        },
+        getPlayer(name: string) {
+            return players.find(p => p.name === name);
+        }
+    };
+}
+
+/**
  * Sets up player API mock that returns the current player state
  */
 export async function setupPlayerApiMock(page: Page, playerMock: PlayerMock): Promise<void> {
@@ -167,6 +210,21 @@ export async function setupPlayerApiMock(page: Page, playerMock: PlayerMock): Pr
             contentType: 'application/json',
             body: JSON.stringify({
                 players: [playerMock.state]
+            })
+        });
+    });
+}
+
+/**
+ * Sets up player API mock that returns multiple players
+ */
+export async function setupMultiPlayerApiMock(page: Page, multiPlayerMock: MultiPlayerMock): Promise<void> {
+    await page.route('**/pvc-players.minecraft-works.workers.dev**', async (route: Route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                players: multiPlayerMock.players
             })
         });
     });

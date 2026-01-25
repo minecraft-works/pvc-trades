@@ -353,3 +353,53 @@ Given('I start navigation as {string}', async ({ page, tileRequests }, playerNam
         { timeout: 3000 }
     ).toBeGreaterThan(0);
 });
+Then('the map should be centered on the player', async ({ page }) => {
+    // Wait for player marker to become visible
+    const playerMarker = page.locator('.nav-player-marker');
+    await expect(playerMarker).toBeVisible({ timeout: 5000 });
+    
+    // Wait for flyTo animation to complete (duration is 0.3s)
+    await page.waitForTimeout(500);
+    
+    // Get the map container bounds and player marker position
+    // The player marker should be roughly in the center of the visible map
+    const result = await page.evaluate(() => {
+        const container = document.querySelector('#nav-dialog-map-container');
+        const marker = document.querySelector('.nav-player-marker');
+        
+        if (!container || !marker) {
+            return { error: 'Missing container or marker' };
+        }
+        
+        const containerRect = container.getBoundingClientRect();
+        const markerRect = marker.getBoundingClientRect();
+        
+        // Calculate marker center relative to container
+        const markerCenterX = markerRect.left + markerRect.width / 2 - containerRect.left;
+        const markerCenterY = markerRect.top + markerRect.height / 2 - containerRect.top;
+        
+        // Container center
+        const containerCenterX = containerRect.width / 2;
+        const containerCenterY = containerRect.height / 2;
+        
+        return {
+            markerCenter: { x: markerCenterX, y: markerCenterY },
+            containerCenter: { x: containerCenterX, y: containerCenterY },
+            containerSize: { width: containerRect.width, height: containerRect.height },
+            xDiff: Math.abs(markerCenterX - containerCenterX),
+            yDiff: Math.abs(markerCenterY - containerCenterY)
+        };
+    });
+    
+    if ('error' in result) {
+        throw new Error(result.error);
+    }
+    
+    // Player marker should be within 1/4 of container size from center
+    // (allowing for zoom levels and padding)
+    const maxXDiff = result.containerSize.width / 4;
+    const maxYDiff = result.containerSize.height / 4;
+    
+    expect(result.xDiff).toBeLessThan(maxXDiff);
+    expect(result.yDiff).toBeLessThan(maxYDiff);
+});

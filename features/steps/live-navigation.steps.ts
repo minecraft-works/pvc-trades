@@ -85,15 +85,16 @@ Given('I am navigating as {string} in the overworld', async ({ page, playerMock 
     await page.locator('#open-cart').click();
     await page.waitForSelector('#cart-dialog', { state: 'visible' });
     
-    // Click clear cart if there are items
-    const clearBtn = page.locator('#clear-cart');
-    if (await clearBtn.isVisible()) {
-        await clearBtn.click();
-        // Wait for cart to be cleared
-        await page.waitForTimeout(200);
+    // Click clear cart if there are items (this will also close the dialog)
+    const clearButton = page.locator('#clear-cart');
+    if (await clearButton.isVisible()) {
+        await clearButton.click();
+        // Cart is cleared and dialog is closed
+        await page.waitForSelector('#cart-dialog', { state: 'hidden' });
+    } else {
+        await page.locator('#close-cart').click();
+        await page.waitForSelector('#cart-dialog', { state: 'hidden' });
     }
-    await page.locator('#close-cart').click();
-    await page.waitForSelector('#cart-dialog', { state: 'hidden' });
     
     // Add only a nether shop to cart (so the test can verify "Travel to Nether" instruction)
     const netherRow = page.locator('.trade-row').filter({ hasText: 'Netherite' });
