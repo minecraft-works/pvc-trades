@@ -18,7 +18,7 @@ export default tseslint.config(
             sourceType: 'module',
             parserOptions: {
                 projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts'],
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts'],
                     defaultProject: './tsconfig.eslint.json'
                 },
                 tsconfigRootDir: import.meta.dirname
@@ -116,6 +116,24 @@ export default tseslint.config(
             // Allow unsafe any in tests
             '@typescript-eslint/no-unsafe-assignment': 'off',
             '@typescript-eslint/no-unsafe-member-access': 'off'
+        }
+    },
+    // Relaxed rules for unit tests
+    {
+        files: ['src/**/*.test.ts'],
+        rules: {
+            // Allow longer functions in test files (test suites can be large)
+            'max-lines-per-function': 'off',
+            // Duplicate strings are common in test cases
+            'sonarjs/no-duplicate-string': 'off',
+            // Nested callbacks are common with describe/test/expect
+            'max-nested-callbacks': ['error', { max: 6 }],
+            // localStorage mock returns null per API spec
+            'unicorn/no-null': 'off',
+            // Direct callback references are fine in tests
+            'unicorn/no-array-callback-reference': 'off',
+            // Array element overwrite is intentional in test data setup
+            'sonarjs/no-element-overwrite': 'off'
         }
     }
 );

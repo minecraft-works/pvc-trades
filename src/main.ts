@@ -58,8 +58,6 @@ import {
     loadConfig,
     getConfig,
     buildRatioGraph,
-    getRatio,
-    getCoreBlocks,
     getWorldId,
     getTileCoords,
     calculateFitZoom,
@@ -93,14 +91,35 @@ import type {
     SortDirection,
     Player,
     PlayersData,
-    CartItem,
     RouteStop,
-    ShoppingList,
-    NavigationProgress,
-    NavigationMode
+    ShoppingList
 } from './types.js';
 
-import { NAV_STORAGE_KEY, NAV_PLAYER_KEY, NAV_TAB_KEY, NAV_MODE_KEY } from './types.js';
+import {
+    NAVIGATION,
+    DEVIATION,
+    SORT,
+    CSS_CLASSES,
+    SELECTORS,
+    DIALOG_IDS,
+    WORLDS,
+    COLUMNS,
+    STORAGE_KEYS
+} from './constants.js';
+
+import { cartStore, navigationStore } from './stores/index.js';
+
+import {
+    TILE_CONFIG,
+    ZOOM4_TILE_SIZE,
+    loadTileManifest,
+    tileExistsInManifest,
+    loadTileToMap,
+    calculateZoom4Coords
+} from './map/index.js';
+import type { MapTileContext, LoadNavMapTilesOptions, TileRange } from './map/index.js';
+
+import { renderMatrix } from './dialogs/index.js';
 
 import * as L from 'leaflet';
 
@@ -153,7 +172,7 @@ function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
  * Open a dialog with content preparation
  */
 function openDialog(dialogId: string, prepare?: () => void): void {
-    const dialog = document.querySelector(`#${dialogId}`) as HTMLDialogElement | null;
+    const dialog = document.querySelector<HTMLDialogElement>(`#${dialogId}`);
     if (!dialog) {
         return;
     }
@@ -173,21 +192,11 @@ let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | undefined;
 let ratioGraph: RatioGraph | undefined;
 
-// Column name constants
-const COL_COST_NAME: SortColumn = 'cost-name';
-const COL_RESULT_NAME: SortColumn = 'result-name';
-const COL_COST_AMT: SortColumn = 'cost-amt';
-const COL_RESULT_AMT: SortColumn = 'result-amt';
-
 // Column order for sort priority (left to right)
-const COLUMN_ORDER: SortColumn[] = [COL_RESULT_AMT, COL_RESULT_NAME, COL_COST_AMT, COL_COST_NAME, 'dev', 'stock', 'distance', 'world'];
-
-// Sort direction constants
-const SORT_ASC: SortDirection = 'asc';
-const SORT_DESC: SortDirection = 'desc';
+const COLUMN_ORDER: SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
 
 // Multi-column sort state
-const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT_ASC]]);
+const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT.ASC]]);
 
 let cachedRegex: RegExp | undefined;
 let cachedPattern = '';
@@ -201,188 +210,38 @@ let virtualScroller: VirtualScroller<FilterResult> | undefined;
 let currentWantRegex: RegExp | undefined;
 let currentGiveRegex: RegExp | undefined;
 
-// Shopping cart state
-let cart: CartItem[] = [];
-// @ts-expect-error - exposing for e2e testing
-globalThis.__cart = cart;
-const CART_STORAGE_KEY = 'pvc-trades-cart';
+// Flag to track if map was opened from cart (for back navigation)
 let mapOpenedFromCart = false;
-
-// Navigation progress state
-let navProgress: NavigationProgress = {
-    completedKeys: new Set(),
-    currentIndex: 0
-};
-
-// Live navigation state
-let isNavigating = false;
-let navMode: NavigationMode = 'follow';
-let navPlayerRefreshInterval: ReturnType<typeof setInterval> | undefined;
-let currentPlayerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
-let navPlayerMarker: L.Marker | undefined;
-
-// Auto-advance threshold in blocks
-const NAV_ARRIVAL_THRESHOLD = 8;
 
 // Shop data refresh interval (assigned for potential future stop functionality)
 let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
 // ============================================================================
-// Constants
+// Cart Helper Functions
 // ============================================================================
-
-const DEVIATION_MIN_PERCENT = -99;
-const DEVIATION_MAX_PERCENT = 999;
-
-// CSS class constants
-const CLASS_CART_EMPTY = 'cart-empty';
-const CLASS_TRADE_ROW = 'trade-row';
-const SELECTOR_MAP_DIALOG = '#map-dialog';
-const SELECTOR_NAV_DIALOG = '#nav-dialog';
-const SELECTOR_PLAYER_NAME_INPUT = '#player-name-input';
-const SELECTOR_CLOSE_MATRIX = '#close-matrix';
-const SELECTOR_RECENTER_MAP = '#recenter-map';
-const DIALOG_ID_CART = 'cart-dialog';
-const DIALOG_ID_MATRIX = 'matrix-dialog';
-const WORLD_OVERWORLD = 'overworld';
-const WORLD_NETHER = 'the_nether';
-const _WORLD_END = 'the_end'; // Reserved for future End dimension support
-
-// ============================================================================
-// Shopping Cart Functions
-// ============================================================================
-
-/**
- * Load cart from localStorage
- */
-function loadCart(): void {
-    try {
-        const stored = localStorage.getItem(CART_STORAGE_KEY);
-        if (stored) {
-            const parsed: unknown = JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-                cart = parsed as CartItem[];
-            }
-        }
-    } catch {
-        cart = [];
-    }
-    updateCartBadge();
-}
-
-/**
- * Save cart to localStorage
- */
-function saveCart(): void {
-    try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-    } catch {
-        // Storage full or unavailable - ignore
-    }
-    updateCartBadge();
-}
-
-/**
- * Add a trade to the cart (or increment quantity if exists)
- */
-function addToCart(trade: Trade): void {
-    const key = getTradeKey(trade);
-    const existing = cart.find(item => getTradeKey(item.trade) === key);
-    
-    if (existing) {
-        existing.quantity++;
-    } else {
-        cart.push({ trade, quantity: 1 });
-    }
-    
-    saveCart();
-}
-
-/**
- * Remove a trade from the cart entirely
- */
-function removeFromCart(trade: Trade): void {
-    const key = getTradeKey(trade);
-    cart = cart.filter(item => getTradeKey(item.trade) !== key);
-    saveCart();
-}
-
-/**
- * Update quantity for a cart item
- * Allows quantity to go to 0 (item stays in cart until dialog closes)
- */
-function updateCartQuantity(trade: Trade, delta: number): void {
-    const key = getTradeKey(trade);
-    const item = cart.find(cartItem => getTradeKey(cartItem.trade) === key);
-    
-    if (item) {
-        item.quantity = Math.max(0, item.quantity + delta);
-        saveCart();
-    }
-}
 
 /**
  * Remove items with zero quantity from cart
  * Called when cart dialog is closed
  */
 function cleanupZeroQuantityItems(): void {
-    const hadZeroItems = cart.some(item => item.quantity === 0);
-    cart = cart.filter(item => item.quantity > 0);
-    if (hadZeroItems) {
-        saveCart();
+    if (cartStore.cleanupZeroQuantity()) {
         refreshCartButtonStates();
     }
 }
 
 /**
- * Clear the entire cart
+ * Clear the entire cart and reset navigation progress
  */
 function clearCart(): void {
-    cart = [];
-    saveCart();
+    cartStore.clear();
     // Reset navigation progress when cart is cleared
-    navProgress = { completedKeys: new Set(), currentIndex: 0 };
-    saveNavProgress();
+    navigationStore.resetProgress();
 }
 
 // ============================================================================
-// Navigation Progress
+// Navigation Progress Helpers
 // ============================================================================
-
-/**
- * Load navigation progress from localStorage
- */
-function loadNavProgress(): void {
-    try {
-        const stored = localStorage.getItem(NAV_STORAGE_KEY);
-        if (stored) {
-            const data: unknown = JSON.parse(stored);
-            if (data && typeof data === 'object' && 'completedKeys' in data) {
-                const typedData = data as { completedKeys?: string[]; currentIndex?: number };
-                navProgress = {
-                    completedKeys: new Set(typedData.completedKeys),
-                    currentIndex: typedData.currentIndex ?? 0
-                };
-            }
-        }
-    } catch {
-        navProgress = { completedKeys: new Set(), currentIndex: 0 };
-    }
-}
-
-/**
- * Save navigation progress to localStorage
- */
-function saveNavProgress(): void {
-    try {
-        localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({
-            completedKeys: [...navProgress.completedKeys],
-            currentIndex: navProgress.currentIndex
-        }));
-    } catch {
-        // Storage full or unavailable - ignore
-    }
-}
 
 /**
  * Sync navigation progress with current cart
@@ -397,9 +256,9 @@ function syncNavProgressWithCart(route: RouteStop[]): void {
             .map(stop => getTradeKey(stop.cartItem!.trade))
     );
     
-    // Remove completed keys that are no longer in cart
+    // Get currently completed keys that are still valid
     const validCompleted = new Set(
-        [...navProgress.completedKeys].filter(key => currentShopKeys.has(key))
+        [...navigationStore.progress.completedKeys].filter(key => currentShopKeys.has(key))
     );
     
     // Find first non-completed shop stop index
@@ -419,11 +278,8 @@ function syncNavProgressWithCart(route: RouteStop[]): void {
         }
     }
     
-    navProgress = {
-        completedKeys: validCompleted,
-        currentIndex
-    };
-    saveNavProgress();
+    // Update store with synced progress
+    navigationStore.syncProgress(validCompleted, currentIndex);
 }
 
 /**
@@ -434,22 +290,21 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
     
     const key = getTradeKey(stop.cartItem.trade);
     
-    if (navProgress.completedKeys.has(key)) {
-        navProgress.completedKeys.delete(key);
+    if (navigationStore.progress.completedKeys.has(key)) {
+        navigationStore.unmarkStopComplete(key);
     } else {
-        navProgress.completedKeys.add(key);
+        navigationStore.markStopComplete(key);
     }
     
     // Recalculate current index
     syncNavProgressWithCart(route);
-    saveNavProgress();
     
     // Re-render both cart and navigate tabs
     renderCartDialog();
     renderNavigateTab();
     
     // If navigation is active, recalculate the route to exclude completed items
-    if (isNavigating && currentPlayerPosition) {
+    if (navigationStore.isActive && navigationStore.playerPosition) {
         recalculateRouteFromPlayer();
         updatePlayerToNextLine();
         updateLiveDistance();
@@ -462,7 +317,7 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
 function updateCartBadge(): void {
     const badge = document.querySelector('#cart-badge');
     if (badge) {
-        const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+        const count = cartStore.totalQuantity;
         badge.textContent = count > 0 ? String(count) : '';
         badge.classList.toggle('hidden', count === 0);
     }
@@ -474,7 +329,7 @@ function updateCartBadge(): void {
  */
 function refreshCartButtonStates(): void {
     const buttons = document.querySelectorAll<HTMLElement>('.add-to-cart-btn[data-trade-key]');
-    const cartKeys = new Set(cart.map(item => getTradeKey(item.trade)));
+    const cartKeys = new Set(cartStore.items.map(item => getTradeKey(item.trade)));
     
     for (const button of buttons) {
         const key = button.dataset.tradeKey;
@@ -488,7 +343,7 @@ function refreshCartButtonStates(): void {
  * Aggregate cart into shopping lists
  */
 function getShoppingList(): ShoppingList {
-    return aggregateShoppingList(cart);
+    return aggregateShoppingList(cartStore.items);
 }
 
 interface RouteOrigin {
@@ -503,12 +358,12 @@ interface RouteOrigin {
  * @param excludeCompleted - If true, exclude items marked as collected
  */
 function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
-    if (cart.length === 0) { return []; }
+    if (cartStore.isEmpty) { return []; }
     
     // Filter cart items: exclude qty=0 and optionally completed items
-    let activeItems = cart.filter(item => item.quantity > 0);
+    let activeItems = cartStore.items.filter(item => item.quantity > 0);
     if (excludeCompleted) {
-        activeItems = activeItems.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)));
+        activeItems = activeItems.filter(item => !navigationStore.progress.completedKeys.has(getTradeKey(item.trade)));
     }
     
     if (activeItems.length === 0) { return []; }
@@ -551,7 +406,7 @@ function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop
  * Completed items are included but can be identified via navProgress.completedKeys
  */
 function getAllCartStops(): RouteStop[] {
-    const activeItems = cart.filter(item => item.quantity > 0);
+    const activeItems = cartStore.items.filter(item => item.quantity > 0);
     
     return activeItems.map(item => {
         const stopIsNether = isNether(item.trade.world);
@@ -575,7 +430,7 @@ function getAllCartStops(): RouteStop[] {
 // ============================================================================
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
-    const element = document.getElementById(id) as T | null;
+    const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
     return element;
 }
@@ -732,28 +587,21 @@ function search(): void {
 }
 
 function sortByColumn(column: SortColumn): void {
-    const startsAsc = column === COL_COST_NAME || column === COL_RESULT_NAME;
+    const startsAsc = column === COLUMNS.COST_NAME || column === COLUMNS.RESULT_NAME;
     const currentDirection = activeSorts.get(column);
     
     if (currentDirection === undefined) {
-        activeSorts.set(column, startsAsc ? SORT_ASC : SORT_DESC);
+        // First click: set initial direction based on column type
+        activeSorts.set(column, startsAsc ? SORT.ASC : SORT.DESC);
+    } else if (startsAsc && currentDirection === SORT.ASC) {
+        // Name columns: asc -> desc -> none
+        activeSorts.set(column, SORT.DESC);
+    } else if (!startsAsc && currentDirection === SORT.DESC) {
+        // Numeric columns: desc -> asc -> none  
+        activeSorts.set(column, SORT.ASC);
     } else {
-        // Cycle through 3 states based on initial direction
-        if (startsAsc) {
-            // asc -> desc -> none
-            if (currentDirection === SORT_ASC) {
-                activeSorts.set(column, SORT_DESC);
-            } else {
-                activeSorts.delete(column);
-            }
-        } else {
-            // desc -> asc -> none
-            if (currentDirection === SORT_DESC) {
-                activeSorts.set(column, SORT_ASC);
-            } else {
-                activeSorts.delete(column);
-            }
-        }
+        // Third click: remove sort
+        activeSorts.delete(column);
     }
     updateSortArrows();
     search();
@@ -791,7 +639,7 @@ function getTotalCostAmount(t: Trade): number {
 }
 
 function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
-    const multiplier = direction === SORT_ASC ? 1 : -1;
+    const multiplier = direction === SORT.ASC ? 1 : -1;
     const ta = a.trade;
     const tb = b.trade;
     
@@ -799,16 +647,16 @@ function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, d
         case 'dev': {
             return multiplier * compareDeviation(ta, tb);
         }
-        case COL_COST_AMT: {
+        case COLUMNS.COST_AMT: {
             return multiplier * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
         }
-        case COL_COST_NAME: {
+        case COLUMNS.COST_NAME: {
             return multiplier * ta.costName.localeCompare(tb.costName);
         }
-        case COL_RESULT_AMT: {
+        case COLUMNS.RESULT_AMT: {
             return multiplier * (ta.resultAmount - tb.resultAmount);
         }
-        case COL_RESULT_NAME: {
+        case COLUMNS.RESULT_NAME: {
             return multiplier * ta.resultName.localeCompare(tb.resultName);
         }
         case 'stock': {
@@ -846,7 +694,7 @@ function getDeviation(trade: Trade): DeviationResult | undefined {
     const actualRate = trade.item1.amount / trade.resultAmount;
 
     const ratio = actualRate / expectedRate;
-    const percent = Math.max(DEVIATION_MIN_PERCENT, Math.min(DEVIATION_MAX_PERCENT, Math.round((ratio - 1) * 100)));
+    const percent = Math.max(DEVIATION.MIN_PERCENT, Math.min(DEVIATION.MAX_PERCENT, Math.round((ratio - 1) * 100)));
 
     if (percent === 0) {
         const result = { ratio, percent, text: '0%', isGood: undefined };
@@ -869,11 +717,11 @@ function getDeviation(trade: Trade): DeviationResult | undefined {
 function getArrow(col: string): string {
     const direction = activeSorts.get(col as SortColumn);
     if (!direction) {return '';}
-    return direction === SORT_ASC ? '↑' : '↓';
+    return direction === SORT.ASC ? '↑' : '↓';
 }
 
 // Right-aligned columns get arrow before label, left-aligned get arrow after
-const RIGHT_ALIGNED_COLS = new Set([COL_RESULT_AMT, COL_COST_AMT, 'stock', 'dev', 'distance', 'world']);
+const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock', 'dev', 'distance', 'world']);
 
 function updateSortArrows(): void {
     for (const element of document.querySelectorAll<HTMLElement>('#table-header .header')) {
@@ -951,8 +799,8 @@ function getDeviationDisplayInfo(t: Trade): { devClass: string; devText: string 
  */
 function createTradeRowElement(result: FilterResult): HTMLElement {
     const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
-    const showName = displayName ?? t.resultName;
-    const showAmount = displayAmount ?? t.resultAmount;
+    const showName = displayName;
+    const showAmount = displayAmount;
     const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
 
     const { costAmt, costName } = getCostDisplayInfo(t);
@@ -963,14 +811,14 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
 
     const row = document.createElement('div');
-    row.className = CLASS_TRADE_ROW;
+    row.className = CSS_CLASSES.TRADE_ROW;
     row.dataset['x'] = String(t.x);
     row.dataset['y'] = String(t.y);
     row.dataset['z'] = String(t.z);
     row.dataset['world'] = t.world;
     
     const tradeKey = getTradeKey(t);
-    const isInCart = cart.some(item => getTradeKey(item.trade) === tradeKey);
+    const isInCart = cartStore.has(t);
     const inCartClass = isInCart ? ' in-cart' : '';
     
     row.innerHTML = `
@@ -988,7 +836,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
     cartButton.addEventListener('click', (event) => {
         event.stopPropagation();
-        addToCart(t);
+        cartStore.add(t);
         cartButton.classList.add('in-cart', 'added');
         setTimeout(() => cartButton.classList.remove('added'), 200);
     });
@@ -1031,104 +879,20 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | undefined, g
 }
 
 // ============================================================================
-// Matrix Dialog
+// Matrix Dialog (wrapper for dialogs module)
 // ============================================================================
 
-const ITEM_ICONS: Record<string, string> = {
-    'Netherite Ingot': 'icons/netherite_ingot.png',
-    'Netherite Block': 'icons/netherite_block.png',
-    'Diamond Block': 'icons/diamond_block.png',
-    'Diamond': 'icons/diamond.png',
-    'Emerald Block': 'icons/emerald_block.png',
-    'Emerald': 'icons/emerald.png',
-    'Gold Block': 'icons/gold_block.png',
-    'Gold Ingot': 'icons/gold_ingot.png',
-    'Iron Block': 'icons/iron_block.png',
-    'Iron Ingot': 'icons/iron_ingot.png',
-};
-
-function getItemIcon(name: string): string {
-    const url = ITEM_ICONS[name];
-    if (url) {
-        return `<img src="${url}" alt="${escapeHtml(name)}" class="matrix-icon" title="${escapeHtml(name)}">`;
-    }
-    return escapeHtml(name);
-}
-
-function formatValue(value: number): string {
-    // Always show as ratio X:1 or 1:X
-    if (value >= 1) {
-        // Value >= 1: show as "X:1"
-        const rounded = Math.round(value);
-        return `${rounded}:1`;
-    } else {
-        // Value < 1: show as "1:X"
-        const inverse = Math.round(1 / value);
-        return `1:${inverse}`;
-    }
-}
-
-const MATRIX_HEADER_HTML = '<header><h2>Conversion Matrix</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
-
-function renderMatrix(): void {
+/**
+ * Render the matrix dialog using the extracted module
+ */
+function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-
-    if (!ratioGraph || ratioGraph.size === 0) {
-        container.innerHTML = `${MATRIX_HEADER_HTML}<p class="muted">No conversion data available</p>`;
-        container.querySelector(SELECTOR_CLOSE_MATRIX)?.addEventListener('click', () => {
-            getElement<HTMLDialogElement>(DIALOG_ID_MATRIX).close();
-        });
-        return;
-    }
-
-    const coreBlocks = getCoreBlocks();
-    let html = MATRIX_HEADER_HTML;
-    html += '<div class="matrix-wrapper"><table class="matrix"><thead><tr><th></th>';
-    // Skip last column header (not needed for lower triangle)
-    for (let index = 0; index < coreBlocks.length - 1; index++) {
-        html += `<th>${getItemIcon(coreBlocks[index]!)}</th>`;
-    }
-    html += '</tr></thead><tbody>';
-
-    // Skip first row (rowIdx=0) since it would be all skip cells
-    for (let rowIndex = 1; rowIndex < coreBlocks.length; rowIndex++) {
-        const row = coreBlocks[rowIndex]!;
-        html += `<tr><th>${getItemIcon(row)}</th>`;
-        // Skip last column (not needed for lower triangle)
-        for (let colIndex = 0; colIndex < coreBlocks.length - 1; colIndex++) {
-            const col = coreBlocks[colIndex]!;
-            if (colIndex >= rowIndex) {
-                // Diagonal and upper triangle - skip (redundant data)
-                html += '<td class="skip"></td>';
-            } else {
-                const ratio = getRatio(ratioGraph, row, col);
-                html += ratio === undefined ? '<td class="unknown" title="No conversion path found">?</td>' : `<td title="1 ${escapeHtml(row)} = ${ratio.toFixed(4)} ${escapeHtml(col)}">${formatValue(ratio)}</td>`;
-            }
-        }
-        html += '</tr>';
-    }
-
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
-    
-    // Add close button handler
-    container.querySelector(SELECTOR_CLOSE_MATRIX)?.addEventListener('click', () => {
-        getElement<HTMLDialogElement>(DIALOG_ID_MATRIX).close();
-    });
+    renderMatrix(container, ratioGraph, getElement);
 }
 
 // ============================================================================
 // Map Dialog (Leaflet)
 // ============================================================================
-
-const MAP_CONFIG = {
-    tileSize: 512,  // pixels per tile (and blocks per tile at maxZoom)
-    baseUrl: 'tiles',
-    maxZoom: 8,     // highest detail zoom level (1 pixel = 1 block)
-    fallbackZoom: 4, // base map zoom level for fallback
-    minZoom: 1,     // lowest detail zoom level (not used in fallback)
-    playersUrl: 'players.json'  // Local fallback; production uses worker URL
-};
 
 // Leaflet map instance (reused across dialog opens)
 let leafletMap: L.Map | undefined;
@@ -1142,143 +906,10 @@ let cachedPlayers: Player[] = [];
 // Player refresh interval (cleared when dialog closes)
 let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
-// Global cache for tile blob URLs (persists across map sessions)
+// Global cache for tile blob URLs for shop map (persists across dialog opens)
 // Key format: "world/zoom/x/z" -> blob URL
-const tileBlobCache = new Map<string, string>();
-
-// Global cache for tile manifest (which tiles exist)
-// Key format: "world/blocksPerTile/x/z" -> true
-let tileManifestCache: Set<string> | undefined;
-let manifestLoadPromise: Promise<void> | undefined;
-
-/**
- * Load the tile manifest (cached globally)
- */
-async function loadTileManifest(): Promise<Set<string>> {
-    // If already loaded, return it
-    if (tileManifestCache !== undefined) {
-        debugTiles('manifest: returning cached manifest size=%d', tileManifestCache.size);
-        return tileManifestCache;
-    }
-    
-    // If loading is in progress, wait for it
-    if (manifestLoadPromise !== undefined) {
-        debugTiles('manifest: waiting for in-progress load');
-        await manifestLoadPromise;
-        debugTiles('manifest: in-progress load complete size=%d', tileManifestCache!.size);
-        return tileManifestCache!;
-    }
-    
-    // Start loading - DON'T set tileManifestCache until fetch completes
-    // This prevents race conditions where empty cache is returned
-    debugTiles('manifest: starting fresh load from %s/manifest.json', MAP_CONFIG.baseUrl);
-    manifestLoadPromise = (async () => {
-        const newCache = new Set<string>();
-        try {
-            const response = await fetch(`${MAP_CONFIG.baseUrl}/manifest.json`);
-            if (response.ok) {
-                const manifest = await response.json() as Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }>;
-                debugTiles('manifest: fetched %d entries', manifest.length);
-                for (const entry of manifest) {
-                    // Normalize world name to match what getWorldId returns
-                    const normalizedWorld = getWorldId(entry.world);
-                    const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
-                    newCache.add(key);
-                }
-                debugTiles('manifest: processed into %d unique keys', newCache.size);
-            } else {
-                debugTiles('manifest: fetch failed status=%d', response.status);
-            }
-        } catch (error) {
-            console.warn('Failed to load tile manifest');
-            debugTiles('manifest: fetch error %o', error);
-        }
-        // Only set the global cache AFTER loading completes
-        tileManifestCache = newCache;
-    })();
-    
-    await manifestLoadPromise;
-    return tileManifestCache!;
-}
-
-/**
- * Check if a tile exists in the manifest
- */
-function tileExistsInManifest(manifest: Set<string>, world: string, blocksPerTile: number, tx: number, tz: number): boolean {
-    const key = `${world}/${blocksPerTile}/${tx}/${tz}`;
-    const exists = manifest.has(key);
-    debugTiles('checkManifest: key=%s exists=%s', key, exists);
-    return exists;
-}
-
-/**
- * Load a tile and add it to a map (non-blocking, uses cache)
- * @param map - Leaflet map to add tile to
- * @param worldId - World identifier (overworld, the_nether)
- * @param zoom - Zoom level (4 or 8)
- * @param tx - Tile X coordinate at the specified zoom
- * @param tz - Tile Z coordinate at the specified zoom
- * @param bounds - Bounds for the tile overlay
- * @param addedToMap - Set tracking tiles already added to this map instance
- */
-interface LoadTileOptions {
-    map: L.Map;
-    worldId: string;
-    zoom: number;
-    tx: number;
-    tz: number;
-    bounds: L.LatLngBoundsExpression;
-    addedToMap: Set<string>;
-}
-
-function loadTileToMap(options: LoadTileOptions): void {
-    const { map, worldId, zoom, tx, tz, bounds, addedToMap } = options;
-    const mapKey = `z${zoom}:${tx},${tz}`;
-    if (addedToMap.has(mapKey)) {
-        debugTiles('loadTile: SKIP already added mapKey=%s', mapKey);
-        return;
-    }
-    addedToMap.add(mapKey);
-    
-    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
-    
-    // Check if we already have this tile cached
-    const cachedBlobUrl = tileBlobCache.get(cacheKey);
-    if (cachedBlobUrl) {
-        debugTiles('loadTile: CACHE HIT cacheKey=%s', cacheKey);
-        L.imageOverlay(cachedBlobUrl, bounds).addTo(map);
-        return;
-    }
-    
-    // Fire-and-forget: load tile without blocking
-    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${zoom}/${tx}/${tz}.png`;
-    debugTiles('loadTile: FETCH url=%s', url);
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                debugTiles('loadTile: FETCH FAIL url=%s status=%d', url, response.status);
-                return;
-            }
-            debugTiles('loadTile: FETCH OK url=%s', url);
-            return response.blob();
-        })
-        .then(blob => {
-            if (blob) {
-                const blobUrl = URL.createObjectURL(blob);
-                tileBlobCache.set(cacheKey, blobUrl);
-                // Check map still exists before adding
-                if (map.getContainer()?.isConnected) {
-                    debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
-                    L.imageOverlay(blobUrl, bounds).addTo(map);
-                } else {
-                    debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
-                }
-            }
-        })
-        .catch((error) => {
-            debugTiles('loadTile: ERROR url=%s error=%o', url, error);
-        });
-}
+// Note: Navigation map uses the shared cache in the map module
+const shopMapTileBlobCache = new Map<string, string>();
 
 /**
  * Determine which world a player is in.
@@ -1290,7 +921,7 @@ function getPlayerWorld(player: Player): string {
         return getWorldId(player.world);
     }
     // Fallback: foreign=true means nether, false means overworld
-    return player.foreign ? WORLD_NETHER : WORLD_OVERWORLD;
+    return player.foreign ? WORLDS.NETHER : WORLDS.OVERWORLD;
 }
 
 /**
@@ -1315,7 +946,8 @@ async function fetchPlayers(): Promise<Player[]> {
     return cachedPlayers;
 }
 
-interface MapTileContext {
+// Shop map uses its own local tile context (different from navigation map)
+interface ShopMapTileContext {
     worldId: string;
     centerTileX: number;
     centerTileZ: number;
@@ -1324,16 +956,7 @@ interface MapTileContext {
     manifest: Set<string>;
 }
 
-const ZOOM4_TILE_SIZE = MAP_CONFIG.tileSize * 16;
-
-function calculateZoom4Coords(z8x: number, z8z: number): { x: number; z: number } {
-    return {
-        x: Math.floor(z8x / 16),
-        z: Math.floor(z8z / 16)
-    };
-}
-
-function loadZoom4TileToShopMap(context: MapTileContext, z4x: number, z4z: number): void {
+function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: number): void {
     const { worldId, centerTileX, centerTileZ, addedToMapZoom4, manifest } = context;
     const mapKey = `z4:${z4x},${z4z}`;
     if (addedToMapZoom4.has(mapKey)) {return;}
@@ -1346,31 +969,31 @@ function loadZoom4TileToShopMap(context: MapTileContext, z4x: number, z4z: numbe
     const dx = startZ8X - centerTileX;
     const dy = startZ8Z - centerTileZ;
     const bounds: L.LatLngBoundsExpression = [
-        [-dy * MAP_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * MAP_CONFIG.tileSize],
-        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + ZOOM4_TILE_SIZE]
+        [-dy * TILE_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + ZOOM4_TILE_SIZE]
     ];
     
     const cacheKey = `${worldId}/4/${z4x}/${z4z}`;
-    const cachedBlobUrl = tileBlobCache.get(cacheKey);
+    const cachedBlobUrl = shopMapTileBlobCache.get(cacheKey);
     if (cachedBlobUrl) {
         if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
         return;
     }
     
-    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                tileBlobCache.set(cacheKey, blobUrl);
+                shopMapTileBlobCache.set(cacheKey, blobUrl);
                 L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
             }
         })
         .catch(() => {});
 }
 
-function loadZoom8TileToShopMap(context: MapTileContext, tx: number, tz: number, dx: number, dy: number): void {
+function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
     const { worldId, addedToMapZoom8, manifest } = context;
     const mapKey = `z8:${tx},${tz}`;
     if (addedToMapZoom8.has(mapKey)) {return;}
@@ -1379,39 +1002,39 @@ function loadZoom8TileToShopMap(context: MapTileContext, tx: number, tz: number,
     if (!tileExistsInManifest(manifest, worldId, 512, tx, tz)) {return;}
     
     const bounds: L.LatLngBoundsExpression = [
-        [-dy * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize],
-        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
+        [-dy * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
     ];
     
     const cacheKey = `${worldId}/8/${tx}/${tz}`;
-    const cachedBlobUrl = tileBlobCache.get(cacheKey);
+    const cachedBlobUrl = shopMapTileBlobCache.get(cacheKey);
     if (cachedBlobUrl) {
         if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
         return;
     }
     
-    const url = `${MAP_CONFIG.baseUrl}/${worldId}/${MAP_CONFIG.maxZoom}/${tx}/${tz}.png`;
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.png`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                tileBlobCache.set(cacheKey, blobUrl);
+                shopMapTileBlobCache.set(cacheKey, blobUrl);
                 L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
             }
         })
         .catch(() => {});
 }
 
-function loadVisibleShopMapTiles(context: MapTileContext): void {
+function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     if (!leafletMap) {return;}
     const bounds = leafletMap.getBounds();
     const currentZoom = leafletMap.getZoom();
     
-    const minDx = Math.floor(bounds.getWest() / MAP_CONFIG.tileSize);
-    const maxDx = Math.ceil(bounds.getEast() / MAP_CONFIG.tileSize);
-    const minDy = -Math.ceil(bounds.getNorth() / MAP_CONFIG.tileSize);
-    const maxDy = -Math.floor(bounds.getSouth() / MAP_CONFIG.tileSize);
+    const minDx = Math.floor(bounds.getWest() / TILE_CONFIG.tileSize);
+    const maxDx = Math.ceil(bounds.getEast() / TILE_CONFIG.tileSize);
+    const minDy = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
+    const maxDy = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
     
     const zoom4Tiles = new Set<string>();
     for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
@@ -1500,7 +1123,7 @@ function updateShopMapPlayerMarkers(
     if (!leafletMap || cachedPlayers.length === 0) {return;}
     
     const playersInWorld = cachedPlayers.filter(p => {
-        const pWorld = p.world ? getWorldId(p.world) : WORLD_OVERWORLD;
+        const pWorld = p.world ? getWorldId(p.world) : WORLDS.OVERWORLD;
         return pWorld === worldId;
     });
     
@@ -1517,7 +1140,7 @@ function updateShopMapPlayerMarkers(
     const edgeRadius = containerRect.width / 2 + 8;
     
     for (const player of playersInWorld) {
-        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, MAP_CONFIG.tileSize);
+        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, TILE_CONFIG.tileSize);
         const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
         
         if (clamped.clamped) {
@@ -1580,7 +1203,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     leafletMap.on('moveend', loadTiles);
     leafletMap.on('zoomend', loadTiles);
     
-    const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, MAP_CONFIG.tileSize);
+    const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, TILE_CONFIG.tileSize);
     L.marker([markerLat, markerLng], {
         icon: L.divIcon({
             className: 'leaflet-pin-marker',
@@ -1594,7 +1217,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     const updateCoordsLabel = (): void => {
         if (!leafletMap) {return;}
         const mapCenter = leafletMap.getCenter();
-        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, MAP_CONFIG.tileSize);
+        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, TILE_CONFIG.tileSize);
         coordinatesElement.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
     };
     
@@ -1604,14 +1227,14 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         container.classList.toggle('zoomed-out', leafletMap!.getZoom() < 0.5);
     };
     
-    fetchPlayers().then(players => {
+    void fetchPlayers().then(players => {
         if (!leafletMap) {return;}
         cachedPlayers = players;
         updatePlayerMarkers();
     });
     
     playerRefreshInterval = setInterval(() => {
-        fetchPlayers().then(players => {
+        void fetchPlayers().then(players => {
             if (!leafletMap) {return;}
             cachedPlayers = players;
             updatePlayerMarkers();
@@ -1623,7 +1246,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     leafletMap.invalidateSize();
     const containerSize = leafletMap.getSize();
-    const visibleSize = MAP_CONFIG.tileSize * 3;
+    const visibleSize = TILE_CONFIG.tileSize * 3;
     const smallerDimension = Math.min(containerSize.x, containerSize.y);
     const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
     
@@ -1645,8 +1268,8 @@ function getWorldDisplayName(world: string): string {
     return 'Overworld';
 }
 
-async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
-    const dialog = document.querySelector(SELECTOR_MAP_DIALOG) as HTMLDialogElement | null;
+function openMapDialog(x: number, y: number, z: number, world: string): void {
+    const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
     const container = document.querySelector('#map-container');
     const coordsElement = document.querySelector('#map-coords');
     
@@ -1676,23 +1299,24 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         }
         if (mapOpenedFromCart) {
             mapOpenedFromCart = false;
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
             renderCartDialog();
             cartDialog.showModal();
         }
     }, { once: true });
     
-    const { tileX, tileZ } = getTileCoords(x, z, MAP_CONFIG.tileSize);
+    const { tileX, tileZ } = getTileCoords(x, z, TILE_CONFIG.tileSize);
     dialog.showModal();
     
-    requestAnimationFrame(async () => {
+    requestAnimationFrame(() => {
         if (leafletMap) {
             try { leafletMap.remove(); } catch { /* already removed */ }
             leafletMap = undefined;
         }
         
-        const manifest = await loadTileManifest();
-        setupShopMap({ container: container as HTMLElement, coordinatesElement: coordsElement as HTMLElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest });
+        void loadTileManifest().then(manifest => {
+            setupShopMap({ container: container as HTMLElement, coordinatesElement: coordsElement as HTMLElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest });
+        });
     });
 }
 
@@ -1732,18 +1356,18 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     
     minusButton.addEventListener('click', () => {
         if (quantity > 0) {
-            updateCartQuantity(trade, -1);
+            cartStore.updateQuantity(trade, -1);
             renderCartDialog();
         }
     });
     
     plusButton.addEventListener('click', () => {
-        updateCartQuantity(trade, 1);
+        cartStore.updateQuantity(trade, 1);
         renderCartDialog();
     });
     
     removeButton.addEventListener('click', () => {
-        removeFromCart(trade);
+        cartStore.remove(trade);
         refreshCartButtonStates();
         renderCartDialog();
     });
@@ -1757,15 +1381,15 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
 function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
     if (stop.type === 'portal') {
         // Portal inherits status from current index comparison
-        if (stopIndex < navProgress.currentIndex) { return 'completed'; }
-        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+        if (stopIndex < navigationStore.progress.currentIndex) { return 'completed'; }
+        if (stopIndex === navigationStore.progress.currentIndex) { return 'current'; }
         return 'pending';
     }
     
     if (stop.type === 'shop' && stop.cartItem) {
         const key = getTradeKey(stop.cartItem.trade);
-        if (navProgress.completedKeys.has(key)) { return 'completed'; }
-        if (stopIndex === navProgress.currentIndex) { return 'current'; }
+        if (navigationStore.progress.completedKeys.has(key)) { return 'completed'; }
+        if (stopIndex === navigationStore.progress.currentIndex) { return 'current'; }
     }
     
     return 'pending';
@@ -1842,11 +1466,11 @@ function createTimelineStop(
     content.classList.add('clickable');
     content.addEventListener('click', () => {
         // During navigation, clicking toggles completion instead of opening map
-        if (navPlayerRefreshInterval) {
+        if (navigationStore.isActive) {
             toggleStopCompletion(stop, route);
         } else {
             mapOpenedFromCart = true;
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
             cartDialog.close();
             openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
         }
@@ -1871,8 +1495,8 @@ function renderCartDialog(): void {
     costsContainer.innerHTML = '';
     gainsContainer.innerHTML = '';
     
-    if (cart.length === 0) {
-        itemsContainer.innerHTML = `<p class="${CLASS_CART_EMPTY}">Your cart is empty</p>`;
+    if (cartStore.isEmpty) {
+        itemsContainer.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Your cart is empty</p>`;
         clearCartButton.classList.add('hidden');
         return;
     }
@@ -1880,7 +1504,7 @@ function renderCartDialog(): void {
     clearCartButton.classList.remove('hidden');
     
     // Render cart items
-    for (const cartItem of cart) {
+    for (const cartItem of cartStore.items) {
         itemsContainer.append(createCartItemElement(cartItem.trade, cartItem.quantity));
     }
     
@@ -1932,11 +1556,11 @@ function switchTab(tab: 'cart' | 'navigate'): void {
         renderNavigateTab();
     }
     
-    localStorage.setItem(NAV_TAB_KEY, tab);
+    localStorage.setItem(STORAGE_KEYS.NAV_TAB, tab);
 }
 
 function restoreActiveTab(): void {
-    const savedTab = localStorage.getItem(NAV_TAB_KEY);
+    const savedTab = localStorage.getItem(STORAGE_KEYS.NAV_TAB);
     if (savedTab === 'navigate') {
         switchTab('navigate');
     } else {
@@ -1945,20 +1569,20 @@ function restoreActiveTab(): void {
 }
 
 function setupPlayerNameInput(): void {
-    const input = document.querySelector(SELECTOR_PLAYER_NAME_INPUT) as HTMLInputElement | null;
+    const input = document.querySelector<HTMLInputElement>(SELECTORS.PLAYER_NAME_INPUT);
     if (!input) {
         return;
     }
     
     // Restore saved player name
-    const savedName = localStorage.getItem(NAV_PLAYER_KEY);
+    const savedName = localStorage.getItem(STORAGE_KEYS.NAV_PLAYER);
     if (savedName) {
         input.value = savedName;
     }
     
     // Save on input
     input.addEventListener('input', () => {
-        localStorage.setItem(NAV_PLAYER_KEY, input.value);
+        localStorage.setItem(STORAGE_KEYS.NAV_PLAYER, input.value);
     });
 }
 
@@ -1971,40 +1595,23 @@ let navMapCenterTileX = 0;
 let navMapCenterTileZ = 0;
 
 /**
- * Load navigation mode from localStorage
- */
-function loadNavMode(): void {
-    const saved = localStorage.getItem(NAV_MODE_KEY);
-    navMode = saved === 'manual' ? 'manual' : 'follow';
-}
-
-/**
- * Save navigation mode to localStorage
- */
-function saveNavMode(): void {
-    localStorage.setItem(NAV_MODE_KEY, navMode);
-}
-
-/**
  * Start live navigation - poll player position and update map
  */
 async function startNavigation(): Promise<void> {
-    const playerNameInput = document.querySelector('#player-name-input') as HTMLInputElement | null;
+    const playerNameInput = document.querySelector<HTMLInputElement>('#player-name-input');
     
     if (!playerNameInput?.value.trim()) {
         playerNameInput?.focus();
         return;
     }
     
-    debugNavigation('Starting navigation player=%s cartSize=%d', playerNameInput.value.trim(), cart.length);
+    debugNavigation('Starting navigation player=%s cartSize=%d', playerNameInput.value.trim(), cartStore.uniqueCount);
     
-    isNavigating = true;
-    navMode = 'follow';
-    saveNavMode();
+    navigationStore.start(playerNameInput.value.trim());
     
     // Close cart dialog and open navigation dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
     
     cartDialog.close();
     
@@ -2022,13 +1629,13 @@ async function startNavigation(): Promise<void> {
             
             if (player) {
                 const playerWorld = getPlayerWorld(player);
-                currentPlayerPosition = {
+                navigationStore.setPlayerPosition({
                     x: player.position.x,
                     y: player.position.y,
                     z: player.position.z,
                     world: playerWorld,
                     yaw: player.rotation?.yaw
-                };
+                });
                 debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
             }
         } catch (error) {
@@ -2037,27 +1644,29 @@ async function startNavigation(): Promise<void> {
         }
         
         // Initialize map after dialog is visible (needs dimensions)
-        requestAnimationFrame(async () => {
-            // Compute route from player position (or 0,0 if not found), excluding completed items
-            const route = computeRoute(currentPlayerPosition, true);
-            navCurrentRoute = route;
-            
-            // Pass player's world so the map shows where the player is (if they have shops there)
-            const playerWorld = currentPlayerPosition?.world;
-            
-            debugNavigation('Initializing map stops=%d targetWorld=%s worlds=%o', route.length, playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
-            
-            await initNavigationMapDialog(route, playerWorld);
-            
-            // After map is initialized, center on player if in follow mode
-            if (navMode === 'follow' && currentPlayerPosition) {
-                centerMapOnPlayer();
-            }
-            
-            // Start polling player position
-            pollPlayerPosition();
-            const config = getConfig();
-            navPlayerRefreshInterval = setInterval(pollPlayerPosition, config.dynmap.playerRefreshMs);
+        requestAnimationFrame(() => {
+            void (async () => {
+                // Compute route from player position (or 0,0 if not found), excluding completed items
+                const route = computeRoute(navigationStore.playerPosition, true);
+                navCurrentRoute = route;
+                
+                // Pass player's world so the map shows where the player is (if they have shops there)
+                const playerWorld = navigationStore.playerPosition?.world;
+                
+                debugNavigation('Initializing map stops=%d targetWorld=%s worlds=%o', route.length, playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
+                
+                await initNavigationMapDialog(route, playerWorld);
+                
+                // After map is initialized, center on player if in follow mode
+                if (navigationStore.mode === 'follow' && navigationStore.playerPosition) {
+                    centerMapOnPlayer();
+                }
+                
+                // Start polling player position
+                void pollPlayerPosition();
+                const config = getConfig();
+                navigationStore.setRefreshInterval(setInterval(() => void pollPlayerPosition(), config.dynmap.playerRefreshMs));
+            })();
         });
     } else {
         console.error('nav-dialog element not found!');
@@ -2068,22 +1677,11 @@ async function startNavigation(): Promise<void> {
  * Stop live navigation
  */
 function stopNavigation(): void {
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
-    const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
+    const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
     
-    isNavigating = false;
-    
-    // Clear polling interval
-    if (navPlayerRefreshInterval) {
-        clearInterval(navPlayerRefreshInterval);
-        navPlayerRefreshInterval = undefined;
-    }
-    
-    // Remove player marker from map
-    if (navPlayerMarker && navMap) {
-        navMap.removeLayer(navPlayerMarker);
-        navPlayerMarker = undefined;
-    }
+    // Use store's stop method which handles cleanup
+    navigationStore.stop();
     
     // Remove route polyline
     if (navRoutePolyline && navMap) {
@@ -2106,8 +1704,6 @@ function stopNavigation(): void {
     navStopMarkers = [];
     navCurrentRoute = [];
     navMapWorld = 'overworld';
-    
-    currentPlayerPosition = undefined;
     
     // Close nav dialog and reopen cart dialog
     if (navDialog) {
@@ -2137,10 +1733,10 @@ function stopNavigation(): void {
  * Toggle navigation on/off
  */
 function toggleNavigation(): void {
-    if (isNavigating) {
+    if (navigationStore.isActive) {
         stopNavigation();
     } else {
-        startNavigation();
+        void startNavigation();
     }
 }
 
@@ -2166,17 +1762,15 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     }
 }
 
-async function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): Promise<void> {
+function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): void {
     const playerWorld = getPlayerWorld(player);
-    currentPlayerPosition = {
+    navigationStore.setPlayerPosition({
         x: player.position.x,
         y: player.position.y,
         z: player.position.z,
         world: playerWorld,
         yaw: player.rotation?.yaw
-    };
-    // @ts-expect-error - exposing for e2e testing
-    globalThis.__currentPlayerPosition = currentPlayerPosition;
+    });
     
     // UNIFIED VIEW: No world switching needed - all stops on one map
     // Just update marker, distance, and check for auto-advance
@@ -2186,8 +1780,9 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
     checkAutoAdvance();
     updateNearbyShopTooltip();
     
-    const positionMoved = hasPositionMoved(previousPosition, currentPlayerPosition, 1);
-    const shouldRecalcRoute = hasPositionMoved(previousPosition, currentPlayerPosition, 10);
+    const currentPos = navigationStore.playerPosition!;
+    const positionMoved = hasPositionMoved(previousPosition, currentPos, 1);
+    const shouldRecalcRoute = hasPositionMoved(previousPosition, currentPos, 10);
     
     if (shouldRecalcRoute) {
         recalculateRouteFromPlayer();
@@ -2195,13 +1790,13 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
     
     updatePlayerToNextLine();
     
-    if (navMode === 'follow' && positionMoved) {
+    if (navigationStore.mode === 'follow' && positionMoved) {
         centerMapOnPlayer();
     }
 }
 
 async function pollPlayerPosition(): Promise<void> {
-    const playerNameInput = document.querySelector(SELECTOR_PLAYER_NAME_INPUT) as HTMLInputElement | null;
+    const playerNameInput = document.querySelector<HTMLInputElement>(SELECTORS.PLAYER_NAME_INPUT);
     const playerName = playerNameInput?.value.trim().toLowerCase();
     
     if (!playerName || !navMap) {
@@ -2213,10 +1808,10 @@ async function pollPlayerPosition(): Promise<void> {
         const player = players.find(p => p.name.toLowerCase() === playerName);
         
         if (player) {
-            const previousPosition = currentPlayerPosition;
+            const previousPosition = navigationStore.playerPosition;
             debugPlayerPoll('Player found name=%s world=%s x=%d z=%d prevWorld=%s', 
                 player.name, player.world, player.position.x, player.position.z, previousPosition?.world);
-            await handleFoundPlayer(player, previousPosition);
+            handleFoundPlayer(player, previousPosition);
         } else {
             debugPlayerPoll('Player not found: %s', playerName);
             showPlayerNotFound(playerNameInput);
@@ -2231,16 +1826,17 @@ async function pollPlayerPosition(): Promise<void> {
  * Update or create the player marker on the navigation map
  */
 function updatePlayerMarker(): void {
-    if (!navMap || !currentPlayerPosition) {
+    const playerPos = navigationStore.playerPosition;
+    if (!navMap || !playerPos) {
         return;
     }
     
     // UNIFIED VIEW: Always show player at overworld-equivalent position
-    const playerIsNether = isNether(currentPlayerPosition.world);
+    const playerIsNether = isNether(playerPos.world);
     const displayCoords = toOverworldEquivalent(
-        currentPlayerPosition.x, 
-        currentPlayerPosition.z, 
-        currentPlayerPosition.world
+        playerPos.x, 
+        playerPos.z, 
+        playerPos.world
     );
     
     const { lat, lng } = toLeafletCoordsRelative(
@@ -2248,14 +1844,14 @@ function updatePlayerMarker(): void {
         displayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
-        MAP_CONFIG.tileSize
+        TILE_CONFIG.tileSize
     );
     
     // Calculate rotation for direction arrow (convert Minecraft yaw to CSS rotation)
     // Minecraft: 0=south, 90=west, 180=north, 270=east
     // CSS: 0=up(north), so we add 180 to convert
-    const rotation = currentPlayerPosition.yaw === undefined ? 0 : currentPlayerPosition.yaw + 180;
-    const hasHeading = currentPlayerPosition.yaw !== undefined;
+    const rotation = playerPos.yaw === undefined ? 0 : playerPos.yaw + 180;
+    const hasHeading = playerPos.yaw !== undefined;
     
     // Add nether styling class when player is in nether
     const netherClass = playerIsNether ? ' nav-player-marker--nether' : '';
@@ -2263,6 +1859,8 @@ function updatePlayerMarker(): void {
     const playerIconHtml = hasHeading
         ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg) translate(-50%, -100%)"></div></div>`
         : '<div class="nav-player-dot"></div>';
+    
+    let navPlayerMarker = navigationStore.mapObjects.playerMarker;
     
     if (navPlayerMarker) {
         // Update existing marker position and rotation
@@ -2287,6 +1885,7 @@ function updatePlayerMarker(): void {
         
         navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
         navPlayerMarker.addTo(navMap);
+        navigationStore.setPlayerMarker(navPlayerMarker);
     }
 }
 
@@ -2297,12 +1896,13 @@ function updatePlayerMarker(): void {
  * Completed shops are shown with checkmarks, incomplete with numbers.
  */
 function recalculateRouteFromPlayer(): void {
-    if (!navMap || !currentPlayerPosition) {
+    const playerPos = navigationStore.playerPosition;
+    if (!navMap || !playerPos) {
         return;
     }
     
     // Compute new route from player position, excluding completed items (for navCurrentRoute)
-    const fullRoute = computeRoute(currentPlayerPosition, true);
+    const fullRoute = computeRoute(playerPos, true);
     
     // Update the full route (incomplete shops only - for navigation logic)
     navCurrentRoute = fullRoute;
@@ -2322,7 +1922,6 @@ function recalculateRouteFromPlayer(): void {
     }
     
     navCurrentWorldRoute = allStops;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navCurrentWorldRoute = allStops;
     
     // Remove old route polyline
@@ -2339,7 +1938,7 @@ function recalculateRouteFromPlayer(): void {
     
     // Draw new route with all stops (completed shown with checkmarks)
     if (allStops.length > 0) {
-        const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navProgress.completedKeys);
+        const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navigationStore.progress.completedKeys);
         
         // Redraw polyline (only connecting incomplete shops)
         if (routePoints.length > 0) {
@@ -2358,7 +1957,8 @@ function recalculateRouteFromPlayer(): void {
  * Only draws the line when player is in the same world as the map
  */
 function updatePlayerToNextLine(): void {
-    if (!navMap || !currentPlayerPosition) {
+    const playerPos = navigationStore.playerPosition;
+    if (!navMap || !playerPos) {
         return;
     }
     
@@ -2370,7 +1970,7 @@ function updatePlayerToNextLine(): void {
     
     // UNIFIED VIEW: Find the first INCOMPLETE stop to draw line to
     const nextStop = navCurrentWorldRoute.find(stop => 
-        stop.cartItem && !navProgress.completedKeys.has(getTradeKey(stop.cartItem.trade))
+        stop.cartItem && !navigationStore.progress.completedKeys.has(getTradeKey(stop.cartItem.trade))
     );
     
     if (!nextStop) {
@@ -2379,9 +1979,9 @@ function updatePlayerToNextLine(): void {
     
     // UNIFIED VIEW: Use overworld-equivalent coordinates for player
     const playerDisplayCoords = toOverworldEquivalent(
-        currentPlayerPosition.x,
-        currentPlayerPosition.z,
-        currentPlayerPosition.world
+        playerPos.x,
+        playerPos.z,
+        playerPos.world
     );
     
     // Get player position in Leaflet coordinates
@@ -2390,7 +1990,7 @@ function updatePlayerToNextLine(): void {
         playerDisplayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
-        MAP_CONFIG.tileSize
+        TILE_CONFIG.tileSize
     );
     
     // Get next stop position in Leaflet coordinates (using displayX/displayZ)
@@ -2399,7 +1999,7 @@ function updatePlayerToNextLine(): void {
         nextStop.displayZ,
         navMapCenterTileX,
         navMapCenterTileZ,
-        MAP_CONFIG.tileSize
+        TILE_CONFIG.tileSize
     );
     
     // Draw dotted line from player to next stop
@@ -2425,12 +2025,12 @@ function updateLiveDistance(): void {
     const liveDistance = document.querySelector('#nav-live-distance');
     const dialogDistance = document.querySelector('#nav-dialog-distance');
     
-    if (!currentPlayerPosition) {
+    if (!navigationStore.playerPosition) {
         return;
     }
     
     // Use current navigation route if available, otherwise compute fresh (excluding completed)
-    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(navigationStore.playerPosition, true);
     
     let distanceHtml: string;
     let dialogHtml: string;
@@ -2446,7 +2046,7 @@ function updateLiveDistance(): void {
         // In unified view, distance is always calculated using overworld-equivalent coords
         // (calculateRouteDistance internally converts nether coords × 8)
         const distance = calculateRouteDistance(
-            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            navigationStore.playerPosition.x, navigationStore.playerPosition.z, navigationStore.playerPosition.world,
             currentStop.x, currentStop.z, currentStop.world
         );
         
@@ -2518,7 +2118,7 @@ function updateRouteMarkersForCompletion(): void {
     }
     
     // Re-create markers with updated completion state
-    const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navProgress.completedKeys);
+    const routePoints = createRouteMarkersUnified(allStops, navMapCenterTileX, navMapCenterTileZ, navigationStore.progress.completedKeys);
     
     // Redraw polyline (only connecting incomplete shops)
     if (routePoints.length > 0) {
@@ -2533,34 +2133,33 @@ function updateRouteMarkersForCompletion(): void {
 
 /**
  * Check if player is close enough to auto-advance to next stop
- * Requires player to be within NAV_ARRIVAL_THRESHOLD blocks in X/Z AND Y directions
+ * Requires player to be within NAVIGATION.ARRIVAL_THRESHOLD blocks in X/Z AND Y directions
  */
 function checkAutoAdvance(): void {
-    if (!currentPlayerPosition || navCurrentRoute.length === 0) {
+    if (!navigationStore.playerPosition || navCurrentRoute.length === 0) {
         return;
     }
     
     // Find the first incomplete stop in the route
     const currentStop = navCurrentRoute.find(stop => 
-        stop.cartItem && !navProgress.completedKeys.has(getTradeKey(stop.cartItem.trade))
+        stop.cartItem && !navigationStore.progress.completedKeys.has(getTradeKey(stop.cartItem.trade))
     );
     if (!currentStop?.cartItem) {
         return;
     }
     
     const distance = calculateRouteDistance(
-        currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+        navigationStore.playerPosition.x, navigationStore.playerPosition.z, navigationStore.playerPosition.world,
         currentStop.x, currentStop.z, currentStop.world
     );
     
     // Check Y distance separately (must be within threshold in all directions)
-    const yDistance = Math.abs(currentPlayerPosition.y - currentStop.y);
+    const yDistance = Math.abs(navigationStore.playerPosition.y - currentStop.y);
     
-    if (distance < NAV_ARRIVAL_THRESHOLD && yDistance < NAV_ARRIVAL_THRESHOLD) {
+    if (distance < NAVIGATION.ARRIVAL_THRESHOLD && yDistance < NAVIGATION.ARRIVAL_THRESHOLD) {
         // Auto-complete this stop
         const key = getTradeKey(currentStop.cartItem.trade);
-        navProgress.completedKeys.add(key);
-        saveNavProgress();
+        navigationStore.markStopComplete(key);
         
         // Update markers to show completion (keep completed shops visible with checkmark)
         updateRouteMarkersForCompletion();
@@ -2583,15 +2182,14 @@ const SHOP_NEARBY_THRESHOLD = 100;
  */
 let shopTooltipTimeout: ReturnType<typeof setTimeout> | undefined;
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Shop tooltip logic requires multiple conditions
 function updateNearbyShopTooltip(): void {
     const tooltip = document.querySelector('#nav-shop-tooltip');
-    if (!tooltip || !currentPlayerPosition) {
+    if (!tooltip || !navigationStore.playerPosition) {
         return;
     }
     
     // Use current route (already excludes completed items)
-    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(currentPlayerPosition, true);
+    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(navigationStore.playerPosition, true);
     
     // Find all shops within range (not just current stop)
     let nearestShop: RouteStop | undefined;
@@ -2601,7 +2199,7 @@ function updateNearbyShopTooltip(): void {
         if (!stop.cartItem) { continue; }
         
         const distance = calculateRouteDistance(
-            currentPlayerPosition.x, currentPlayerPosition.z, currentPlayerPosition.world,
+            navigationStore.playerPosition.x, navigationStore.playerPosition.z, navigationStore.playerPosition.world,
             stop.x, stop.z, stop.world
         );
         
@@ -2611,7 +2209,7 @@ function updateNearbyShopTooltip(): void {
         }
     }
     
-    if (nearestShop && nearestShop.cartItem) {
+    if (nearestShop?.cartItem) {
         const shopKey = `${nearestShop.x},${nearestShop.z}`;
         
         // Only show tooltip when ENTERING a new shop area
@@ -2619,10 +2217,10 @@ function updateNearbyShopTooltip(): void {
             currentNearbyShopKey = shopKey;
             
             // Group all items at this shop location
-            const itemsAtShop = cart.filter(item => 
-                item.trade.x === nearestShop!.x && 
-                item.trade.z === nearestShop!.z &&
-                !navProgress.completedKeys.has(getTradeKey(item.trade))
+            const itemsAtShop = cartStore.items.filter(item => 
+                item.trade.x === nearestShop.x && 
+                item.trade.z === nearestShop.z &&
+                !navigationStore.progress.completedKeys.has(getTradeKey(item.trade))
             );
             
             // Build shopping list HTML
@@ -2684,15 +2282,15 @@ function getZoomForDistance(overworldEquivalentDistance: number): number {
  * (Nether distances are multiplied by 8 to account for portal scaling)
  */
 function centerMapOnPlayer(): void {
-    if (!navMap || !currentPlayerPosition) {
+    if (!navMap || !navigationStore.playerPosition) {
         return;
     }
     
     // UNIFIED VIEW: Use overworld-equivalent coordinates
     const displayCoords = toOverworldEquivalent(
-        currentPlayerPosition.x,
-        currentPlayerPosition.z,
-        currentPlayerPosition.world
+        navigationStore.playerPosition.x,
+        navigationStore.playerPosition.z,
+        navigationStore.playerPosition.world
     );
     
     const { lat, lng } = toLeafletCoordsRelative(
@@ -2700,7 +2298,7 @@ function centerMapOnPlayer(): void {
         displayCoords.z,
         navMapCenterTileX,
         navMapCenterTileZ,
-        MAP_CONFIG.tileSize
+        TILE_CONFIG.tileSize
     );
     
     // Calculate distance to nearest non-completed shop using display coords
@@ -2728,15 +2326,14 @@ function centerMapOnPlayer(): void {
  * Switch to manual mode (triggered when user pans the map)
  */
 function switchToManualMode(): void {
-    if (!isNavigating) {
+    if (!navigationStore.isActive) {
         return;
     }
     
-    navMode = 'manual';
-    saveNavMode();
+    navigationStore.setMode('manual');
     
     // Show re-center button (for both embedded and dialog maps)
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.remove('hidden');
     dialogRecenterButton?.classList.remove('hidden');
@@ -2746,11 +2343,10 @@ function switchToManualMode(): void {
  * Switch back to follow mode and re-center
  */
 function switchToFollowMode(): void {
-    navMode = 'follow';
-    saveNavMode();
+    navigationStore.setMode('follow');
     
     // Hide re-center buttons
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.add('hidden');
     dialogRecenterButton?.classList.add('hidden');
@@ -2764,7 +2360,7 @@ function switchToFollowMode(): void {
  */
 function setupNavigationControls(): void {
     const startButton = document.querySelector('#start-navigation');
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const closeNavButton = document.querySelector('#close-nav');
     
     startButton?.addEventListener('click', toggleNavigation);
@@ -2772,7 +2368,7 @@ function setupNavigationControls(): void {
     closeNavButton?.addEventListener('click', stopNavigation);
     
     // Set up nav dialog backdrop close
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
     if (navDialog) {
         navDialog.addEventListener('click', (event) => {
             if (event.target === navDialog) {
@@ -2792,7 +2388,7 @@ let navPlayerToNextLine: L.Polyline | undefined;
 let navStopMarkers: L.Marker[] = [];
 let navCurrentRoute: RouteStop[] = [];  // Full route (all worlds)
 let navCurrentWorldRoute: RouteStop[] = [];  // Route filtered to current map world
-let navMapWorld: string = WORLD_OVERWORLD;  // World currently shown on nav map
+let navMapWorld: string = WORLDS.OVERWORLD;  // World currently shown on nav map
 
 /**
  * Initialize navigation map inside the circular dialog.
@@ -2813,19 +2409,10 @@ function cleanupNavMap(): void {
         }
     }
     navMap = undefined;
-    navPlayerMarker = undefined;
+    navigationStore.setPlayerMarker(undefined);
     navRoutePolyline = undefined;
     navPlayerToNextLine = undefined;
     navStopMarkers = [];
-}
-
-interface TileRange {
-    minTileX: number;
-    maxTileX: number;
-    minTileZ: number;
-    maxTileZ: number;
-    centerTileX: number;
-    centerTileZ: number;
 }
 
 /**
@@ -2843,9 +2430,9 @@ function calculateTileRangeUnified(stops: RouteStop[]): TileRange {
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
     
-    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, MAP_CONFIG.tileSize);
-    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, MAP_CONFIG.tileSize);
-    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, MAP_CONFIG.tileSize);
+    const { tileX: minTileX, tileZ: minTileZ } = getTileCoords(minX - 256, minZ - 256, TILE_CONFIG.tileSize);
+    const { tileX: maxTileX, tileZ: maxTileZ } = getTileCoords(maxX + 256, maxZ + 256, TILE_CONFIG.tileSize);
+    const { tileX: centerTileX, tileZ: centerTileZ } = getTileCoords(centerX, centerZ, TILE_CONFIG.tileSize);
     
     return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ };
 }
@@ -2861,10 +2448,10 @@ function calculateTileRangeFromView(centerTileX: number, centerTileZ: number): T
     // Convert leaflet bounds to tile coordinates
     // Leaflet uses (lat, lng) where lat is up/down and lng is left/right
     // Our tiles use: dx = (lng) / tileSize, dz = (-lat) / tileSize
-    const minDx = Math.floor(bounds.getWest() / MAP_CONFIG.tileSize);
-    const maxDx = Math.ceil(bounds.getEast() / MAP_CONFIG.tileSize);
-    const minDz = -Math.ceil(bounds.getNorth() / MAP_CONFIG.tileSize);
-    const maxDz = -Math.floor(bounds.getSouth() / MAP_CONFIG.tileSize);
+    const minDx = Math.floor(bounds.getWest() / TILE_CONFIG.tileSize);
+    const maxDx = Math.ceil(bounds.getEast() / TILE_CONFIG.tileSize);
+    const minDz = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
+    const maxDz = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
     
     // Convert relative deltas to absolute tile coordinates
     const minTileX = centerTileX + minDx;
@@ -2879,15 +2466,6 @@ function calculateTileRangeFromView(centerTileX: number, centerTileZ: number): T
     return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX: viewCenterTileX, centerTileZ: viewCenterTileZ };
 }
 
-interface LoadNavMapTilesOptions {
-    manifest: Set<string>;
-    worldId: string;
-    tileRange: TileRange;
-    addedToMap: Set<string>;
-    mapCenterTileX?: number;
-    mapCenterTileZ?: number;
-}
-
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Nested loops for tile loading across zoom levels
 function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     const { manifest, worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
@@ -2896,7 +2474,7 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     // Use map center for positioning (relative to Leaflet origin), fall back to tileRange center
     const positionCenterX = mapCenterTileX ?? centerTileX;
     const positionCenterZ = mapCenterTileZ ?? centerTileZ;
-    const zoom4TileSize = MAP_CONFIG.tileSize * 16;
+    const zoom4TileSize = TILE_CONFIG.tileSize * 16;
     
     debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d]', 
         worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ);
@@ -2922,8 +2500,8 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
                     const dx = startZ8X - positionCenterX;
                     const dy = startZ8Z - positionCenterZ;
                     const bounds: L.LatLngBoundsExpression = [
-                        [-dy * MAP_CONFIG.tileSize - zoom4TileSize, dx * MAP_CONFIG.tileSize],
-                        [-dy * MAP_CONFIG.tileSize, dx * MAP_CONFIG.tileSize + zoom4TileSize]
+                        [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
+                        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize]
                     ];
                     loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap });
                 } else {
@@ -2943,8 +2521,8 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
                 const relativeX = tx - positionCenterX;
                 const relativeZ = tz - positionCenterZ;
                 const bounds: L.LatLngBoundsExpression = [
-                    [-relativeZ * MAP_CONFIG.tileSize - MAP_CONFIG.tileSize, relativeX * MAP_CONFIG.tileSize],
-                    [-relativeZ * MAP_CONFIG.tileSize, relativeX * MAP_CONFIG.tileSize + MAP_CONFIG.tileSize]
+                    [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
+                    [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
                 ];
                 loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
             } else {
@@ -2974,7 +2552,7 @@ function createRouteMarkersUnified(
     let incompleteIndex = 0;
     
     for (const stop of allStops) {
-        const { lat, lng } = toLeafletCoordsRelative(stop.displayX, stop.displayZ, centerTileX, centerTileZ, MAP_CONFIG.tileSize);
+        const { lat, lng } = toLeafletCoordsRelative(stop.displayX, stop.displayZ, centerTileX, centerTileZ, TILE_CONFIG.tileSize);
         const isCompleted = Boolean(stop.cartItem && completedKeys.has(getTradeKey(stop.cartItem.trade)));
         
         if (!isCompleted) {
@@ -3013,14 +2591,13 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     
     cleanupNavMap();
     navCurrentRoute = route;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navCurrentRoute = navCurrentRoute;
     
     // Get ALL cart stops for display (including completed ones)
     const allStops = getAllCartStops();
     
     if (allStops.length === 0) {
-        container.innerHTML = `<p class="${CLASS_CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
+        container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
         navCurrentWorldRoute = [];
         debugMap('Empty route, no map displayed');
         return;
@@ -3034,14 +2611,13 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     
     // All stops are shown on unified map (using displayX/displayZ for positioning)
     navCurrentWorldRoute = allStops;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navCurrentWorldRoute = allStops;
     
     debugMap('Unified map: stops=%d overworldStops=%d netherStops=%d completedStops=%d', 
         allStops.length, 
         allStops.filter(s => !s.isNether).length,
         allStops.filter(s => s.isNether).length,
-        [...navProgress.completedKeys].length);
+        [...navigationStore.progress.completedKeys].length);
     
     // Calculate tile range using ALL stops (including completed) for proper map bounds
     const tileRange = calculateTileRangeUnified(allStops);
@@ -3058,17 +2634,13 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
         maxBoundsViscosity: 1
     });
     
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navMap = navMap;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navMapWorld = navMapWorld;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navMapCenterTileX = tileRange.centerTileX;
-    // @ts-expect-error - exposing for e2e testing
     globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
     
     navMap.on('dragstart', () => {
-        if (isNavigating) {
+        if (navigationStore.isActive) {
             switchToManualMode();
         }
     });
@@ -3100,7 +2672,7 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     
     // Create markers using display coordinates (unified view)
     // Pass completedKeys so completed shops show checkmarks instead of numbers
-    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navProgress.completedKeys);
+    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
     
     navRoutePolyline = L.polyline(routePoints, {
         color: '#3b82f6',
@@ -3129,7 +2701,7 @@ function renderNavigateTab(): void {
         navTimeline.innerHTML = '';
         
         if (route.length === 0) {
-            navTimeline.innerHTML = `<p class="${CLASS_CART_EMPTY}">Add items to cart to see route</p>`;
+            navTimeline.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Add items to cart to see route</p>`;
         } else {
             // Sync progress and render using same function as cart tab
             syncNavProgressWithCart(route);
@@ -3142,7 +2714,7 @@ function renderNavigateTab(): void {
             }
             
             // Add navigating class when navigation is active for matching styling
-            navTimeline.classList.toggle('navigating', navPlayerRefreshInterval !== undefined);
+            navTimeline.classList.toggle('navigating', navigationStore.refreshInterval !== undefined);
         }
     }
     
@@ -3163,10 +2735,13 @@ function renderNavigateTab(): void {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadShops();
-    loadCart();
-    loadNavProgress();
-    loadNavMode();
+    void loadShops();
+    
+    // Register cart change listener before loading
+    cartStore.onChange(updateCartBadge);
+    cartStore.load();
+    navigationStore.loadProgress();
+    navigationStore.loadMode();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();
@@ -3183,20 +2758,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Matrix dialog
-    const matrixDialog = getElement<HTMLDialogElement>(DIALOG_ID_MATRIX);
+    const matrixDialog = getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX);
     setupDialogBackdropClose(matrixDialog);
     getElement('open-matrix').addEventListener('click', () => {
-        openDialog(DIALOG_ID_MATRIX, renderMatrix);
+        openDialog(DIALOG_IDS.MATRIX, renderMatrixDialog);
     });
 
     // Map dialog
-    const mapDialog = document.querySelector(SELECTOR_MAP_DIALOG) as HTMLDialogElement | null;
+    const mapDialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
     
     // Cart dialog
-    const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+    const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
     setupDialogBackdropClose(cartDialog);
     
     // Clean up zero-quantity items when cart dialog closes
@@ -3211,7 +2786,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     getElement('close-cart').addEventListener('click', () => {
         // Stop navigation when closing cart dialog
-        if (isNavigating) {
+        if (navigationStore.isActive) {
             stopNavigation();
         }
         cartDialog.close();
@@ -3233,12 +2808,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (event) => {
-        const row = (event.target as HTMLElement).closest<HTMLElement>(`.${CLASS_TRADE_ROW}`);
+        const row = (event.target as HTMLElement).closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
         if (row) {
             const x = Number.parseInt(row.dataset['x'] ?? '0', 10);
             const y = Number.parseInt(row.dataset['y'] ?? '0', 10);
             const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
-            const world = row.dataset['world'] ?? WORLD_OVERWORLD;
+            const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
             openMapDialog(x, y, z, world);
         }
     });

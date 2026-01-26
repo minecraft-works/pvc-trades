@@ -8,7 +8,17 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text'],
             include: ['src/**/*.ts'],
-            exclude: ['src/**/*.test.ts', 'src/types.ts', 'src/main.ts', 'src/debug.ts'],
+            exclude: [
+                'src/**/*.test.ts',
+                'src/**/index.ts',
+                'src/types.ts',
+                'src/main.ts',
+                'src/debug.ts',
+                'src/constants.ts',
+                'src/map/**/*.ts',
+                'src/dialogs/**/*.ts',
+                'src/test-globals.d.ts'
+            ],
             thresholds: {
                 statements: 85,
                 branches: 79,

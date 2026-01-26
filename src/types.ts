@@ -181,6 +181,32 @@ export interface RouteStop {
     portalAction?: 'enter' | 'exit';  // Only for portal stops
 }
 
+/**
+ * Type guard to check if a route stop is a shop stop with a cart item.
+ * Useful for filtering routes to only include actual shopping stops.
+ * 
+ * @example
+ * const shopsOnly = route.filter(isShopStop);
+ * // shopsOnly is now typed as (RouteStop & { type: 'shop'; cartItem: CartItem })[]
+ */
+export function isShopStop(
+    stop: RouteStop
+): stop is RouteStop & { type: 'shop'; cartItem: CartItem } {
+    return stop.type === 'shop' && stop.cartItem !== undefined;
+}
+
+/**
+ * Type guard to check if a route stop is a portal transition.
+ * 
+ * @example
+ * const portals = route.filter(isPortalStop);
+ */
+export function isPortalStop(
+    stop: RouteStop
+): stop is RouteStop & { type: 'portal'; portalAction: 'enter' | 'exit' } {
+    return stop.type === 'portal' && stop.portalAction !== undefined;
+}
+
 export interface ShoppingList {
     costs: Map<string, number>;   // itemName -> totalAmount
     gains: Map<string, number>;   // itemName -> totalAmount
@@ -196,11 +222,6 @@ export interface NavigationProgress {
 }
 
 export type NavigationMode = 'follow' | 'manual';
-
-export const NAV_STORAGE_KEY = 'pvc-trades-nav-progress';
-export const NAV_PLAYER_KEY = 'pvc-trades-nav-player';
-export const NAV_TAB_KEY = 'pvc-trades-nav-tab';
-export const NAV_MODE_KEY = 'pvc-trades-nav-mode';
 
 // ============================================================================
 // Item Value Calculation Types

@@ -59,7 +59,7 @@ npm run lint
 
 ## Project Structure
 
-```
+```text
 ├── src/
 │   ├── main.ts        # Application entry point (UI, events, rendering)
 │   ├── library.ts     # Pure functions (filtering, sorting, routing)
