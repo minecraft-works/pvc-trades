@@ -2,7 +2,7 @@
 
 > **Created**: January 26, 2026  
 > **Goal**: Make the codebase more maintainable for AI-assisted "vibe coding" development  
-> **Status**: Phase 1 Complete ✅
+> **Status**: Phase 2 In Progress (Cart ✅ | Nav Pending)
 
 ---
 
@@ -18,12 +18,13 @@ The PVC Trades codebase has solid foundations (types, tests, tooling) but has gr
 
 | Metric | Current | Target | Gap |
 |--------|---------|--------|-----|
-| `main.ts` lines | 3,217 | <500 per file | 🔴 Critical |
+| `main.ts` lines | 3,142 | <500 per file | 🔴 Critical |
 | `library.ts` lines | 1,789 | <1,000 | 🟡 Medium |
 | ESLint errors | 0 ✅ | 0 | ✅ Done |
 | `@ts-expect-error` count | 20+ | 0 | 🟡 Medium |
 | `eslint-disable` count | 19 | <10 | 🟡 Low |
-| Module-level state vars | ~15 | 0 (in stores) | 🔴 Critical |
+| Cart state in store | ✅ | ✅ | ✅ Done |
+| Nav state in store | ❌ | ✅ | 🔴 Critical |
 
 ### Risk Assessment for Vibe Coding
 
@@ -139,13 +140,17 @@ Created CartStore class with:
 ### 2.3 Migrate main.ts to Use Stores
 **Effort**: 2 hours  
 **Files**: `src/main.ts`  
-**Status**: NOT STARTED
+**Status**: CART COMPLETE ✅ | NAV PENDING
 
 Migration steps:
-- [ ] Import stores: `import { cartStore, navigationStore } from './stores/index.js'`
-- [ ] Replace `let cart: CartItem[] = []` with `cartStore`
-- [ ] Replace `loadCart()` calls with `cartStore.load()`
-- [ ] Replace `cart.find()` with `cartStore.find()`
+- [x] Import cartStore from `./stores/index.js`
+- [x] Replace `let cart: CartItem[] = []` with `cartStore.items`
+- [x] Replace `loadCart()` calls with `cartStore.load()`
+- [x] Replace `cart.find()` with `cartStore.find()`, `cart.some()` with `cartStore.has()`
+- [x] Replace `addToCart()` with `cartStore.add()`, etc.
+- [x] Register `updateCartBadge` as `cartStore.onChange()` callback
+- [x] Remove unused imports (`CartItem`, `STORAGE_KEYS`)
+- **Net reduction: 73 lines removed from main.ts**
 - [ ] Replace 15+ nav state variables with `navigationStore`
 - [ ] Update all navigation functions to use store methods
 - [ ] Remove duplicate @ts-expect-error globals
