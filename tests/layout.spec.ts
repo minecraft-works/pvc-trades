@@ -78,7 +78,7 @@ async function setupMockRoutes(page: Page): Promise<void> {
             contentType: 'application/json',
             body: JSON.stringify({
                 dataUrl: 'data.json',
-                dataRefreshMs: 0,
+                dataRefreshMs: 60_000, // Must be > 0 to pass Zod validation
                 dynmap: {
                     baseUrl: 'https://web.peacefulvanilla.club/maps',
                     tileSize: 128,
