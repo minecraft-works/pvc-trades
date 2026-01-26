@@ -23,6 +23,9 @@ declare global {
     var __navMapWorld: string;
     var __navMapCenterTileX: number;
     var __navMapCenterTileZ: number;
+    
+    /** Triggers a shop data refresh and returns count of new trades */
+    var refreshShopData: () => Promise<number>;
 }
 
 // Export the NavMap type for potential external use

@@ -86,48 +86,150 @@ Given('the refresh interval is set to {int} seconds', async ({ page }, seconds: 
 // ============================================================================
 
 When(String.raw`the shop data refreshes with {int} new trade\(s)`, async ({ page }, newTradeCount: number) => {
-    // Trigger a manual refresh by calling the exposed function
-    // First, add new trades to the mock, then trigger refresh
+    // Add new trades by updating the route handler to return additional shops
+    // First, unroute any existing handlers then set up a new one with more shops
+    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
     
-    // We need to update the route handler to return more data
-    // Since we can't easily modify the existing route, we'll use page.evaluate
-    // to call the refresh function directly
+    // Get existing shop count from page context
+    const existingShops = await page.evaluate(() => {
+        return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
+    }) as unknown[];
     
+    // Create new shop data with additional trades - spread creates a copy
+    const newShops = [...existingShops];
     for (let index = 0; index < newTradeCount; index++) {
-        await page.route('**/pvc-shops.minecraft-works.workers.dev/**', async (route) => {
-            // This will be handled by the existing mock
-            await route.continue();
+        newShops.push({
+            shopName: `New Shop ${Date.now()}-${index}`,
+            shopOwner: 'NewOwner',
+            location: `${500 + index * 50}.0, 64.0, ${500 + index * 50}.0`,
+            world: 'World',
+            recipes: [{
+                resultItem: { type: 'GOLD_INGOT', name: 'Gold Ingot', amount: 4 },
+                item1: { type: 'EMERALD', name: 'Emerald', amount: 1 },
+                stock: 10
+            }]
         });
     }
     
-    // Wait a moment for the refresh to occur
-    await page.waitForTimeout(100);
+    // Set up new route with updated data
+    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ data: newShops })
+        });
+    });
     
-    // Trigger refresh by evaluating in page context
-    // The app should have refreshShopData available
+    // Trigger refresh
     await page.evaluate(async () => {
-        // Access the refresh function if it's exposed
-        if (typeof (globalThis as unknown as { refreshShopData?: () => Promise<void> }).refreshShopData === 'function') {
-            await (globalThis as unknown as { refreshShopData: () => Promise<void> }).refreshShopData();
+        const refreshFunction = (globalThis as unknown as { refreshShopData?: () => Promise<number> }).refreshShopData;
+        if (typeof refreshFunction === 'function') {
+            await refreshFunction();
         }
     });
+    
+    // Wait for DOM update
+    await page.waitForTimeout(200);
 });
 
 When(String.raw`the shop data refreshes with {int} new trade\(s) for {string}`, async ({ page }, _count: number, itemName: string) => {
-    // Store the item name for verification
-    await page.evaluate((name) => {
-        (globalThis as unknown as { __newItemName: string }).__newItemName = name;
-    }, itemName);
+    // Update route with a new trade for the specific item
+    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
+    
+    const existingShops = await page.evaluate(() => {
+        return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
+    }) as unknown[];
+    
+    const newShops = [
+        ...existingShops,
+        {
+            shopName: `New ${itemName} Shop`,
+            shopOwner: 'NewOwner',
+            location: '600.0, 64.0, 600.0',
+            world: 'World',
+            recipes: [{
+                resultItem: { 
+                    type: itemName.toUpperCase().replaceAll(' ', '_'), 
+                    name: itemName, 
+                    amount: 1 
+                },
+                item1: { type: 'EMERALD', name: 'Emerald', amount: 10 },
+                stock: 5
+            }]
+        }
+    ];
+    
+    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ data: newShops })
+        });
+    });
+    
+    await page.evaluate(async () => {
+        const refreshFunction = (globalThis as unknown as { refreshShopData?: () => Promise<number> }).refreshShopData;
+        if (typeof refreshFunction === 'function') {
+            await refreshFunction();
+        }
+    });
+
+    await page.waitForTimeout(200);
 });
 
 When('the shop data refreshes with a new {string} trade', async ({ page }, itemName: string) => {
-    await page.evaluate((name) => {
-        (globalThis as unknown as { __newItemName: string }).__newItemName = name;
-    }, itemName);
+    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
+    
+    const existingShops = await page.evaluate(() => {
+        return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
+    }) as unknown[];
+    
+    const newShops = [
+        ...existingShops,
+        {
+            shopName: `New ${itemName} Shop`,
+            shopOwner: 'NewOwner',
+            location: '700.0, 64.0, 700.0',
+            world: 'World',
+            recipes: [{
+                resultItem: { 
+                    type: itemName.toUpperCase().replaceAll(' ', '_'), 
+                    name: itemName, 
+                    amount: 1 
+                },
+                // Use Iron as cost to avoid matching common search terms
+                item1: { type: 'IRON_INGOT', name: 'Iron Ingot', amount: 5 },
+                stock: 10
+            }]
+        }
+    ];
+    
+    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ data: newShops })
+        });
+    });
+    
+    await page.evaluate(async () => {
+        const refreshFunction = (globalThis as unknown as { refreshShopData?: () => Promise<number> }).refreshShopData;
+        if (typeof refreshFunction === 'function') {
+            await refreshFunction();
+        }
+    });
+
+    await page.waitForTimeout(200);
 });
 
-When('the shop data refreshes', async ({ page }) => {
-    // Trigger refresh
+When('the shop data refreshes', async({ page }) => {
+    // Trigger refresh without adding new trades
+    await page.evaluate(async () => {
+        const refreshFunction = (globalThis as unknown as { refreshShopData?: () => Promise<number> }).refreshShopData;
+        if (typeof refreshFunction === 'function') {
+            await refreshFunction();
+        }
+    });
     await page.waitForTimeout(100);
 });
 
@@ -213,13 +315,13 @@ Then('clearing the search should show the new trade', async ({ page }) => {
 });
 
 Then('my cart should still contain the trade', async ({ page }) => {
-    // Check cart badge is visible
-    const cartBadge = page.locator('#cartBadge');
+    // Check cart badge is visible (not hidden class)
+    const cartBadge = page.locator('#cart-badge:not(.hidden)');
     await expect(cartBadge).toBeVisible();
 });
 
 Then('the cart badge should still show {string}', async ({ page }, expectedCount: string) => {
-    const cartBadge = page.locator('#cartBadge');
+    const cartBadge = page.locator('#cart-badge');
     await expect(cartBadge).toHaveText(expectedCount);
 });
 
