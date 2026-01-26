@@ -93,7 +93,6 @@ import type {
     SortDirection,
     Player,
     PlayersData,
-    CartItem,
     RouteStop,
     ShoppingList,
     NavigationProgress,
@@ -106,13 +105,14 @@ import {
     NAVIGATION,
     DEVIATION,
     SORT,
-    STORAGE_KEYS,
     CSS_CLASSES,
     SELECTORS,
     DIALOG_IDS,
     WORLDS,
     COLUMNS
 } from './constants.js';
+
+import { cartStore } from './stores/index.js';
 
 import * as L from 'leaflet';
 
@@ -203,10 +203,7 @@ let virtualScroller: VirtualScroller<FilterResult> | undefined;
 let currentWantRegex: RegExp | undefined;
 let currentGiveRegex: RegExp | undefined;
 
-// Shopping cart state
-let cart: CartItem[] = [];
-// @ts-expect-error - exposing for e2e testing
-globalThis.__cart = cart;
+// Flag to track if map was opened from cart (for back navigation)
 let mapOpenedFromCart = false;
 
 // Navigation progress state
@@ -226,97 +223,24 @@ let navPlayerMarker: L.Marker | undefined;
 let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
 // ============================================================================
-// Shopping Cart Functions
+// Cart Helper Functions
 // ============================================================================
-
-/**
- * Load cart from localStorage
- */
-function loadCart(): void {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEYS.CART);
-        if (stored) {
-            const parsed: unknown = JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-                cart = parsed as CartItem[];
-            }
-        }
-    } catch {
-        cart = [];
-    }
-    updateCartBadge();
-}
-
-/**
- * Save cart to localStorage
- */
-function saveCart(): void {
-    try {
-        localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
-    } catch {
-        // Storage full or unavailable - ignore
-    }
-    updateCartBadge();
-}
-
-/**
- * Add a trade to the cart (or increment quantity if exists)
- */
-function addToCart(trade: Trade): void {
-    const key = getTradeKey(trade);
-    const existing = cart.find(item => getTradeKey(item.trade) === key);
-    
-    if (existing) {
-        existing.quantity++;
-    } else {
-        cart.push({ trade, quantity: 1 });
-    }
-    
-    saveCart();
-}
-
-/**
- * Remove a trade from the cart entirely
- */
-function removeFromCart(trade: Trade): void {
-    const key = getTradeKey(trade);
-    cart = cart.filter(item => getTradeKey(item.trade) !== key);
-    saveCart();
-}
-
-/**
- * Update quantity for a cart item
- * Allows quantity to go to 0 (item stays in cart until dialog closes)
- */
-function updateCartQuantity(trade: Trade, delta: number): void {
-    const key = getTradeKey(trade);
-    const item = cart.find(cartItem => getTradeKey(cartItem.trade) === key);
-    
-    if (item) {
-        item.quantity = Math.max(0, item.quantity + delta);
-        saveCart();
-    }
-}
 
 /**
  * Remove items with zero quantity from cart
  * Called when cart dialog is closed
  */
 function cleanupZeroQuantityItems(): void {
-    const hadZeroItems = cart.some(item => item.quantity === 0);
-    cart = cart.filter(item => item.quantity > 0);
-    if (hadZeroItems) {
-        saveCart();
+    if (cartStore.cleanupZeroQuantity()) {
         refreshCartButtonStates();
     }
 }
 
 /**
- * Clear the entire cart
+ * Clear the entire cart and reset navigation progress
  */
 function clearCart(): void {
-    cart = [];
-    saveCart();
+    cartStore.clear();
     // Reset navigation progress when cart is cleared
     navProgress = { completedKeys: new Set(), currentIndex: 0 };
     saveNavProgress();
@@ -439,7 +363,7 @@ function toggleStopCompletion(stop: RouteStop, route: RouteStop[]): void {
 function updateCartBadge(): void {
     const badge = document.querySelector('#cart-badge');
     if (badge) {
-        const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+        const count = cartStore.totalQuantity;
         badge.textContent = count > 0 ? String(count) : '';
         badge.classList.toggle('hidden', count === 0);
     }
@@ -451,7 +375,7 @@ function updateCartBadge(): void {
  */
 function refreshCartButtonStates(): void {
     const buttons = document.querySelectorAll<HTMLElement>('.add-to-cart-btn[data-trade-key]');
-    const cartKeys = new Set(cart.map(item => getTradeKey(item.trade)));
+    const cartKeys = new Set(cartStore.items.map(item => getTradeKey(item.trade)));
     
     for (const button of buttons) {
         const key = button.dataset.tradeKey;
@@ -465,7 +389,7 @@ function refreshCartButtonStates(): void {
  * Aggregate cart into shopping lists
  */
 function getShoppingList(): ShoppingList {
-    return aggregateShoppingList(cart);
+    return aggregateShoppingList(cartStore.items);
 }
 
 interface RouteOrigin {
@@ -480,10 +404,10 @@ interface RouteOrigin {
  * @param excludeCompleted - If true, exclude items marked as collected
  */
 function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
-    if (cart.length === 0) { return []; }
+    if (cartStore.isEmpty) { return []; }
     
     // Filter cart items: exclude qty=0 and optionally completed items
-    let activeItems = cart.filter(item => item.quantity > 0);
+    let activeItems = cartStore.items.filter(item => item.quantity > 0);
     if (excludeCompleted) {
         activeItems = activeItems.filter(item => !navProgress.completedKeys.has(getTradeKey(item.trade)));
     }
@@ -528,7 +452,7 @@ function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop
  * Completed items are included but can be identified via navProgress.completedKeys
  */
 function getAllCartStops(): RouteStop[] {
-    const activeItems = cart.filter(item => item.quantity > 0);
+    const activeItems = cartStore.items.filter(item => item.quantity > 0);
     
     return activeItems.map(item => {
         const stopIsNether = isNether(item.trade.world);
@@ -940,7 +864,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     row.dataset['world'] = t.world;
     
     const tradeKey = getTradeKey(t);
-    const isInCart = cart.some(item => getTradeKey(item.trade) === tradeKey);
+    const isInCart = cartStore.has(t);
     const inCartClass = isInCart ? ' in-cart' : '';
     
     row.innerHTML = `
@@ -958,7 +882,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
     cartButton.addEventListener('click', (event) => {
         event.stopPropagation();
-        addToCart(t);
+        cartStore.add(t);
         cartButton.classList.add('in-cart', 'added');
         setTimeout(() => cartButton.classList.remove('added'), 200);
     });
@@ -1702,18 +1626,18 @@ function createCartItemElement(trade: Trade, quantity: number): HTMLElement {
     
     minusButton.addEventListener('click', () => {
         if (quantity > 0) {
-            updateCartQuantity(trade, -1);
+            cartStore.updateQuantity(trade, -1);
             renderCartDialog();
         }
     });
     
     plusButton.addEventListener('click', () => {
-        updateCartQuantity(trade, 1);
+        cartStore.updateQuantity(trade, 1);
         renderCartDialog();
     });
     
     removeButton.addEventListener('click', () => {
-        removeFromCart(trade);
+        cartStore.remove(trade);
         refreshCartButtonStates();
         renderCartDialog();
     });
@@ -1841,7 +1765,7 @@ function renderCartDialog(): void {
     costsContainer.innerHTML = '';
     gainsContainer.innerHTML = '';
     
-    if (cart.length === 0) {
+    if (cartStore.isEmpty) {
         itemsContainer.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Your cart is empty</p>`;
         clearCartButton.classList.add('hidden');
         return;
@@ -1850,7 +1774,7 @@ function renderCartDialog(): void {
     clearCartButton.classList.remove('hidden');
     
     // Render cart items
-    for (const cartItem of cart) {
+    for (const cartItem of cartStore.items) {
         itemsContainer.append(createCartItemElement(cartItem.trade, cartItem.quantity));
     }
     
@@ -1966,7 +1890,7 @@ async function startNavigation(): Promise<void> {
         return;
     }
     
-    debugNavigation('Starting navigation player=%s cartSize=%d', playerNameInput.value.trim(), cart.length);
+    debugNavigation('Starting navigation player=%s cartSize=%d', playerNameInput.value.trim(), cartStore.uniqueCount);
     
     isNavigating = true;
     navMode = 'follow';
@@ -2589,7 +2513,7 @@ function updateNearbyShopTooltip(): void {
             currentNearbyShopKey = shopKey;
             
             // Group all items at this shop location
-            const itemsAtShop = cart.filter(item => 
+            const itemsAtShop = cartStore.items.filter(item => 
                 item.trade.x === nearestShop.x && 
                 item.trade.z === nearestShop.z &&
                 !navProgress.completedKeys.has(getTradeKey(item.trade))
@@ -3134,7 +3058,10 @@ function renderNavigateTab(): void {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadShops();
-    loadCart();
+    
+    // Register cart change listener before loading
+    cartStore.onChange(updateCartBadge);
+    cartStore.load();
     loadNavProgress();
     loadNavMode();
 
