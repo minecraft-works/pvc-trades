@@ -216,6 +216,26 @@ class NavigationStore {
     }
 
     /**
+     * Unmark a stop as complete
+     */
+    unmarkStopComplete(key: string): void {
+        this._progress.completedKeys.delete(key);
+        this.saveProgress();
+    }
+
+    /**
+     * Sync progress with validated keys and index
+     * Used when cart changes to remove invalid completed keys
+     */
+    syncProgress(validCompletedKeys: Set<string>, currentIndex: number): void {
+        this._progress = {
+            completedKeys: validCompletedKeys,
+            currentIndex
+        };
+        this.saveProgress();
+    }
+
+    /**
      * Advance to next stop
      */
     advanceToNextStop(): void {
@@ -446,6 +466,7 @@ class NavigationStore {
      */
     _reset(): void {
         this.stop();
+        this._mode = 'follow';
         this._playerName = '';
         this._playerPosition = undefined;
         this._progress = { completedKeys: new Set(), currentIndex: 0 };

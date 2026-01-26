@@ -1468,7 +1468,7 @@ export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): 
     
     // Origin is at index 0
     for (const [index, point_] of points.entries()) {
-        const point = point_!;
+        const point = point_;
         const distributionFromOrigin = calculateRouteDistance(originX, originZ, originWorld, point.x, point.z, point.world);
         matrix[0]![index + 1] = distributionFromOrigin;
         matrix[index + 1]![0] = distributionFromOrigin;

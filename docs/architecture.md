@@ -43,7 +43,63 @@
 
 ## Module Responsibilities
 
-### `src/main.ts` (3200 lines)
+### Module Dependency Diagram
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                        main.ts                          │
+│  (entry point, event binding, initialization)           │
+└─────────────────────────────────────────────────────────┘
+         │              │              │
+         ▼              ▼              ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│   stores/   │ │  constants  │ │    map/     │
+│ cart-store  │ │ CSS_CLASSES │ │ tile-loader │
+│ nav-store   │ │ STORAGE_KEYS│ │ tile-types  │
+└─────────────┘ └─────────────┘ └─────────────┘
+         │              │              │
+         └──────────────┼──────────────┘
+                        ▼
+              ┌─────────────────┐
+              │   library.ts    │
+              │ (pure functions)│
+              └─────────────────┘
+                        │
+                        ▼
+              ┌─────────────────┐
+              │    types.ts     │
+              │  (Zod schemas)  │
+              └─────────────────┘
+```
+
+### `src/stores/` (New)
+**Role**: Encapsulated state management with persistence
+
+| Store | Lines | Responsibility |
+|-------|-------|----------------|
+| `cart-store.ts` | 268 | Cart items, quantities, localStorage sync |
+| `navigation-store.ts` | 480 | Nav state, progress, player position, mode |
+
+### `src/map/` (New)
+**Role**: Map tile loading and caching
+
+| Module | Lines | Responsibility |
+|--------|-------|----------------|
+| `tile-loader.ts` | 220 | Tile manifest, blob caching, Leaflet integration |
+| `tile-types.ts` | 100 | TileConfig, LoadTileOptions, TileRange interfaces |
+
+### `src/constants.ts` (New)
+**Role**: Centralized configuration constants
+
+| Constant | Purpose |
+|----------|---------|
+| `NAVIGATION` | Arrival/nearby thresholds |
+| `STORAGE_KEYS` | localStorage key names |
+| `CSS_CLASSES` | Common CSS class names |
+| `DIALOG_IDS` | Dialog element IDs |
+| `WORLDS` | Minecraft dimension identifiers |
+
+### `src/main.ts` (~2900 lines)
 **Role**: Application entry point, DOM orchestration, UI state
 
 | Section | Lines | Responsibility |
@@ -147,7 +203,32 @@ Poll Loop → pollPlayerPosition() → updatePlayerMarker() → checkAutoAdvance
 
 ## State Management
 
-### Global State (main.ts)
+### Store-Based State (New Pattern)
+
+State is now managed through singleton store classes that encapsulate persistence:
+
+```typescript
+// Cart state - src/stores/cart-store.ts
+import { cartStore } from './stores/index.js';
+
+cartStore.add(trade);           // Add item to cart
+cartStore.remove(trade);        // Remove item
+cartStore.updateQuantity(trade, 1);  // Increment quantity
+cartStore.items;                // Get all items (readonly)
+cartStore.onChange(callback);   // Subscribe to changes
+
+// Navigation state - src/stores/navigation-store.ts
+import { navigationStore } from './stores/index.js';
+
+navigationStore.isActive;       // Navigation in progress?
+navigationStore.mode;           // 'follow' | 'manual'
+navigationStore.playerPosition; // Current player location
+navigationStore.progress;       // Completed stops tracking
+navigationStore.markStopComplete(key);  // Mark shop visited
+```
+
+### Module-Level State (main.ts)
+
 ```typescript
 // Trade data (loaded once)
 let allTrades: Trade[] = [];
@@ -163,14 +244,10 @@ let virtualScroller: VirtualScroller<FilterResult> | undefined;
 // Sort state
 const activeSorts: Map<SortColumn, SortDirection> = new Map([['dev', 'asc']]);
 
-// Cart state
-let cart: CartItem[] = [];
-
-// Navigation state
-let navProgress: NavigationProgress;
-let isNavigating = false;
-let navMode: NavigationMode = 'follow';
-let currentPlayerPosition: { x, z, world, yaw } | undefined;
+// Navigation map state (Leaflet-specific, not serializable)
+let navMap: L.Map | undefined;
+let navRoutePolyline: L.Polyline | undefined;
+let navStopMarkers: L.Marker[] = [];
 ```
 
 ### Persisted State (localStorage)
