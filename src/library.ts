@@ -1,6 +1,43 @@
 /**
  * Pure logic functions - no DOM dependencies
  * These can be imported and unit tested directly
+ * 
+ * @module library
+ * 
+ * ============================================================================
+ * FILE NAVIGATION INDEX
+ * ============================================================================
+ * 
+ * STORES & CONFIGURATION
+ *   35 - Configuration Store        ConfigStore class, getConfig(), loadConfig()
+ *  113 - Core Blocks Store          CoreBlocksStore, loadCoreBlocks()
+ *  176 - Block Conversions Store    BlockConversionsStore, loadBlockConversions()
+ * 
+ * TEXT PROCESSING
+ *  230 - Query Matching Functions   matchQuery(), matchItem(), matchShop()
+ *  289 - Formatting Functions       formatItemName(), formatPrice(), escapeHtml()
+ *  358 - Shulker Box Parsing        parseShulkerItems(), extractShulkerCount()
+ *  403 - HTML Utilities             stripHtml(), splitWordBoundary()
+ * 
+ * LOCATION & GEOMETRY
+ *  444 - Location & Distance        isValidCoord(), formatCoords(), getDimension()
+ *  466 - Trade Processing           normalizeItem(), parseTradeInput()
+ *  530 - Trade Filtering            filterTrades(), applyFilters()
+ * 
+ * SORTING & COMPARISONS
+ *  602 - Sorting                    sortTrades(), compareByColumn()
+ * 
+ * VALUE CALCULATIONS
+ *  671 - Ratio Graph                buildRatioGraph(), findConversionPath()
+ *  762 - Item Value Calculation     calculateValue(), getTrustedValue()
+ *  915 - Statistical Functions      median(), independentShopsCount()
+ * 
+ * MAP & NAVIGATION
+ * 1105 - Map Utilities              calculateBounds(), coordsToLatLng()
+ * 1350 - Route Optimization (TSP)   optimizeRoute(), nearestNeighbor()
+ * 1637 - Shopping & Navigation      buildShoppingList(), getRouteStops()
+ * 
+ * ============================================================================
  */
 
 import {

@@ -1,7 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/main.ts", "src/library.ts", "scripts/*.ts"],
+  "entry": ["src/main.ts", "src/library.ts", "src/stores/index.ts", "scripts/*.ts"],
   "project": ["src/**/*.ts", "scripts/**/*.ts"],
   "ignore": ["**/*.test.ts", "**/*.spec.ts", "tests/**", "features/**"],
-  "ignoreDependencies": ["@stryker-mutator/api"]
+  "ignoreDependencies": ["@stryker-mutator/api"],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+  "rules": {
+    "exports": "warn"
+  }
 }

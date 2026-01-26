@@ -102,6 +102,18 @@ import type {
 
 import { NAV_STORAGE_KEY, NAV_PLAYER_KEY, NAV_TAB_KEY, NAV_MODE_KEY } from './types.js';
 
+import {
+    NAVIGATION,
+    DEVIATION,
+    SORT,
+    STORAGE_KEYS,
+    CSS_CLASSES,
+    SELECTORS,
+    DIALOG_IDS,
+    WORLDS,
+    COLUMNS
+} from './constants.js';
+
 import * as L from 'leaflet';
 
 // ============================================================================
@@ -153,7 +165,7 @@ function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
  * Open a dialog with content preparation
  */
 function openDialog(dialogId: string, prepare?: () => void): void {
-    const dialog = document.querySelector(`#${dialogId}`) as HTMLDialogElement | null;
+    const dialog = document.querySelector<HTMLDialogElement>(`#${dialogId}`);
     if (!dialog) {
         return;
     }
@@ -173,21 +185,11 @@ let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | undefined;
 let ratioGraph: RatioGraph | undefined;
 
-// Column name constants
-const COL_COST_NAME: SortColumn = 'cost-name';
-const COL_RESULT_NAME: SortColumn = 'result-name';
-const COL_COST_AMT: SortColumn = 'cost-amt';
-const COL_RESULT_AMT: SortColumn = 'result-amt';
-
 // Column order for sort priority (left to right)
-const COLUMN_ORDER: SortColumn[] = [COL_RESULT_AMT, COL_RESULT_NAME, COL_COST_AMT, COL_COST_NAME, 'dev', 'stock', 'distance', 'world'];
-
-// Sort direction constants
-const SORT_ASC: SortDirection = 'asc';
-const SORT_DESC: SortDirection = 'desc';
+const COLUMN_ORDER: SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
 
 // Multi-column sort state
-const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT_ASC]]);
+const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT.ASC]]);
 
 let cachedRegex: RegExp | undefined;
 let cachedPattern = '';
@@ -205,7 +207,6 @@ let currentGiveRegex: RegExp | undefined;
 let cart: CartItem[] = [];
 // @ts-expect-error - exposing for e2e testing
 globalThis.__cart = cart;
-const CART_STORAGE_KEY = 'pvc-trades-cart';
 let mapOpenedFromCart = false;
 
 // Navigation progress state
@@ -221,32 +222,8 @@ let navPlayerRefreshInterval: ReturnType<typeof setInterval> | undefined;
 let currentPlayerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
 let navPlayerMarker: L.Marker | undefined;
 
-// Auto-advance threshold in blocks
-const NAV_ARRIVAL_THRESHOLD = 8;
-
 // Shop data refresh interval (assigned for potential future stop functionality)
 let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const DEVIATION_MIN_PERCENT = -99;
-const DEVIATION_MAX_PERCENT = 999;
-
-// CSS class constants
-const CLASS_CART_EMPTY = 'cart-empty';
-const CLASS_TRADE_ROW = 'trade-row';
-const SELECTOR_MAP_DIALOG = '#map-dialog';
-const SELECTOR_NAV_DIALOG = '#nav-dialog';
-const SELECTOR_PLAYER_NAME_INPUT = '#player-name-input';
-const SELECTOR_CLOSE_MATRIX = '#close-matrix';
-const SELECTOR_RECENTER_MAP = '#recenter-map';
-const DIALOG_ID_CART = 'cart-dialog';
-const DIALOG_ID_MATRIX = 'matrix-dialog';
-const WORLD_OVERWORLD = 'overworld';
-const WORLD_NETHER = 'the_nether';
-const _WORLD_END = 'the_end'; // Reserved for future End dimension support
 
 // ============================================================================
 // Shopping Cart Functions
@@ -257,7 +234,7 @@ const _WORLD_END = 'the_end'; // Reserved for future End dimension support
  */
 function loadCart(): void {
     try {
-        const stored = localStorage.getItem(CART_STORAGE_KEY);
+        const stored = localStorage.getItem(STORAGE_KEYS.CART);
         if (stored) {
             const parsed: unknown = JSON.parse(stored);
             if (Array.isArray(parsed)) {
@@ -275,7 +252,7 @@ function loadCart(): void {
  */
 function saveCart(): void {
     try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+        localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
     } catch {
         // Storage full or unavailable - ignore
     }
@@ -732,28 +709,21 @@ function search(): void {
 }
 
 function sortByColumn(column: SortColumn): void {
-    const startsAsc = column === COL_COST_NAME || column === COL_RESULT_NAME;
+    const startsAsc = column === COLUMNS.COST_NAME || column === COLUMNS.RESULT_NAME;
     const currentDirection = activeSorts.get(column);
     
     if (currentDirection === undefined) {
-        activeSorts.set(column, startsAsc ? SORT_ASC : SORT_DESC);
+        // First click: set initial direction based on column type
+        activeSorts.set(column, startsAsc ? SORT.ASC : SORT.DESC);
+    } else if (startsAsc && currentDirection === SORT.ASC) {
+        // Name columns: asc -> desc -> none
+        activeSorts.set(column, SORT.DESC);
+    } else if (!startsAsc && currentDirection === SORT.DESC) {
+        // Numeric columns: desc -> asc -> none  
+        activeSorts.set(column, SORT.ASC);
     } else {
-        // Cycle through 3 states based on initial direction
-        if (startsAsc) {
-            // asc -> desc -> none
-            if (currentDirection === SORT_ASC) {
-                activeSorts.set(column, SORT_DESC);
-            } else {
-                activeSorts.delete(column);
-            }
-        } else {
-            // desc -> asc -> none
-            if (currentDirection === SORT_DESC) {
-                activeSorts.set(column, SORT_ASC);
-            } else {
-                activeSorts.delete(column);
-            }
-        }
+        // Third click: remove sort
+        activeSorts.delete(column);
     }
     updateSortArrows();
     search();
@@ -791,7 +761,7 @@ function getTotalCostAmount(t: Trade): number {
 }
 
 function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
-    const multiplier = direction === SORT_ASC ? 1 : -1;
+    const multiplier = direction === SORT.ASC ? 1 : -1;
     const ta = a.trade;
     const tb = b.trade;
     
@@ -799,16 +769,16 @@ function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, d
         case 'dev': {
             return multiplier * compareDeviation(ta, tb);
         }
-        case COL_COST_AMT: {
+        case COLUMNS.COST_AMT: {
             return multiplier * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
         }
-        case COL_COST_NAME: {
+        case COLUMNS.COST_NAME: {
             return multiplier * ta.costName.localeCompare(tb.costName);
         }
-        case COL_RESULT_AMT: {
+        case COLUMNS.RESULT_AMT: {
             return multiplier * (ta.resultAmount - tb.resultAmount);
         }
-        case COL_RESULT_NAME: {
+        case COLUMNS.RESULT_NAME: {
             return multiplier * ta.resultName.localeCompare(tb.resultName);
         }
         case 'stock': {
@@ -846,7 +816,7 @@ function getDeviation(trade: Trade): DeviationResult | undefined {
     const actualRate = trade.item1.amount / trade.resultAmount;
 
     const ratio = actualRate / expectedRate;
-    const percent = Math.max(DEVIATION_MIN_PERCENT, Math.min(DEVIATION_MAX_PERCENT, Math.round((ratio - 1) * 100)));
+    const percent = Math.max(DEVIATION.MIN_PERCENT, Math.min(DEVIATION.MAX_PERCENT, Math.round((ratio - 1) * 100)));
 
     if (percent === 0) {
         const result = { ratio, percent, text: '0%', isGood: undefined };
@@ -869,11 +839,11 @@ function getDeviation(trade: Trade): DeviationResult | undefined {
 function getArrow(col: string): string {
     const direction = activeSorts.get(col as SortColumn);
     if (!direction) {return '';}
-    return direction === SORT_ASC ? '↑' : '↓';
+    return direction === SORT.ASC ? '↑' : '↓';
 }
 
 // Right-aligned columns get arrow before label, left-aligned get arrow after
-const RIGHT_ALIGNED_COLS = new Set([COL_RESULT_AMT, COL_COST_AMT, 'stock', 'dev', 'distance', 'world']);
+const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock', 'dev', 'distance', 'world']);
 
 function updateSortArrows(): void {
     for (const element of document.querySelectorAll<HTMLElement>('#table-header .header')) {
@@ -963,7 +933,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
 
     const row = document.createElement('div');
-    row.className = CLASS_TRADE_ROW;
+    row.className = CSS_CLASSES.TRADE_ROW;
     row.dataset['x'] = String(t.x);
     row.dataset['y'] = String(t.y);
     row.dataset['z'] = String(t.z);
@@ -1075,8 +1045,8 @@ function renderMatrix(): void {
 
     if (!ratioGraph || ratioGraph.size === 0) {
         container.innerHTML = `${MATRIX_HEADER_HTML}<p class="muted">No conversion data available</p>`;
-        container.querySelector(SELECTOR_CLOSE_MATRIX)?.addEventListener('click', () => {
-            getElement<HTMLDialogElement>(DIALOG_ID_MATRIX).close();
+        container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
+            getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
         });
         return;
     }
@@ -1112,8 +1082,8 @@ function renderMatrix(): void {
     container.innerHTML = html;
     
     // Add close button handler
-    container.querySelector(SELECTOR_CLOSE_MATRIX)?.addEventListener('click', () => {
-        getElement<HTMLDialogElement>(DIALOG_ID_MATRIX).close();
+    container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
+        getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
     });
 }
 
@@ -1290,7 +1260,7 @@ function getPlayerWorld(player: Player): string {
         return getWorldId(player.world);
     }
     // Fallback: foreign=true means nether, false means overworld
-    return player.foreign ? WORLD_NETHER : WORLD_OVERWORLD;
+    return player.foreign ? WORLDS.NETHER : WORLDS.OVERWORLD;
 }
 
 /**
@@ -1500,7 +1470,7 @@ function updateShopMapPlayerMarkers(
     if (!leafletMap || cachedPlayers.length === 0) {return;}
     
     const playersInWorld = cachedPlayers.filter(p => {
-        const pWorld = p.world ? getWorldId(p.world) : WORLD_OVERWORLD;
+        const pWorld = p.world ? getWorldId(p.world) : WORLDS.OVERWORLD;
         return pWorld === worldId;
     });
     
@@ -1646,7 +1616,7 @@ function getWorldDisplayName(world: string): string {
 }
 
 async function openMapDialog(x: number, y: number, z: number, world: string): Promise<void> {
-    const dialog = document.querySelector(SELECTOR_MAP_DIALOG) as HTMLDialogElement | null;
+    const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
     const container = document.querySelector('#map-container');
     const coordsElement = document.querySelector('#map-coords');
     
@@ -1676,7 +1646,7 @@ async function openMapDialog(x: number, y: number, z: number, world: string): Pr
         }
         if (mapOpenedFromCart) {
             mapOpenedFromCart = false;
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
             renderCartDialog();
             cartDialog.showModal();
         }
@@ -1846,7 +1816,7 @@ function createTimelineStop(
             toggleStopCompletion(stop, route);
         } else {
             mapOpenedFromCart = true;
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
             cartDialog.close();
             openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
         }
@@ -1872,7 +1842,7 @@ function renderCartDialog(): void {
     gainsContainer.innerHTML = '';
     
     if (cart.length === 0) {
-        itemsContainer.innerHTML = `<p class="${CLASS_CART_EMPTY}">Your cart is empty</p>`;
+        itemsContainer.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Your cart is empty</p>`;
         clearCartButton.classList.add('hidden');
         return;
     }
@@ -1945,7 +1915,7 @@ function restoreActiveTab(): void {
 }
 
 function setupPlayerNameInput(): void {
-    const input = document.querySelector(SELECTOR_PLAYER_NAME_INPUT) as HTMLInputElement | null;
+    const input = document.querySelector<HTMLInputElement>(SELECTORS.PLAYER_NAME_INPUT);
     if (!input) {
         return;
     }
@@ -1989,7 +1959,7 @@ function saveNavMode(): void {
  * Start live navigation - poll player position and update map
  */
 async function startNavigation(): Promise<void> {
-    const playerNameInput = document.querySelector('#player-name-input') as HTMLInputElement | null;
+    const playerNameInput = document.querySelector<HTMLInputElement>('#player-name-input');
     
     if (!playerNameInput?.value.trim()) {
         playerNameInput?.focus();
@@ -2004,7 +1974,7 @@ async function startNavigation(): Promise<void> {
     
     // Close cart dialog and open navigation dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
     
     cartDialog.close();
     
@@ -2068,8 +2038,8 @@ async function startNavigation(): Promise<void> {
  * Stop live navigation
  */
 function stopNavigation(): void {
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
-    const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
+    const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
     
     isNavigating = false;
     
@@ -2201,7 +2171,7 @@ async function handleFoundPlayer(player: Player, previousPosition: PlayerPositio
 }
 
 async function pollPlayerPosition(): Promise<void> {
-    const playerNameInput = document.querySelector(SELECTOR_PLAYER_NAME_INPUT) as HTMLInputElement | null;
+    const playerNameInput = document.querySelector<HTMLInputElement>(SELECTORS.PLAYER_NAME_INPUT);
     const playerName = playerNameInput?.value.trim().toLowerCase();
     
     if (!playerName || !navMap) {
@@ -2533,7 +2503,7 @@ function updateRouteMarkersForCompletion(): void {
 
 /**
  * Check if player is close enough to auto-advance to next stop
- * Requires player to be within NAV_ARRIVAL_THRESHOLD blocks in X/Z AND Y directions
+ * Requires player to be within NAVIGATION.ARRIVAL_THRESHOLD blocks in X/Z AND Y directions
  */
 function checkAutoAdvance(): void {
     if (!currentPlayerPosition || navCurrentRoute.length === 0) {
@@ -2556,7 +2526,7 @@ function checkAutoAdvance(): void {
     // Check Y distance separately (must be within threshold in all directions)
     const yDistance = Math.abs(currentPlayerPosition.y - currentStop.y);
     
-    if (distance < NAV_ARRIVAL_THRESHOLD && yDistance < NAV_ARRIVAL_THRESHOLD) {
+    if (distance < NAVIGATION.ARRIVAL_THRESHOLD && yDistance < NAVIGATION.ARRIVAL_THRESHOLD) {
         // Auto-complete this stop
         const key = getTradeKey(currentStop.cartItem.trade);
         navProgress.completedKeys.add(key);
@@ -2611,7 +2581,7 @@ function updateNearbyShopTooltip(): void {
         }
     }
     
-    if (nearestShop && nearestShop.cartItem) {
+    if (nearestShop?.cartItem) {
         const shopKey = `${nearestShop.x},${nearestShop.z}`;
         
         // Only show tooltip when ENTERING a new shop area
@@ -2620,8 +2590,8 @@ function updateNearbyShopTooltip(): void {
             
             // Group all items at this shop location
             const itemsAtShop = cart.filter(item => 
-                item.trade.x === nearestShop!.x && 
-                item.trade.z === nearestShop!.z &&
+                item.trade.x === nearestShop.x && 
+                item.trade.z === nearestShop.z &&
                 !navProgress.completedKeys.has(getTradeKey(item.trade))
             );
             
@@ -2736,7 +2706,7 @@ function switchToManualMode(): void {
     saveNavMode();
     
     // Show re-center button (for both embedded and dialog maps)
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.remove('hidden');
     dialogRecenterButton?.classList.remove('hidden');
@@ -2750,7 +2720,7 @@ function switchToFollowMode(): void {
     saveNavMode();
     
     // Hide re-center buttons
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.add('hidden');
     dialogRecenterButton?.classList.add('hidden');
@@ -2764,7 +2734,7 @@ function switchToFollowMode(): void {
  */
 function setupNavigationControls(): void {
     const startButton = document.querySelector('#start-navigation');
-    const recenterButton = document.querySelector(SELECTOR_RECENTER_MAP);
+    const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const closeNavButton = document.querySelector('#close-nav');
     
     startButton?.addEventListener('click', toggleNavigation);
@@ -2772,7 +2742,7 @@ function setupNavigationControls(): void {
     closeNavButton?.addEventListener('click', stopNavigation);
     
     // Set up nav dialog backdrop close
-    const navDialog = document.querySelector(SELECTOR_NAV_DIALOG) as HTMLDialogElement | null;
+    const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
     if (navDialog) {
         navDialog.addEventListener('click', (event) => {
             if (event.target === navDialog) {
@@ -2792,7 +2762,7 @@ let navPlayerToNextLine: L.Polyline | undefined;
 let navStopMarkers: L.Marker[] = [];
 let navCurrentRoute: RouteStop[] = [];  // Full route (all worlds)
 let navCurrentWorldRoute: RouteStop[] = [];  // Route filtered to current map world
-let navMapWorld: string = WORLD_OVERWORLD;  // World currently shown on nav map
+let navMapWorld: string = WORLDS.OVERWORLD;  // World currently shown on nav map
 
 /**
  * Initialize navigation map inside the circular dialog.
@@ -3020,7 +2990,7 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     const allStops = getAllCartStops();
     
     if (allStops.length === 0) {
-        container.innerHTML = `<p class="${CLASS_CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
+        container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
         navCurrentWorldRoute = [];
         debugMap('Empty route, no map displayed');
         return;
@@ -3129,7 +3099,7 @@ function renderNavigateTab(): void {
         navTimeline.innerHTML = '';
         
         if (route.length === 0) {
-            navTimeline.innerHTML = `<p class="${CLASS_CART_EMPTY}">Add items to cart to see route</p>`;
+            navTimeline.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Add items to cart to see route</p>`;
         } else {
             // Sync progress and render using same function as cart tab
             syncNavProgressWithCart(route);
@@ -3183,20 +3153,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Matrix dialog
-    const matrixDialog = getElement<HTMLDialogElement>(DIALOG_ID_MATRIX);
+    const matrixDialog = getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX);
     setupDialogBackdropClose(matrixDialog);
     getElement('open-matrix').addEventListener('click', () => {
-        openDialog(DIALOG_ID_MATRIX, renderMatrix);
+        openDialog(DIALOG_IDS.MATRIX, renderMatrix);
     });
 
     // Map dialog
-    const mapDialog = document.querySelector(SELECTOR_MAP_DIALOG) as HTMLDialogElement | null;
+    const mapDialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
     
     // Cart dialog
-    const cartDialog = getElement<HTMLDialogElement>(DIALOG_ID_CART);
+    const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
     setupDialogBackdropClose(cartDialog);
     
     // Clean up zero-quantity items when cart dialog closes
@@ -3233,12 +3203,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (event) => {
-        const row = (event.target as HTMLElement).closest<HTMLElement>(`.${CLASS_TRADE_ROW}`);
+        const row = (event.target as HTMLElement).closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
         if (row) {
             const x = Number.parseInt(row.dataset['x'] ?? '0', 10);
             const y = Number.parseInt(row.dataset['y'] ?? '0', 10);
             const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
-            const world = row.dataset['world'] ?? WORLD_OVERWORLD;
+            const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
             openMapDialog(x, y, z, world);
         }
     });
