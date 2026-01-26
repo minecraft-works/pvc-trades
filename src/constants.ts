@@ -22,25 +22,6 @@ export const NAVIGATION = {
 } as const;
 
 // ============================================================================
-// Map Constants
-// ============================================================================
-
-/** Map tile and zoom configuration - exported for future use when main.ts local config is migrated */
-// knip-ignore-next - intentionally exported for Phase 3 migration
-export const MAP_CONFIG = {
-    /** Pixels per tile (and blocks per tile at maxZoom) */
-    TILE_SIZE: 512,
-    /** Highest detail zoom level (1 pixel = 1 block) */
-    MAX_ZOOM: 8,
-    /** Base map zoom level for fallback */
-    FALLBACK_ZOOM: 4,
-    /** Lowest detail zoom level */
-    MIN_ZOOM: 1,
-    /** Local fallback URL for players data */
-    PLAYERS_URL: 'players.json',
-} as const;
-
-// ============================================================================
 // Deviation Constants
 // ============================================================================
 

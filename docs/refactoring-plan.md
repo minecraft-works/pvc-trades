@@ -16,15 +16,17 @@ The PVC Trades codebase has solid foundations (types, tests, tooling) but had gr
 
 | Metric | Before | After | Status |
 |--------|--------|-------|--------|
-| `main.ts` lines | 3,246 | ~2,894 | ↓ 352 lines |
+| `main.ts` lines | 3,246 | ~2,820 | ↓ 426 lines |
 | Unit tests | 262 | 352 | ↑ 90 tests |
 | ESLint errors | 14 | 0 | ✅ Done |
-| ESLint warnings | N/A | 109 | ✅ Acceptable |
+| ESLint warnings | N/A | 103 | ✅ Acceptable |
 | `@ts-expect-error` count | 7 | 0 | ✅ Done |
 | Cart state in store | ❌ | ✅ | ✅ Done |
 | Nav state in store | ❌ | ✅ | ✅ Done |
 | Map tile module | ❌ | ✅ | ✅ Done |
+| Matrix dialog module | ❌ | ✅ | ✅ Done |
 | Store unit tests | 0 | 90 | ✅ Done |
+| Store coverage | excluded | 91.9% | ✅ Done |
 
 ---
 
@@ -432,7 +434,7 @@ Added comprehensive unit tests for new store classes:
 
 After completing all phases:
 
-- [ ] No file exceeds 500 lines (excluding tests) - **main.ts at ~2,894 lines, deferred further extraction**
+- [ ] No file exceeds 500 lines (excluding tests) - **main.ts at ~2,820 lines, deferred further extraction**
 - [x] Zero ESLint errors ✅
 - [x] Zero `@ts-expect-error` in production code ✅
 - [x] All state managed through store classes ✅ (CartStore + NavigationStore)
@@ -441,39 +443,18 @@ After completing all phases:
 
 ---
 
-## Temporary Settings (Revert After Migration)
+## Temporary Settings (All Reverted ✅)
 
-These settings were temporarily modified to allow commits during the refactoring process. **Revert after Phase 2.3 is complete.**
+All temporary settings have been reverted:
 
-### vitest.config.js
-**Reason**: New stores have 0% coverage until integrated
+### vitest.config.js ✅ REVERTED
+Stores are now included in coverage (91.9% coverage). Barrel files (`**/index.ts`) excluded instead.
 
-```diff
-- exclude: ['src/**/*.test.ts', 'src/types.ts', 'src/main.ts', 'src/debug.ts'],
-+ exclude: ['src/**/*.test.ts', 'src/types.ts', 'src/main.ts', 'src/debug.ts', 'src/stores/**/*.ts', 'src/constants.ts'],
-```
+### knip.json ✅ NO CHANGE NEEDED  
+MAP_CONFIG was removed from constants.ts - now lives in `src/map/tile-loader.ts` as `TILE_CONFIG`.
 
-**Revert when**: Stores are integrated and have tests
-
-### knip.json
-**Reason**: MAP_CONFIG intentionally exported for future use
-
-```diff
-+ "rules": {
-+   "exports": "warn"
-+ }
-```
-
-**Revert when**: MAP_CONFIG is used (Phase 3 map module extraction)
-
-### src/constants.ts line 28-29
-**Reason**: Comment explains why MAP_CONFIG is exported but unused
-
-```typescript
-// knip-ignore-next - intentionally exported for Phase 3 migration
-```
-
-**Remove when**: MAP_CONFIG is imported by main.ts or map module
+### src/constants.ts ✅ CLEANED UP
+Removed unused `MAP_CONFIG` and its knip-ignore comment. Tile config now in dedicated module.
 
 ---
 
