@@ -401,6 +401,42 @@ After completing all phases:
 
 ---
 
+## Temporary Settings (Revert After Migration)
+
+These settings were temporarily modified to allow commits during the refactoring process. **Revert after Phase 2.3 is complete.**
+
+### vitest.config.js
+**Reason**: New stores have 0% coverage until integrated
+
+```diff
+- exclude: ['src/**/*.test.ts', 'src/types.ts', 'src/main.ts', 'src/debug.ts'],
++ exclude: ['src/**/*.test.ts', 'src/types.ts', 'src/main.ts', 'src/debug.ts', 'src/stores/**/*.ts', 'src/constants.ts'],
+```
+
+**Revert when**: Stores are integrated and have tests
+
+### knip.json
+**Reason**: MAP_CONFIG intentionally exported for future use
+
+```diff
++ "rules": {
++   "exports": "warn"
++ }
+```
+
+**Revert when**: MAP_CONFIG is used (Phase 3 map module extraction)
+
+### src/constants.ts line 28-29
+**Reason**: Comment explains why MAP_CONFIG is exported but unused
+
+```typescript
+// knip-ignore-next - intentionally exported for Phase 3 migration
+```
+
+**Remove when**: MAP_CONFIG is imported by main.ts or map module
+
+---
+
 ## Rollback Strategy
 
 Each phase is designed to be independently deployable:
