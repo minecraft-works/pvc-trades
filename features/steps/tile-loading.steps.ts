@@ -197,7 +197,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
             contentType: 'application/json',
             body: JSON.stringify({
                 dataUrl: 'data.json',
-                dataRefreshMs: 0,
+                dataRefreshMs: 60_000,
                 dynmap: {
                     baseUrl: 'https://web.peacefulvanilla.club/maps',
                     tileSize: 128,
