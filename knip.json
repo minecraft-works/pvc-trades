@@ -2,5 +2,6 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": ["src/main.ts", "src/library.ts", "scripts/*.ts"],
   "project": ["src/**/*.ts", "scripts/**/*.ts"],
-  "ignore": ["**/*.test.ts", "**/*.spec.ts", "tests/**", "features/**"]
+  "ignore": ["**/*.test.ts", "**/*.spec.ts", "tests/**", "features/**"],
+  "ignoreDependencies": ["@stryker-mutator/api"]
 }

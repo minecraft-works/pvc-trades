@@ -55,9 +55,19 @@ async function setupLargeMockRoutes(page: Page): Promise<void> {
             contentType: 'application/json',
             body: JSON.stringify({
                 dataUrl: 'data.json',
-                dataRefreshMs: 0,
-                dynmap: { tiles: 'tiles/{world}/{z}/{x}_{y}.png', baseUrl: '' },
-                analysis: { minIndependentShops: 3, independentShopDistance: 16 }
+                dataRefreshMs: 60_000, // Must be > 0 to pass Zod validation
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
             })
         });
     });

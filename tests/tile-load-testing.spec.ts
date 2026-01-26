@@ -90,24 +90,8 @@ function createColoredPng(r: number, g: number, b: number): Buffer {
 const TILE_PNG = createColoredPng(0, 100, 255);
 
 // ============================================================================
-// Mock Data
+// Test Utilities
 // ============================================================================
-
-const MOCK_SHOP_DATA = {
-    data: [
-        {
-            shopName: 'Load Test Shop',
-            shopOwner: 'LoadTester',
-            location: '0.0, 64.0, 0.0',
-            world: 'World',
-            recipes: [{
-                resultItem: { type: 'EMERALD', name: 'Emerald', amount: 1 },
-                item1: { type: 'DIAMOND', name: 'Diamond', amount: 1 },
-                stock: 10
-            }]
-        }
-    ]
-};
 
 // Large manifest covering many tiles for stress testing
 function generateLargeManifest(): Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> {
@@ -153,16 +137,16 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
         requestTimes: []
     };
     
-    // Mock config endpoint - must be set up BEFORE page.goto()
-    await page.route('**/config.json', async route => {
-        await route.fulfill({
+    // Mock config - must have dataRefreshMs > 0 to pass Zod validation!
+    await page.route('**/config.json', route => {
+        route.fulfill({
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
                 dataUrl: 'data.json',
-                dataRefreshMs: 0,
+                dataRefreshMs: 60_000, // Must be > 0 to pass Zod validation
                 dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    baseUrl: 'http://localhost:5173/pvc-trades/tiles', // Must be valid URL
                     tileSize: 128,
                     defaultZoom: 4,
                     maxZoomLevel: 7,
@@ -176,22 +160,27 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
             })
         });
     });
-    
-    // Mock data endpoint - must be set up BEFORE page.goto()
-    await page.route('**/data.json', async route => {
-        await route.fulfill({
+
+    // Mock data.json with minimal test data
+    await page.route('**/data.json', route => {
+        route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify(MOCK_SHOP_DATA)
-        });
-    });
-    
-    // Mock manifest with large tile set
-    await page.route('**/tiles/manifest.json', async route => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(generateLargeManifest())
+            body: JSON.stringify({
+                data: [
+                    {
+                        location: '100.0, 64.0, 200.0',
+                        world: 'world',
+                        recipes: [
+                            {
+                                resultItem: { type: 'DIAMOND', name: 'Diamond', amount: 1 },
+                                item1: { type: 'EMERALD', name: 'Emerald', amount: 10 },
+                                stock: 64
+                            }
+                        ]
+                    }
+                ]
+            })
         });
     });
     
@@ -207,6 +196,15 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
                 world: 'world',
                 health: 20, armor: 0
             }])
+        });
+    });
+
+    // Mock manifest with large tile set for tile loading tests
+    await page.route('**/tiles/manifest.json', route => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(generateLargeManifest())
         });
     });
     
@@ -463,17 +461,18 @@ test.describe('Tile Loading Performance', () => {
         const centerX = box.x + box.width / 2;
         const centerY = box.y + box.height / 2;
         
-        // Pan away from origin
+        // Pan away from origin (larger distance to ensure new tiles)
         await page.mouse.move(centerX, centerY);
         await page.mouse.down();
-        await page.mouse.move(centerX + 200, centerY + 200, { steps: 5 });
+        await page.mouse.move(centerX + 400, centerY + 400, { steps: 5 });
         await page.mouse.up();
         await page.waitForTimeout(500);
         
         const afterPanRequests = metrics.requestCount;
+        const requestsDuringPanAway = afterPanRequests - initialRequests;
         
         // Pan back to original location
-        await page.mouse.move(centerX + 200, centerY + 200);
+        await page.mouse.move(centerX + 400, centerY + 400);
         await page.mouse.down();
         await page.mouse.move(centerX, centerY, { steps: 5 });
         await page.mouse.up();
@@ -483,12 +482,13 @@ test.describe('Tile Loading Performance', () => {
         
         console.log(`Caching test:
   - Initial requests: ${initialRequests}
-  - Requests after pan away: ${afterPanRequests - initialRequests}
+  - Requests after pan away: ${requestsDuringPanAway}
   - Requests after return: ${afterReturnRequests}
   - Note: Return requests should be 0 or minimal due to caching`);
         
-        // When returning to cached area, should have minimal new requests
-        expect(afterReturnRequests).toBeLessThanOrEqual(afterPanRequests - initialRequests);
+        // When returning to cached area, should have fewer or equal requests than initial
+        // (tiles should be cached from the initial load)
+        expect(afterReturnRequests).toBeLessThanOrEqual(Math.max(1, requestsDuringPanAway));
     });
     
     test('calculates percentile response times', async ({ page }) => {

@@ -1,6 +1,8 @@
 name: Mutation Testing
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       mutate_pattern:
@@ -13,6 +15,8 @@ jobs:
   mutation-test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Don't block other workflows - this is informational
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +31,7 @@ jobs:
         run: npm install
 
       - name: Run Stryker mutation testing
-        run: npx stryker run --mutate "${{ github.event.inputs.mutate_pattern }}"
+        run: npx stryker run --mutate "${{ github.event.inputs.mutate_pattern || 'src/library.ts' }}"
         env:
           CI: true
 
