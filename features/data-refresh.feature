@@ -20,11 +20,19 @@ Feature: Data Refresh and New Items
     Then the "Netherite Ingot" trade should have a "new" indicator
 
   @refresh @new-items
-  Scenario: Highlight fades after acknowledgement
+  Scenario: Highlights persist until page refresh
     Given there are 5 trades initially
     When the shop data refreshes with 1 new trade(s)
     And I scroll to view the new trade
-    Then the highlight should fade after a moment
+    And I wait for 5 seconds
+    Then the new trades should still be highlighted
+
+  @refresh @new-items
+  Scenario: Highlights clear on page refresh
+    Given there are 5 trades initially
+    When the shop data refreshes with 1 new trade(s)
+    And I refresh the page
+    Then there should be no highlighted trades
 
   @refresh @filter
   Scenario: New trades respect current search filter

@@ -226,21 +226,10 @@ body {
     width: 3px;
     background: var(--color-accent);
     border-radius: 3px 0 0 3px;
-    transition: opacity 0.5s ease-out;
 }
 
 .trade-row.new-item > .col {
     background: rgb(79 195 247 / 10%);
-    transition: background 0.5s ease-out;
-}
-
-/* Fade out state when the new item has been seen */
-.trade-row.new-item-seen::before {
-    opacity: 0;
-}
-
-.trade-row.new-item-seen > .col {
-    background: var(--color-bg-secondary);
 }
 
 @keyframes new-item-pulse {

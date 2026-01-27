@@ -251,6 +251,11 @@ When('I scroll to view the new trade', async ({ page }) => {
     }
 });
 
+When('I refresh the page', async ({ page }) => {
+    await page.reload();
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: 5000 });
+});
+
 // Note: "I wait for {int} seconds" is defined in tooltip.steps.ts
 
 // ============================================================================
@@ -281,11 +286,15 @@ Then('the {string} trade should have a {string} indicator', async ({ page }, ite
     }
 });
 
-Then('the highlight should fade after a moment', async ({ page }) => {
-    // Wait for the fade animation (typically 3-5 seconds)
-    await page.waitForTimeout(5000);
-    
-    // Check that no more highlighted trades exist
+Then('the new trades should still be highlighted', async ({ page }) => {
+    // Verify highlights persist (don't auto-fade)
+    const highlightedTrades = page.locator(SELECTOR_NEW_TRADE);
+    const count = await highlightedTrades.count();
+    expect(count).toBeGreaterThan(0);
+});
+
+Then('there should be no highlighted trades', async ({ page }) => {
+    // After page refresh, no trades should have the new-item highlight
     const highlightedTrades = page.locator(SELECTOR_NEW_TRADE);
     const count = await highlightedTrades.count();
     expect(count).toBe(0);
