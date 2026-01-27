@@ -1673,13 +1673,17 @@ async function startNavigation(): Promise<void> {
             
             if (player) {
                 const playerWorld = getPlayerWorld(player);
-                navigationStore.setPlayerPosition({
+                const position = {
                     x: player.position.x,
                     y: player.position.y,
                     z: player.position.z,
                     world: playerWorld,
                     yaw: player.rotation?.yaw
-                });
+                };
+                navigationStore.setPlayerPosition(position);
+                // Expose for E2E testing
+                // @ts-expect-error - exposed for testing
+                globalThis.__currentPlayerPosition = position;
                 debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
             }
         } catch (error) {
@@ -1808,13 +1812,18 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
 
 function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): void {
     const playerWorld = getPlayerWorld(player);
-    navigationStore.setPlayerPosition({
+    const position = {
         x: player.position.x,
         y: player.position.y,
         z: player.position.z,
         world: playerWorld,
         yaw: player.rotation?.yaw
-    });
+    };
+    navigationStore.setPlayerPosition(position);
+    
+    // Expose for E2E testing
+    // @ts-expect-error - exposed for testing
+    globalThis.__currentPlayerPosition = position;
     
     // UNIFIED VIEW: No world switching needed - all stops on one map
     // Just update marker, distance, and check for auto-advance

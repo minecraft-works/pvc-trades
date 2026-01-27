@@ -2,6 +2,7 @@
  * Step definitions for unified multi-world navigation
  * All shops displayed on a single map using overworld-equivalent coordinates
  */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- page.evaluate returns browser context values */
 import { expect } from '@playwright/test';
 import { Given, When, Then } from './fixtures';
 
@@ -9,8 +10,13 @@ import { Given, When, Then } from './fixtures';
 const SELECTOR_NAV_ROUTE_MARKER = '.nav-route-marker';
 const SELECTOR_NAV_PLAYER_MARKER = '.nav-player-marker';
 const SELECTOR_NETHER_MARKER = '.nav-route-marker--nether';
-const SELECTOR_NETHER_PLAYER = '.nav-player-marker--nether';
 const DEFAULT_TIMEOUT = 5000;
+const SELECTOR_TRADE_ROW = '.trade-row';
+const SELECTOR_CART_DIALOG = '#cart-dialog';
+const SELECTOR_ADD_TO_CART = '.add-to-cart-btn';
+const SELECTOR_LEAFLET_TOOLTIP = '.leaflet-tooltip';
+const SELECTOR_OPEN_CART = '#open-cart';
+const SELECTOR_TAB_NAVIGATE = '#tab-navigate';
 
 // ============================================================================
 // GIVEN Steps
@@ -18,24 +24,24 @@ const DEFAULT_TIMEOUT = 5000;
 
 Given(String.raw`there is a nether shop at \({int}, {int}\)`, async ({ page }) => {
     // The mock data already has nether shops - this step documents the setup
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: DEFAULT_TIMEOUT });
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: DEFAULT_TIMEOUT });
 });
 
 Given(String.raw`there is an overworld shop at \({int}, {int}\)`, async ({ page }) => {
     // The mock data already has overworld shops - this step documents the setup
-    await page.waitForSelector('.trade-row', { state: 'visible', timeout: DEFAULT_TIMEOUT });
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: DEFAULT_TIMEOUT });
 });
 
 Given('I open the navigation dialog with the nether shop', async ({ page }) => {
     // Background step already set up the app with mock data
     // Add nether item to cart - Netherite Scrap is in World_nether in mock data
-    const netherRow = page.locator('.trade-row').filter({ hasText: 'Netherite' });
-    await netherRow.first().locator('.add-to-cart-btn').click();
+    const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Netherite' });
+    await netherRow.first().locator(SELECTOR_ADD_TO_CART).click();
     
     // Open cart and navigate
-    await page.locator('#open-cart').click();
-    await page.waitForSelector('#cart-dialog', { state: 'visible' });
-    await page.locator('#tab-navigate').click();
+    await page.locator(SELECTOR_OPEN_CART).click();
+    await page.waitForSelector(SELECTOR_CART_DIALOG, { state: 'visible' });
+    await page.locator(SELECTOR_TAB_NAVIGATE).click();
     await page.locator('#player-name-input').fill('TestPlayer');
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: DEFAULT_TIMEOUT });
@@ -44,17 +50,17 @@ Given('I open the navigation dialog with the nether shop', async ({ page }) => {
 Given('I open the navigation dialog with both shops', async ({ page }) => {
     // Background step already set up the app with mock data
     // Add overworld item (Emerald trade)
-    const overworldButton = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    const overworldButton = page.locator(`${SELECTOR_ADD_TO_CART}[data-trade-key*="Emerald,Diamond"]`);
     await overworldButton.click();
     
     // Add nether item - Netherite Scrap is in World_nether in mock data
-    const netherRow = page.locator('.trade-row').filter({ hasText: 'Netherite' });
-    await netherRow.first().locator('.add-to-cart-btn').click();
+    const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Netherite' });
+    await netherRow.first().locator(SELECTOR_ADD_TO_CART).click();
     
     // Open cart and navigate
-    await page.locator('#open-cart').click();
-    await page.waitForSelector('#cart-dialog', { state: 'visible' });
-    await page.locator('#tab-navigate').click();
+    await page.locator(SELECTOR_OPEN_CART).click();
+    await page.waitForSelector(SELECTOR_CART_DIALOG, { state: 'visible' });
+    await page.locator(SELECTOR_TAB_NAVIGATE).click();
     await page.locator('#player-name-input').fill('TestPlayer');
     await page.locator('#start-navigation').click();
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: DEFAULT_TIMEOUT });
@@ -98,14 +104,22 @@ Then('nether shops should appear on overworld tiles', async ({ page }) => {
 });
 
 Then('the nether shop marker should be positioned at 8x nether coordinates', async ({ page }) => {
+    // Wait for route to be set
+    await expect.poll(async () => {
+        return await page.evaluate(() => {
+            // @ts-expect-error - exposed for testing
+            return globalThis.__navCurrentWorldRoute;
+        });
+    }, { timeout: DEFAULT_TIMEOUT }).not.toBeNull();
+    
     // Get the nether shop's raw and display coordinates from the route
     const coords = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing
-        const route = globalThis.__navCurrentWorldRoute;
-        if (!route) { return null; }
+        const route = globalThis.__navCurrentWorldRoute as Array<{ world: string; x: number; z: number; displayX: number; displayZ: number }> | undefined;
+        if (!route) { return; }
         // Find nether shop
-        const netherStop = route.find((s: { world: string }) => s.world.toLowerCase().includes('nether'));
-        if (!netherStop) { return null; }
+        const netherStop = route.find((s) => s.world.toLowerCase().includes('nether'));
+        if (!netherStop) { return; }
         return {
             rawX: netherStop.x,
             rawZ: netherStop.z,
@@ -114,33 +128,17 @@ Then('the nether shop marker should be positioned at 8x nether coordinates', asy
         };
     });
     
-    expect(coords).not.toBeNull();
+    expect(coords).toBeDefined();
     // Display coords should be 8× the raw nether coords
-    expect(coords!.displayX).toBe(coords!.rawX * 8);
-    expect(coords!.displayZ).toBe(coords!.rawZ * 8);
-});
-
-Then(String.raw`the nether shop marker should be positioned at overworld coords \({int}, {int}\)`, async ({ page }, expectedX: number, expectedZ: number) => {
-    // Get the marker's position via exposed test data
-    const markerPos = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
-        const route = globalThis.__navCurrentWorldRoute;
-        if (!route) { return null; }
-        // Find nether shop and get its display position
-        const netherStop = route.find((s: { world: string }) => s.world.toLowerCase().includes('nether'));
-        return netherStop ? { x: netherStop.displayX ?? netherStop.x * 8, z: netherStop.displayZ ?? netherStop.z * 8 } : null;
-    });
-    
-    expect(markerPos).not.toBeNull();
-    expect(markerPos!.x).toBe(expectedX);
-    expect(markerPos!.z).toBe(expectedZ);
+    expect(coords?.displayX).toBe((coords?.rawX ?? 0) * 8);
+    expect(coords?.displayZ).toBe((coords?.rawZ ?? 0) * 8);
 });
 
 // ============================================================================
 // THEN Steps - Nether Visual Distinction
 // ============================================================================
 
-Then('nether shop markers should have a red\\/nether tint', async ({ page }) => {
+Then(String.raw`nether shop markers should have a red\/nether tint`, async ({ page }) => {
     const netherMarker = page.locator(SELECTOR_NETHER_MARKER).first();
     await expect(netherMarker).toBeVisible();
     
@@ -163,28 +161,37 @@ Then('nether shop markers should show a nether icon indicator', async ({ page })
 });
 
 Then('the tooltip should show nether coords {string}', async ({ page }, expectedCoords: string) => {
-    const tooltip = page.locator('.leaflet-tooltip');
+    const tooltip = page.locator(SELECTOR_LEAFLET_TOOLTIP);
     await expect(tooltip).toContainText(expectedCoords);
 });
 
 Then('the tooltip should show overworld equivalent {string}', async ({ page }, expectedEquiv: string) => {
-    const tooltip = page.locator('.leaflet-tooltip');
+    const tooltip = page.locator(SELECTOR_LEAFLET_TOOLTIP);
     await expect(tooltip).toContainText(expectedEquiv);
 });
 
 Then('the tooltip should show nether coordinates', async ({ page }) => {
-    const tooltip = page.locator('.leaflet-tooltip');
+    const tooltip = page.locator(SELECTOR_LEAFLET_TOOLTIP);
     await expect(tooltip).toContainText('Nether:');
 });
 
 Then('the tooltip should show overworld equivalent coordinates', async ({ page }) => {
-    const tooltip = page.locator('.leaflet-tooltip');
+    const tooltip = page.locator(SELECTOR_LEAFLET_TOOLTIP);
     await expect(tooltip).toContainText('(OW:');
 });
 
 // ============================================================================
 // THEN Steps - Player Position
 // ============================================================================
+
+// Type for player position from browser context
+interface PlayerPosition {
+    x: number;
+    y: number;
+    z: number;
+    world: string;
+    yaw?: number;
+}
 
 Then(String.raw`the player marker should be at position \({int}, {int}\)`, async ({ page }, expectedX: number, expectedZ: number) => {
     // Wait for player position to be available
@@ -195,14 +202,14 @@ Then(String.raw`the player marker should be at position \({int}, {int}\)`, async
         });
     }, { timeout: DEFAULT_TIMEOUT }).not.toBeNull();
     
-    const playerPos = await page.evaluate(() => {
+    const playerPos: PlayerPosition | undefined = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing
-        return globalThis.__currentPlayerPosition;
+        return globalThis.__currentPlayerPosition as PlayerPosition | undefined;
     });
     
-    expect(playerPos).not.toBeNull();
-    expect(playerPos.x).toBe(expectedX);
-    expect(playerPos.z).toBe(expectedZ);
+    expect(playerPos).toBeDefined();
+    expect(playerPos?.x).toBe(expectedX);
+    expect(playerPos?.z).toBe(expectedZ);
 });
 
 Then(String.raw`the player marker should be at overworld-equivalent position \({int}, {int}\)`, async ({ page }, expectedX: number, expectedZ: number) => {
@@ -214,10 +221,10 @@ Then(String.raw`the player marker should be at overworld-equivalent position \({
         });
     }, { timeout: DEFAULT_TIMEOUT }).not.toBeNull();
     
-    const displayPos = await page.evaluate(() => {
+    const displayPos: { x: number; z: number } | undefined = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing
-        const pos = globalThis.__currentPlayerPosition;
-        if (!pos) { return null; }
+        const pos = globalThis.__currentPlayerPosition as PlayerPosition | undefined;
+        if (!pos) { return; }
         
         // If in nether, display position should be * 8
         if (pos.world.toLowerCase().includes('nether')) {
@@ -226,9 +233,9 @@ Then(String.raw`the player marker should be at overworld-equivalent position \({
         return { x: pos.x, z: pos.z };
     });
     
-    expect(displayPos).not.toBeNull();
-    expect(displayPos!.x).toBe(expectedX);
-    expect(displayPos!.z).toBe(expectedZ);
+    expect(displayPos).toBeDefined();
+    expect(displayPos?.x).toBe(expectedX);
+    expect(displayPos?.z).toBe(expectedZ);
 });
 
 Then('the player marker should have nether styling', async ({ page }) => {
@@ -249,7 +256,8 @@ Then('the player marker should change to overworld styling', async ({ page }) =>
     await expect.poll(async () => {
         const playerMarker = page.locator(SELECTOR_NAV_PLAYER_MARKER);
         const classes = await playerMarker.getAttribute('class');
-        return !classes?.includes('nether') ?? true;
+        // Check that classes exist and don't include nether
+        return classes !== null && !classes.includes('nether');
     }, { timeout: DEFAULT_TIMEOUT }).toBe(true);
 });
 
@@ -291,10 +299,10 @@ Then('the distance should be calculated using 8x nether coordinates', async ({ p
     const data = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing
         const route = globalThis.__navCurrentWorldRoute;
-        if (!route) { return null; }
+        if (!route) { return; }
         // Find nether shop
         const netherStop = route.find((s: { world: string }) => s.world.toLowerCase().includes('nether'));
-        if (!netherStop) { return null; }
+        if (!netherStop) { return; }
         return {
             rawX: netherStop.x,
             rawZ: netherStop.z,
@@ -303,21 +311,25 @@ Then('the distance should be calculated using 8x nether coordinates', async ({ p
         };
     });
     
-    expect(data).not.toBeNull();
+    expect(data).toBeDefined();
+    // Use optional chaining with defaults after expect check
+    const validDisplayX = data?.displayX ?? 0;
+    const validDisplayZ = data?.displayZ ?? 0;
     
     // The distance from origin (0,0) should use display coords (overworld-equivalent)
-    const expectedDistanceUsing8x = Math.hypot(data!.displayX, data!.displayZ);
+    const expectedDistanceUsing8x = Math.hypot(validDisplayX, validDisplayZ);
     
     // Get just the distance element which contains "X blocks" or "X,XXX blocks"
     const distanceElement = page.locator('.nav-info-distance');
-    const distanceText = await distanceElement.textContent();
+    const distanceText = await distanceElement.textContent() ?? '';
     
-    // Match "5,523 blocks" or "5523 blocks" - handle comma-separated thousands
-    const match = distanceText?.match(/([\d,]+)\s*blocks/i);
-    expect(match).not.toBeNull();
+    // Extract numeric portion before "blocks" - split approach to avoid regex backtracking
+    const blocksIndex = distanceText.toLowerCase().indexOf('blocks');
+    const numericPart = blocksIndex > 0 ? distanceText.slice(0, blocksIndex).trim() : '';
+    expect(numericPart).toBeTruthy();
     
     // Remove commas and parse
-    const actualDistance = Number.parseInt(match![1]!.replace(/,/g, ''), 10);
+    const actualDistance = Number.parseInt(numericPart.replaceAll(',', ''), 10);
     // Allow 15% tolerance for rounding
     expect(actualDistance).toBeGreaterThan(expectedDistanceUsing8x * 0.85);
     expect(actualDistance).toBeLessThan(expectedDistanceUsing8x * 1.15);
@@ -328,9 +340,10 @@ Then('the distance shown should be approximately {int} blocks', async ({ page },
     
     // Extract number from text like "800 blocks" or "~800 blocks"
     const match = distanceText?.match(/(\d+)/);
-    expect(match).not.toBeNull();
+    expect(match).toBeDefined();
     
-    const actualDistance = Number.parseInt(match![1]!, 10);
+    // Safe to use after expect check
+    const actualDistance = Number.parseInt(match?.[1] ?? '0', 10);
     // Allow 10% tolerance
     expect(actualDistance).toBeGreaterThan(expectedDistance * 0.9);
     expect(actualDistance).toBeLessThan(expectedDistance * 1.1);
@@ -359,16 +372,16 @@ When('I open the cart with items from both worlds', async ({ page }) => {
     await overworldButton.click();
     
     // Add nether item - Netherite Scrap is in World_nether in mock data
-    const netherRow = page.locator('.trade-row').filter({ hasText: 'Netherite' });
-    await netherRow.first().locator('.add-to-cart-btn').click();
+    const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Netherite' });
+    await netherRow.first().locator(SELECTOR_ADD_TO_CART).click();
     
     // Open cart
-    await page.locator('#open-cart').click();
+    await page.locator(SELECTOR_OPEN_CART).click();
     await page.waitForSelector('#cart-dialog', { state: 'visible' });
 });
 
 When('I switch to the Route tab', async ({ page }) => {
-    await page.locator('#tab-navigate').click();
+    await page.locator(SELECTOR_TAB_NAVIGATE).click();
     await page.waitForSelector('#tab-content-navigate.active', { state: 'visible' });
 });
 
@@ -402,10 +415,10 @@ When('I hover over the nether shop marker', async ({ page }) => {
         // @ts-expect-error - exposed for testing
         const centerTileZ = globalThis.__navMapCenterTileZ;
         
-        if (!map || !route) { return null; }
+        if (!map || !route) { return; }
         
         const netherStop = route.find((s: { world: string }) => s.world.toLowerCase().includes('nether'));
-        if (!netherStop) { return null; }
+        if (!netherStop) { return; }
         
         // Calculate the Leaflet coords for the nether marker
         const tileSize = 512;
