@@ -6,17 +6,15 @@ Feature: Data Refresh and New Items
   Background:
     Given the app is loaded with dynamic mock data
 
-  @refresh @new-items @skip
+  @refresh @new-items
   Scenario: New trades appear after data refresh
-    # Skip: Requires exposing refreshShopData globally for manual triggering
     Given there are 5 trades initially
     When the shop data refreshes with 2 new trade(s)
     Then I should see 7 total trades
     And the new trades should be highlighted
 
-  @refresh @new-items @skip
+  @refresh @new-items
   Scenario: New item highlight is visible
-    # Skip: Requires exposing refreshShopData globally for manual triggering
     Given there are 5 trades initially
     When the shop data refreshes with 1 new trade(s) for "Netherite Ingot"
     Then the "Netherite Ingot" trade should have a "new" indicator
@@ -28,18 +26,16 @@ Feature: Data Refresh and New Items
     And I scroll to view the new trade
     Then the highlight should fade after a moment
 
-  @refresh @filter @skip
+  @refresh @filter
   Scenario: New trades respect current search filter
-    # Skip: Requires exposing refreshShopData globally for manual triggering
     Given there are 5 trades initially
-    And I search for "emerald" in the want field
-    When the shop data refreshes with a new "Diamond" trade
-    Then I should not see the new "Diamond" trade
+    And I search for "blaze" in the want field
+    When the shop data refreshes with a new "Coal Block" trade
+    Then I should not see the new "Coal Block" trade
     But clearing the search should show the new trade
 
-  @refresh @cart @skip
+  @refresh @cart
   Scenario: Cart is preserved across data refresh
-    # Skip: Requires exposing refreshShopData globally for manual triggering
     Given I add a trade to the cart
     When the shop data refreshes
     Then my cart should still contain the trade

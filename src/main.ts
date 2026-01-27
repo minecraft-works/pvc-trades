@@ -216,6 +216,10 @@ let mapOpenedFromCart = false;
 // Shop data refresh interval (assigned for potential future stop functionality)
 let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
+// Set of trade keys that are new (added since last refresh)
+// Trades are removed from this set once they've been scrolled into view
+const newTradeKeys = new Set<string>();
+
 // ============================================================================
 // Cart Helper Functions
 // ============================================================================
@@ -445,7 +449,7 @@ function getInputValue(id: string): string {
 
 /**
  * Refresh shop data from remote API
- * Returns the number of new trades detected (for future highlighting feature)
+ * Returns the number of new trades detected and marks them for highlighting
  */
 async function refreshShopData(): Promise<number> {
     try {
@@ -458,9 +462,19 @@ async function refreshShopData(): Promise<number> {
         }
         
         const data = (await response.json()) as ShopData;
-        const previousTradeCount = allTrades.length;
+        
+        // Track existing trade keys before processing new data
+        const existingTradeKeys = new Set(allTrades.map(t => getTradeKey(t)));
         
         processShops(data.data);
+        
+        // Identify new trades and add them to the highlight set
+        for (const trade of allTrades) {
+            const key = getTradeKey(trade);
+            if (!existingTradeKeys.has(key)) {
+                newTradeKeys.add(key);
+            }
+        }
         
         // Recalculate item values
         itemValues = calculateItemValues(allTrades.map(t => ({
@@ -477,12 +491,12 @@ async function refreshShopData(): Promise<number> {
         // Refresh the search results
         search();
         
-        const newTradeCount = allTrades.length - previousTradeCount;
+        const newTradeCount = newTradeKeys.size;
         if (newTradeCount > 0) {
             console.log(`Shop data refreshed: ${newTradeCount} new trades`);
         }
         
-        return Math.max(0, newTradeCount);
+        return newTradeCount;
     } catch (error) {
         console.warn('Error refreshing shop data:', error);
         return 0;
@@ -532,6 +546,9 @@ async function loadShops(): Promise<void> {
         if (config.dataRefreshMs && config.dataRefreshMs > 0) {
             _shopRefreshInterval = setInterval(() => void refreshShopData(), config.dataRefreshMs);
         }
+        
+        // Expose refreshShopData for E2E testing
+        (globalThis as unknown as { refreshShopData: typeof refreshShopData }).refreshShopData = refreshShopData;
     } catch (error) {
         console.error('Failed to load shop data:', error);
         getElement('results').innerHTML =
@@ -820,6 +837,33 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const tradeKey = getTradeKey(t);
     const isInCart = cartStore.has(t);
     const inCartClass = isInCart ? ' in-cart' : '';
+    
+    // Check if this is a new trade that should be highlighted
+    const isNewTrade = newTradeKeys.has(tradeKey);
+    if (isNewTrade) {
+        row.classList.add('new-item');
+        row.dataset['new'] = 'true';
+        
+        // Set up intersection observer to fade the highlight when scrolled into view
+        const observer = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    // Wait a moment, then fade the highlight
+                    setTimeout(() => {
+                        row.classList.add('new-item-seen');
+                        // Remove from tracking set after animation completes
+                        setTimeout(() => {
+                            row.classList.remove('new-item', 'new-item-seen');
+                            delete row.dataset['new'];
+                            newTradeKeys.delete(tradeKey);
+                        }, 500); // Match CSS transition duration
+                    }, 1500); // Show highlight for 1.5s after coming into view
+                    observer.disconnect();
+                }
+            }
+        }, { threshold: 0.5 });
+        observer.observe(row);
+    }
     
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
@@ -1629,13 +1673,17 @@ async function startNavigation(): Promise<void> {
             
             if (player) {
                 const playerWorld = getPlayerWorld(player);
-                navigationStore.setPlayerPosition({
+                const position = {
                     x: player.position.x,
                     y: player.position.y,
                     z: player.position.z,
                     world: playerWorld,
                     yaw: player.rotation?.yaw
-                });
+                };
+                navigationStore.setPlayerPosition(position);
+                // Expose for E2E testing
+                // @ts-expect-error - exposed for testing
+                globalThis.__currentPlayerPosition = position;
                 debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
             }
         } catch (error) {
@@ -1764,13 +1812,18 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
 
 function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): void {
     const playerWorld = getPlayerWorld(player);
-    navigationStore.setPlayerPosition({
+    const position = {
         x: player.position.x,
         y: player.position.y,
         z: player.position.z,
         world: playerWorld,
         yaw: player.rotation?.yaw
-    });
+    };
+    navigationStore.setPlayerPosition(position);
+    
+    // Expose for E2E testing
+    // @ts-expect-error - exposed for testing
+    globalThis.__currentPlayerPosition = position;
     
     // UNIFIED VIEW: No world switching needed - all stops on one map
     // Just update marker, distance, and check for auto-advance
