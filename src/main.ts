@@ -839,30 +839,11 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const inCartClass = isInCart ? ' in-cart' : '';
     
     // Check if this is a new trade that should be highlighted
+    // Highlights persist until page refresh so users don't miss new items
     const isNewTrade = newTradeKeys.has(tradeKey);
     if (isNewTrade) {
         row.classList.add('new-item');
         row.dataset['new'] = 'true';
-        
-        // Set up intersection observer to fade the highlight when scrolled into view
-        const observer = new IntersectionObserver((entries) => {
-            for (const entry of entries) {
-                if (entry.isIntersecting) {
-                    // Wait a moment, then fade the highlight
-                    setTimeout(() => {
-                        row.classList.add('new-item-seen');
-                        // Remove from tracking set after animation completes
-                        setTimeout(() => {
-                            row.classList.remove('new-item', 'new-item-seen');
-                            delete row.dataset['new'];
-                            newTradeKeys.delete(tradeKey);
-                        }, 500); // Match CSS transition duration
-                    }, 1500); // Show highlight for 1.5s after coming into view
-                    observer.disconnect();
-                }
-            }
-        }, { threshold: 0.5 });
-        observer.observe(row);
     }
     
     row.innerHTML = `
