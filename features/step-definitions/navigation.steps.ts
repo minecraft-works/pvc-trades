@@ -22,7 +22,7 @@ Given('the app is loaded with shops in overworld and nether', async function (th
     await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 2000 });
 });
 
-Given('player {string} is in the overworld at \\({int}, {int})', async function (
+Given(String.raw`player {string} is in the overworld at \({int}, {int})`, async function (
     this: CustomWorld, 
     playerName: string, 
     x: number, 
@@ -34,7 +34,7 @@ Given('player {string} is in the overworld at \\({int}, {int})', async function 
     await this.page.waitForSelector('.trade-row', { state: 'visible', timeout: 2000 });
 });
 
-Given('player {string} is in the nether at \\({int}, {int})', async function (
+Given(String.raw`player {string} is in the nether at \({int}, {int})`, async function (
     this: CustomWorld, 
     playerName: string, 
     x: number, 
@@ -85,7 +85,7 @@ Given('navigation shows {string} the {string}', async function (
 // ============ WHEN Steps ============
 // Note: 'I open the navigation dialog with items from both worlds' is defined as Given but works for When too
 
-When('player moves to the nether at \\({int}, {int})', async function (
+When(String.raw`player moves to the nether at \({int}, {int})`, async function (
     this: CustomWorld, 
     x: number, 
     z: number
@@ -97,7 +97,7 @@ When('player moves to the nether at \\({int}, {int})', async function (
     this.playerMock.moveToNether(x, z);
 });
 
-When('player moves to the overworld at \\({int}, {int})', async function (
+When(String.raw`player moves to the overworld at \({int}, {int})`, async function (
     this: CustomWorld, 
     x: number, 
     z: number
@@ -119,7 +119,7 @@ Then('nether tiles should be requested first', async function (this: CustomWorld
     expect(firstTile).toBe('nether');
 });
 
-Then('nether tiles should be requested', { timeout: 15000 }, async function (this: CustomWorld) {
+Then('nether tiles should be requested', { timeout: 15_000 }, async function (this: CustomWorld) {
     // Poll until nether tiles are requested (max 10s)
     await expect.poll(
         () => this.tileRequests.filter(t => t === 'nether').length,
@@ -127,7 +127,7 @@ Then('nether tiles should be requested', { timeout: 15000 }, async function (thi
     ).toBeGreaterThan(0);
 });
 
-Then('overworld tiles should be requested', { timeout: 15000 }, async function (this: CustomWorld) {
+Then('overworld tiles should be requested', { timeout: 15_000 }, async function (this: CustomWorld) {
     // Poll until overworld tiles are requested (max 10s)
     await expect.poll(
         () => this.tileRequests.filter(t => t === 'overworld').length,

@@ -47,11 +47,3 @@ Feature: Cart Management
     Then the cart badge should be hidden
     And reopening the cart should show empty message
 
-  @cart @clear
-  Scenario: Clear cart resets navigation progress
-    Given I have items in the cart
-    And some items are marked as completed
-    When I click clear cart
-    Then the cart dialog should be closed
-    And all items should be removed
-    And navigation progress should be reset

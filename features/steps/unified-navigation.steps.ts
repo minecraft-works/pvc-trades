@@ -2,7 +2,7 @@
  * Step definitions for unified multi-world navigation
  * All shops displayed on a single map using overworld-equivalent coordinates
  */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- page.evaluate returns browser context values */
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- page.evaluate returns browser context values */
 import { expect } from '@playwright/test';
 import { Given, When, Then } from './fixtures';
 

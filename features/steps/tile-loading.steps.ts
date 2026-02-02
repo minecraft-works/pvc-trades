@@ -67,8 +67,51 @@ function crc32(data: Buffer): Buffer {
     return result;
 }
 
-const BLUE_PIXEL_PNG = createColoredPng(0, 100, 255);
-const RED_PIXEL_PNG = createColoredPng(255, 50, 50);
+// ============================================================================
+// Color-coded tile generation for visual verification
+// ============================================================================
+// Encoding scheme:
+//   - World type (hue): Blue = Overworld, Red = Nether
+//   - Zoom level (brightness): Bright = Zoom 8 (512 bpt), Dark = Zoom 4 (8192 bpt)
+//   - Checkerboard pattern: 15% brightness variation based on tile parity
+
+const TILE_COLORS = {
+    overworld: {
+        zoom8: { r: 100, g: 180, b: 255 },  // Bright Sky Blue
+        zoom4: { r: 40, g: 80, b: 140 },    // Dark Navy Blue
+    },
+    the_nether: {
+        zoom8: { r: 255, g: 120, b: 100 },  // Bright Coral Red
+        zoom4: { r: 140, g: 50, b: 40 },    // Dark Maroon Red
+    }
+} as const;
+
+interface TileColorConfig {
+    world: 'overworld' | 'the_nether';
+    blocksPerTile: number;
+    tileX: number;
+    tileZ: number;
+}
+
+function createEncodedTile(config: TileColorConfig): Buffer {
+    const worldColors = TILE_COLORS[config.world];
+    const zoom = config.blocksPerTile === 512 ? 'zoom8' : 'zoom4';
+    const base = worldColors[zoom];
+
+    // Apply checkerboard pattern (15% darker for odd parity)
+    const isEven = (config.tileX + config.tileZ) % 2 === 0;
+    const patternMultiplier = isEven ? 1 : 0.85;
+
+    const r = Math.round(base.r * patternMultiplier);
+    const g = Math.round(base.g * patternMultiplier);
+    const b = Math.round(base.b * patternMultiplier);
+
+    return createColoredPng(r, g, b);
+}
+
+// Legacy constants for backward compatibility with existing tests
+const BLUE_PIXEL_PNG = createColoredPng(100, 180, 255);  // Overworld zoom 8
+const RED_PIXEL_PNG = createColoredPng(255, 120, 100);   // Nether zoom 8
 
 // ============================================================================
 // Test data with controlled shop locations
@@ -122,6 +165,10 @@ interface PageWithTileTracking extends Page {
     __manifestFilter?: 'all' | 'origin-only';
     __lastPlayerX?: number;
     __lastPlayerZ?: number;
+    __useColorEncoding?: boolean;
+    __zoom8Available?: boolean;
+    __manifestRequestTime?: number;
+    __firstTileRequestTime?: number;
 }
 
 // ============================================================================
@@ -241,6 +288,144 @@ Given('the tile loading test app is configured', async ({ page }) => {
         });
     });
     
+    // Navigate to app
+    await page.goto('/');
+    await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
+});
+
+Given('the tile loading test app is configured with color-coded tiles', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    p.__tileRequests = [];
+    p.__manifestFilter = 'all';
+    p.__useColorEncoding = true;
+    p.__zoom8Available = true;
+
+    // Set up tile request tracking with color-encoded tiles
+    await page.route('**/tiles/**/*.png', async (route: Route) => {
+        const url = route.request().url();
+        p.__tileRequests!.push(url);
+
+        // Track timing for race condition tests
+        if (p.__firstTileRequestTime === undefined) {
+            p.__firstTileRequestTime = Date.now();
+        }
+
+        // Parse URL to extract tile info
+        // Format: /tiles/{world}/{blocksPerTile}/{tileX}/{tileZ}.png
+        const match = url.match(/tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
+
+        if (match) {
+            const [, world, bptString, tileXString, tileZString] = match;
+            const blocksPerTile = Number.parseInt(bptString, 10);
+            const tileX = Number.parseInt(tileXString, 10);
+            const tileZ = Number.parseInt(tileZString, 10);
+
+            // Check if zoom 8 is available (for fallback tests)
+            if (blocksPerTile === 512 && !p.__zoom8Available) {
+                await route.fulfill({ status: 404 });
+                return;
+            }
+
+            const tile = createEncodedTile({
+                world: world as 'overworld' | 'the_nether',
+                blocksPerTile,
+                tileX,
+                tileZ
+            });
+
+            await route.fulfill({
+                status: 200,
+                contentType: 'image/png',
+                body: tile
+            });
+        } else {
+            // Fallback for unexpected URL format - gray tile
+            await route.fulfill({
+                status: 200,
+                contentType: 'image/png',
+                body: createColoredPng(128, 128, 128)
+            });
+        }
+    });
+
+    // Set up manifest mock with timing tracking
+    await page.route('**/tiles/manifest.json', async (route: Route) => {
+        p.__manifestRequestTime = Date.now();
+
+        const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
+        const worlds = ['overworld', 'the_nether'];
+        const blocksPerTileOptions = p.__zoom8Available ? [512, 8192] : [8192];
+
+        const range = p.__manifestFilter === 'origin-only' ? 5 : 200;
+
+        for (const world of worlds) {
+            for (const blocksPerTile of blocksPerTileOptions) {
+                for (let tx = -range; tx <= range; tx++) {
+                    for (let tz = -range; tz <= range; tz++) {
+                        entries.push({ world, tileX: tx, tileZ: tz, blocksPerTile });
+                    }
+                }
+            }
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(entries)
+        });
+    });
+
+    // Set up config.json mock
+    await page.route('**/config.json', async (route: Route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                dataUrl: 'data.json',
+                dataRefreshMs: 60_000,
+                dynmap: {
+                    baseUrl: 'https://web.peacefulvanilla.club/maps',
+                    tileSize: 128,
+                    defaultZoom: 4,
+                    maxZoomLevel: 7,
+                    playerRefreshMs: 1000
+                },
+                analysis: {
+                    shopClusterDistance: 16,
+                    maxTransitiveIterations: 10,
+                    minIndependentShops: 3
+                }
+            })
+        });
+    });
+
+    // Set up mock shop data
+    await page.route('**/data.json', async (route: Route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(MOCK_SHOP_DATA)
+        });
+    });
+
+    // Set up player API mock
+    await page.route(PLAYER_API_PATTERN, async (route: Route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: APPLICATION_JSON,
+            body: JSON.stringify({
+                players: [{
+                    uuid: TEST_UUID,
+                    name: TEST_PLAYER_NAME,
+                    foreign: false,
+                    position: { x: p.__lastPlayerX ?? 0, y: 64, z: p.__lastPlayerZ ?? 0 },
+                    rotation: { pitch: 0, yaw: 0, roll: 0 },
+                    world: 'World'
+                }]
+            })
+        });
+    });
+
     // Navigate to app
     await page.goto('/');
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });

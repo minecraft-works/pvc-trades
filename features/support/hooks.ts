@@ -1,6 +1,6 @@
 import { Before, After, BeforeAll, AfterAll, Status } from '@cucumber/cucumber';
 import { chromium, Browser } from '@playwright/test';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess } from 'node:child_process';
 import { CustomWorld } from './world';
 
 // Shared browser instance for all scenarios (faster than launching per scenario)
@@ -9,7 +9,7 @@ let serverProcess: ChildProcess | null = null;
 
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:5173/pvc-trades/';
 
-async function waitForServer(url: string, timeout = 30000): Promise<void> {
+async function waitForServer(url: string, timeout = 30_000): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeout) {
         try {
@@ -86,10 +86,10 @@ Before(async function (this: CustomWorld) {
     this.tileRequests = [];
     
     // Track tile requests for debugging
-    this.page.on('request', req => {
-        if (req.url().includes('/tiles/') && req.url().endsWith('.png')) {
-            const world = req.url().includes('/the_nether/') ? 'nether' : 'overworld';
-            this.tileRequests.push(`${world}:${req.url()}`);
+    this.page.on('request', request => {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+            this.tileRequests.push(`${world}:${request.url()}`);
         }
     });
 });

@@ -70,7 +70,7 @@ for (let n = 0; n < 256; n++) {
 function crc32(data: Buffer): Buffer {
     let crc = 0xFF_FF_FF_FF;
     for (const datum of data) {
-        crc = crcTable[(crc ^ datum!) & 0xFF]! ^ (crc >>> 8);
+        crc = crcTable[(crc ^ datum) & 0xFF]! ^ (crc >>> 8);
     }
     crc = crc ^ 0xFF_FF_FF_FF;
     const result = Buffer.alloc(4);
@@ -416,7 +416,7 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
         }
 
         // Find any image overlay in the Leaflet pane
-        const images = container.querySelectorAll('.leaflet-image-layer') as NodeListOf<HTMLImageElement>;
+        const images = container.querySelectorAll('.leaflet-image-layer');
         console.log(`[sampleMapColor] Found ${images.length} image layers`);
         
         if (images.length === 0) {

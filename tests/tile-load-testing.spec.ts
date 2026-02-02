@@ -257,8 +257,7 @@ async function openMapWithItem(page: Page): Promise<void> {
 // ============================================================================
 // Load Tests
 // ============================================================================
-
-// eslint-disable-next-line max-lines-per-function
+ 
 test.describe('Tile Loading Performance', () => {
     test.describe.configure({ mode: 'serial' });
     
