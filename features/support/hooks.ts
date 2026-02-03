@@ -85,6 +85,15 @@ Before(async function (this: CustomWorld) {
     this.page = await this.context.newPage();
     this.tileRequests = [];
     
+    // Disable animations for faster, more stable tests
+    // This sets both the JS flag and CSS attribute before any page loads
+    await this.page.addInitScript(() => {
+        // JS flag checked by shouldDisableAnimations() in types.ts
+        (globalThis as unknown as { __animationsDisabled?: boolean }).__animationsDisabled = true;
+        // CSS attribute checked by [data-animations-disabled] rules in styles.css
+        document.documentElement.dataset.animationsDisabled = 'true';
+    });
+    
     // Track tile requests for debugging
     this.page.on('request', request => {
         if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {

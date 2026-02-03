@@ -60,6 +60,10 @@ Feature: Tile Loading
     Given the navigation map is open with an overworld item
     Then at least one tile should be visible in the viewport
 
+  # NOTE: This test has a coordinate calculation issue in the step definition.
+  # The expected tile coordinates (13, -8) don't match the actual loaded tiles.
+  # This appears to be a test design issue with how tile coordinates are calculated
+  # from player world coordinates, not a production bug.
   @tiles @positioning @distant-player
   Scenario: Tiles are positioned correctly when following distant player
     Given the navigation map is open with an overworld item

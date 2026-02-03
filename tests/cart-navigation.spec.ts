@@ -2,7 +2,8 @@
  * Functional E2E Tests for Shopping Cart and Navigation Features
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './helpers/global-setup';
+import type { Page } from '@playwright/test';
 
 // Mock data matching the actual app structure
 const MOCK_SHOP_DATA = {

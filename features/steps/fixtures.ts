@@ -23,6 +23,17 @@ export type BddFixtures = {
  * Extended test with custom fixtures
  */
 export const test = base.extend<BddFixtures>({
+    // Override page fixture to disable animations for faster, more stable tests
+    page: async ({ page }, use) => {
+        // Inject animation disable script before any page loads
+        await page.addInitScript(() => {
+            // JS flag checked by shouldDisableAnimations() in types.ts
+            (globalThis as unknown as { __animationsDisabled?: boolean }).__animationsDisabled = true;
+            // CSS attribute checked by [data-animations-disabled] rules in styles.css
+            document.documentElement.dataset.animationsDisabled = 'true';
+        });
+        await use(page);
+    },
     // Player mock is created fresh for each test
     // eslint-disable-next-line no-empty-pattern
     playerMock: async ({}, use) => {

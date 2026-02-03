@@ -472,19 +472,38 @@ async function waitForTileRequestsToStabilize(
  * Helper to open navigation map and wait for tile requests to stabilize
  */
 async function openNavigationMapWithItem(page: Page, itemFilter: string): Promise<void> {
-    // Add item to cart
-    const row = page.locator('.trade-row').filter({ hasText: itemFilter }).first();
+    // Add item to cart - wait for row to be visible first
+    // Look for a row where the result-name (what you GET) contains the filter
+    // Structure: result-amt | result-name | cost-amt | cost-name | ...
+    const row = page.locator('.trade-row').filter({
+        has: page.locator('.result-name', { hasText: itemFilter })
+    }).first();
+    
+    await row.waitFor({ state: 'visible', timeout: 10_000 });
     await row.locator(SELECTOR_ADD_TO_CART_BUTTON).click();
     
     // Open cart and navigate tab
-    await page.locator(SELECTOR_OPEN_CART).click();
-    await page.waitForSelector(SELECTOR_CART_DIALOG, { state: 'visible' });
-    await page.locator(SELECTOR_TAB_NAVIGATE).click();
+    const cartButton = page.locator(SELECTOR_OPEN_CART);
+    await cartButton.waitFor({ state: 'visible', timeout: 5000 });
+    await cartButton.click();
+    await page.waitForSelector(SELECTOR_CART_DIALOG, { state: 'visible', timeout: 10_000 });
     
-    // Start navigation to actually open the map
-    await page.locator(SELECTOR_PLAYER_NAME_INPUT).fill(TEST_PLAYER_NAME);
-    await page.locator(SELECTOR_START_NAVIGATION).click();
-    await page.waitForSelector(SELECTOR_NAV_DIALOG_OPEN, { state: 'visible', timeout: 5000 });
+    // Switch to navigate tab
+    const navigateTab = page.locator(SELECTOR_TAB_NAVIGATE);
+    await navigateTab.waitFor({ state: 'visible', timeout: 5000 });
+    await navigateTab.click();
+    
+    // Fill player name and start navigation
+    const playerInput = page.locator(SELECTOR_PLAYER_NAME_INPUT);
+    await playerInput.waitFor({ state: 'visible', timeout: 5000 });
+    await playerInput.fill(TEST_PLAYER_NAME);
+    
+    const startButton = page.locator(SELECTOR_START_NAVIGATION);
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.click();
+    
+    // Wait for navigation dialog with longer timeout (map initialization can be slow)
+    await page.waitForSelector(SELECTOR_NAV_DIALOG_OPEN, { state: 'visible', timeout: 15_000 });
     
     // Wait for tile requests to stabilize
     await waitForTileRequestsToStabilize(page, 1000, 10_000);
@@ -515,17 +534,29 @@ When('I wait for any pending tile requests', async ({ page }) => {
 When('I close and reopen the navigation map', async ({ page }) => {
     // Close the navigation dialog by clicking the close button
     const closeButton = page.locator('#close-nav');
+    await closeButton.waitFor({ state: 'visible', timeout: 5000 });
     await closeButton.click();
     await page.waitForTimeout(300);
     
     // Cart should reopen automatically after nav dialog closes
-    await page.waitForSelector(SELECTOR_CART_DIALOG_OPEN, { state: 'visible', timeout: 5000 });
-    await page.locator(SELECTOR_TAB_NAVIGATE).click();
+    await page.waitForSelector(SELECTOR_CART_DIALOG_OPEN, { state: 'visible', timeout: 10_000 });
     
-    // Start navigation again
-    await page.locator(SELECTOR_PLAYER_NAME_INPUT).fill(TEST_PLAYER_NAME);
-    await page.locator(SELECTOR_START_NAVIGATION).click();
-    await page.waitForSelector(SELECTOR_NAV_DIALOG_OPEN, { state: 'visible', timeout: 5000 });
+    // Switch to navigate tab
+    const navigateTab = page.locator(SELECTOR_TAB_NAVIGATE);
+    await navigateTab.waitFor({ state: 'visible', timeout: 5000 });
+    await navigateTab.click();
+    
+    // Fill player name and start navigation again
+    const playerInput = page.locator(SELECTOR_PLAYER_NAME_INPUT);
+    await playerInput.waitFor({ state: 'visible', timeout: 5000 });
+    await playerInput.fill(TEST_PLAYER_NAME);
+    
+    const startButton = page.locator(SELECTOR_START_NAVIGATION);
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.click();
+    
+    // Wait for navigation dialog with longer timeout
+    await page.waitForSelector(SELECTOR_NAV_DIALOG_OPEN, { state: 'visible', timeout: 15_000 });
     
     // Wait for map to initialize and any potential tile requests to stabilize
     await waitForTileRequestsToStabilize(page, 1000, 10_000);
@@ -727,6 +758,12 @@ When('the map centers on the player position', async ({ page }) => {
     // Trigger a player position update by waiting for polling cycle
     await page.waitForTimeout(1500);
     
+    // Wait for flyTo animation to complete (it has 0.3s duration) plus buffer
+    await page.waitForTimeout(500);
+    
+    // Wait for moveend event to fire and trigger tile loading
+    await page.waitForTimeout(500);
+    
     // Wait for any tile requests to stabilize
     await waitForTileRequestsToStabilize(page, 500, 5000);
 });
@@ -822,17 +859,32 @@ Then('the visible tiles should correspond to the player area', async ({ page }) 
     const playerX = p.__lastPlayerX ?? 0;
     const playerZ = p.__lastPlayerZ ?? 0;
     
-    // Calculate expected tile coordinates for player position (512 blocks per tile at zoom 8)
-    const expectedTileX = Math.floor(playerX / 512);
-    const expectedTileZ = Math.floor(playerZ / 512);
+    // Calculate expected tile coordinates for player position at different zoom levels
+    // Zoom 8 in URL (512 blocks per tile) - high detail
+    const expectedTileX_z8 = Math.floor(playerX / 512);
+    const expectedTileZ_z8 = Math.floor(playerZ / 512);
+    // Zoom 4 in URL (8192 blocks per tile) - lower detail, loaded at low zoom
+    const expectedTileX_z4 = Math.floor(playerX / 8192);
+    const expectedTileZ_z4 = Math.floor(playerZ / 8192);
     
-    // Check that tiles were requested near the player area
-    const nearbyTiles = getTilesForArea(tiles, expectedTileX, expectedTileZ, 3);
-    const tileCoords = tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ');
+    // Separate tiles by zoom level in URL (4 or 8)
+    // Note: URL zoom 8 = 512 blocks per tile, URL zoom 4 = 8192 blocks per tile
+    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
+    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
     
-    expect(nearbyTiles.length, 
-        `Expected tiles near player area (${expectedTileX}, ${expectedTileZ}), got tiles at: ${tileCoords}`
-    ).toBeGreaterThan(0);
+    // Check that tiles were requested near the player area at either zoom level
+    const nearbyTiles_z8 = getTilesForArea(zoom8Tiles, expectedTileX_z8, expectedTileZ_z8, 3);
+    const nearbyTiles_z4 = getTilesForArea(zoom4Tiles, expectedTileX_z4, expectedTileZ_z4, 3);
+    
+    const hasNearbyTiles = nearbyTiles_z8.length > 0 || nearbyTiles_z4.length > 0;
+    
+    const zoom8TileList = zoom8Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const zoom4TileList = zoom4Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const errorMessage = 'Expected tiles near player area. ' +
+        `Zoom 8 (512bpt): expected (${expectedTileX_z8}, ${expectedTileZ_z8}), got: ${zoom8TileList}. ` +
+        `Zoom 4 (8192bpt): expected (${expectedTileX_z4}, ${expectedTileZ_z4}), got: ${zoom4TileList}`;
+    
+    expect(hasNearbyTiles, errorMessage).toBe(true);
 });
 
 Then('the visible tiles should correspond to the new player area', async ({ page }) => {
@@ -841,16 +893,29 @@ Then('the visible tiles should correspond to the new player area', async ({ page
     const tiles = parseTileRequests(requests);
     
     // For the "moves to (5000, 5000)" step
-    const expectedTileX = Math.floor(5000 / 512); // ~9
-    const expectedTileZ = Math.floor(5000 / 512); // ~9
+    // Calculate expected tile coords at both zoom levels
+    const expectedTileX_z8 = Math.floor(5000 / 512);  // ~9
+    const expectedTileZ_z8 = Math.floor(5000 / 512);  // ~9
+    const expectedTileX_z4 = Math.floor(5000 / 8192); // ~0
+    const expectedTileZ_z4 = Math.floor(5000 / 8192); // ~0
     
-    // Check that tiles were requested near the new player area
-    const nearbyTiles = getTilesForArea(tiles, expectedTileX, expectedTileZ, 3);
-    const tileCoords = tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ');
+    // Separate tiles by zoom level in URL (4 or 8)
+    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
+    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
     
-    expect(nearbyTiles.length, 
-        `Expected tiles near (${expectedTileX}, ${expectedTileZ}), got: ${tileCoords}`
-    ).toBeGreaterThan(0);
+    // Check that tiles were requested near the new player area at either zoom level
+    const nearbyTiles_z8 = getTilesForArea(zoom8Tiles, expectedTileX_z8, expectedTileZ_z8, 3);
+    const nearbyTiles_z4 = getTilesForArea(zoom4Tiles, expectedTileX_z4, expectedTileZ_z4, 3);
+    
+    const hasNearbyTiles = nearbyTiles_z8.length > 0 || nearbyTiles_z4.length > 0;
+    
+    const zoom8TileList = zoom8Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const zoom4TileList = zoom4Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const errorMessage = 'Expected tiles near new player area (5000, 5000). ' +
+        `Zoom 8: expected (${expectedTileX_z8}, ${expectedTileZ_z8}), got: ${zoom8TileList}. ` +
+        `Zoom 4: expected (${expectedTileX_z4}, ${expectedTileZ_z4}), got: ${zoom4TileList}`;
+    
+    expect(hasNearbyTiles, errorMessage).toBe(true);
 });
 
 Then('each loaded tile should have bounds matching its tile coordinates', async ({ page }) => {

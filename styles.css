@@ -1959,3 +1959,40 @@ mark {
         font-size: 1rem;
     }
 }
+
+/* ============================================================================
+   Animation Disable Rules
+   ============================================================================
+   These rules disable CSS animations/transitions for:
+   1. Users who prefer reduced motion (accessibility)
+   2. Automated tests (via data-animations-disabled attribute)
+   
+   Test code should add the attribute to <html> before page load:
+   await page.addInitScript(() => { 
+       document.documentElement.dataset.animationsDisabled = 'true';
+   });
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Test mode: disable all animations */
+[data-animations-disabled="true"] *,
+[data-animations-disabled="true"] *::before,
+[data-animations-disabled="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+}
+
+/* Also disable Leaflet's tile fade-in animation in test mode */
+[data-animations-disabled="true"] .leaflet-tile {
+    opacity: 1 !important;
+}

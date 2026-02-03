@@ -24,6 +24,7 @@ interface RGB {
 
 interface PageWithTileTracking extends Page {
     __tileRequests?: string[];
+    __tileRequestsAtTargetZoom?: string[];
     __tileRequestCount?: number;
     __manifestFilter?: 'all' | 'origin-only';
     __lastPlayerX?: number;
@@ -42,13 +43,17 @@ interface PageWithTileTracking extends Page {
 
 /**
  * Extract colors from all visible tiles in the map
+ * Checks both tile layers (.leaflet-tile img) and image overlays (.leaflet-image-layer)
  */
 async function getVisibleTileColors(page: Page): Promise<RGB[]> {
     return page.evaluate(() => {
-        const tiles = document.querySelectorAll('.leaflet-tile img');
+        // Find tiles from both regular tile layers and image overlays
+        const tileImages = document.querySelectorAll('.leaflet-tile img');
+        const imageOverlays = document.querySelectorAll('.leaflet-image-layer');
         const colors: Array<{ r: number; g: number; b: number }> = [];
 
-        for (const tile of tiles) {
+        // Process regular tile images
+        for (const tile of tileImages) {
             if (!tile.complete || tile.naturalWidth === 0) {continue;}
 
             const canvas = document.createElement('canvas');
@@ -64,6 +69,25 @@ async function getVisibleTileColors(page: Page): Promise<RGB[]> {
             const [r, g, b] = imageData.data;
             colors.push({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
         }
+        
+        // Process image overlays (used by navigation map)
+        for (const img of imageOverlays) {
+            if (!img.complete || img.naturalWidth === 0) {continue;}
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            if (!context) {continue;}
+
+            canvas.width = 1;
+            canvas.height = 1;
+
+            // Sample center pixel
+            context.drawImage(img, 0, 0, 1, 1);
+            const imageData = context.getImageData(0, 0, 1, 1);
+            const [r, g, b] = imageData.data;
+            colors.push({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
+        }
+        
         return colors;
     });
 }
@@ -142,9 +166,22 @@ Given('the navigation map is open', async ({ page, tileRequests }) => {
     await page.waitForTimeout(1000);
 });
 
-Given('the navigation map is open at map zoom {int}', async ({ page }, mapZoom: number) => {
+Given('the navigation map is open at map zoom {int}', async ({ page, tileRequests }, mapZoom: number) => {
     const p = page as PageWithTileTracking;
     p.__currentMapZoom = mapZoom;
+    
+    // Initialize tile request tracking BEFORE navigation
+    // We track all requests, but mark when we start tracking "at target zoom"
+    p.__tileRequests = [];
+    const allRequests: string[] = [];
+    
+    // Set up request listener BEFORE any navigation
+    page.on('request', request => {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+            allRequests.push(request.url());
+            tileRequests.push(request.url());
+        }
+    });
 
     // Add an item to cart first
     const row = page.locator('.trade-row').first();
@@ -155,10 +192,17 @@ Given('the navigation map is open at map zoom {int}', async ({ page }, mapZoom: 
     await page.waitForSelector('#cart-dialog[open]', { state: 'visible' });
     await page.click(SELECTOR_TAB_NAVIGATE);
     await page.fill(SELECTOR_PLAYER_NAME_INPUT, 'TestPlayer');
+    
+    // IMPORTANT: Set the target zoom level BEFORE starting navigation
+    // This will be picked up by the map initialization
+    await page.evaluate((zoom) => {
+        (globalThis as unknown as { __targetMapZoom?: number }).__targetMapZoom = zoom;
+    }, mapZoom);
+    
     await page.click(SELECTOR_START_NAVIGATION);
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible' });
-
-    // Set zoom level using Leaflet
+    
+    // Set zoom level using Leaflet (in case map didn't pick up the target zoom)
     await page.evaluate((zoom) => {
         const map = (globalThis as unknown as { __leafletMap?: { setZoom: (z: number) => void } }).__leafletMap;
         if (map) {
@@ -168,6 +212,13 @@ Given('the navigation map is open at map zoom {int}', async ({ page }, mapZoom: 
 
     // Wait for tiles to load at new zoom
     await page.waitForTimeout(1000);
+    
+    // For request verification tests:
+    // - If checking "no zoom-8 at low zoom": use allRequests (includes initialization)
+    // - If checking "zoom-8 at high zoom": track after setting target zoom
+    // Store both for test steps to use appropriately
+    p.__tileRequests = allRequests;
+    p.__tileRequestsAtTargetZoom = allRequests.slice(allRequests.length > 0 ? -20 : 0);
 });
 
 Given('the navigation map shows {word} tiles', async ({ page }, world: string) => {
@@ -874,4 +925,81 @@ Then('a shop marker should be visible on the map', async ({ page }) => {
     
     // At least one marker should be visible
     expect(count).toBeGreaterThan(0);
+});
+
+// ============================================================================
+// Zoom threshold property test steps
+// ============================================================================
+
+Then('at least one tile should have brightness above {int}', async ({ page }, threshold: number) => {
+    const colors = await getVisibleTileColors(page);
+    expect(colors.length).toBeGreaterThan(0);
+    
+    const hasBrightTile = colors.some(color => getBrightness(color) >= threshold);
+    expect(hasBrightTile).toBe(true);
+});
+
+Then('all tiles should have brightness below {int}', async ({ page }, threshold: number) => {
+    const colors = await getVisibleTileColors(page);
+    expect(colors.length).toBeGreaterThan(0);
+    
+    for (const color of colors) {
+        expect(getBrightness(color)).toBeLessThan(threshold);
+    }
+});
+
+Then('this confirms zoom-8 tiles are loading', async () => {
+    // This is a documentation step - the actual verification was in the previous step
+});
+
+Then('this confirms only zoom-4 tiles are visible', async () => {
+    // This is a documentation step - the actual verification was in the previous step
+});
+
+When('I wait for tiles to load', async ({ page }) => {
+    // Wait for tile images to load
+    await page.waitForTimeout(1000);
+    
+    // Wait for any pending network requests to complete
+    await page.waitForLoadState('networkidle');
+});
+
+Then('tiles should be {word}', async ({ page }, brightness: string) => {
+    const colors = await getVisibleTileColors(page);
+    expect(colors.length).toBeGreaterThan(0);
+    
+    for (const color of colors) {
+        const tileBrightness = getBrightness(color);
+        
+        if (brightness === 'bright') {
+            expect(tileBrightness).toBeGreaterThanOrEqual(BRIGHTNESS_THRESHOLD);
+        } else {
+            expect(tileBrightness).toBeLessThan(BRIGHTNESS_THRESHOLD);
+        }
+    }
+});
+
+Then('zoom 8 tiles should NOT be requested', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    const zoom8Requests = p.__tileRequests?.filter(url => url.includes('/8/')) ?? [];
+    expect(zoom8Requests.length, 'Expected no zoom 8 tile requests').toBe(0);
+});
+
+Then('tile URLs should contain {string}', async ({ page }, pattern: string) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests ?? [];
+    expect(requests.length).toBeGreaterThan(0);
+    
+    const hasPattern = requests.some(url => url.includes(pattern));
+    expect(hasPattern).toBe(true);
+});
+
+Then('tile URLs should only contain {string}', async ({ page }, pattern: string) => {
+    const p = page as PageWithTileTracking;
+    const requests = p.__tileRequests?.filter(url => url.includes('.png')) ?? [];
+    expect(requests.length).toBeGreaterThan(0);
+    
+    for (const url of requests) {
+        expect(url).toContain(pattern);
+    }
 });
