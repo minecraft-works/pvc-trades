@@ -1537,6 +1537,7 @@ function renderCartDialog(): void {
     const costsContainer = getElement('cart-costs');
     const gainsContainer = getElement('cart-gains');
     const clearCartButton = getElement('clear-cart');
+    const isCartTabActive = document.querySelector('#tab-cart')?.classList.contains('active') ?? true;
     
     // Clear previous contents
     itemsContainer.innerHTML = '';
@@ -1549,7 +1550,10 @@ function renderCartDialog(): void {
         return;
     }
     
-    clearCartButton.classList.remove('hidden');
+    // Only show clear cart button if on cart tab
+    if (isCartTabActive) {
+        clearCartButton.classList.remove('hidden');
+    }
     
     // Render cart items
     for (const cartItem of cartStore.items) {
@@ -1589,17 +1593,23 @@ function switchTab(tab: 'cart' | 'navigate'): void {
     const tabNavigate = document.querySelector('#tab-navigate');
     const contentCart = document.querySelector('#tab-content-cart');
     const contentNavigate = document.querySelector('#tab-content-navigate');
+    const clearCartButton = document.querySelector('#clear-cart');
+    const startNavButton = document.querySelector('#start-navigation');
     
     if (tab === 'cart') {
         tabCart?.classList.add('active');
         tabNavigate?.classList.remove('active');
         contentCart?.classList.add('active');
         contentNavigate?.classList.remove('active');
+        clearCartButton?.classList.remove('hidden');
+        startNavButton?.classList.add('hidden');
     } else {
         tabCart?.classList.remove('active');
         tabNavigate?.classList.add('active');
         contentCart?.classList.remove('active');
         contentNavigate?.classList.add('active');
+        clearCartButton?.classList.add('hidden');
+        startNavButton?.classList.remove('hidden');
         // Render navigate tab content when switching to it
         renderNavigateTab();
     }

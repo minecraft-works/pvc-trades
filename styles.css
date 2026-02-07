@@ -1146,7 +1146,7 @@ mark {
     padding: 12px 20px;
     border-top: 1px solid var(--color-border);
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
 }
 
 .clear-cart-btn {
@@ -1163,6 +1163,11 @@ mark {
     background: var(--color-bad-deal);
     border-color: var(--color-bad-deal);
     color: var(--color-bg);
+}
+
+.clear-cart-btn.hidden,
+.start-nav-btn.hidden {
+    display: none;
 }
 
 /* Matrix dialog */
