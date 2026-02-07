@@ -205,6 +205,20 @@ Given('I am navigating with {int} shop remaining', async ({ page }) => {
     console.log('Shop info after starting nav:', shopInfo);
 });
 
+Given('the mode is manual', async ({ page }) => {
+    // Pan the map to trigger manual mode
+    const mapContainer = page.locator('#nav-dialog-map-container');
+    const box = await mapContainer.boundingBox();
+    if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 50);
+        await page.mouse.up();
+    }
+    // Wait for mode change to propagate
+    await page.waitForSelector('#nav-follow-toggle[data-mode="manual"]', { timeout: 3000 });
+});
+
 // ============================================================================
 // WHEN Steps
 // ============================================================================
@@ -259,9 +273,39 @@ When('I auto-complete the last shop', async ({ page, playerMock }) => {
     await page.waitForTimeout(2500);
 });
 
+When('I pan the map', async ({ page }) => {
+    const mapContainer = page.locator('#nav-dialog-map-container');
+    const box = await mapContainer.boundingBox();
+    if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 50);
+        await page.mouse.up();
+    }
+});
+
+When('I click the follow toggle button', async ({ page }) => {
+    await page.locator('#nav-follow-toggle').click();
+});
+
 // ============================================================================
 // THEN Steps
 // ============================================================================
+
+Then('the follow toggle button should show follow mode', async ({ page }) => {
+    const toggleButton = page.locator('#nav-follow-toggle');
+    await expect(toggleButton).toHaveAttribute('data-mode', 'follow', { timeout: 3000 });
+});
+
+Then('the follow toggle button should show manual mode', async ({ page }) => {
+    const toggleButton = page.locator('#nav-follow-toggle');
+    await expect(toggleButton).toHaveAttribute('data-mode', 'manual', { timeout: 3000 });
+});
+
+Then('the follow toggle button tooltip should say {string}', async ({ page }, expectedTooltip: string) => {
+    const toggleButton = page.locator('#nav-follow-toggle');
+    await expect(toggleButton).toHaveAttribute('title', expectedTooltip, { timeout: 3000 });
+});
 
 Then(String.raw`a player marker should appear on the map at \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
     const marker = page.locator('.nav-player-marker');

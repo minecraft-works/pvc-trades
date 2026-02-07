@@ -1798,6 +1798,9 @@ async function startNavigation(): Promise<void> {
     
     navigationStore.start(playerNameInput.value.trim());
     
+    // Initialize follow toggle button to follow mode
+    updateFollowToggleButton('follow');
+    
     // Close cart dialog and open navigation dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
@@ -2536,6 +2539,9 @@ function switchToManualMode(): void {
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.remove('hidden');
     dialogRecenterButton?.classList.remove('hidden');
+    
+    // Update follow toggle button state
+    updateFollowToggleButton('manual');
 }
 
 /**
@@ -2550,8 +2556,36 @@ function switchToFollowMode(): void {
     recenterButton?.classList.add('hidden');
     dialogRecenterButton?.classList.add('hidden');
     
+    // Update follow toggle button state
+    updateFollowToggleButton('follow');
+    
     // Center on player
     centerMapOnPlayer();
+}
+
+/**
+ * Update the follow mode toggle button visual state
+ */
+function updateFollowToggleButton(mode: 'follow' | 'manual'): void {
+    const toggleButton = document.querySelector<HTMLButtonElement>('#nav-follow-toggle');
+    if (!toggleButton) {
+        return;
+    }
+    
+    toggleButton.dataset.mode = mode;
+    toggleButton.title = mode === 'follow' ? 'Auto-follow enabled' : 'Auto-follow disabled (click to re-center)';
+}
+
+/**
+ * Toggle between follow and manual mode
+ */
+function toggleFollowMode(): void {
+    const currentMode = navigationStore.mode;
+    if (currentMode === 'follow') {
+        switchToManualMode();
+    } else {
+        switchToFollowMode();
+    }
 }
 
 /**
@@ -2561,10 +2595,12 @@ function setupNavigationControls(): void {
     const startButton = document.querySelector('#start-navigation');
     const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const closeNavButton = document.querySelector('#close-nav');
+    const followToggleButton = document.querySelector('#nav-follow-toggle');
     
     startButton?.addEventListener('click', toggleNavigation);
     recenterButton?.addEventListener('click', switchToFollowMode);
     closeNavButton?.addEventListener('click', stopNavigation);
+    followToggleButton?.addEventListener('click', toggleFollowMode);
     
     // Set up nav dialog backdrop close
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);

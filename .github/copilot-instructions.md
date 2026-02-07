@@ -306,6 +306,21 @@ npm run lint         # ESLint check
 npm run lint:fix     # Auto-fix lint issues
 ```
 
+### Debug Logging
+
+Enable debug logging in production via browser console:
+
+```javascript
+localStorage.debug = 'pvc:*';           // All logs
+localStorage.debug = 'pvc:navigation';  // Navigation only
+localStorage.debug = 'pvc:playerpoll';  // Player polling only
+localStorage.debug = 'pvc:map';         // Map operations
+localStorage.debug = 'pvc:tiles';       // Tile loading details
+delete localStorage.debug;              // Disable logging
+```
+
+Logs appear in browser console with namespace prefixes (e.g., `pvc:navigation Starting navigation...`).
+
 ### Key Files to Know
 
 - `config.json` - App configuration (Dynmap URLs, analysis settings)
