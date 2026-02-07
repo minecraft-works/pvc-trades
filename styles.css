@@ -1694,11 +1694,11 @@ mark {
     color: #fff;
 }
 
-/* Follow mode toggle button - top left with hit area */
+/* Follow mode toggle button - top right with hit area */
 .nav-follow-toggle {
     position: absolute;
     top: 8px;
-    left: 8px;
+    right: 8px;
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
     border-radius: 50%;
@@ -1774,11 +1774,11 @@ mark {
     display: none;
 }
 
-/* View controls container - top left, below follow toggle */
+/* View controls container - top right, below follow toggle */
 .nav-view-controls {
     position: absolute;
     top: 48px;
-    left: 8px;
+    right: 8px;
     display: flex;
     flex-direction: row;
     gap: 8px;
