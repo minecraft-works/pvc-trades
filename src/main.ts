@@ -2368,13 +2368,9 @@ function centerMapOnPlayer(): void {
     
     const zoom = getZoomForDistance(minDistance);
     
-    // Use setView when animations disabled (more reliable than flyTo with duration 0)
-    // flyTo with duration 0 can have inconsistent behavior in Leaflet
-    if (shouldDisableAnimations()) {
-        navMap.setView([lat, lng], zoom, { animate: false });
-    } else {
-        navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
-    }
+    // Use flyTo for smooth pan-zoom animation
+    // In tests, Leaflet's flyTo is patched to use setView with animate:false for reliability
+    navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
 }
 
 /**

@@ -121,6 +121,32 @@ export const test = base.extend({
 **Spec Tests** (`tests/helpers/global-setup.ts`):
 Same pattern, imported by spec files instead of `@playwright/test`.
 
+#### 5. Leaflet Method Patching (Preferred for Animation Methods)
+
+For methods like `flyTo` that have animated behavior, patch the Leaflet prototype in test fixtures rather than adding if/else logic in production code:
+
+```typescript
+// In test fixtures (addInitScript)
+await page.addInitScript(() => {
+    // Patch Leaflet flyTo to use instant setView in tests
+    const checkLeaflet = setInterval(() => {
+        if (typeof L !== 'undefined' && L.Map?.prototype) {
+            L.Map.prototype.flyTo = function(latlng: L.LatLngExpression, zoom?: number) {
+                return this.setView(latlng, zoom, { animate: false });
+            };
+            clearInterval(checkLeaflet);
+        }
+    }, 10);
+});
+```
+
+**Key Principle**: Production code calls `flyTo()` normally. Test fixtures intercept and redirect to `setView()`. No if/else in production code.
+
+This approach:
+- Keeps production code clean and simple
+- Tests exercise the same code paths (just with patched library behavior)
+- Avoids `if (shouldDisableAnimations())` branching on method selection
+
 ## Consequences
 
 ### Positive
