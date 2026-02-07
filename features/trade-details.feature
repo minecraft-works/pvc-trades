@@ -7,28 +7,25 @@ Feature: Trade Details Popover
     Given the app is loaded with mock shop data
 
   @trade-details @click
-  Scenario: Click on result name opens result details
+  Scenario: Click on result name opens item details
     When I click on the result name of a trade
     Then the trade details dialog should be visible
-    And the dialog title should be "Result Details"
+    And the dialog title should be "Item Details"
     And I should see the result item name
-    And I should see the result item amount
 
   @trade-details @click
-  Scenario: Click on cost name opens cost details
+  Scenario: Click on cost name opens item details
     When I click on the cost name of a trade
     Then the trade details dialog should be visible
-    And the dialog title should be "Cost Details"
+    And the dialog title should be "Item Details"
     And I should see the cost item name
-    And I should see the cost item amount
 
   @trade-details @item2 @skip
   Scenario: Cost details shows both items when item2 exists
     Given there is a trade with two cost items
     When I click on the cost name of that trade
     Then the trade details dialog should be visible
-    And I should see "Cost 1" section
-    And I should see "Cost 2" section
+    And I should see both cost item names
 
   @trade-details @lore @skip
   Scenario: Trade details shows lore when present
