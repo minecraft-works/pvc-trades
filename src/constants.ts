@@ -52,6 +52,8 @@ export const STORAGE_KEYS = {
     NAV_PLAYER: 'pvc-trades-nav-player',
     NAV_TAB: 'pvc-trades-nav-tab',
     NAV_MODE: 'pvc-trades-nav-mode',
+    NAV_VIEW_WORLD: 'pvc-trades-nav-view-world',
+    NAV_VIEW_WORLD_MODE: 'pvc-trades-nav-view-world-mode',
 } as const;
 
 // ============================================================================
@@ -75,6 +77,8 @@ export const SELECTORS = {
     PLAYER_NAME_INPUT: '#player-name-input',
     CLOSE_MATRIX: '#close-matrix',
     RECENTER_MAP: '#recenter-map',
+    NAV_VIEW_MODE_TOGGLE: '#nav-view-mode-toggle',
+    NAV_WORLD_TOGGLE: '#nav-world-toggle',
 } as const;
 
 // ============================================================================

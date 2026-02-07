@@ -1,12 +1,15 @@
 :root {
     --color-bg: #1a1a1a;
     --color-bg-secondary: #2a2a2a;
+    --color-bg-tertiary: #3a3a3a;
+    --color-bg-nether: #3a2020;
     --color-text: #e0e0e0;
     --color-text-muted: #aaa;
     --color-text-dimmed: #666;
     --color-accent: #4fc3f7;
     --color-good-deal: #4caf50;
     --color-bad-deal: #ff6b6b;
+    --color-nether: #ff6b4a;
     --color-border: #444;
     --color-input-bg: #1a1a1a;
     --spacing-sm: 8px;
@@ -927,6 +930,25 @@ mark {
     opacity: 0.8;
 }
 
+/* Cross-world markers - shop in different world than current view.
+   Dashed border and slight transparency to indicate they're projected. */
+.nav-route-marker--cross-world .nav-marker {
+    border-style: dashed;
+    opacity: 0.7;
+}
+
+/* Cross-world overworld shop shown on nether view */
+.nav-route-marker--cross-world:not(.nav-route-marker--nether) .nav-marker {
+    background: #2563eb;
+    border-color: #93c5fd;
+}
+
+/* Cross-world nether shop shown on overworld view */
+.nav-route-marker--cross-world.nav-route-marker--nether .nav-marker {
+    background: #b91c1c;
+    border-color: #fcd34d;
+}
+
 .nav-marker-origin {
     background: #22c55e;
     font-size: 1.1rem;
@@ -1672,11 +1694,11 @@ mark {
     color: #fff;
 }
 
-/* Follow mode toggle button - top left with hit area */
+/* Follow mode toggle button - top right, left of close button */
 .nav-follow-toggle {
     position: absolute;
     top: 8px;
-    left: 8px;
+    right: 48px;
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
     border-radius: 50%;
@@ -1750,6 +1772,76 @@ mark {
 
 .nav-dialog-recenter.hidden {
     display: none;
+}
+
+/* View controls container - top right, below follow toggle */
+.nav-view-controls {
+    position: absolute;
+    top: 48px;
+    right: 48px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    z-index: 1001;
+}
+
+/* Common styles for view control buttons */
+.nav-view-mode-toggle,
+.nav-world-toggle {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-text);
+    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    outline: none;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.nav-view-mode-toggle:hover,
+.nav-world-toggle:hover {
+    background: var(--color-bg-tertiary);
+    transform: scale(1.05);
+}
+
+/* Auto mode - highlighted to show it's active */
+.nav-view-mode-toggle[data-mode="auto"] {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+
+/* Manual mode - dimmed */
+.nav-view-mode-toggle[data-mode="manual"] {
+    color: var(--color-text-dimmed);
+    opacity: 0.85;
+}
+
+/* Overworld view - normal */
+.nav-world-toggle[data-world="overworld"] {
+    /* Default styling */
+}
+
+/* Nether view - red tint */
+.nav-world-toggle[data-world="the_nether"] {
+    background: var(--color-bg-nether);
+    color: var(--color-nether);
+    border-color: var(--color-nether);
+}
+
+/* Disable world toggle in auto mode */
+.nav-world-toggle[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* Player markers */

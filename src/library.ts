@@ -1484,6 +1484,50 @@ export function toOverworldEquivalent(x: number, z: number, world: string): { x:
 }
 
 /**
+ * Convert coordinates for display on the specified view world.
+ * When viewing overworld: nether coords are scaled ×8
+ * When viewing nether: overworld coords are scaled ÷8
+ * 
+ * @param x - Original X coordinate
+ * @param z - Original Z coordinate
+ * @param stopWorld - The world where this point is located
+ * @param viewWorld - The world currently being viewed ('overworld' or 'the_nether')
+ * @returns Coordinates adjusted for the view world
+ * 
+ * @example
+ * // Viewing overworld: nether stop at (100, 50) displays at (800, 400)
+ * toViewCoords(100, 50, 'the_nether', 'overworld')  // { x: 800, z: 400 }
+ * 
+ * // Viewing nether: overworld stop at (800, 400) displays at (100, 50)
+ * toViewCoords(800, 400, 'overworld', 'the_nether')  // { x: 100, z: 50 }
+ * 
+ * // Same world: no conversion needed
+ * toViewCoords(100, 50, 'overworld', 'overworld')  // { x: 100, z: 50 }
+ */
+export function toViewCoords(
+    x: number,
+    z: number,
+    stopWorld: string,
+    viewWorld: string
+): { x: number; z: number } {
+    const isStopNether = stopWorld.toLowerCase().includes('nether');
+    const isViewNether = viewWorld.toLowerCase().includes('nether');
+    
+    if (isStopNether === isViewNether) {
+        // Same world type: no conversion needed
+        return { x, z };
+    }
+    
+    if (isStopNether && !isViewNether) {
+        // Nether stop, viewing overworld: scale up ×8
+        return { x: x * 8, z: z * 8 };
+    }
+    
+    // Overworld stop, viewing nether: scale down ÷8
+    return { x: x / 8, z: z / 8 };
+}
+
+/**
  * Calculate distance between two points in overworld-equivalent coordinates.
  * Automatically converts nether coordinates for accurate cross-world distances.
  * 
