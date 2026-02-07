@@ -739,6 +739,7 @@ mark {
     cursor: pointer;
     transition: opacity 0.15s ease;
     white-space: nowrap;
+    margin-left: auto;
 }
 
 .start-nav-btn:hover {
