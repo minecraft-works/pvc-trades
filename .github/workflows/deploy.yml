@@ -65,6 +65,9 @@ jobs:
       - name: Fetch map tiles (only missing)
         run: npm run fetch-tiles
 
+      - name: Validate tile integrity
+        run: npm run validate-tiles
+
       - name: Copy static JSON files to public
         run: |
           mkdir -p public
