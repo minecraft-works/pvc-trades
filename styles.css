@@ -1982,6 +1982,139 @@ mark {
 }
 
 /* ============================================================================
+   Trade Details Dialog
+   ============================================================================ */
+
+#trade-details-dialog {
+    position: fixed;
+    margin: auto;
+    border: none;
+    border-radius: var(--border-radius-lg);
+    background: var(--color-bg-secondary);
+    padding: 0;
+    max-width: min(90vw, 400px);
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+#trade-details-dialog::backdrop {
+    background: rgb(0 0 0 / 70%);
+}
+
+.trade-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
+}
+
+.trade-details-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--color-accent);
+}
+
+.trade-details-header button {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.trade-details-header button:hover {
+    color: var(--color-text);
+}
+
+.trade-details-content {
+    padding: var(--spacing-md);
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.trade-detail-item {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.trade-detail-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.trade-detail-item h4 {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.trade-detail-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--spacing-sm);
+}
+
+.trade-detail-amount {
+    color: var(--color-accent);
+    margin-bottom: var(--spacing-sm);
+}
+
+.trade-detail-lore {
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.trade-detail-lore-line {
+    display: block;
+    padding: 2px 0;
+}
+
+.trade-detail-enchants {
+    color: var(--color-accent);
+    font-size: 0.9rem;
+}
+
+.trade-detail-enchant {
+    display: block;
+    padding: 2px 0;
+}
+
+.trade-detail-enchant::before {
+    content: "✨ ";
+}
+
+/* Make clickable cells show pointer cursor */
+.trade-row .distance,
+.trade-row .world,
+.trade-row .result-name,
+.trade-row .cost-name {
+    cursor: pointer;
+}
+
+.trade-row .distance:hover,
+.trade-row .world:hover {
+    color: var(--color-accent);
+}
+
+.trade-row .result-name:hover,
+.trade-row .cost-name:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    text-underline-offset: 2px;
+}
+
+/* ============================================================================
    Animation Disable Rules
    ============================================================================
    These rules disable CSS animations/transitions for:

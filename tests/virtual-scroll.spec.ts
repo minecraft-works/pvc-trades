@@ -360,9 +360,9 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         await page.evaluate(() => window.scrollBy(0, 1500));
         await page.waitForTimeout(200);
 
-        // Click on a trade row
+        // Click on a trade row distance cell to open map
         const row = page.locator('.trade-row').first();
-        await row.click();
+        await row.locator('.distance').click();
 
         // Map dialog should open
         const mapDialog = page.locator('#map-dialog');

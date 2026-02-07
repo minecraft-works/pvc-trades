@@ -308,6 +308,7 @@ export interface TradeInput {
     resultAmount: number;
     costName: string;
     costAmount: number;
+    item1Name: string;
     item2?: Item;
     x: number;
     y: number;

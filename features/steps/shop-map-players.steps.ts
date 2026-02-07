@@ -35,13 +35,13 @@ Given('there are no players in the nether', async ({ multiPlayerMock }) => {
     }
 });
 
-When('I click on an overworld shop', async ({ page, multiPlayerMock }) => {
+When('I click on the distance cell of an overworld shop', async ({ page, multiPlayerMock }) => {
     // Set up the multi-player API mock
     await setupMultiPlayerApiMock(page, multiPlayerMock);
     
-    // Find and click an overworld shop (world indicator shows "O")
+    // Find an overworld shop (world indicator shows "O") and click its distance cell
     const overworldRow = page.locator(SELECTOR_TRADE_ROW).filter({ has: page.locator('.world:has-text("O")') }).first();
-    await overworldRow.click();
+    await overworldRow.locator('.distance').click();
     
     // Wait for map dialog to open
     await expect(page.locator(SELECTOR_MAP_DIALOG)).toBeVisible({ timeout: 5000 });
@@ -50,13 +50,13 @@ When('I click on an overworld shop', async ({ page, multiPlayerMock }) => {
     await page.waitForTimeout(500);
 });
 
-When('I click on a nether shop', async ({ page, multiPlayerMock }) => {
+When('I click on the distance cell of a nether shop', async ({ page, multiPlayerMock }) => {
     // Set up the multi-player API mock
     await setupMultiPlayerApiMock(page, multiPlayerMock);
     
-    // Find and click a nether shop (world indicator shows "N")
+    // Find a nether shop (world indicator shows "N") and click its distance cell
     const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ has: page.locator('.world:has-text("N")') }).first();
-    await netherRow.click();
+    await netherRow.locator('.distance').click();
     
     // Wait for map dialog to open
     await expect(page.locator(SELECTOR_MAP_DIALOG)).toBeVisible({ timeout: 5000 });
@@ -65,13 +65,13 @@ When('I click on a nether shop', async ({ page, multiPlayerMock }) => {
     await page.waitForTimeout(500);
 });
 
-When(String.raw`I click on an overworld shop at \({int}, {int}\)`, async ({ page, multiPlayerMock }, _x: number, _z: number) => {
+When(String.raw`I click on the distance cell of an overworld shop at \({int}, {int}\)`, async ({ page, multiPlayerMock }, _x: number, _z: number) => {
     // Set up the multi-player API mock
     await setupMultiPlayerApiMock(page, multiPlayerMock);
     
-    // Find and click an overworld shop
+    // Find an overworld shop and click its distance cell
     const overworldRow = page.locator(SELECTOR_TRADE_ROW).filter({ has: page.locator('.world:has-text("O")') }).first();
-    await overworldRow.click();
+    await overworldRow.locator('.distance').click();
     
     // Wait for map dialog to open
     await expect(page.locator(SELECTOR_MAP_DIALOG)).toBeVisible({ timeout: 5000 });

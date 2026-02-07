@@ -92,7 +92,8 @@ import type {
     Player,
     PlayersData,
     RouteStop,
-    ShoppingList
+    ShoppingList,
+    Item
 } from './types.js';
 
 import { shouldDisableAnimations } from './types.js';
@@ -190,6 +191,7 @@ function openDialog(dialogId: string, prepare?: () => void): void {
 // ============================================================================
 
 let allTrades: Trade[] = [];
+const tradesByKey = new Map<string, Trade>();
 let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | undefined;
 let ratioGraph: RatioGraph | undefined;
@@ -487,6 +489,7 @@ async function refreshShopData(): Promise<number> {
             resultAmount: t.resultAmount,
             costName: t.costName,
             costAmount: t.item1.amount,
+            item1Name: formatName(t.item1),
             item2: t.item2,
             x: t.x, y: t.y, z: t.z
         })), 'emerald');
@@ -537,6 +540,7 @@ async function loadShops(): Promise<void> {
             resultAmount: t.resultAmount,
             costName: t.costName,
             costAmount: t.item1.amount,
+            item1Name: formatName(t.item1),
             item2: t.item2,
             x: t.x, y: t.y, z: t.z
         })), 'emerald');
@@ -563,9 +567,12 @@ async function loadShops(): Promise<void> {
 
 function processShops(shops: ShopData['data']): void {
     allTrades = [];
+    tradesByKey.clear();
     for (const shop of shops) {
         for (const recipe of shop.recipes) {
-            allTrades.push(processTrade(recipe, shop, mappingRules));
+            const trade = processTrade(recipe, shop, mappingRules);
+            allTrades.push(trade);
+            tradesByKey.set(getTradeKey(trade), trade);
         }
     }
 }
@@ -711,15 +718,31 @@ function getDeviation(trade: Trade): DeviationResult | undefined {
 
     if (!itemValues) { return undefined; }
 
-    const costValue = getTrustedItemValue(trade.costName, itemValues);
+    // Get value of item1
+    const item1Name = formatName(trade.item1);
+    const item1Value = getTrustedItemValue(item1Name, itemValues);
+    if (item1Value === undefined) { return undefined; }
+
+    // Calculate total cost value (item1 + optional item2)
+    let totalCostValue = item1Value * trade.item1.amount;
+    if (trade.item2) {
+        const item2Name = formatName(trade.item2);
+        const item2Value = getTrustedItemValue(item2Name, itemValues);
+        if (item2Value === undefined) { return undefined; }
+        totalCostValue += item2Value * trade.item2.amount;
+    }
+
     const resultValue = getTrustedItemValue(trade.resultName, itemValues);
+    if (resultValue === undefined) { return undefined; }
 
-    if (costValue === undefined || resultValue === undefined) { return undefined; }
+    // Expected: how much output value per input value
+    // Actual: total input value / total output value
+    const totalResultValue = resultValue * trade.resultAmount;
+    const actualRate = totalCostValue / totalResultValue;
 
-    const expectedRate = resultValue / costValue;
-    const actualRate = trade.item1.amount / trade.resultAmount;
-
-    const ratio = actualRate / expectedRate;
+    // ratio > 1 means paying more than expected (bad deal)
+    // ratio < 1 means paying less than expected (good deal)
+    const ratio = actualRate;
     const percent = Math.max(DEVIATION.MIN_PERCENT, Math.min(DEVIATION.MAX_PERCENT, Math.round((ratio - 1) * 100)));
 
     if (percent === 0) {
@@ -844,6 +867,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     row.dataset['world'] = t.world;
     
     const tradeKey = getTradeKey(t);
+    row.dataset['tradeKey'] = tradeKey;
     const isInCart = cartStore.has(t);
     const inCartClass = isInCart ? ' in-cart' : '';
     
@@ -922,6 +946,97 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | undefined, g
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
     renderMatrix(container, ratioGraph, getElement);
+}
+
+// ============================================================================
+// Trade Details Dialog
+// ============================================================================
+
+/**
+ * Format enchantment name for display (e.g., "sharpness" -> "Sharpness")
+ */
+function formatEnchantmentName(name: string): string {
+    return name.charAt(0).toUpperCase() + name.slice(1).replaceAll('_', ' ');
+}
+
+/**
+ * Render item details HTML for the trade details dialog
+ */
+function renderItemDetails(item: Item, label: string): string {
+    const name = formatName(item);
+    const hasLore = item.lore && item.lore.length > 0;
+    const hasEnchants = item.enchant && Object.keys(item.enchant).length > 0;
+
+    let html = `
+        <div class="trade-detail-item">
+            <h4>${escapeHtml(label)}</h4>
+            <div class="trade-detail-name">${escapeHtml(name)}</div>
+            <div class="trade-detail-amount">×${item.amount}</div>
+    `;
+
+    if (hasLore) {
+        html += '<div class="trade-detail-lore">';
+        for (const line of item.lore!) {
+            html += `<span class="trade-detail-lore-line">${escapeHtml(line)}</span>`;
+        }
+        html += '</div>';
+    }
+
+    if (hasEnchants && item.enchant) {
+        html += '<div class="trade-detail-enchants">';
+        for (const [enchant, level] of Object.entries(item.enchant)) {
+            html += `<span class="trade-detail-enchant">${escapeHtml(formatEnchantmentName(enchant))} ${level}</span>`;
+        }
+        html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+}
+
+/**
+ * Open the trade details dialog showing item information
+ * @param row - The trade row element
+ * @param isResult - True if showing result item, false for cost items
+ * @param _target - The clicked element (for future positioning)
+ */
+function openTradeDetailsPopover(row: HTMLElement, isResult: boolean, _target: HTMLElement): void {
+    const tradeKey = row.dataset['tradeKey'];
+    if (!tradeKey) { return; }
+
+    const trade = tradesByKey.get(tradeKey);
+    if (!trade) { return; }
+
+    const dialog = document.querySelector<HTMLDialogElement>('#trade-details-dialog');
+    if (!dialog) { return; }
+
+    const titleElement = dialog.querySelector('#trade-details-title');
+    const contentElement = dialog.querySelector('#trade-details-content');
+    if (!titleElement || !contentElement) { return; }
+
+    let html = '';
+
+    if (isResult) {
+        titleElement.textContent = 'Result Details';
+        html = renderItemDetails(trade.resultItem, 'You Get');
+    } else {
+        titleElement.textContent = 'Cost Details';
+        html = renderItemDetails(trade.item1, 'Cost 1');
+        if (trade.item2) {
+            html += renderItemDetails(trade.item2, 'Cost 2');
+        }
+    }
+
+    contentElement.innerHTML = html;
+
+    // Set up close button
+    const closeBtn = dialog.querySelector('#close-trade-details');
+    closeBtn?.addEventListener('click', () => dialog.close(), { once: true });
+
+    // Set up backdrop close
+    setupDialogBackdropClose(dialog);
+
+    dialog.showModal();
 }
 
 // ============================================================================
@@ -2908,13 +3023,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Event delegation for trade row clicks (prevents memory leaks)
     getElement('results').addEventListener('click', (event) => {
-        const row = (event.target as HTMLElement).closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
-        if (row) {
-            const x = Number.parseInt(row.dataset['x'] ?? '0', 10);
-            const y = Number.parseInt(row.dataset['y'] ?? '0', 10);
-            const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
-            const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
+        const target = event.target as HTMLElement;
+        const row = target.closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
+        if (!row) { return; }
+
+        const x = Number.parseInt(row.dataset['x'] ?? '0', 10);
+        const y = Number.parseInt(row.dataset['y'] ?? '0', 10);
+        const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
+        const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
+
+        // Click on distance or world cell → open map dialog
+        if (target.closest('.distance') || target.closest('.world')) {
             openMapDialog(x, y, z, world);
+            return;
+        }
+
+        // Click on result-name or cost-name cell → open trade details popover
+        if (target.closest('.result-name') || target.closest('.cost-name')) {
+            const isResult = target.closest('.result-name') !== null;
+            openTradeDetailsPopover(row, isResult, target);
         }
     });
 });

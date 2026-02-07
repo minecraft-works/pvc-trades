@@ -8,19 +8,19 @@ Feature: Map Dialog Close Behavior
 
   @shop-map @dialog @click
   Scenario: Clicking on the map does not close dialog
-    When I click on an overworld shop
+    When I click on the distance cell of an overworld shop
     And I click on the map area
     Then the map dialog should remain open
 
   @shop-map @dialog @click
   Scenario: Clicking outside the map closes dialog
-    When I click on an overworld shop
+    When I click on the distance cell of an overworld shop
     And I click outside the map dialog
     Then the map dialog should be closed
 
   @shop-map @dialog @drag
   Scenario: Dragging from map to outside does not close dialog
-    When I click on an overworld shop
+    When I click on the distance cell of an overworld shop
     And I mousedown on the map area
     And I drag to outside the dialog
     And I release the mouse outside the dialog

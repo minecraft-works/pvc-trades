@@ -615,7 +615,7 @@ describe('getTrustedItemValue', () => {
 describe('calculateItemValues', () => {
     test('calculates buy prices from emerald trades', () => {
         const trades: TradeInput[] = [
-            { costName: EMERALD_TITLE, costAmount: 10, resultName: DIAMOND_TITLE, resultAmount: 1, x: 0, y: 0, z: 0 }
+            { costName: EMERALD_TITLE, costAmount: 10, item1Name: EMERALD_TITLE, resultName: DIAMOND_TITLE, resultAmount: 1, x: 0, y: 0, z: 0 }
         ];
         const values = calculateItemValues(trades, EMERALD_LOWER);
         const diamond = values.get(DIAMOND_LOWER);
@@ -625,7 +625,7 @@ describe('calculateItemValues', () => {
 
     test('calculates sell prices', () => {
         const trades: TradeInput[] = [
-            { costName: 'Iron ingot', costAmount: 10, resultName: EMERALD_TITLE, resultAmount: 1, x: 0, y: 0, z: 0 }
+            { costName: 'Iron ingot', costAmount: 10, item1Name: 'Iron ingot', resultName: EMERALD_TITLE, resultAmount: 1, x: 0, y: 0, z: 0 }
         ];
         const values = calculateItemValues(trades, EMERALD_LOWER);
         const iron = values.get('iron ingot');
@@ -635,7 +635,7 @@ describe('calculateItemValues', () => {
 
     test('handles emerald block as 9 emeralds', () => {
         const trades: TradeInput[] = [
-            { costName: 'Emerald block', costAmount: 1, resultName: DIAMOND_TITLE, resultAmount: 9, x: 0, y: 0, z: 0 }
+            { costName: 'Emerald block', costAmount: 1, item1Name: 'Emerald block', resultName: DIAMOND_TITLE, resultAmount: 9, x: 0, y: 0, z: 0 }
         ];
         const values = calculateItemValues(trades, EMERALD_LOWER);
         const diamond = values.get(DIAMOND_LOWER);
