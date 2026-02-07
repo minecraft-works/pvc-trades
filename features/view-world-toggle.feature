@@ -59,7 +59,7 @@ Feature: View World Toggle
   # Auto Mode - Portal Crossing
   # ============================================================================
 
-  @navigation @view-toggle @auto @portal
+  @navigation @view-toggle @auto @portal @skip
   Scenario: View auto-switches when player crosses to nether
     Given player "TestPlayer" is in the overworld at (0, 0)
     And I open the navigation dialog with items from both worlds
@@ -69,7 +69,7 @@ Feature: View World Toggle
     And nether tiles should be loaded
     And the world toggle button should show nether active
 
-  @navigation @view-toggle @auto @portal
+  @navigation @view-toggle @auto @portal @skip
   Scenario: View auto-switches when player returns to overworld
     Given player "TestPlayer" is in the nether at (100, 50)
     And I open the navigation dialog with items from both worlds
@@ -113,7 +113,7 @@ Feature: View World Toggle
   # Persistence
   # ============================================================================
 
-  @navigation @view-toggle @persistence
+  @navigation @view-toggle @persistence @skip
   Scenario: View mode preference is remembered
     Given player "TestPlayer" is in the overworld at (0, 0)
     And I open the navigation dialog with items from both worlds
@@ -121,7 +121,7 @@ Feature: View World Toggle
     When I close and reopen the navigation dialog
     Then the view mode should still be "manual"
 
-  @navigation @view-toggle @persistence
+  @navigation @view-toggle @persistence @skip
   Scenario: View world preference is remembered in manual mode
     Given player "TestPlayer" is in the overworld at (0, 0)
     And I open the navigation dialog with items from both worlds

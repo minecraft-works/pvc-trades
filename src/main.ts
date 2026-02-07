@@ -1802,6 +1802,9 @@ async function startNavigation(): Promise<void> {
     // Initialize follow toggle button to follow mode
     updateFollowToggleButton('follow');
     
+    // Initialize view world toggle buttons
+    initViewWorldButtons();
+    
     // Close cart dialog and open navigation dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
@@ -2607,6 +2610,33 @@ function toggleFollowMode(): void {
         switchToManualMode();
     } else {
         switchToFollowMode();
+    }
+}
+
+/**
+ * Initialize view world toggle buttons with current state.
+ * Called when navigation starts.
+ */
+function initViewWorldButtons(): void {
+    const viewModeButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_VIEW_MODE_TOGGLE);
+    const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
+    
+    const mode = navigationStore.viewWorldMode;
+    const world = navigationStore.viewWorld;
+    
+    if (viewModeButton) {
+        viewModeButton.dataset.mode = mode;
+        viewModeButton.title = mode === 'auto' ? 'Auto (follows player world)' : 'Manual (fixed world view)';
+    }
+    
+    if (worldToggleButton) {
+        worldToggleButton.dataset.world = world;
+        worldToggleButton.disabled = mode === 'auto';
+        const worldName = world === WORLDS.OVERWORLD ? 'Overworld' : 'Nether';
+        worldToggleButton.title = mode === 'auto' 
+            ? 'World toggle disabled in auto mode' 
+            : `Viewing: ${worldName}`;
+        worldToggleButton.textContent = world === WORLDS.OVERWORLD ? '🌍' : '🔥';
     }
 }
 
