@@ -9,15 +9,15 @@ const SELECTOR_TRADE_DETAILS_DIALOG = '#trade-details-dialog';
 const SELECTOR_MAP_DIALOG = '#map-dialog';
 
 When('I click on the result name of a trade', async ({ page }) => {
-    // Click on a result name that has details (lore or enchants)
-    const resultNameCell = page.locator(`${SELECTOR_TRADE_ROW} .result-name.has-details`).first();
-    await resultNameCell.click();
+    // Click on the info icon in result-name (items with lore or enchants have an info icon)
+    const resultInfoIcon = page.locator(`${SELECTOR_TRADE_ROW} .result-name .info-icon`).first();
+    await resultInfoIcon.click();
 });
 
 When('I click on the cost name of a trade', async ({ page }) => {
-    // Click on a cost name that has details (lore or enchants)
-    const costNameCell = page.locator(`${SELECTOR_TRADE_ROW} .cost-name.has-details`).first();
-    await costNameCell.click();
+    // Click on the info icon in cost-name (items with lore or enchants have an info icon)
+    const costInfoIcon = page.locator(`${SELECTOR_TRADE_ROW} .cost-name .info-icon`).first();
+    await costInfoIcon.click();
 });
 
 Then('the trade details dialog should be visible', async ({ page }) => {

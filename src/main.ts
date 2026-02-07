@@ -871,8 +871,6 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     // Check if items have additional details (lore/enchants)
     const resultHasDetails = itemHasDetails(t.resultItem);
     const costHasDetails = itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2));
-    const resultDetailsClass = resultHasDetails ? ' has-details' : '';
-    const costDetailsClass = costHasDetails ? ' has-details' : '';
 
     const row = document.createElement('div');
     row.className = CSS_CLASSES.TRADE_ROW;
@@ -894,11 +892,14 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         row.dataset['new'] = 'true';
     }
     
+    const resultInfoIcon = resultHasDetails ? '<button class="info-icon" data-info="result" title="View details">ℹ</button>' : '';
+    const costInfoIcon = costHasDetails ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
+    
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
-        <span class="col result-name${resultDetailsClass}">${resultDisplay}</span>
+        <span class="col result-name">${resultDisplay}${resultInfoIcon}</span>
         <span class="col cost-amt">${costAmt}</span>
-        <span class="col cost-name${costDetailsClass}">${costDisplay}</span>
+        <span class="col cost-name">${costDisplay}${costInfoIcon}</span>
         <span class="col dev ${devClass}">${devText}</span>
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
@@ -3058,18 +3059,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
         const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
 
-        // Click on distance or world cell → open map dialog
-        if (target.closest('.distance') || target.closest('.world')) {
-            openMapDialog(x, y, z, world);
+        // Click on info icon → open trade details popover
+        const infoIcon = target.closest('.info-icon') as HTMLElement | null;
+        if (infoIcon) {
+            const isResult = infoIcon.dataset['info'] === 'result';
+            openTradeDetailsPopover(row, isResult, target);
             return;
         }
 
-        // Click on result-name or cost-name cell with details → open trade details popover
-        const resultName = target.closest('.result-name.has-details');
-        const costName = target.closest('.cost-name.has-details');
-        if (resultName || costName) {
-            const isResult = resultName !== null;
-            openTradeDetailsPopover(row, isResult, target);
+        // Click on add-to-cart button is handled separately
+        if (target.closest('.add-to-cart-btn')) {
+            return;
         }
+
+        // Click anywhere else on row → open map dialog
+        openMapDialog(x, y, z, world);
     });
 });
