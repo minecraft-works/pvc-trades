@@ -9,12 +9,14 @@ const SELECTOR_TRADE_DETAILS_DIALOG = '#trade-details-dialog';
 const SELECTOR_MAP_DIALOG = '#map-dialog';
 
 When('I click on the result name of a trade', async ({ page }) => {
-    const resultNameCell = page.locator(`${SELECTOR_TRADE_ROW} .result-name`).first();
+    // Click on a result name that has details (lore or enchants)
+    const resultNameCell = page.locator(`${SELECTOR_TRADE_ROW} .result-name.has-details`).first();
     await resultNameCell.click();
 });
 
 When('I click on the cost name of a trade', async ({ page }) => {
-    const costNameCell = page.locator(`${SELECTOR_TRADE_ROW} .cost-name`).first();
+    // Click on a cost name that has details (lore or enchants)
+    const costNameCell = page.locator(`${SELECTOR_TRADE_ROW} .cost-name.has-details`).first();
     await costNameCell.click();
 });
 
