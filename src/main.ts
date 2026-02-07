@@ -835,6 +835,15 @@ function getDeviationClass(isGood: boolean | undefined): string {
     return isGood ? 'good-deal' : 'bad-deal';
 }
 
+/**
+ * Check if an item has additional details (lore or enchantments)
+ */
+function itemHasDetails(item: Item): boolean {
+    const hasLore = Boolean(item.lore && item.lore.length > 0);
+    const hasEnchants = Boolean(item.enchant && Object.keys(item.enchant).length > 0);
+    return hasLore || hasEnchants;
+}
+
 function getDeviationDisplayInfo(t: Trade): { devClass: string; devText: string } {
     const deviation = getDeviation(t);
     if (!deviation) {
@@ -859,6 +868,12 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const { devClass, devText } = getDeviationDisplayInfo(t);
     const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
 
+    // Check if items have additional details (lore/enchants)
+    const resultHasDetails = itemHasDetails(t.resultItem);
+    const costHasDetails = itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2));
+    const resultDetailsClass = resultHasDetails ? ' has-details' : '';
+    const costDetailsClass = costHasDetails ? ' has-details' : '';
+
     const row = document.createElement('div');
     row.className = CSS_CLASSES.TRADE_ROW;
     row.dataset['x'] = String(t.x);
@@ -881,9 +896,9 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
-        <span class="col result-name">${resultDisplay}</span>
+        <span class="col result-name${resultDetailsClass}">${resultDisplay}</span>
         <span class="col cost-amt">${costAmt}</span>
-        <span class="col cost-name">${costDisplay}</span>
+        <span class="col cost-name${costDetailsClass}">${costDisplay}</span>
         <span class="col dev ${devClass}">${devText}</span>
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
@@ -3038,9 +3053,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Click on result-name or cost-name cell → open trade details popover
-        if (target.closest('.result-name') || target.closest('.cost-name')) {
-            const isResult = target.closest('.result-name') !== null;
+        // Click on result-name or cost-name cell with details → open trade details popover
+        const resultName = target.closest('.result-name.has-details');
+        const costName = target.closest('.cost-name.has-details');
+        if (resultName || costName) {
+            const isResult = resultName !== null;
             openTradeDetailsPopover(row, isResult, target);
         }
     });

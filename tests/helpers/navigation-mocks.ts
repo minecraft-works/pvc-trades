@@ -345,6 +345,40 @@ export const MULTI_WORLD_SHOP_DATA = {
                     stock: 30
                 }
             ]
+        },
+        {
+            shopName: 'Enchanted Items Shop',
+            shopOwner: 'EnchantOwner',
+            location: '50.0, 64.0, 50.0',
+            world: 'World',
+            recipes: [
+                {
+                    resultItem: { 
+                        type: 'DIAMOND_SWORD', 
+                        name: 'Diamond Sword', 
+                        amount: 1,
+                        enchant: { sharpness: 5, unbreaking: 3 }
+                    },
+                    item1: { type: 'DIAMOND', name: 'Diamond', amount: 10 },
+                    stock: 5
+                },
+                {
+                    resultItem: { 
+                        type: 'SHULKER_BOX', 
+                        name: '', 
+                        amount: 1,
+                        lore: ['- 64x DIAMOND', '- 64x DIAMOND', '- 64x EMERALD']
+                    },
+                    item1: { 
+                        type: 'DIAMOND', 
+                        name: 'Diamond', 
+                        amount: 5,
+                        enchant: { fortune: 3 }
+                    },
+                    item2: { type: 'EMERALD', name: 'Emerald', amount: 2 },
+                    stock: 3
+                }
+            ]
         }
     ]
 };

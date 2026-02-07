@@ -2084,8 +2084,8 @@ mark {
 /* Make clickable cells show pointer cursor */
 .trade-row .distance,
 .trade-row .world,
-.trade-row .result-name,
-.trade-row .cost-name {
+.trade-row .result-name.has-details,
+.trade-row .cost-name.has-details {
     cursor: pointer;
 }
 
@@ -2094,8 +2094,8 @@ mark {
     color: var(--color-accent);
 }
 
-.trade-row .result-name:hover,
-.trade-row .cost-name:hover {
+.trade-row .result-name.has-details:hover,
+.trade-row .cost-name.has-details:hover {
     text-decoration: underline;
     text-decoration-color: var(--color-accent);
     text-underline-offset: 2px;
