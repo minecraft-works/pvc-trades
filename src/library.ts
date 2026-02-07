@@ -279,7 +279,7 @@ function normalize(s: string): string {
 
 /**
  * Check if text matches a search query with flexible matching.
- * Handles underscores, spaces, and word-order variations.
+ * Handles underscores, spaces, and word-order variations (case-insensitive).
  * 
  * @param text - The text to search in
  * @param query - The search query
@@ -291,12 +291,13 @@ function normalize(s: string): string {
  * matchesQuery('Golden Apple', 'apple golden')  // true
  */
 export function matchesQuery(text: string, query: string): boolean {
-    const textNorm = normalize(text);
-    const queryNorm = normalize(query);
+    const textNorm = normalize(text).toLowerCase();
+    const queryNorm = normalize(query).toLowerCase();
     if (textNorm.includes(queryNorm)) { return true; }
 
+    const textLower = text.toLowerCase();
     const words = query.replaceAll('_', ' ').split(/\s+/).filter(Boolean);
-    return words.every(word => text.includes(word));
+    return words.every(word => textLower.includes(word.toLowerCase()));
 }
 
 /**

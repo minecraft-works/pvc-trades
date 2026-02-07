@@ -95,6 +95,8 @@ import type {
     ShoppingList
 } from './types.js';
 
+import { shouldDisableAnimations } from './types.js';
+
 import {
     NAVIGATION,
     DEVIATION,
@@ -1204,6 +1206,14 @@ interface ShopMapSetupParameters {
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
     const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
+    
+    // Disable animations when testing for faster, more stable tests
+    const animationOptions = shouldDisableAnimations() ? {
+        fadeAnimation: false,
+        zoomAnimation: false,
+        markerZoomAnimation: false
+    } : {};
+    
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- This is Leaflet's L.map(), not Array.map()
     leafletMap = L.map(container, {
         crs: L.CRS.Simple,
@@ -1212,7 +1222,8 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         zoomControl: true,
         attributionControl: false,
         zoomSnap: 0,
-        zoomDelta: 0.5
+        zoomDelta: 0.5,
+        ...animationOptions
     });
     
     const context: MapTileContext = {
@@ -1278,6 +1289,11 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     leafletMap.setView([markerLat, markerLng], initialZoom);
     loadTiles();
     updateZoomClass();
+    
+    // Expose map for E2E testing (only in test environments)
+    if (typeof globalThis !== 'undefined') {
+        (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = leafletMap;
+    }
 }
 
 /**
@@ -2352,7 +2368,8 @@ function centerMapOnPlayer(): void {
     
     const zoom = getZoomForDistance(minDistance);
     
-    // Use flyTo for smoother animation instead of setView
+    // Use flyTo for smooth pan-zoom animation
+    // In tests, Leaflet's flyTo is patched to use setView with animate:false for reliability
     navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
 }
 
@@ -2509,9 +2526,10 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     const positionCenterX = mapCenterTileX ?? centerTileX;
     const positionCenterZ = mapCenterTileZ ?? centerTileZ;
     const zoom4TileSize = TILE_CONFIG.tileSize * 16;
+    const currentZoom = navMap.getZoom();
     
-    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d]', 
-        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ);
+    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d] zoom=%d', 
+        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ, currentZoom);
     debugTiles('loadNavMapTiles: manifest size=%d, checking zoom4 (8192) and zoom8 (512) tiles', manifest.size);
     
     let zoom4Loaded = 0;
@@ -2547,22 +2565,26 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
     
     debugTiles('loadNavMapTiles: zoom4 loaded=%d skipped=%d (not in manifest)', zoom4Loaded, zoom4Skipped);
     
-    // Load zoom 8 tiles on top
-    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
-        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
-                zoom8Loaded++;
-                const relativeX = tx - positionCenterX;
-                const relativeZ = tz - positionCenterZ;
-                const bounds: L.LatLngBoundsExpression = [
-                    [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
-                    [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
-                ];
-                loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
-            } else {
-                zoom8Skipped++;
+    // Load zoom 8 tiles on top only when zoomed in enough to see detail
+    if (currentZoom > -2) {
+        for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+            for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+                if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
+                    zoom8Loaded++;
+                    const relativeX = tx - positionCenterX;
+                    const relativeZ = tz - positionCenterZ;
+                    const bounds: L.LatLngBoundsExpression = [
+                        [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
+                        [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
+                    ];
+                    loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
+                } else {
+                    zoom8Skipped++;
+                }
             }
         }
+    } else {
+        debugTiles('loadNavMapTiles: skipping zoom8 tiles (currentZoom=%d <= -2)', currentZoom);
     }
     
     debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', zoom8Loaded, zoom8Skipped);
@@ -2658,6 +2680,13 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     navMapCenterTileX = tileRange.centerTileX;
     navMapCenterTileZ = tileRange.centerTileZ;
     
+    // Disable animations when testing for faster, more stable tests
+    const animationOptions = shouldDisableAnimations() ? {
+        fadeAnimation: false,
+        zoomAnimation: false,
+        markerZoomAnimation: false
+    } : {};
+    
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- This is Leaflet's L.map(), not Array.map()
     navMap = L.map(container as HTMLElement, {
         crs: L.CRS.Simple,
@@ -2665,7 +2694,8 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
         maxZoom: 2,
         zoomControl: true,
         attributionControl: false,
-        maxBoundsViscosity: 1
+        maxBoundsViscosity: 1,
+        ...animationOptions
     });
     
     globalThis.__navMap = navMap;
@@ -2673,16 +2703,38 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     globalThis.__navMapCenterTileX = tileRange.centerTileX;
     globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
     
+    // Expose map for E2E testing (used by tile-loading steps)
+    (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = navMap;
+    
     navMap.on('dragstart', () => {
         if (navigationStore.isActive) {
             switchToManualMode();
         }
     });
     
+    // Create markers using display coordinates (unified view)
+    // Pass completedKeys so completed shops show checkmarks instead of numbers
+    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
+    
+    navRoutePolyline = L.polyline(routePoints, {
+        color: '#3b82f6',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '10, 5'
+    }).addTo(navMap);
+    
+    // Set the view FIRST so that the zoom level is known before loading tiles
+    // This ensures loadNavMapTiles can correctly check currentZoom > -2
+    if (routePoints.length > 0) {
+        const bounds = L.latLngBounds(routePoints);
+        navMap.fitBounds(bounds, { padding: [50, 50] });
+    }
+    
     const manifest = await loadTileManifest();
     const addedToNavMap = new Set<string>();
     
     // Always load overworld tiles for unified view
+    // Now the zoom level is properly set from fitBounds
     loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
     
     // Dynamic tile loading when map moves
@@ -2703,22 +2755,6 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     };
     navMap.on('moveend', loadVisibleNavMapTiles);
     navMap.on('zoomend', loadVisibleNavMapTiles);
-    
-    // Create markers using display coordinates (unified view)
-    // Pass completedKeys so completed shops show checkmarks instead of numbers
-    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
-    
-    navRoutePolyline = L.polyline(routePoints, {
-        color: '#3b82f6',
-        weight: 3,
-        opacity: 0.8,
-        dashArray: '10, 5'
-    }).addTo(navMap);
-    
-    if (routePoints.length > 0) {
-        const bounds = L.latLngBounds(routePoints);
-        navMap.fitBounds(bounds, { padding: [50, 50] });
-    }
 }
 
 /**

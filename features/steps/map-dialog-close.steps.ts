@@ -4,7 +4,6 @@
  */
 import { expect } from '@playwright/test';
 import { When, Then } from './fixtures';
-import { setupMultiPlayerApiMock } from '../../tests/helpers/navigation-mocks';
 
 // Selectors
 const SELECTOR_MAP_DIALOG = '#map-dialog';

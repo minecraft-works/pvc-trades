@@ -5,6 +5,22 @@ import sonarjs from 'eslint-plugin-sonarjs';
 import unusedImports from 'eslint-plugin-unused-imports';
 
 export default tseslint.config(
+    // Ignore generated and build files
+    {
+        ignores: [
+            '.features-gen/**',
+            'dist/**',
+            'docs/api/**',
+            'reports/**',
+            'test-results/**',
+            'playwright-report/**',
+            'node_modules/**',
+            '*.cjs',
+            '*.config.js',
+            '*.config.ts',
+            'eslint.config.js'
+        ]
+    },
     js.configs.recommended,
     ...tseslint.configs.recommendedTypeChecked,
     unicorn.configs.recommended,
@@ -19,7 +35,8 @@ export default tseslint.config(
             parserOptions: {
                 projectService: {
                     allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts'],
-                    defaultProject: './tsconfig.eslint.json'
+                    defaultProject: './tsconfig.eslint.json',
+                    maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 50
                 },
                 tsconfigRootDir: import.meta.dirname
             },
@@ -134,6 +151,60 @@ export default tseslint.config(
             'unicorn/no-array-callback-reference': 'off',
             // Array element overwrite is intentional in test data setup
             'sonarjs/no-element-overwrite': 'off'
+        }
+    },
+    // Relaxed rules for property-based tests
+    {
+        files: ['src/**/*.property.test.ts'],
+        rules: {
+            // Property tests generate arbitrary data with fast-check
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            // Fast-check record types are complex
+            'max-params': 'off',
+            // Property tests often have many nested callbacks
+            'max-nested-callbacks': 'off',
+            // Non-null assertions are safe when we control test data
+            '@typescript-eslint/no-non-null-assertion': 'off'
+        }
+    },
+    // Relaxed rules for BDD step definitions and support files
+    {
+        files: ['features/**/*.ts'],
+        rules: {
+            // Step definitions often have many parameters from Cucumber
+            'max-params': 'off',
+            // Duplicate strings are common in step definitions
+            'sonarjs/no-duplicate-string': 'off',
+            // Allow longer functions for complex step definitions
+            'max-lines-per-function': 'off',
+            // Allow unsafe any in test code
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            '@typescript-eslint/no-unsafe-call': 'off',
+            '@typescript-eslint/no-unsafe-return': 'off',
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            // Async step definitions may not need await
+            '@typescript-eslint/require-await': 'off',
+            // Non-null assertions are common in test assertions
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            // Allow unused variables in destructuring (page, tileRequests)
+            'unused-imports/no-unused-vars': 'off',
+            // Complexity rules are too strict for test helpers
+            'complexity': 'off',
+            'sonarjs/cognitive-complexity': 'off',
+            // Allow prefer-const violations (common in test code)
+            'prefer-const': 'off',
+            // Allow null in tests (some APIs return null)
+            'unicorn/no-null': 'off',
+            // Allow any patterns in test code
+            'sonarjs/no-unused-vars': 'off',
+            'sonarjs/no-dead-store': 'off',
+            'sonarjs/pseudo-random': 'off',
+            'sonarjs/prefer-regexp-exec': 'off',
+            'sonarjs/no-os-command-from-path': 'off',
+            '@typescript-eslint/no-unnecessary-condition': 'off'
         }
     }
 );

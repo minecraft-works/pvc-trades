@@ -264,5 +264,14 @@ npm run lint:fix     # Auto-fix lint issues
 - `config.json` - App configuration (Dynmap URLs, analysis settings)
 - `core_currencies.json` - List of core blocks for ratio matrix
 - `block_conversions.json` - Block ↔ ingot conversion rates
-- `DESIGN.md` - Architectural decisions
 - `SCENARIOS.md` - Test scenario coverage matrix
+
+### Architectural Decision Records (ADRs)
+
+Significant design decisions are documented in `docs/adr/`. Consult these before making changes to established patterns:
+
+- [ADR-001](docs/adr/001-price-aggregation-design.md) - Price aggregation design
+- [ADR-002](docs/adr/002-bdd-test-framework.md) - BDD test framework choice
+- [ADR-003](docs/adr/003-disable-animations-in-tests.md) - Disabling animations in tests
+
+**Key principle from ADR-003**: Test-specific logic belongs in test fixtures, not production code. For example, Leaflet's `flyTo` method is patched in test fixtures to use `setView` instead—no if/else branching in `main.ts`.

@@ -56,8 +56,8 @@ Given('I have a shop with {int} items in my cart from a single shop', async ({ p
     
     // Add multiple items from first shop (it has 2 recipes)
     const firstShopRows = page.locator('.trade-row').filter({ hasText: 'Diamond' });
-    for (let i = 0; i < Math.min(count, 2); i++) {
-        await firstShopRows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < Math.min(count, 2); index++) {
+        await firstShopRows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
@@ -95,12 +95,12 @@ Given('I am navigating toward a shop', async ({ playerMock }) => {
 });
 
 // eslint-disable-next-line no-empty-pattern
-Given('the shop at \\({int}, {int}) has {int} items to buy', async ({}, _x: number, _z: number, _itemCount: number) => {
+Given(String.raw`the shop at \({int}, {int}) has {int} items to buy`, async ({}, _x: number, _z: number, _itemCount: number) => {
     // Shop data is configured via the mock
 });
 
 // eslint-disable-next-line no-empty-pattern
-Given('the shop at \\({int}, {int}) has {int} items', async ({}, _x: number, _z: number, _itemCount: number) => {
+Given(String.raw`the shop at \({int}, {int}) has {int} items`, async ({}, _x: number, _z: number, _itemCount: number) => {
     // Shop data is configured via the mock
 });
 
@@ -131,8 +131,8 @@ Given('{int} item is already marked complete', async ({ page }, count: number) =
     // Wait for timeline dots to be visible before clicking
     await page.waitForSelector('.timeline-dot', { state: 'visible', timeout: 5000 });
     const dots = page.locator('.timeline-dot');
-    for (let i = 0; i < count; i++) {
-        await dots.nth(i).click();
+    for (let index = 0; index < count; index++) {
+        await dots.nth(index).click();
     }
     
     // If nav dialog was open before, restart navigation
@@ -207,7 +207,7 @@ When('I approach and leave the shop', async ({ playerMock }) => {
     playerMock.updatePosition(300, 64, 300, 'World');
 });
 
-When('player enters within {int} blocks of \\({int}, {int})', async ({ playerMock }, distance: number, x: number, z: number) => {
+When(String.raw`player enters within {int} blocks of \({int}, {int})`, async ({ playerMock }, distance: number, x: number, z: number) => {
     playerMock.setPosition(x + distance - 10, z);
 });
 

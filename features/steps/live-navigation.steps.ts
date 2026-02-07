@@ -17,8 +17,8 @@ Given('I have items from multiple shops in my cart', async ({ page }) => {
     const count = await rows.count();
     
     // Add 2 overworld items if available
-    for (let i = 0; i < Math.min(2, count); i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < Math.min(2, count); index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
@@ -34,7 +34,7 @@ Given('I have items from both worlds in my cart', async ({ page }) => {
     await netherRow.first().locator('.add-to-cart-btn').click();
 });
 
-Given('I am navigating as {string} at \\({int}, {int})', async ({ page, playerMock }, playerName: string, x: number, z: number) => {
+Given(String.raw`I am navigating as {string} at \({int}, {int})`, async ({ page, playerMock }, playerName: string, x: number, z: number) => {
     playerMock.setPosition(x, z, 'World');
     
     await page.locator('#open-cart').click();
@@ -125,8 +125,8 @@ Given('I am navigating with {int} shops in my route', async ({ page }, shopCount
     const rows = page.locator('.trade-row');
     const count = await rows.count();
     
-    for (let i = 0; i < Math.min(shopCount, count); i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < Math.min(shopCount, count); index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
     
     await page.locator('#open-cart').click();
@@ -211,7 +211,7 @@ Given('I am navigating with {int} shop remaining', async ({ page }) => {
 
 When('I start navigation', async ({ page }) => {
     const badge = page.locator('#cart-badge');
-    const badgeHidden = await badge.evaluate(el => el.classList.contains('hidden'));
+    const badgeHidden = await badge.evaluate(element => element.classList.contains('hidden'));
     
     if (badgeHidden) {
         const rows = page.locator('.trade-row');
@@ -226,7 +226,7 @@ When('I start navigation', async ({ page }) => {
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
 });
 
-When('the player API returns position \\({int}, {int})', async ({ playerMock }, x: number, z: number) => {
+When(String.raw`the player API returns position \({int}, {int})`, async ({ playerMock }, x: number, z: number) => {
     playerMock.setPosition(x, z);
 });
 
@@ -240,7 +240,7 @@ When('the player API is polled', async ({ page }) => {
     await page.waitForTimeout(1500);
 });
 
-When('the player moves to \\({int}, {int})', async ({ playerMock }, x: number, z: number) => {
+When(String.raw`the player moves to \({int}, {int})`, async ({ playerMock }, x: number, z: number) => {
     playerMock.setPosition(x, z);
 });
 
@@ -263,12 +263,12 @@ When('I auto-complete the last shop', async ({ page, playerMock }) => {
 // THEN Steps
 // ============================================================================
 
-Then('a player marker should appear on the map at \\({int}, {int})', async ({ page }, _x: number, _z: number) => {
+Then(String.raw`a player marker should appear on the map at \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
     const marker = page.locator('.nav-player-marker');
     await expect(marker).toBeVisible({ timeout: 5000 });
 });
 
-Then('the player marker should move to \\({int}, {int})', async ({ page }, _x: number, _z: number) => {
+Then(String.raw`the player marker should move to \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
     const marker = page.locator('.nav-player-marker');
     await expect(marker).toBeVisible();
 });
@@ -374,10 +374,10 @@ Then('the route polyline should update', async ({ page }) => {
     console.log('Total polyline elements:', polylineCount);
     
     let foundValidPolyline = false;
-    for (let i = 0; i < polylineCount; i++) {
-        const pathD = await allPolylines.nth(i).getAttribute('d');
-        const isVisible = await allPolylines.nth(i).isVisible();
-        console.log(`Polyline ${i}: d="${pathD?.substring(0, 50)}...", visible=${isVisible}`);
+    for (let index = 0; index < polylineCount; index++) {
+        const pathD = await allPolylines.nth(index).getAttribute('d');
+        const isVisible = await allPolylines.nth(index).isVisible();
+        console.log(`Polyline ${index}: d="${pathD?.slice(0, 50)}...", visible=${isVisible}`);
         if (pathD && pathD !== 'M0 0' && isVisible) {
             foundValidPolyline = true;
         }
@@ -500,21 +500,21 @@ Then('the cart dialog should also show it as complete', async ({ page }) => {
 // ============================================================================
 
 // eslint-disable-next-line no-empty-pattern
-Given('the route is optimized from \\({int}, {int})', async ({}, _x: number, _z: number) => {
+Given(String.raw`the route is optimized from \({int}, {int})`, async ({}, _x: number, _z: number) => {
     // Route is already optimized from current position
 });
 
-When('player moves more than {int} blocks to \\({int}, {int})', async ({ playerMock }, _distance: number, x: number, z: number) => {
+When(String.raw`player moves more than {int} blocks to \({int}, {int})`, async ({ playerMock }, _distance: number, x: number, z: number) => {
     playerMock.setPosition(x, z);
 });
 
-Then('the route should be recalculated from \\({int}, {int})', async ({ page }, _x: number, _z: number) => {
+Then(String.raw`the route should be recalculated from \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
     const navDialog = page.locator('#nav-dialog');
     await expect(navDialog).toBeVisible();
 });
 
 // eslint-disable-next-line no-empty-pattern
-Given('the next shop is at \\({int}, {int})', async ({}, _x: number, _z: number) => {
+Given(String.raw`the next shop is at \({int}, {int})`, async ({}, _x: number, _z: number) => {
     // Shop location defined in data
 });
 
@@ -523,7 +523,7 @@ Then('a dotted green line should connect player to shop', async ({ page }) => {
     await expect(polyline.first()).toBeVisible({ timeout: 5000 });
 });
 
-When('player moves to \\({int}, {int})', async ({ page, playerMock }, x: number, z: number) => {
+When(String.raw`player moves to \({int}, {int})`, async ({ page, playerMock }, x: number, z: number) => {
     playerMock.setPosition(x, z);
     // Wait for polling to pick up position change and trigger auto-advance
     await page.waitForTimeout(2500);
@@ -598,8 +598,8 @@ When('I remove a completed item from the cart', async ({ page }) => {
     await page.locator('#tab-cart').click();
     await page.waitForTimeout(300); // Wait for tab switch
     
-    const removeBtn = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
-    await removeBtn.click();
+    const removeButton = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
+    await removeButton.click();
 });
 
 Then('that completion status should be removed', async ({ page }) => {
@@ -611,6 +611,6 @@ Then('that completion status should be removed', async ({ page }) => {
 Then('I should see {string}', async ({ page }, text: string) => {
     // The completion message appears in the distance display
     // Check the nav-dialog-distance or nav-live-distance
-    const distanceEl = page.locator('#nav-dialog-distance, #nav-live-distance');
-    await expect(distanceEl.first()).toContainText(text, { timeout: 5000 });
+    const distanceElement = page.locator('#nav-dialog-distance, #nav-live-distance');
+    await expect(distanceElement.first()).toContainText(text, { timeout: 5000 });
 });

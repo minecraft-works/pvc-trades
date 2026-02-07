@@ -176,3 +176,102 @@ Then('results should be sorted by result amount ascending', async ({ page }) => 
         expect(amounts[index]).toBeGreaterThanOrEqual(amounts[index - 1] ?? 0);
     }
 });
+
+// ============================================================================
+// Scenario Outline Steps (Search Variations)
+// ============================================================================
+
+Then('I should see results containing {string}', async ({ page }, expectedText: string) => {
+    // Wait for search to filter
+    await page.waitForTimeout(300);
+    
+    const rows = page.locator(SELECTOR_TRADE_ROW);
+    const count = await rows.count();
+    
+    // Should have at least one result
+    expect(count).toBeGreaterThan(0);
+    
+    // Check that at least one row contains the expected text (case insensitive)
+    let found = false;
+    for (let index = 0; index < count; index++) {
+        const rowText = await rows.nth(index).textContent();
+        if (rowText?.toLowerCase().includes(expectedText.toLowerCase())) {
+            found = true;
+            break;
+        }
+    }
+    expect(found).toBe(true);
+});
+
+Then('the app should not crash', async ({ page }) => {
+    // Verify the app is still responsive - core elements should be present
+    await expect(page.locator('.search-container')).toBeVisible({ timeout: 2000 });
+    
+    // No uncaught errors should be visible
+    const errorDialog = page.locator('.error-dialog, [role="alert"]');
+    const errorCount = await errorDialog.count();
+    expect(errorCount).toBe(0);
+});
+
+// ============================================================================
+// Security and XSS Steps
+// ============================================================================
+
+Then('no script should execute', async ({ page }) => {
+    // Set up a flag that would be set if any script executes
+    const scriptExecuted = await page.evaluate(() => {
+        // Check if window.__xssTest was set (would be set by injected scripts)
+        return (globalThis as unknown as { __xssTest?: boolean }).__xssTest === true;
+    });
+    
+    expect(scriptExecuted).toBe(false);
+});
+
+Then('the search input should be sanitized', async ({ page }) => {
+    // Check that no raw HTML was rendered in the results OR the page is empty
+    const tradeRows = page.locator('.trade-row');
+    const rowCount = await tradeRows.count();
+    
+    if (rowCount === 0) {
+        // No results - that's fine, the injection text didn't match anything
+        // The key is that the page didn't execute any scripts
+        return;
+    }
+    
+    const resultsHtml = await tradeRows.first().innerHTML();
+    
+    // Should not contain unescaped script tags
+    expect(resultsHtml).not.toMatch(/<script[^>]*>/i);
+    expect(resultsHtml).not.toMatch(/onerror\s*=/i);
+    expect(resultsHtml).not.toMatch(/onload\s*=/i);
+    expect(resultsHtml).not.toMatch(/javascript:/i);
+});
+
+Then('the search should complete safely', async ({ page }) => {
+    // Verify the app is still responsive after potentially dangerous input
+    await expect(page.locator('.search-container')).toBeVisible({ timeout: 2000 });
+    
+    // Verify no JavaScript errors occurred (would crash the app)
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => {
+        pageErrors.push(error.message);
+    });
+    
+    // Wait a moment for any delayed errors
+    await page.waitForTimeout(100);
+    
+    // If there were errors, they should not be from our injection attempts
+    for (const error of pageErrors) {
+        expect(error).not.toMatch(/xss|injection|alert/i);
+    }
+});
+
+Then('results should appear within {int}ms', async ({ page }, maxMs: number) => {
+    const startTime = Date.now();
+    
+    // Wait for results to be visible or search to complete
+    await page.waitForSelector('.trade-row, .no-results', { state: 'visible', timeout: maxMs + 1000 });
+    
+    const elapsed = Date.now() - startTime;
+    expect(elapsed).toBeLessThan(maxMs);
+});

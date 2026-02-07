@@ -13,8 +13,8 @@ Given('I have {int} items from different shops in my cart', async ({ page }, cou
     const rows = page.locator('.trade-row');
     const available = await rows.count();
     
-    for (let i = 0; i < Math.min(count, available); i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < Math.min(count, available); index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
@@ -26,21 +26,21 @@ Given('I add a trade for {string} quantity {int} to my cart', async ({ page }, i
     const count = await rows.count();
     
     // Find the row where result-name contains the item and result-amt matches quantity
-    for (let i = 0; i < count; i++) {
-        const row = rows.nth(i);
+    for (let index = 0; index < count; index++) {
+        const row = rows.nth(index);
         const resultName = await row.locator('.result-name').textContent();
         const resultAmt = await row.locator('.result-amt').textContent();
         
         if (resultName && resultName.toLowerCase().includes(item.toLowerCase()) && 
-            resultAmt && parseInt(resultAmt) === quantity) {
+            resultAmt && Number.parseInt(resultAmt) === quantity) {
             await row.locator('.add-to-cart-btn').click();
             return;
         }
     }
     
     // Fallback: find any row with matching result item
-    for (let i = 0; i < count; i++) {
-        const row = rows.nth(i);
+    for (let index = 0; index < count; index++) {
+        const row = rows.nth(index);
         const resultName = await row.locator('.result-name').textContent();
         if (resultName && resultName.toLowerCase().includes(item.toLowerCase())) {
             await row.locator('.add-to-cart-btn').click();
@@ -49,7 +49,7 @@ Given('I add a trade for {string} quantity {int} to my cart', async ({ page }, i
     }
 });
 
-Given('I add an overworld shop at \\({int}, {int}) to my cart', async ({ page }, x: number, z: number) => {
+Given(String.raw`I add an overworld shop at \({int}, {int}) to my cart`, async ({ page }, x: number, z: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     // Use specific shop based on coordinates
     if (x === 800 && z === 400) {
@@ -63,7 +63,7 @@ Given('I add an overworld shop at \\({int}, {int}) to my cart', async ({ page },
     }
 });
 
-Given('I add a nether shop at \\({int}, {int}) to my cart', async ({ page }, x: number, z: number) => {
+Given(String.raw`I add a nether shop at \({int}, {int}) to my cart`, async ({ page }, x: number, z: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     // Use Blaze Rod shop which is at (100, 50) nether
     // Or Netherite shop which is at (-683, -101) nether
@@ -102,13 +102,13 @@ Given('I have items from shops spread across the world', async ({ page }) => {
     await rows.nth(1).locator('.add-to-cart-btn').click();
 });
 
-Given('I have a shop at \\({int}, {int}) overworld', async ({ page }, _x: number, _z: number) => {
+Given(String.raw`I have a shop at \({int}, {int}) overworld`, async ({ page }, _x: number, _z: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     const row = page.locator('.trade-row').filter({ hasText: 'Emerald' }).first();
     await row.locator('.add-to-cart-btn').click();
 });
 
-Given('a shop at \\({int}, {int}) nether \\(equivalent to {int}, {int} overworld)', async ({ page }, _x: number, _z: number, _ox: number, _oz: number) => {
+Given(String.raw`a shop at \({int}, {int}) nether \(equivalent to {int}, {int} overworld)`, async ({ page }, _x: number, _z: number, _ox: number, _oz: number) => {
     const row = page.locator('.trade-row').filter({ hasText: 'Netherite' }).first();
     await row.locator('.add-to-cart-btn').click();
 });
@@ -116,24 +116,24 @@ Given('a shop at \\({int}, {int}) nether \\(equivalent to {int}, {int} overworld
 Given('I have {int} items showing {int} blocks distance', async ({ page }, count: number, _distance: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     const rows = page.locator('.trade-row');
-    for (let i = 0; i < count; i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < count; index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
 Given('I have {int} items in my cart with optimized route', async ({ page }, count: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     const rows = page.locator('.trade-row');
-    for (let i = 0; i < count; i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < count; index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
 Given('I have {int} items in my cart', async ({ page }, count: number) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     const rows = page.locator('.trade-row');
-    for (let i = 0; i < Math.min(count, await rows.count()); i++) {
-        await rows.nth(i).locator('.add-to-cart-btn').click();
+    for (let index = 0; index < Math.min(count, await rows.count()); index++) {
+        await rows.nth(index).locator('.add-to-cart-btn').click();
     }
 });
 
@@ -158,8 +158,8 @@ When('I remove one item from the cart', async ({ page }) => {
         await page.locator('#open-cart').click();
         await page.waitForSelector('#cart-dialog', { state: 'visible' });
     }
-    const removeBtn = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
-    await removeBtn.click();
+    const removeButton = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
+    await removeButton.click();
 });
 
 When('I add a 3rd item closer to the start', async ({ page }) => {
@@ -177,15 +177,15 @@ When('I add a 3rd item closer to the start', async ({ page }) => {
 When('I remove the middle item', async ({ page }) => {
     await page.locator('#open-cart').click();
     await page.waitForSelector('#cart-dialog', { state: 'visible' });
-    const removeBtn = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).nth(1);
-    await removeBtn.click();
+    const removeButton = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).nth(1);
+    await removeButton.click();
 });
 
 When('I decrease one item\'s quantity to zero', async ({ page }) => {
     await page.locator('#open-cart').click();
     await page.waitForSelector('#cart-dialog', { state: 'visible' });
-    const minusBtn = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
-    await minusBtn.click();
+    const minusButton = page.locator('.cart-item .qty-btn').filter({ hasText: '−' }).first();
+    await minusButton.click();
 });
 
 When('I close and reopen the cart', async ({ page }) => {

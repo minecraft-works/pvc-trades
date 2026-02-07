@@ -1,6 +1,6 @@
 import { Before, After, BeforeAll, AfterAll, Status } from '@cucumber/cucumber';
 import { chromium, Browser } from '@playwright/test';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess } from 'node:child_process';
 import { CustomWorld } from './world';
 
 // Shared browser instance for all scenarios (faster than launching per scenario)
@@ -9,7 +9,7 @@ let serverProcess: ChildProcess | null = null;
 
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:5173/pvc-trades/';
 
-async function waitForServer(url: string, timeout = 30000): Promise<void> {
+async function waitForServer(url: string, timeout = 30_000): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeout) {
         try {
@@ -85,11 +85,45 @@ Before(async function (this: CustomWorld) {
     this.page = await this.context.newPage();
     this.tileRequests = [];
     
+    // Disable animations for faster, more stable tests
+    // This sets both the JS flag and CSS attribute before any page loads
+    await this.page.addInitScript(() => {
+        // JS flag checked by shouldDisableAnimations() in types.ts
+        (globalThis as unknown as { __animationsDisabled?: boolean }).__animationsDisabled = true;
+        // CSS attribute checked by [data-animations-disabled] rules in styles.css
+        document.documentElement.dataset.animationsDisabled = 'true';
+        
+        // Patch Leaflet's flyTo to use setView when animations are disabled
+        // This avoids buggy flyTo behavior with duration 0
+        const patchLeafletFlyTo = () => {
+            const L = (globalThis as unknown as { L?: { Map?: { prototype: { flyTo?: unknown; setView?: unknown } } } }).L;
+            if (!L?.Map?.prototype?.flyTo) { return; }
+            L.Map.prototype.flyTo = function(this: unknown, latlng: unknown, zoom?: number, _options?: unknown) {
+                // When animations disabled, use setView which is more reliable
+                const setView = (this as { setView: (latlng: unknown, zoom?: number, options?: { animate: boolean }) => unknown }).setView;
+                return setView.call(this, latlng, zoom, { animate: false });
+            };
+        };
+        // Patch after Leaflet loads
+        if ((globalThis as unknown as { L?: unknown }).L) {
+            patchLeafletFlyTo();
+        } else {
+            // Wait for Leaflet to load, then patch
+            Object.defineProperty(globalThis, 'L', {
+                configurable: true,
+                set(value) {
+                    Object.defineProperty(globalThis, 'L', { value, writable: true, configurable: true });
+                    setTimeout(patchLeafletFlyTo, 0);
+                }
+            });
+        }
+    });
+    
     // Track tile requests for debugging
-    this.page.on('request', req => {
-        if (req.url().includes('/tiles/') && req.url().endsWith('.png')) {
-            const world = req.url().includes('/the_nether/') ? 'nether' : 'overworld';
-            this.tileRequests.push(`${world}:${req.url()}`);
+    this.page.on('request', request => {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+            this.tileRequests.push(`${world}:${request.url()}`);
         }
     });
 });

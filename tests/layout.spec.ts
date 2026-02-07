@@ -8,7 +8,8 @@
  * Run with: npx playwright test
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './helpers/global-setup';
+import type { Page } from '@playwright/test';
 
 // Test configuration
 const BASE_URL = 'http://localhost:5173';

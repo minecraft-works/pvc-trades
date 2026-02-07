@@ -93,7 +93,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s)`, async ({ page
     // Get existing shop count from page context
     const existingShops = await page.evaluate(() => {
         return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
-    }) as unknown[];
+    });
     
     // Create new shop data with additional trades - spread creates a copy
     const newShops = [...existingShops];
@@ -138,7 +138,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s) for {string}`, 
     
     const existingShops = await page.evaluate(() => {
         return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
-    }) as unknown[];
+    });
     
     const newShops = [
         ...existingShops,
@@ -182,7 +182,7 @@ When('the shop data refreshes with a new {string} trade', async ({ page }, itemN
     
     const existingShops = await page.evaluate(() => {
         return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
-    }) as unknown[];
+    });
     
     const newShops = [
         ...existingShops,

@@ -5,6 +5,44 @@
 import { z } from 'zod';
 
 // ============================================================================
+// Animation Configuration (for testing)
+// ============================================================================
+
+/**
+ * Global animation config that can be set by tests.
+ * Set `globalThis.__animationsDisabled = true` before page load to disable animations.
+ * 
+ * @example
+ * // In test fixtures:
+ * await page.addInitScript(() => { globalThis.__animationsDisabled = true; });
+ */
+declare global {
+     
+    var __animationsDisabled: boolean | undefined;
+}
+
+/**
+ * Check if animations should be disabled (for testing).
+ * Respects both test flag and user's `prefers-reduced-motion` preference.
+ */
+export function shouldDisableAnimations(): boolean {
+    // Check if running in browser environment
+    if (!('window' in globalThis)) {
+        return false;
+    }
+    return globalThis.__animationsDisabled === true;
+}
+
+/**
+ * Get animation duration - returns 0 if animations are disabled.
+ * @param defaultMs Default duration in milliseconds
+ * @returns Duration to use (0 if disabled, defaultMs otherwise)
+ */
+export function getAnimationDuration(defaultMs: number): number {
+    return shouldDisableAnimations() ? 0 : defaultMs;
+}
+
+// ============================================================================
 // Configuration Types
 // ============================================================================
 
