@@ -155,6 +155,31 @@ Coverage thresholds are set to 80% for all metrics (lines, functions, branches, 
 
 - [ADR-001: Price Aggregation Design](docs/adr/001-price-aggregation-design.md)
 - [ADR-002: BDD Test Framework](docs/adr/002-bdd-test-framework.md)
+- [ADR-003: Disable Animations in Tests](docs/adr/003-disable-animations-in-tests.md)
+- [ADR-004: Route Optimization Algorithm](docs/adr/004-route-optimization-algorithm.md)
+- [ADR-005: Class-Based Stores](docs/adr/005-class-based-stores.md)
+- [ADR-006: Zod Runtime Validation](docs/adr/006-zod-runtime-validation.md)
+- [ADR-007: Virtual Scrolling](docs/adr/007-virtual-scrolling.md)
+- [ADR-008: Nether Coordinate System](docs/adr/008-nether-coordinate-system.md)
+- [ADR-009: Tile Caching Strategy](docs/adr/009-tile-caching-strategy.md)
+
+## Troubleshooting
+
+| Issue | Likely Cause | Fix |
+|-------|--------------|-----|
+| Map tiles blank | Tiles not fetched or CORS blocked | Run `npm run fetch-tiles` |
+| Player not found | Name mismatch with Dynmap | Check exact spelling, case-sensitive |
+| Cart not saving | localStorage blocked | Check browser privacy settings |
+| Search returns nothing | Regex syntax error | Escape special chars or use wildcards |
+
+## Contributing
+
+1. Create a feature branch from `develop`
+2. Follow [Conventional Commits](https://conventionalcommits.org)
+3. Ensure `npm run check` passes
+4. Open a PR with description
+
+See [code patterns](docs/code-patterns.md) and [testing guide](docs/testing-guide.md) for conventions.
 
 ## License
 
