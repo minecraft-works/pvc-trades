@@ -18,6 +18,7 @@
             <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
             <label for="searchGive" class="visually-hidden">Search by cost item</label>
             <input type="text" id="searchGive" placeholder="Paying...">
+            <button id="filter-new" type="button" title="Show only new items" aria-label="Toggle new items filter">✨</button>
             <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">💱</button>
             <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">
                 🛒<span id="cart-badge" class="cart-badge hidden"></span>
@@ -72,7 +73,6 @@
                         <ul id="cart-costs"></ul>
                     </div>
                 </div>
-                <button id="clear-cart" class="clear-cart-btn">Clear Cart</button>
             </div>
             
             <!-- Navigate Tab Content -->
@@ -91,7 +91,8 @@
             </div>
         </div>
         <div class="cart-footer">
-            <button type="button" id="start-navigation" class="start-nav-btn">Start Navigation</button>
+            <button id="clear-cart" class="clear-cart-btn hidden">Clear Cart</button>
+            <button type="button" id="start-navigation" class="start-nav-btn hidden">Start Navigation</button>
         </div>
     </dialog>
 

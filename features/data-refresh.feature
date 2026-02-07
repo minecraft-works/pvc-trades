@@ -61,3 +61,11 @@ Feature: Data Refresh and New Items
     Given the refresh interval is set to 2 seconds
     When I wait for 2 seconds
     Then the data should have been fetched again
+
+  @refresh @filter @new-items
+  Scenario: Filter to show only new items
+    Given there are 5 trades initially
+    When the shop data refreshes with 2 new trade(s)
+    And I click the new items filter toggle
+    Then I should see only 2 trades
+    And clicking the toggle again should show all 7 trades

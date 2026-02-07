@@ -222,6 +222,9 @@ let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 // Trades are removed from this set once they've been scrolled into view
 const newTradeKeys = new Set<string>();
 
+// Filter state: when true, only show new trades
+let filterNewOnly = false;
+
 // ============================================================================
 // Cart Helper Functions
 // ============================================================================
@@ -597,6 +600,10 @@ function search(): void {
     const results: FilterResult[] = [];
 
     for (const trade of allTrades) {
+        // Apply new-only filter if active
+        if (filterNewOnly && !newTradeKeys.has(getTradeKey(trade))) {
+            continue;
+        }
         const result = filterTrade(trade, wantQuery, giveQuery);
         if (result) { results.push(result); }
     }
@@ -1530,6 +1537,7 @@ function renderCartDialog(): void {
     const costsContainer = getElement('cart-costs');
     const gainsContainer = getElement('cart-gains');
     const clearCartButton = getElement('clear-cart');
+    const isCartTabActive = document.querySelector('#tab-cart')?.classList.contains('active') ?? true;
     
     // Clear previous contents
     itemsContainer.innerHTML = '';
@@ -1542,7 +1550,10 @@ function renderCartDialog(): void {
         return;
     }
     
-    clearCartButton.classList.remove('hidden');
+    // Only show clear cart button if on cart tab
+    if (isCartTabActive) {
+        clearCartButton.classList.remove('hidden');
+    }
     
     // Render cart items
     for (const cartItem of cartStore.items) {
@@ -1582,17 +1593,23 @@ function switchTab(tab: 'cart' | 'navigate'): void {
     const tabNavigate = document.querySelector('#tab-navigate');
     const contentCart = document.querySelector('#tab-content-cart');
     const contentNavigate = document.querySelector('#tab-content-navigate');
+    const clearCartButton = document.querySelector('#clear-cart');
+    const startNavButton = document.querySelector('#start-navigation');
     
     if (tab === 'cart') {
         tabCart?.classList.add('active');
         tabNavigate?.classList.remove('active');
         contentCart?.classList.add('active');
         contentNavigate?.classList.remove('active');
+        clearCartButton?.classList.remove('hidden');
+        startNavButton?.classList.add('hidden');
     } else {
         tabCart?.classList.remove('active');
         tabNavigate?.classList.add('active');
         contentCart?.classList.remove('active');
         contentNavigate?.classList.add('active');
+        clearCartButton?.classList.add('hidden');
+        startNavButton?.classList.remove('hidden');
         // Render navigate tab content when switching to it
         renderNavigateTab();
     }
@@ -2825,6 +2842,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const wantValue = wantInput.value;
         wantInput.value = giveInput.value;
         giveInput.value = wantValue;
+        search();
+    });
+    getElement('filter-new').addEventListener('click', () => {
+        filterNewOnly = !filterNewOnly;
+        getElement('filter-new').classList.toggle('active', filterNewOnly);
         search();
     });
 
