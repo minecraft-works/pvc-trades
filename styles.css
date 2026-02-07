@@ -86,13 +86,15 @@ body {
 #searchWant,
 #searchGive {
     flex: 1;
-    padding: 12px 16px;
+    height: 48px;
+    padding: 0 16px;
     font-size: 1.1rem;
     border: 2px solid var(--color-border);
     border-radius: var(--border-radius);
     background: var(--color-input-bg);
     color: #fff;
     outline: none;
+    box-sizing: border-box;
 }
 
 #searchWant:focus,
@@ -349,10 +351,12 @@ mark {
     margin-bottom: 10px;
 }
 
-/* Swap search button */
-#swap-search {
-    padding: 8px 10px;
-    font-size: 1rem;
+/* Search box buttons - shared base styles */
+.search-box button {
+    height: 48px;
+    min-width: 48px;
+    padding: 0 12px;
+    font-size: 1.1rem;
     border: 2px solid var(--color-border);
     border-radius: var(--border-radius);
     background: var(--color-bg);
@@ -360,46 +364,39 @@ mark {
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
-#swap-search:hover {
+.search-box button:hover {
     border-color: var(--color-accent);
     color: var(--color-accent);
+}
+
+/* Swap search button */
+#swap-search {
+    /* inherits from .search-box button */
+}
+
+/* New items filter toggle */
+#filter-new {
+    color: var(--color-accent);
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+#filter-new.active {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-bg);
 }
 
 /* Exchange rates button */
 #open-matrix {
-    padding: 12px 14px;
-    font-size: 1.1rem;
-    border: 2px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background: var(--color-bg);
-    color: #888;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-#open-matrix:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
+    /* inherits from .search-box button */
 }
 
 /* Cart button */
 #open-cart {
     position: relative;
-    padding: 12px 14px;
-    font-size: 1.1rem;
-    border: 2px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background: var(--color-bg);
-    color: #888;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-#open-cart:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
 }
 
 .cart-badge {

@@ -222,6 +222,9 @@ let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 // Trades are removed from this set once they've been scrolled into view
 const newTradeKeys = new Set<string>();
 
+// Filter state: when true, only show new trades
+let filterNewOnly = false;
+
 // ============================================================================
 // Cart Helper Functions
 // ============================================================================
@@ -597,6 +600,10 @@ function search(): void {
     const results: FilterResult[] = [];
 
     for (const trade of allTrades) {
+        // Apply new-only filter if active
+        if (filterNewOnly && !newTradeKeys.has(getTradeKey(trade))) {
+            continue;
+        }
         const result = filterTrade(trade, wantQuery, giveQuery);
         if (result) { results.push(result); }
     }
@@ -2825,6 +2832,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const wantValue = wantInput.value;
         wantInput.value = giveInput.value;
         giveInput.value = wantValue;
+        search();
+    });
+    getElement('filter-new').addEventListener('click', () => {
+        filterNewOnly = !filterNewOnly;
+        getElement('filter-new').classList.toggle('active', filterNewOnly);
         search();
     });
 
