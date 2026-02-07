@@ -962,16 +962,14 @@ function formatEnchantmentName(name: string): string {
 /**
  * Render item details HTML for the trade details dialog
  */
-function renderItemDetails(item: Item, label: string): string {
+function renderItemDetails(item: Item): string {
     const name = formatName(item);
     const hasLore = item.lore && item.lore.length > 0;
     const hasEnchants = item.enchant && Object.keys(item.enchant).length > 0;
 
     let html = `
         <div class="trade-detail-item">
-            <h4>${escapeHtml(label)}</h4>
             <div class="trade-detail-name">${escapeHtml(name)}</div>
-            <div class="trade-detail-amount">×${item.amount}</div>
     `;
 
     if (hasLore) {
@@ -1016,14 +1014,14 @@ function openTradeDetailsPopover(row: HTMLElement, isResult: boolean, _target: H
 
     let html = '';
 
+    titleElement.textContent = 'Item Details';
+
     if (isResult) {
-        titleElement.textContent = 'Result Details';
-        html = renderItemDetails(trade.resultItem, 'You Get');
+        html = renderItemDetails(trade.resultItem);
     } else {
-        titleElement.textContent = 'Cost Details';
-        html = renderItemDetails(trade.item1, 'Cost 1');
+        html = renderItemDetails(trade.item1);
         if (trade.item2) {
-            html += renderItemDetails(trade.item2, 'Cost 2');
+            html += renderItemDetails(trade.item2);
         }
     }
 

@@ -37,21 +37,19 @@ Then('I should see the result item name', async ({ page }) => {
     expect(text?.length).toBeGreaterThan(0);
 });
 
-Then('I should see the result item amount', async ({ page }) => {
-    const amountElement = page.locator(`${SELECTOR_TRADE_DETAILS_DIALOG} .trade-detail-amount`);
-    await expect(amountElement.first()).toBeVisible();
-    const text = await amountElement.first().textContent();
-    expect(text).toMatch(/×\d+/);
+Then('I should see the result item amount', async ({ _page }) => {
+    // Amount display has been removed from the trade details dialog
+    // This step is kept for backwards compatibility but does nothing
+});
+
+Then('I should see both cost item names', async ({ page }) => {
+    const nameElements = page.locator(`${SELECTOR_TRADE_DETAILS_DIALOG} .trade-detail-name`);
+    await expect(nameElements).toHaveCount(2, { timeout: 5000 });
 });
 
 Then('I should see the cost item name', async ({ page }) => {
     const nameElement = page.locator(`${SELECTOR_TRADE_DETAILS_DIALOG} .trade-detail-name`);
     await expect(nameElement.first()).toBeVisible();
-});
-
-Then('I should see the cost item amount', async ({ page }) => {
-    const amountElement = page.locator(`${SELECTOR_TRADE_DETAILS_DIALOG} .trade-detail-amount`);
-    await expect(amountElement.first()).toBeVisible();
 });
 
 Given('there is a trade with two cost items', async ({ page }) => {
@@ -71,11 +69,6 @@ When('I click on the cost name of that trade', async ({ page }) => {
         has: page.locator('.cost-name:has-text("+")')
     }).first();
     await tradeWithItem2.locator('.cost-name').click();
-});
-
-Then('I should see {string} section', async ({ page }, sectionLabel: string) => {
-    const section = page.locator(`${SELECTOR_TRADE_DETAILS_DIALOG} .trade-detail-item h4`).filter({ hasText: sectionLabel });
-    await expect(section).toBeVisible();
 });
 
 Given('there is a trade with lore on the result item', async ({ page }) => {
