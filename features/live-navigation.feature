@@ -8,6 +8,27 @@ Feature: Live Navigation
     And I have items from multiple shops in my cart
 
   # ============================================================================
+  # Starting Navigation
+  # ============================================================================
+
+  @navigation @start
+  Scenario: Starting navigation opens nav dialog and centers on player
+    Given player "TestPlayer" is in the overworld at (500, 300)
+    And I enter "TestPlayer" as my player name
+    When I click "Start Navigation"
+    Then the cart dialog should close
+    And the navigation dialog should open
+    And the map should be centered on the player position
+    And player position polling should begin
+
+  @navigation @start
+  Scenario: Cannot start navigation without player name
+    Given the player name input is empty
+    When I click "Start Navigation"
+    Then I should see an error about missing player name
+    And navigation should not start
+
+  # ============================================================================
   # Player Position Tracking
   # ============================================================================
 

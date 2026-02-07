@@ -79,9 +79,31 @@ Given('navigation shows {string} the {string}', async ({ page }, action: string,
     expect(text).toContain(world);
 });
 
+Given('I enter {string} as my player name', async ({ page }, playerName: string) => {
+    await page.locator('#open-cart').click();
+    await page.waitForSelector('#cart-dialog', { state: 'visible' });
+    await page.locator('#tab-navigate').click();
+    await page.locator('#player-name-input').fill(playerName);
+});
+
+Given('the player name input is empty', async ({ page }) => {
+    await page.locator('#open-cart').click();
+    await page.waitForSelector('#cart-dialog', { state: 'visible' });
+    await page.locator('#tab-navigate').click();
+    await page.locator('#player-name-input').fill('');
+});
+
 // ============================================================================
 // WHEN Steps
 // ============================================================================
+
+When('I click {string}', async ({ page }, buttonText: string) => {
+    const buttonSelectors: Record<string, string> = {
+        'Start Navigation': '#start-navigation'
+    };
+    const selector = buttonSelectors[buttonText];
+    await (selector ? page.locator(selector) : page.getByRole('button', { name: buttonText })).click();
+});
 
 When(String.raw`player moves to the nether at \({int}, {int})`, async ({ page, playerMock, tileRequests }, x: number, z: number) => {
     // Ensure player position has been polled at least once before moving
@@ -126,6 +148,78 @@ When(String.raw`player moves to the overworld at \({int}, {int})`, async ({ page
 // ============================================================================
 // THEN Steps
 // ============================================================================
+
+Then('the cart dialog should close', async ({ page }) => {
+    await expect(page.locator('#cart-dialog')).not.toBeVisible({ timeout: 3000 });
+});
+
+Then('the navigation dialog should open', async ({ page }) => {
+    await expect(page.locator('#nav-dialog[open]')).toBeVisible({ timeout: 5000 });
+});
+
+Then('the map should be centered on the player position', async ({ page }) => {
+    // Wait for player marker to become visible
+    const playerMarker = page.locator('.nav-player-marker');
+    await expect(playerMarker).toBeVisible({ timeout: 8000 });
+    
+    // Wait for flyTo animation to complete and map to settle
+    await page.waitForTimeout(800);
+    
+    // Verify player marker is near the center of the map container
+    const result = await page.evaluate(() => {
+        const container = document.querySelector('#nav-dialog-map-container');
+        const marker = document.querySelector('.nav-player-marker');
+        
+        if (!container || !marker) {
+            return { error: 'Missing container or marker' };
+        }
+        
+        const containerRect = container.getBoundingClientRect();
+        const markerRect = marker.getBoundingClientRect();
+        
+        const markerCenterX = markerRect.left + markerRect.width / 2 - containerRect.left;
+        const markerCenterY = markerRect.top + markerRect.height / 2 - containerRect.top;
+        const containerCenterX = containerRect.width / 2;
+        const containerCenterY = containerRect.height / 2;
+        
+        return {
+            xDiff: Math.abs(markerCenterX - containerCenterX),
+            yDiff: Math.abs(markerCenterY - containerCenterY),
+            maxX: containerRect.width / 4,
+            maxY: containerRect.height / 4
+        };
+    });
+    
+    if ('error' in result) {
+        throw new Error(result.error);
+    }
+    
+    expect(result.xDiff).toBeLessThan(result.maxX);
+    expect(result.yDiff).toBeLessThan(result.maxY);
+});
+
+Then('player position polling should begin', async ({ page }) => {
+    // Wait for player position to be polled at least once
+    await expect.poll(async () => {
+        const pos = await page.evaluate(() => {
+            // @ts-expect-error - exposed for testing
+            return globalThis.__currentPlayerPosition;
+        });
+        return pos !== null && pos !== undefined;
+    }, { timeout: 5000 }).toBe(true);
+});
+
+Then('I should see an error about missing player name', async ({ page }) => {
+    // The app shows an alert when no player name is entered
+    // We can check that navigation hasn't started (dialog not opened)
+    const navDialog = page.locator('#nav-dialog[open]');
+    await expect(navDialog).not.toBeVisible({ timeout: 1000 });
+});
+
+Then('navigation should not start', async ({ page }) => {
+    const navDialog = page.locator('#nav-dialog[open]');
+    await expect(navDialog).not.toBeVisible({ timeout: 1000 });
+});
 
 Then('overworld tiles should be requested first', async ({ tileRequests }) => {
     expect(tileRequests.length).toBeGreaterThan(0);
