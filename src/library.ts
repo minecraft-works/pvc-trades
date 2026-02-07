@@ -857,7 +857,13 @@ function processDirectTrade(
     baseCurrency: string,
     values: ItemValues
 ): void {
-    const costAsBase = normalizeToBaseCurrency(trade.costName, trade.costAmount, baseCurrency);
+    // For trades with item2, we need different handling
+    if (trade.item2) {
+        return processDirectTradeWithItem2(trade, baseCurrency, values);
+    }
+
+    const item1Name = trade.item1Name ?? trade.costName;
+    const costAsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
     const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
 
     if (costAsBase.matches === resultAsBase.matches) { return; }
@@ -867,8 +873,31 @@ function processDirectTrade(
         addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
     } else if (resultAsBase.matches) {
         const pricePerItem = resultAsBase.amount / trade.costAmount;
-        addValue(values, trade.costName, pricePerItem, 'sell', trade.x, trade.y, trade.z);
+        addValue(values, item1Name, pricePerItem, 'sell', trade.x, trade.y, trade.z);
     }
+}
+
+function processDirectTradeWithItem2(
+    trade: TradeInput,
+    baseCurrency: string,
+    values: ItemValues
+): void {
+    if (!trade.item2) { return; }
+
+    const item1Name = trade.item1Name ?? trade.costName;
+    const item2Name = formatName(trade.item2);
+    
+    const item1AsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
+    const item2AsBase = normalizeToBaseCurrency(item2Name, trade.item2.amount, baseCurrency);
+    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
+
+    // Both inputs are base currency -> derive result value
+    if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
+        const totalCost = item1AsBase.amount + item2AsBase.amount;
+        const pricePerItem = totalCost / trade.resultAmount;
+        addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+    }
+    // Result is base currency, both inputs are not -> can't derive individual values
 }
 
 function deriveTransitiveValue(
@@ -876,10 +905,16 @@ function deriveTransitiveValue(
     baseCurrency: string,
     values: ItemValues
 ): boolean {
-    const costKey = trade.costName.toLowerCase();
+    // For trades with item2, we need different handling
+    if (trade.item2) {
+        return deriveTransitiveValueWithItem2(trade, baseCurrency, values);
+    }
+
+    const item1Name = trade.item1Name ?? trade.costName;
+    const costKey = item1Name.toLowerCase();
     const resultKey = trade.resultName.toLowerCase();
 
-    const costIsBase = normalizeToBaseCurrency(trade.costName, 1, baseCurrency).matches;
+    const costIsBase = normalizeToBaseCurrency(item1Name, 1, baseCurrency).matches;
     const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
     if (costIsBase || resultIsBase) { return false; }
 
@@ -888,7 +923,7 @@ function deriveTransitiveValue(
     let changed = false;
 
     if (costEntry && !resultEntry) {
-        const costValue = getTrustedItemValue(trade.costName, values);
+        const costValue = getTrustedItemValue(item1Name, values);
         if (costValue !== undefined) {
             const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
             addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
@@ -900,12 +935,45 @@ function deriveTransitiveValue(
         const resultValue = getTrustedItemValue(trade.resultName, values);
         if (resultValue !== undefined) {
             const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
-            addValue(values, trade.costName, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+            addValue(values, item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
             changed = true;
         }
     }
 
     return changed;
+}
+
+function deriveTransitiveValueWithItem2(
+    trade: TradeInput,
+    baseCurrency: string,
+    values: ItemValues
+): boolean {
+    if (!trade.item2) { return false; }
+
+    const item1Name = trade.item1Name ?? trade.costName;
+    const item2Name = formatName(trade.item2);
+    const resultKey = trade.resultName.toLowerCase();
+
+    const item1IsBase = normalizeToBaseCurrency(item1Name, 1, baseCurrency).matches;
+    const item2IsBase = normalizeToBaseCurrency(item2Name, 1, baseCurrency).matches;
+    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
+
+    // If already handled in direct phase, skip
+    if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
+
+    const item1Value = getTrustedItemValue(item1Name, values);
+    const item2Value = getTrustedItemValue(item2Name, values);
+    const resultEntry = values.get(resultKey);
+
+    // If we know both input values but not result -> derive result value
+    if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {
+        const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
+        const pricePerResult = totalCostValue / trade.resultAmount;
+        addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -924,9 +992,8 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
     const config = configStore.get();
     const values: ItemValues = new Map();
 
-    // Phase 1: Direct trades with base currency
+    // Phase 1: Direct trades with base currency (including item2 trades)
     for (const trade of trades) {
-        if (trade.item2) { continue; }
         processDirectTrade(trade, baseCurrency, values);
     }
 
@@ -939,7 +1006,6 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
         iterations++;
 
         for (const trade of trades) {
-            if (trade.item2) { continue; }
             if (deriveTransitiveValue(trade, baseCurrency, values)) {
                 changed = true;
             }

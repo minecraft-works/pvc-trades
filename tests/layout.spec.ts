@@ -653,9 +653,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
     test('map dialog scales with viewport on mobile', async ({ page }) => {
         await showAllTrades(page);
 
-        // Click on a trade row to open the map dialog
+        // Click on a trade row distance cell to open the map dialog
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         // Wait for dialog to be visible
         const dialog = page.locator('#map-dialog');
@@ -748,14 +748,14 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog opens when clicking trade row', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
     });
 
     test('map dialog closes when pressing Escape', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
         
@@ -765,7 +765,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog closes when clicking backdrop', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
         
@@ -777,7 +777,7 @@ test.describe('CSS Layout - Map Dialog', () => {
     test('map dialog closes when clicking backdrop on mobile', async ({ page }) => {
         await page.setViewportSize(MOBILE_VIEWPORT);
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
         
@@ -788,7 +788,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog has circular styling', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         
         const container = page.locator('#map-container');
         await expect(container).toBeVisible();
@@ -802,7 +802,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog has square aspect ratio', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         
         const container = page.locator('#map-container');
         const box = await container.boundingBox();
@@ -814,7 +814,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog close button is positioned in top-right', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         
         const closeButton = page.locator('#close-map');
         await expect(closeButton).toBeVisible();
@@ -833,7 +833,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog shows coordinates label', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         
         const coords = page.locator('#map-coords');
         await expect(coords).toBeVisible();
@@ -846,7 +846,7 @@ test.describe('CSS Layout - Map Dialog', () => {
 
     test('map dialog closes via close button', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
         
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
@@ -867,7 +867,7 @@ test.describe('Map Dialog - Leaflet Integration', () => {
 
     test('map dialog initializes Leaflet container', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         const mapContainer = page.locator('#map-container');
         await expect(mapContainer).toBeVisible();
@@ -878,7 +878,7 @@ test.describe('Map Dialog - Leaflet Integration', () => {
 
     test('Leaflet map has zoom controls', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         // Wait for Leaflet container
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
@@ -892,7 +892,7 @@ test.describe('Map Dialog - Leaflet Integration', () => {
 
     test('map coordinates update when panning', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
 
@@ -922,7 +922,7 @@ test.describe('Map Dialog - Leaflet Integration', () => {
 
     test('shop pin marker is displayed on map', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         // Shop marker uses leaflet-pin-marker class
         const shopMarker = page.locator('.leaflet-pin-marker');
@@ -931,7 +931,7 @@ test.describe('Map Dialog - Leaflet Integration', () => {
 
     test('zoom controls are functional', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
 
@@ -958,7 +958,7 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
     test('Leaflet pane structure exists for markers', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
 
@@ -969,7 +969,7 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
     test('dialog supports absolute positioned edge markers', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
@@ -981,7 +981,7 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
     test('player name CSS class is defined', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
 
@@ -1000,7 +1000,7 @@ test.describe('Map Dialog - Player Markers Structure', () => {
 
     test('player edge marker CSS class is defined', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
 
@@ -1029,7 +1029,7 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
 
     test('dialog does not close when panning ends outside circle', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
@@ -1054,7 +1054,7 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
 
     test('dialog closes only when click starts and ends outside', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
-        await firstRow.click();
+        await firstRow.locator('.distance').click();
 
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();

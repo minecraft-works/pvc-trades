@@ -11,7 +11,7 @@ Feature: Shop Map Player Markers
   Scenario: Overworld shop shows only overworld players
     Given there is a player "OverworldAlice" in the overworld at (100, 200)
     And there is a player "NetherBob" in the nether at (-50, -50)
-    When I click on an overworld shop
+    When I click on the distance cell of an overworld shop
     Then the map should show player marker for "OverworldAlice"
     And the map should not show player marker for "NetherBob"
 
@@ -19,7 +19,7 @@ Feature: Shop Map Player Markers
   Scenario: Nether shop shows only nether players
     Given there is a player "OverworldAlice" in the overworld at (100, 200)
     And there is a player "NetherBob" in the nether at (-50, -50)
-    When I click on a nether shop
+    When I click on the distance cell of a nether shop
     Then the map should show player marker for "NetherBob"
     And the map should not show player marker for "OverworldAlice"
 
@@ -28,18 +28,18 @@ Feature: Shop Map Player Markers
     Given there is a player "Alice" in the overworld at (100, 200)
     And there is a player "Bob" in the overworld at (150, 250)
     And there is a player "Charlie" in the overworld at (50, 100)
-    When I click on an overworld shop
+    When I click on the distance cell of an overworld shop
     Then the map should show player markers for "Alice", "Bob", and "Charlie"
 
   @shop-map @players
   Scenario: Empty nether shows no player markers
     Given there is a player "OverworldAlice" in the overworld at (100, 200)
     And there are no players in the nether
-    When I click on a nether shop
+    When I click on the distance cell of a nether shop
     Then the map should show no player markers
 
   @shop-map @players @edge-markers
   Scenario: Off-screen players show edge markers
     Given there is a player "FarAwayPlayer" in the overworld at (5000, 5000)
-    When I click on an overworld shop at (100, 200)
+    When I click on the distance cell of an overworld shop at (100, 200)
     Then there should be an edge marker pointing toward "FarAwayPlayer"

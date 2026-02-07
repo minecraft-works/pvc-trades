@@ -316,7 +316,8 @@ describe('median properties', () => {
                 (numbers) => {
                     // Use fast-check's shuffled array instead of Math.random
                     const reversed = [...numbers].toReversed();
-                    expect(median(numbers)).toBe(median(reversed));
+                    // Use toEqual instead of toBe to handle -0 vs +0 edge case
+                    expect(median(numbers)).toEqual(median(reversed));
                 }
             )
         );
