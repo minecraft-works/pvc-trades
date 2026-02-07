@@ -95,7 +95,7 @@ import type {
     ShoppingList
 } from './types.js';
 
-import { shouldDisableAnimations, getAnimationDuration } from './types.js';
+import { shouldDisableAnimations } from './types.js';
 
 import {
     NAVIGATION,
@@ -2368,9 +2368,13 @@ function centerMapOnPlayer(): void {
     
     const zoom = getZoomForDistance(minDistance);
     
-    // Use flyTo for smoother animation (disabled in test mode for speed)
-    const flyDuration = getAnimationDuration(300) / 1000; // Convert ms to seconds for Leaflet
-    navMap.flyTo([lat, lng], zoom, { duration: flyDuration, easeLinearity: 0.5 });
+    // Use setView when animations disabled (more reliable than flyTo with duration 0)
+    // flyTo with duration 0 can have inconsistent behavior in Leaflet
+    if (shouldDisableAnimations()) {
+        navMap.setView([lat, lng], zoom, { animate: false });
+    } else {
+        navMap.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
+    }
 }
 
 /**
