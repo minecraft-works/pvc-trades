@@ -1030,8 +1030,8 @@ function openTradeDetailsPopover(row: HTMLElement, isResult: boolean, _target: H
     contentElement.innerHTML = html;
 
     // Set up close button
-    const closeBtn = dialog.querySelector('#close-trade-details');
-    closeBtn?.addEventListener('click', () => dialog.close(), { once: true });
+    const closeButton = dialog.querySelector('#close-trade-details');
+    closeButton?.addEventListener('click', () => dialog.close(), { once: true });
 
     // Set up backdrop close
     setupDialogBackdropClose(dialog);
@@ -1199,7 +1199,9 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
         }
     }
     
-    if (currentZoom > -2) {
+    // Load zoom 8 (detail) tiles when zoomed in enough to see detail
+    // Threshold lowered from -2 to -3 to ensure tiles load on small screens (< 400px)
+    if (currentZoom > -3) {
         for (let dy = minDy; dy <= maxDy; dy++) {
             for (let dx = minDx; dx <= maxDx; dx++) {
                 const tx = context.centerTileX + dx;
