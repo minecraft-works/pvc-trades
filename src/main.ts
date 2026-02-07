@@ -2981,9 +2981,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', event => {
+        // Ctrl+F / Cmd+F: Focus search
         if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
             event.preventDefault();
             getElement<HTMLInputElement>('searchWant').focus();
+        }
+        // Ctrl+Shift+X / Cmd+Shift+X: Swap search fields
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'X') {
+            event.preventDefault();
+            const wantInput = getElement<HTMLInputElement>('searchWant');
+            const giveInput = getElement<HTMLInputElement>('searchGive');
+            const wantValue = wantInput.value;
+            wantInput.value = giveInput.value;
+            giveInput.value = wantValue;
+            search();
         }
     });
 
