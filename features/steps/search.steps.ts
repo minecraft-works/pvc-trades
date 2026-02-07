@@ -47,9 +47,21 @@ When('I click the {string} column header again', async ({ page }, columnId: stri
     await header.click();
 });
 
+When('I click the swap search button', async ({ page }) => {
+    await page.locator('#swap-search').click();
+});
+
 // ============================================================================
 // THEN Steps
 // ============================================================================
+
+Then('the want field should contain {string}', async ({ page }, expected: string) => {
+    await expect(page.locator('#searchWant')).toHaveValue(expected);
+});
+
+Then('the give field should contain {string}', async ({ page }, expected: string) => {
+    await expect(page.locator('#searchGive')).toHaveValue(expected);
+});
 
 Then('only trades offering {word} should be displayed', async ({ page }, item: string) => {
     // Wait for filtering to complete - first row should contain the search term

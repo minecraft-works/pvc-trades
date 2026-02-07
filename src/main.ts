@@ -2819,6 +2819,14 @@ document.addEventListener('DOMContentLoaded', () => {
     getElement('searchGive').addEventListener('input', () => {
         debouncedSearch();
     });
+    getElement('swap-search').addEventListener('click', () => {
+        const wantInput = getElement<HTMLInputElement>('searchWant');
+        const giveInput = getElement<HTMLInputElement>('searchGive');
+        const wantValue = wantInput.value;
+        wantInput.value = giveInput.value;
+        giveInput.value = wantValue;
+        search();
+    });
 
     document.addEventListener('keydown', event => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
