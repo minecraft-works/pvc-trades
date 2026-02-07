@@ -2998,11 +2998,14 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
         crs: L.CRS.Simple,
         minZoom: -5,
         maxZoom: 2,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: false,
         maxBoundsViscosity: 1,
         ...animationOptions
     });
+    
+    // Add zoom control at bottom-left to avoid overlap with nav controls at top-left
+    L.control.zoom({ position: 'bottomleft' }).addTo(navMap);
     
     globalThis.__navMap = navMap;
     globalThis.__navMapWorld = navMapWorld;
