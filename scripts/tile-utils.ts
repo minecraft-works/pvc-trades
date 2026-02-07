@@ -1,19 +1,23 @@
 /**
  * Tile utility functions for dynmap tile fetching.
  * Extracted from fetch-tiles.js for testability.
+ * 
+ * Core coordinate calculations are now in src/tile-coords.ts (shared with runtime).
  */
 
-export interface TileCoords {
-    tileX: number;
-    tileZ: number;
-    blocksPerTile: number;
-}
+// Import shared coordinate utilities
+import {
+    getTileCoordsAtZoom,
+    parseLocation as sharedParseLocation,
+    type ZoomedTileCoords,
+    type Coordinates
+} from '../src/tile-coords.js';
 
-export interface Coordinates {
-    x: number;
-    y: number;
-    z: number;
-}
+// Re-export types from shared module
+export type { Coordinates };
+
+// Re-export TileCoords as an alias to ZoomedTileCoords for backward compatibility
+export type TileCoords = ZoomedTileCoords;
 
 export interface ShopInput {
     location: string;
@@ -59,6 +63,8 @@ export interface RateLimitResult {
  * Calculate tile coordinates from Minecraft world coordinates.
  * At maxZoom, 1 pixel = 1 block, so tile covers tileSize blocks.
  * At lower zooms, each tile covers more area: blocksPerTile = tileSize * 2^(maxZoom - zoom)
+ * 
+ * @deprecated Use getTileCoordsAtZoom from '../src/tile-coords.js' directly
  */
 export function getTileCoords(
     x: number,
@@ -67,12 +73,7 @@ export function getTileCoords(
     maxZoom: number,
     tileSize: number
 ): TileCoords {
-    const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
-    
-    const tileX = Math.floor(x / blocksPerTile);
-    const tileZ = Math.floor(z / blocksPerTile);
-    
-    return { tileX, tileZ, blocksPerTile };
+    return getTileCoordsAtZoom(x, z, zoom, maxZoom, tileSize);
 }
 
 /**
@@ -122,17 +123,11 @@ export function getWorldId(world: string): string {
 
 /**
  * Parse shop location string to coordinates.
+ * 
+ * @deprecated Use parseLocation from '../src/tile-coords.js' directly
  */
 export function parseLocation(location: string | null | undefined): Coordinates {
-    if (!location || typeof location !== 'string') {
-        return { x: 0, y: 0, z: 0 };
-    }
-    const coords = location.split(', ');
-    return {
-        x: parseFloat(coords[0]) || 0,
-        y: parseFloat(coords[1]) || 0,
-        z: parseFloat(coords[2]) || 0
-    };
+    return sharedParseLocation(location);
 }
 
 /**

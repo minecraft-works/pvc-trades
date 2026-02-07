@@ -68,6 +68,12 @@ import {
     DEFAULT_CONFIG
 } from './types.js';
 
+// Shared tile coordinate utilities (used by both runtime and build scripts)
+// Import for internal use AND re-export for consumers
+import { getTileCoords, getTileCoordsAtZoom, getTileBounds, getBlocksPerTile } from './tile-coords.js';
+export { getTileCoords, getTileCoordsAtZoom, getTileBounds, getBlocksPerTile };
+export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
+
 // ============================================================================
 // Configuration Store
 // ============================================================================
@@ -1295,23 +1301,7 @@ export function shouldSwitchMapWorld(
     return shopsInCurrentWorld > 0;
 }
 
-/**
- * Calculate which tile contains the given Minecraft coordinates.
- * 
- * @param x - Minecraft X coordinate
- * @param z - Minecraft Z coordinate
- * @param tileSize - Size of tiles in blocks (default 512)
- * @returns Tile coordinates { tileX, tileZ }
- * 
- * @example
- * getTileCoords(600, -100) // { tileX: 1, tileZ: -1 }
- */
-export function getTileCoords(x: number, z: number, tileSize: number = 512): { tileX: number; tileZ: number } {
-    return {
-        tileX: Math.floor(x / tileSize),
-        tileZ: Math.floor(z / tileSize)
-    };
-}
+// getTileCoords is now re-exported from './tile-coords.js' at the top of this file
 
 /**
  * Calculate offset within a tile (0 to tileSize-1).

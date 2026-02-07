@@ -256,6 +256,60 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 | **Route** | Optimized order to visit shops in cart |
 | **Independent Shops** | Shops >16 blocks apart (prevents price manipulation) |
 
+## Tile System Workflow
+
+Map tiles are pre-fetched at build time to minimize requests to the external Dynmap server.
+
+### Build-Time Tile Collection
+
+```
+Deploy Workflow:
+├── 1. Restore tile cache (GitHub Actions cache)
+├── 2. npm run fetch-data      → Fresh shop data
+├── 3. npm run fetch-tiles     → Fetch tiles around CURRENT shops
+│   ├── Read shops from public/data.json
+│   ├── Calculate 5×5 tile grid around each shop (zoom 8)
+│   ├── Add base map tiles (zoom 4, range -5 to 4)
+│   ├── Skip tiles already in cache
+│   ├── Fetch missing tiles with rate limiting
+│   └── Write manifest.json (only successful tiles)
+├── 4. npm run validate-tiles  → Check integrity + coverage
+├── 5. npm run build           → Bundle to dist/
+└── 6. Deploy dist/ to GitHub Pages
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|. 
+| `scripts/fetch-tiles.ts` | Build-time tile fetcher with Playwright + stealth |
+| `scripts/validate-tiles.ts` | Post-fetch validation (manifest ↔ files, shop coverage) |
+| `src/tile-coords.ts` | **Shared** coordinate utilities (single source of truth) |
+| `src/map/tile-loader.ts` | Runtime tile loading with blob URL caching |
+| `public/tiles/manifest.json` | Lists all available tiles |
+
+### Tile Coordinate System
+
+```typescript
+// Tile size at each zoom level
+const blocksPerTile = tileSize × 2^(maxZoom - zoom)
+// zoom 8 (max): 512 blocks/tile (detail tiles)
+// zoom 4:       8192 blocks/tile (overview tiles)
+
+// Block coords → tile coords
+const tileX = Math.floor(blockX / blocksPerTile);
+const tileZ = Math.floor(blockZ / blocksPerTile);
+```
+
+### Important Constraints
+
+- **Never spam the Dynmap server** - tiles are cached in GitHub Actions
+- **Manifest reflects reality** - only successfully fetched tiles are listed
+- **Validation catches drift** - detects missing tiles before deploy
+- **Shared coordinate logic** - `src/tile-coords.ts` is the single source of truth
+
+See [ADR-010](docs/adr/010-tile-loading-minimization.md) for the rationale.
+
 ## Git Conventions
 
 ### Branching Strategy
@@ -341,6 +395,7 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-007](docs/adr/007-virtual-scrolling.md) - Virtual scrolling for large lists
 - [ADR-008](docs/adr/008-nether-coordinate-system.md) - Nether coordinate normalization
 - [ADR-009](docs/adr/009-tile-caching-strategy.md) - Tile caching with blob URLs
+- [ADR-010](docs/adr/010-tile-loading-minimization.md) - Minimizing external tile requests
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code

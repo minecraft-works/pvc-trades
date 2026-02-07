@@ -149,16 +149,8 @@ async function main() {
     const outputDir = 'public/tiles';
     mkdirSync(outputDir, { recursive: true });
     
-    // Save tile manifest for frontend use
-    const manifest = tiles.map(t => ({
-        world: t.world,
-        tileX: t.tileX,
-        tileZ: t.tileZ,
-        blocksPerTile: t.blocksPerTile,
-        shopCount: t.shops.length
-    }));
-    writeFileSync(join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-    console.log(`\nSaved tile manifest with ${manifest.length} entries`);
+    // Track successfully fetched tiles for manifest (written after fetch loop)
+    const successfulTiles: TileInfo[] = [];
     
     // Launch browser
     console.log('\nLaunching browser...');
@@ -224,8 +216,9 @@ async function main() {
         const tile = tiles[i];
         const result = await fetchTile(page, tile, outputDir);
 
-        // Update counters
+        // Update counters and track successful tiles
         if (result.success) {
+            successfulTiles.push(tile);
             if (result.cached) {
                 cached++;
             } else {
@@ -255,6 +248,17 @@ async function main() {
     console.log(`Cached: ${cached}`);
     console.log(`Failed: ${failed}`);
     console.log(`Total: ${tiles.length}`);
+    
+    // Save tile manifest AFTER fetching - only include successful tiles
+    const manifest = successfulTiles.map(t => ({
+        world: t.world,
+        tileX: t.tileX,
+        tileZ: t.tileZ,
+        blocksPerTile: t.blocksPerTile,
+        shopCount: t.shops.length
+    }));
+    writeFileSync(join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    console.log(`\nSaved tile manifest with ${manifest.length} entries (${failed} failed tiles excluded)`);
     
     console.log('\n=== Complete ===');
     console.log('Note: Tile pyramid generation skipped.');
