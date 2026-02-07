@@ -72,6 +72,80 @@ Then check console messages for `pvc:navigation`, `pvc:tiles`, etc.
 
 ---
 
+## Git Workflow
+
+### Commit Message Format (Conventional Commits)
+
+```
+<type>: <subject>
+```
+
+**Types:**
+- `feat:` - New feature (triggers minor version bump)
+- `fix:` - Bug fix (triggers patch version bump)
+- `docs:` - Documentation only
+- `test:` - Adding or updating tests
+- `refactor:` - Code refactoring (no behavior change)
+- `chore:` - Maintenance, dependencies
+- `ci:` - CI/CD changes
+
+**Examples:**
+```bash
+git commit -m "feat: add route optimization toggle"
+git commit -m "fix: correct nether coordinate scaling"
+git commit -m "docs: update skill with DevTools section"
+git commit -m "test: add cart quantity BDD scenarios"
+```
+
+**Breaking Changes:** Add `!` after type:
+```bash
+git commit -m "feat!: change API endpoint structure"
+```
+
+### Pre-commit Hooks (MANDATORY)
+
+**NEVER bypass pre-commit or pre-push hooks.** Do not use:
+- ❌ `--no-verify`
+- ❌ `-n`
+- ❌ `HUSKY=0`
+
+The hooks run essential quality checks:
+1. **lint-staged** - Lints staged files
+2. **typecheck** - TypeScript compilation
+3. **knip** - Unused export detection
+4. **test:coverage** - Unit tests with coverage
+5. **docs** - TypeDoc generation
+
+If hooks fail, **fix the underlying issue** rather than bypassing.
+
+### Standard Workflow
+
+```bash
+# Stage changes
+git add <files>
+
+# Commit (hooks will run automatically)
+git commit -m "type: description"
+
+# Push (pre-push hooks will run)
+git push
+```
+
+### If Hooks Fail
+
+1. Read the error output carefully
+2. Fix the issue (lint error, type error, failing test)
+3. Stage the fix: `git add .`
+4. Retry the commit
+
+Common fixes:
+- **Lint errors**: `npm run lint:fix`
+- **Type errors**: Check TypeScript issues in VS Code
+- **Test failures**: Run `npm test` to debug
+- **Unused exports**: Remove or add to `knip.json` if intentional
+
+---
+
 ## Where to Put Code
 
 ```
