@@ -69,6 +69,7 @@ import {
     computeOptimalOrder,
     isNether,
     toOverworldEquivalent,
+    toViewCoords,
     getTradeKey,
     aggregateShoppingList,
     calculateTotalRouteDistance,
@@ -1973,8 +1974,27 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
     // @ts-expect-error - exposed for testing
     globalThis.__currentPlayerPosition = position;
     
-    // UNIFIED VIEW: No world switching needed - all stops on one map
-    // Just update marker, distance, and check for auto-advance
+    // Auto-switch view world when player crosses portals (in auto mode)
+    const previousWorld = previousPosition?.world;
+    const playerCrossedPortal = previousWorld && previousWorld !== playerWorld;
+    const shouldAutoSwitch = navigationStore.viewWorldMode === 'auto' && playerCrossedPortal;
+    
+    if (shouldAutoSwitch) {
+        debugNavigation('Player crossed portal from %s to %s, auto-switching view', previousWorld, playerWorld);
+        navigationStore.setViewWorld(playerWorld);
+        
+        // Update world toggle button state
+        const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
+        if (worldToggleButton) {
+            worldToggleButton.dataset.world = playerWorld;
+        }
+        
+        // Reinitialize map with new view world
+        if (navMap && navCurrentRoute.length > 0) {
+            initNavigationMapDialog(navCurrentRoute);
+            return; // Map reinitialization handles all updates
+        }
+    }
     
     updatePlayerMarker();
     updateLiveDistance();
@@ -2032,12 +2052,14 @@ function updatePlayerMarker(): void {
         return;
     }
     
-    // UNIFIED VIEW: Always show player at overworld-equivalent position
+    // Transform player position to current view world coordinates
     const playerIsNether = isNether(playerPos.world);
-    const displayCoords = toOverworldEquivalent(
+    const viewWorld = navigationStore.viewWorld;
+    const displayCoords = toViewCoords(
         playerPos.x, 
         playerPos.z, 
-        playerPos.world
+        playerPos.world,
+        viewWorld
     );
     
     const { lat, lng } = toLeafletCoordsRelative(
@@ -2589,6 +2611,60 @@ function toggleFollowMode(): void {
 }
 
 /**
+ * Toggle view world mode between auto and manual.
+ * Auto mode: view follows player world when crossing portals.
+ * Manual mode: view stays on selected world.
+ */
+function toggleViewWorldMode(): void {
+    const newMode = navigationStore.toggleViewWorldMode();
+    
+    // Update button visual state
+    const viewModeButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_VIEW_MODE_TOGGLE);
+    if (viewModeButton) {
+        viewModeButton.dataset.mode = newMode;
+        viewModeButton.title = newMode === 'auto' ? 'Auto (follows player world)' : 'Manual (fixed world view)';
+    }
+    
+    // Enable/disable world toggle based on mode
+    const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
+    if (worldToggleButton) {
+        worldToggleButton.disabled = newMode === 'auto';
+        if (newMode === 'auto') {
+            worldToggleButton.title = 'World toggle disabled in auto mode';
+        } else {
+            const worldName = navigationStore.viewWorld === WORLDS.OVERWORLD ? 'Overworld' : 'Nether';
+            worldToggleButton.title = `Viewing: ${worldName}`;
+        }
+    }
+}
+
+/**
+ * Toggle the view world between overworld and nether.
+ * Only works when view mode is manual.
+ */
+function toggleViewWorld(): void {
+    if (navigationStore.viewWorldMode === 'auto') {
+        return; // Disabled in auto mode
+    }
+    
+    const currentWorld = navigationStore.viewWorld;
+    const newWorld = currentWorld === WORLDS.OVERWORLD ? WORLDS.NETHER : WORLDS.OVERWORLD;
+    navigationStore.setViewWorld(newWorld);
+    
+    // Update button visual state
+    const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
+    if (worldToggleButton) {
+        worldToggleButton.dataset.world = newWorld;
+        worldToggleButton.title = `Viewing: ${newWorld === WORLDS.OVERWORLD ? 'Overworld' : 'Nether'}`;
+    }
+    
+    // Reinitialize the map to show the new world
+    if (navMap && navCurrentRoute.length > 0) {
+        void initNavigationMapDialog(navCurrentRoute);
+    }
+}
+
+/**
  * Set up navigation event handlers
  */
 function setupNavigationControls(): void {
@@ -2596,11 +2672,15 @@ function setupNavigationControls(): void {
     const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const closeNavButton = document.querySelector('#close-nav');
     const followToggleButton = document.querySelector('#nav-follow-toggle');
+    const viewModeToggleButton = document.querySelector(SELECTORS.NAV_VIEW_MODE_TOGGLE);
+    const worldToggleButton = document.querySelector(SELECTORS.NAV_WORLD_TOGGLE);
     
     startButton?.addEventListener('click', toggleNavigation);
     recenterButton?.addEventListener('click', switchToFollowMode);
     closeNavButton?.addEventListener('click', stopNavigation);
     followToggleButton?.addEventListener('click', toggleFollowMode);
+    viewModeToggleButton?.addEventListener('click', toggleViewWorldMode);
+    worldToggleButton?.addEventListener('click', toggleViewWorld);
     
     // Set up nav dialog backdrop close
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
@@ -2651,13 +2731,16 @@ function cleanupNavMap(): void {
 }
 
 /**
- * Calculate tile range using overworld-equivalent (display) coordinates for unified view.
- * This ensures nether shops at (100, 50) are positioned at (800, 400) in overworld tiles.
+ * Calculate tile range for the current view world.
+ * Transforms all stop coordinates to view-world coordinates for proper map bounds.
  */
-function calculateTileRangeUnified(stops: RouteStop[]): TileRange {
-    // Use displayX/displayZ which are already overworld-equivalent
-    const xs = stops.map(stop => stop.displayX);
-    const zs = stops.map(stop => stop.displayZ);
+function calculateTileRangeForView(stops: RouteStop[]): TileRange {
+    const viewWorld = navigationStore.viewWorld;
+    
+    // Transform all stop coordinates to view world
+    const viewCoords = stops.map(stop => toViewCoords(stop.x, stop.z, stop.world, viewWorld));
+    const xs = viewCoords.map(c => c.x);
+    const zs = viewCoords.map(c => c.z);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minZ = Math.min(...zs);
@@ -2776,8 +2859,9 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
 }
 
 /**
- * Create route markers for unified view using display coordinates.
- * Nether shops are positioned at overworld-equivalent coords and styled differently.
+ * Create route markers for view-relative coordinates.
+ * Positions are transformed based on the current viewWorld.
+ * Cross-world stops (e.g., overworld shop when viewing nether) are styled differently.
  */
 function createRouteMarkersUnified(
     allStops: RouteStop[], 
@@ -2790,9 +2874,13 @@ function createRouteMarkersUnified(
     navStopMarkers = [];
     
     let incompleteIndex = 0;
+    const viewWorld = navigationStore.viewWorld;
+    const viewIsNether = isNether(viewWorld);
     
     for (const stop of allStops) {
-        const { lat, lng } = toLeafletCoordsRelative(stop.displayX, stop.displayZ, centerTileX, centerTileZ, TILE_CONFIG.tileSize);
+        // Transform stop coordinates to current view world
+        const viewCoords = toViewCoords(stop.x, stop.z, stop.world, viewWorld);
+        const { lat, lng } = toLeafletCoordsRelative(viewCoords.x, viewCoords.z, centerTileX, centerTileZ, TILE_CONFIG.tileSize);
         const isCompleted = Boolean(stop.cartItem && completedKeys.has(getTradeKey(stop.cartItem.trade)));
         
         if (!isCompleted) {
@@ -2800,12 +2888,15 @@ function createRouteMarkersUnified(
             incompleteIndex++;
         }
         
+        // Cross-world: stop is in different world than current view
+        const isCrossWorld = stop.isNether !== viewIsNether;
         const netherClass = stop.isNether ? ' nav-route-marker--nether' : '';
+        const crossWorldClass = isCrossWorld ? ' nav-route-marker--cross-world' : '';
         const completedClass = isCompleted ? ' nav-route-marker--completed' : '';
         const displayIndex = isCompleted ? 0 : incompleteIndex;
         
         const markerIcon = L.divIcon({
-            className: `nav-route-marker${netherClass}${completedClass}`,
+            className: `nav-route-marker${netherClass}${crossWorldClass}${completedClass}`,
             html: buildMarkerContent(isCompleted, displayIndex, stop.isNether),
             iconSize: [36, 36],
             iconAnchor: [18, 18]
@@ -2845,22 +2936,23 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     
     container.innerHTML = '';
     
-    // UNIFIED VIEW: Always use overworld tiles and show ALL stops
-    const worldToShow = 'overworld';
+    // Use the current view world from navigation store (defaults to overworld)
+    const worldToShow = navigationStore.viewWorld;
     navMapWorld = worldToShow;
     
-    // All stops are shown on unified map (using displayX/displayZ for positioning)
+    // All stops are shown on map (with coordinates transformed to view world)
     navCurrentWorldRoute = allStops;
     globalThis.__navCurrentWorldRoute = allStops;
     
-    debugMap('Unified map: stops=%d overworldStops=%d netherStops=%d completedStops=%d', 
+    debugMap('Navigation map: viewWorld=%s stops=%d overworldStops=%d netherStops=%d completedStops=%d', 
+        worldToShow,
         allStops.length, 
         allStops.filter(s => !s.isNether).length,
         allStops.filter(s => s.isNether).length,
         [...navigationStore.progress.completedKeys].length);
     
     // Calculate tile range using ALL stops (including completed) for proper map bounds
-    const tileRange = calculateTileRangeUnified(allStops);
+    const tileRange = calculateTileRangeForView(allStops);
     navMapCenterTileX = tileRange.centerTileX;
     navMapCenterTileZ = tileRange.centerTileZ;
     
@@ -2897,6 +2989,7 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     });
     
     // Create markers using display coordinates (unified view)
+    // Create markers with coordinates transformed to current view world
     // Pass completedKeys so completed shops show checkmarks instead of numbers
     const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
     
@@ -2917,7 +3010,7 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
     const manifest = await loadTileManifest();
     const addedToNavMap = new Set<string>();
     
-    // Always load overworld tiles for unified view
+    // Load tiles for the current view world
     // Now the zoom level is properly set from fitBounds
     loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
     
@@ -2929,7 +3022,7 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
                 viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
             loadNavMapTiles({ 
                 manifest, 
-                worldId: worldToShow, 
+                worldId: navigationStore.viewWorld,  // Use current view world for dynamic loading
                 tileRange: viewTileRange, 
                 addedToMap: addedToNavMap, 
                 mapCenterTileX: navMapCenterTileX, 

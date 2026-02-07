@@ -7,7 +7,7 @@
  * @module stores/navigation-store
  */
 
-import type { NavigationMode, NavigationProgress, RouteStop } from '../types.js';
+import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } from '../types.js';
 import { STORAGE_KEYS, WORLDS } from '../constants.js';
 
 // ============================================================================
@@ -74,6 +74,10 @@ class NavigationStore {
     private _route: RouteStop[] = [];
     private _worldRoute: RouteStop[] = [];
 
+    // View world state (which world's tiles/coords are displayed)
+    private _viewWorld: string = WORLDS.OVERWORLD;
+    private _viewWorldMode: ViewWorldMode = 'auto';
+
     // Non-serializable Leaflet objects
     private _mapObjects: MapObjects = {
         map: undefined,
@@ -133,6 +137,16 @@ class NavigationStore {
         return this._viewport;
     }
 
+    /** Get the current view world (which world's tiles/coords are displayed) */
+    get viewWorld(): string {
+        return this._viewWorld;
+    }
+
+    /** Get the current view world mode (auto-switch vs manual) */
+    get viewWorldMode(): ViewWorldMode {
+        return this._viewWorldMode;
+    }
+
     get refreshInterval(): ReturnType<typeof setInterval> | undefined {
         return this._refreshInterval;
     }
@@ -185,6 +199,32 @@ class NavigationStore {
     setMode(mode: NavigationMode): void {
         this._mode = mode;
         this.saveMode();
+    }
+
+    /**
+     * Set the view world (which world's tiles/coords are displayed)
+     */
+    setViewWorld(world: string): void {
+        this._viewWorld = world;
+        this.saveViewWorld();
+    }
+
+    /**
+     * Toggle between auto and manual view world modes.
+     * Returns the new mode.
+     */
+    toggleViewWorldMode(): ViewWorldMode {
+        this._viewWorldMode = this._viewWorldMode === 'auto' ? 'manual' : 'auto';
+        this.saveViewWorldMode();
+        return this._viewWorldMode;
+    }
+
+    /**
+     * Set view world mode directly
+     */
+    setViewWorldMode(mode: ViewWorldMode): void {
+        this._viewWorldMode = mode;
+        this.saveViewWorldMode();
     }
 
     /**
@@ -457,6 +497,58 @@ class NavigationStore {
         return this._mode;
     }
 
+    /**
+     * Save view world to localStorage
+     */
+    saveViewWorld(): void {
+        try {
+            localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD, this._viewWorld);
+        } catch {
+            // Storage unavailable
+        }
+    }
+
+    /**
+     * Load view world from localStorage
+     */
+    loadViewWorld(): string {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEYS.NAV_VIEW_WORLD);
+            if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {
+                this._viewWorld = stored;
+            }
+        } catch {
+            // Invalid data - use default
+        }
+        return this._viewWorld;
+    }
+
+    /**
+     * Save view world mode to localStorage
+     */
+    saveViewWorldMode(): void {
+        try {
+            localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD_MODE, this._viewWorldMode);
+        } catch {
+            // Storage unavailable
+        }
+    }
+
+    /**
+     * Load view world mode from localStorage
+     */
+    loadViewWorldMode(): ViewWorldMode {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEYS.NAV_VIEW_WORLD_MODE);
+            if (stored === 'auto' || stored === 'manual') {
+                this._viewWorldMode = stored;
+            }
+        } catch {
+            // Invalid data - use default
+        }
+        return this._viewWorldMode;
+    }
+
     // ========================================================================
     // Testing Support
     // ========================================================================
@@ -474,6 +566,8 @@ class NavigationStore {
         this._route = [];
         this._worldRoute = [];
         this._viewport = { world: WORLDS.OVERWORLD, centerTileX: 0, centerTileZ: 0 };
+        this._viewWorld = WORLDS.OVERWORLD;
+        this._viewWorldMode = 'auto';
     }
 }
 

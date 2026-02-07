@@ -261,6 +261,9 @@ export interface NavigationProgress {
 
 export type NavigationMode = 'follow' | 'manual';
 
+/** Controls whether the navigation map view auto-switches with player world transitions */
+export type ViewWorldMode = 'auto' | 'manual';
+
 // ============================================================================
 // Item Value Calculation Types
 // ============================================================================
