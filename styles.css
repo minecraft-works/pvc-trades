@@ -349,6 +349,24 @@ mark {
     margin-bottom: 10px;
 }
 
+/* Swap search button */
+#swap-search {
+    padding: 8px 10px;
+    font-size: 1rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background: var(--color-bg);
+    color: #888;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+#swap-search:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
 /* Exchange rates button */
 #open-matrix {
     padding: 12px 14px;

@@ -39,3 +39,11 @@ Feature: Search and Filter
     Then results should be sorted by result amount descending
     When I click the "result-amt" column header again
     Then results should be sorted by result amount ascending
+
+  @search @ui
+  Scenario: Swap search terms
+    Given I search for "emerald" in the want field
+    And I search for "diamond" in the give field
+    When I click the swap search button
+    Then the want field should contain "diamond"
+    And the give field should contain "emerald"

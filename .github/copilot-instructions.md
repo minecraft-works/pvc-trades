@@ -197,6 +197,53 @@ Given('I add a trade to the cart', async ({ page }) => {
 .cart-item--completed { }
 ```
 
+## Domain Invariants
+
+These are Minecraft/domain facts that never change:
+
+### Coordinate Systems
+
+- **Nether coordinates × 8 = overworld equivalent** (Minecraft hardcoded)
+- Always normalize to overworld for distance calculations
+- World types: `'overworld' | 'the_nether' | 'the_end'`
+
+```typescript
+// Cross-world distance: normalize first
+const [ox1, oz1] = world1 === 'the_nether' ? [x1 * 8, z1 * 8] : [x1, z1];
+const [ox2, oz2] = world2 === 'the_nether' ? [x2 * 8, z2 * 8] : [x2, z2];
+return Math.hypot(ox1 - ox2, oz1 - oz2);
+```
+
+### External Data Handling
+
+- All external data is `unknown` until validated
+- Use `.safeParse()` with fallback, never `.parse()` that throws
+- Catch network errors at call site, return fallback value
+
+```typescript
+// ✅ Correct pattern
+const result = Schema.safeParse(data);
+return result.success ? result.data : DEFAULT_VALUE;
+
+// ❌ Never do this
+try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
+```
+
+### Performance Thresholds
+
+- Virtual scroll when list exceeds ~100 items
+- Debounce user input (search: 100-200ms)
+- Player position polling: 5000ms interval
+- Auto-advance threshold: 50 blocks from shop
+
+### Test Placement
+
+| Code Under Test | Test Type | Location |
+|-----------------|-----------|----------|
+| Pure calculation | Unit test | `src/*.test.ts` |
+| DOM interaction | BDD test | `features/*.feature` |
+| Timing-sensitive | Mock time | Never real-wait |
+
 ## Domain Glossary
 
 | Term | Definition |
@@ -273,5 +320,14 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-001](docs/adr/001-price-aggregation-design.md) - Price aggregation design
 - [ADR-002](docs/adr/002-bdd-test-framework.md) - BDD test framework choice
 - [ADR-003](docs/adr/003-disable-animations-in-tests.md) - Disabling animations in tests
+- [ADR-004](docs/adr/004-route-optimization-algorithm.md) - Route optimization (nearest-neighbor + 2-opt)
+- [ADR-005](docs/adr/005-class-based-stores.md) - Class-based store pattern
+- [ADR-006](docs/adr/006-zod-runtime-validation.md) - Zod runtime validation
+- [ADR-007](docs/adr/007-virtual-scrolling.md) - Virtual scrolling for large lists
+- [ADR-008](docs/adr/008-nether-coordinate-system.md) - Nether coordinate normalization
+- [ADR-009](docs/adr/009-tile-caching-strategy.md) - Tile caching with blob URLs
 
-**Key principle from ADR-003**: Test-specific logic belongs in test fixtures, not production code. For example, Leaflet's `flyTo` method is patched in test fixtures to use `setView` instead—no if/else branching in `main.ts`.
+**Key principles:**
+- **ADR-003**: Test-specific logic belongs in test fixtures, not production code
+- **ADR-006**: Always use `.safeParse()` with fallback, never `.parse()`
+- **ADR-008**: Normalize all coordinates to overworld-equivalent for distance calculations
