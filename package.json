@@ -71,7 +71,7 @@
     "playwright-bdd": "^8.4.2",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "stylelint": "^17.0.0",
+    "stylelint": "^17.1.1",
     "stylelint-config-standard": "^40.0.0",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.16",
