@@ -4,6 +4,74 @@ Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, and D
 
 ---
 
+## Browser Interaction (Chrome DevTools MCP)
+
+AI agents can interact with the running app via Chrome DevTools tools:
+
+### Starting the Dev Server
+
+```bash
+npm run dev   # Starts Vite at http://localhost:5173
+```
+
+### Available Browser Tools
+
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `mcp_chrome-devtoo_navigate_page` | Open URL | Navigate to `http://localhost:5173` |
+| `mcp_chrome-devtoo_click` | Click element | Click `.add-to-cart-btn` |
+| `mcp_chrome-devtoo_fill` | Type in input | Fill `#player-name-input` |
+| `mcp_chrome-devtoo_take_screenshot` | Capture state | Debug visual issues |
+| `mcp_chrome-devtoo_take_snapshot` | Get DOM/accessibility tree | Inspect structure |
+| `mcp_chrome-devtoo_evaluate_script` | Run JS in page | Check `cartStore.getAll()` |
+| `mcp_chrome-devtoo_get_console_message` | Read console | Check for errors |
+| `mcp_chrome-devtoo_list_network_requests` | See API calls | Debug fetch issues |
+
+### Common Debugging Workflow
+
+```
+1. Navigate to http://localhost:5173
+2. Take snapshot to see current state
+3. Click elements / fill inputs to reproduce issue
+4. Evaluate script to inspect stores:
+   - window.cartStore.getAll()
+   - window.navigationStore.getState()
+5. Check console for errors
+6. Take screenshot to verify fix
+```
+
+### Key DOM Selectors
+
+From `constants.ts`:
+
+```typescript
+SELECTORS.MAP_DIALOG         // '#map-dialog'
+SELECTORS.NAV_DIALOG         // '#nav-dialog'
+SELECTORS.PLAYER_NAME_INPUT  // '#player-name-input'
+SELECTORS.CLOSE_MATRIX       // '#close-matrix'
+SELECTORS.RECENTER_MAP       // '#recenter-map'
+
+// Common elements
+'#cart-button'               // Open cart dialog
+'.trade-row'                 // Trade list items
+'.add-to-cart-btn'           // Add to cart buttons
+'.cart-dialog'               // Cart dialog container
+```
+
+### Enabling Debug Logs
+
+Before debugging, enable verbose logging:
+
+```javascript
+// In evaluate_script or browser console
+localStorage.debug = 'pvc:*';
+location.reload();
+```
+
+Then check console messages for `pvc:navigation`, `pvc:tiles`, etc.
+
+---
+
 ## Where to Put Code
 
 ```
