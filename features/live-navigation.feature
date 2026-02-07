@@ -13,7 +13,7 @@ Feature: Live Navigation
 
   @navigation @start
   Scenario: Starting navigation opens nav dialog and centers on player
-    Given player "TestPlayer" is in the overworld at (500, 300)
+    Given player "TestPlayer" is in the overworld at (0, 0)
     And I enter "TestPlayer" as my player name
     When I click "Start Navigation"
     Then the cart dialog should close
@@ -27,6 +27,32 @@ Feature: Live Navigation
     When I click "Start Navigation"
     Then I should see an error about missing player name
     And navigation should not start
+
+  # ============================================================================
+  # Follow Mode Toggle
+  # ============================================================================
+
+  @navigation @follow-toggle
+  Scenario: Follow toggle button starts in follow mode
+    Given player "TestPlayer" is in the overworld at (100, 200)
+    When I start navigation
+    Then the follow toggle button should show follow mode
+    And the follow toggle button tooltip should say "Auto-follow enabled"
+
+  @navigation @follow-toggle
+  Scenario: Panning the map switches to manual mode
+    Given I am navigating as "TestPlayer" at (100, 200)
+    When I pan the map
+    Then the follow toggle button should show manual mode
+    And the follow toggle button tooltip should say "Auto-follow disabled (click to re-center)"
+
+  @navigation @follow-toggle
+  Scenario: Clicking toggle in manual mode re-centers on player
+    Given I am navigating as "TestPlayer" at (100, 200)
+    And the mode is manual
+    When I click the follow toggle button
+    Then the map should be centered on the player position
+    And the follow toggle button should show follow mode
 
   # ============================================================================
   # Player Position Tracking

@@ -70,6 +70,20 @@ location.reload();
 
 Then check console messages for `pvc:navigation`, `pvc:tiles`, etc.
 
+### Using Local Data (Offline/Development)
+
+To avoid network issues or test with static data, configure `config.json` to use local data:
+
+```json
+{
+  "dataUrl": "./data.json",   // Local file instead of remote API
+  "dataRefreshMs": 60000,
+  ...
+}
+```
+
+The remote API (`https://pvc-shops.minecraft-works.workers.dev/`) may be blocked by corporate networks. Switch to local `data.json` for development.
+
 ---
 
 ## Git Workflow

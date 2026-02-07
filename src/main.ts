@@ -871,8 +871,6 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     // Check if items have additional details (lore/enchants)
     const resultHasDetails = itemHasDetails(t.resultItem);
     const costHasDetails = itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2));
-    const resultDetailsClass = resultHasDetails ? ' has-details' : '';
-    const costDetailsClass = costHasDetails ? ' has-details' : '';
 
     const row = document.createElement('div');
     row.className = CSS_CLASSES.TRADE_ROW;
@@ -894,11 +892,14 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         row.dataset['new'] = 'true';
     }
     
+    const resultInfoIcon = resultHasDetails ? '<button class="info-icon" data-info="result" title="View details">ℹ</button>' : '';
+    const costInfoIcon = costHasDetails ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
+    
     row.innerHTML = `
         <span class="col result-amt">${showAmount}</span>
-        <span class="col result-name${resultDetailsClass}">${resultDisplay}</span>
+        <span class="col result-name">${resultDisplay}${resultInfoIcon}</span>
         <span class="col cost-amt">${costAmt}</span>
-        <span class="col cost-name${costDetailsClass}">${costDisplay}</span>
+        <span class="col cost-name">${costDisplay}${costInfoIcon}</span>
         <span class="col dev ${devClass}">${devText}</span>
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
@@ -1797,6 +1798,9 @@ async function startNavigation(): Promise<void> {
     
     navigationStore.start(playerNameInput.value.trim());
     
+    // Initialize follow toggle button to follow mode
+    updateFollowToggleButton('follow');
+    
     // Close cart dialog and open navigation dialog
     const cartDialog = getElement<HTMLDialogElement>('cart-dialog');
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
@@ -2535,6 +2539,9 @@ function switchToManualMode(): void {
     const dialogRecenterButton = document.querySelector('#nav-dialog-recenter');
     recenterButton?.classList.remove('hidden');
     dialogRecenterButton?.classList.remove('hidden');
+    
+    // Update follow toggle button state
+    updateFollowToggleButton('manual');
 }
 
 /**
@@ -2549,8 +2556,36 @@ function switchToFollowMode(): void {
     recenterButton?.classList.add('hidden');
     dialogRecenterButton?.classList.add('hidden');
     
+    // Update follow toggle button state
+    updateFollowToggleButton('follow');
+    
     // Center on player
     centerMapOnPlayer();
+}
+
+/**
+ * Update the follow mode toggle button visual state
+ */
+function updateFollowToggleButton(mode: 'follow' | 'manual'): void {
+    const toggleButton = document.querySelector<HTMLButtonElement>('#nav-follow-toggle');
+    if (!toggleButton) {
+        return;
+    }
+    
+    toggleButton.dataset.mode = mode;
+    toggleButton.title = mode === 'follow' ? 'Auto-follow enabled' : 'Auto-follow disabled (click to re-center)';
+}
+
+/**
+ * Toggle between follow and manual mode
+ */
+function toggleFollowMode(): void {
+    const currentMode = navigationStore.mode;
+    if (currentMode === 'follow') {
+        switchToManualMode();
+    } else {
+        switchToFollowMode();
+    }
 }
 
 /**
@@ -2560,10 +2595,12 @@ function setupNavigationControls(): void {
     const startButton = document.querySelector('#start-navigation');
     const recenterButton = document.querySelector(SELECTORS.RECENTER_MAP);
     const closeNavButton = document.querySelector('#close-nav');
+    const followToggleButton = document.querySelector('#nav-follow-toggle');
     
     startButton?.addEventListener('click', toggleNavigation);
     recenterButton?.addEventListener('click', switchToFollowMode);
     closeNavButton?.addEventListener('click', stopNavigation);
+    followToggleButton?.addEventListener('click', toggleFollowMode);
     
     // Set up nav dialog backdrop close
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
@@ -2981,9 +3018,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', event => {
+        // Ctrl+F / Cmd+F: Focus search
         if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
             event.preventDefault();
             getElement<HTMLInputElement>('searchWant').focus();
+        }
+        // Ctrl+Shift+X / Cmd+Shift+X: Swap search fields
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'X') {
+            event.preventDefault();
+            const wantInput = getElement<HTMLInputElement>('searchWant');
+            const giveInput = getElement<HTMLInputElement>('searchGive');
+            const wantValue = wantInput.value;
+            wantInput.value = giveInput.value;
+            giveInput.value = wantValue;
+            search();
         }
     });
 
@@ -3047,18 +3095,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
         const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
 
-        // Click on distance or world cell → open map dialog
-        if (target.closest('.distance') || target.closest('.world')) {
-            openMapDialog(x, y, z, world);
+        // Click on info icon → open trade details popover
+        const infoIcon = target.closest('.info-icon') as HTMLElement | null;
+        if (infoIcon) {
+            const isResult = infoIcon.dataset['info'] === 'result';
+            openTradeDetailsPopover(row, isResult, target);
             return;
         }
 
-        // Click on result-name or cost-name cell with details → open trade details popover
-        const resultName = target.closest('.result-name.has-details');
-        const costName = target.closest('.cost-name.has-details');
-        if (resultName || costName) {
-            const isResult = resultName !== null;
-            openTradeDetailsPopover(row, isResult, target);
+        // Click on add-to-cart button is handled separately
+        if (target.closest('.add-to-cart-btn')) {
+            return;
         }
+
+        // Click anywhere else on row → open map dialog
+        openMapDialog(x, y, z, world);
     });
 });

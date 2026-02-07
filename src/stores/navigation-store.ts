@@ -157,6 +157,7 @@ class NavigationStore {
     start(playerName: string): void {
         this._isActive = true;
         this._playerName = playerName;
+        this._mode = 'follow'; // Always start in follow mode
         this.savePlayerName();
     }
 

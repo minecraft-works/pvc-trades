@@ -134,6 +134,14 @@ describe('NavigationStore', () => {
                 'TestPlayer'
             );
         });
+
+        test('resets mode to follow even if previously manual', () => {
+            navigationStore.setMode('manual');
+            expect(navigationStore.mode).toBe('manual');
+            
+            navigationStore.start('TestPlayer');
+            expect(navigationStore.mode).toBe('follow');
+        });
     });
 
     describe('stop', () => {
