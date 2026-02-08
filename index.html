@@ -13,12 +13,16 @@
 
     <div class="search-container">
         <div class="search-box">
+            <button id="filter-favorites" type="button" title="Show only watched items" aria-label="Toggle favorites filter">☆</button>
             <label for="searchWant" class="visually-hidden">Search for items to buy</label>
             <input type="text" id="searchWant" placeholder="Buying..." autofocus>
             <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
             <label for="searchGive" class="visually-hidden">Search by cost item</label>
             <input type="text" id="searchGive" placeholder="Paying...">
-            <button id="filter-new" type="button" title="Show only new items" aria-label="Toggle new items filter">✨</button>
+            <button id="filter-new" type="button" title="Show only new items" aria-label="Toggle new items filter">🆕</button>
+            <button id="open-favorites" type="button" title="Watchlist" aria-label="Open watchlist">
+                ⭐<span id="favorites-badge" class="favorites-badge hidden"></span>
+            </button>
             <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">💱</button>
             <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">
                 🛒<span id="cart-badge" class="cart-badge hidden"></span>
@@ -108,6 +112,64 @@
         </div>
         <div id="trade-details-content" class="trade-details-content"></div>
     </dialog>
+
+    <dialog id="favorites-dialog">
+        <div class="favorites-header">
+            <h2>⭐ Watchlist</h2>
+            <button id="close-favorites" aria-label="Close">&times;</button>
+        </div>
+        <div class="favorites-content">
+            <div id="favorites-list" class="favorites-list"></div>
+            <div id="favorites-empty" class="favorites-empty hidden">
+                <p>No items in watchlist</p>
+                <p class="favorites-hint">Click ☆ on any trade to start watching</p>
+            </div>
+            <div id="favorites-add-section" class="favorites-add-section">
+                <button id="favorites-add-new" type="button" class="favorites-add-btn">+ Watch new item...</button>
+                <div id="favorites-add-form" class="favorites-add-form hidden">
+                    <input type="text" id="favorites-item-input" placeholder="Item name..." list="favorites-suggestions">
+                    <datalist id="favorites-suggestions"></datalist>
+                    <div id="favorites-add-warning" class="favorites-warning hidden">No current trades for this item</div>
+                    <div class="favorites-threshold-options">
+                        <label>
+                            <input type="radio" name="new-threshold-type" value="any" checked> Any price
+                        </label>
+                        <label>
+                            <input type="radio" name="new-threshold-type" value="threshold"> Below market by
+                            <input type="number" id="favorites-new-threshold" value="20" min="1" max="99" class="threshold-input">%
+                        </label>
+                    </div>
+                    <div class="favorites-add-actions">
+                        <button id="favorites-add-cancel" type="button" class="btn-secondary">Cancel</button>
+                        <button id="favorites-add-confirm" type="button" class="btn-primary">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Favorite popover (positioned dynamically) -->
+    <div id="favorite-popover" class="favorite-popover hidden">
+        <div class="popover-header">
+            <span id="popover-item-name">Item Name</span>
+            <button id="popover-close" type="button" class="popover-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="popover-content">
+            <div class="threshold-options">
+                <label>
+                    <input type="radio" name="threshold-type" value="any" checked> Any price
+                </label>
+                <label>
+                    <input type="radio" name="threshold-type" value="threshold"> Below market by
+                    <input type="number" id="popover-threshold" value="20" min="1" max="99" class="threshold-input">%
+                </label>
+            </div>
+        </div>
+        <div class="popover-actions">
+            <button id="popover-remove" type="button" class="btn-remove hidden">Remove</button>
+            <button id="popover-save" type="button" class="btn-primary">Add to Watchlist</button>
+        </div>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
 </body>

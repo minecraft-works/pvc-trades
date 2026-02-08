@@ -35,5 +35,6 @@ reports/
 # Stryker mutation testing
 .stryker-tmp/
 
-# Generated API docs
+# Generated API docs (rebuilt in CI/deploy)
 docs/api/
+lint-output.txt

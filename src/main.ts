@@ -110,7 +110,7 @@ import {
     STORAGE_KEYS
 } from './constants.js';
 
-import { cartStore, navigationStore } from './stores/index.js';
+import { cartStore, navigationStore, favoritesStore } from './stores/index.js';
 
 import {
     TILE_CONFIG,
@@ -616,12 +616,25 @@ function search(): void {
         if (filterNewOnly && !newTradeKeys.has(getTradeKey(trade))) {
             continue;
         }
+        
+        // Apply favorites filter if active
+        if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) {
+            continue;
+        }
+        
         const result = filterTrade(trade, wantQuery, giveQuery);
         if (result) { results.push(result); }
     }
 
     sortResults(results);
     renderResults(results, wantRegex, giveRegex);
+}
+
+/**
+ * Trigger a search refresh (used by favorites and other features)
+ */
+function triggerSearch(): void {
+    search();
 }
 
 function sortByColumn(column: SortColumn): void {
@@ -790,14 +803,14 @@ function updateSortArrows(): void {
 function renderHeader(): void {
     const header = getElement('table-header');
     header.innerHTML = `
+        <span class="col fav-col-header" title="Favorites">★</span>
         <span class="col header amt" data-col="result-amt" data-label="#">#</span>
         <span class="col header" data-col="result-name" data-label="Item">Item</span>
         <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
         <span class="col header" data-col="cost-name" data-label="Cost">Cost</span>
         <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
-        <span class="col header distance-header desktop-only" data-col="distance" data-label="Distance" title="Distance from origin (X, Z)">Distance</span>
-        <span class="col header distance-header mobile-only" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
+        <span class="col header distance-header" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
         <span class="col cart-col-header" title="Add to cart"></span>
     `;
@@ -858,6 +871,26 @@ function getDeviationDisplayInfo(t: Trade): { devClass: string; devText: string 
 }
 
 /**
+ * Get favorite status info for a trade's result item
+ */
+function getFavoriteInfo(t: Trade): { isFavorite: boolean; isDealAlert: boolean; starClass: string } {
+    const resultItemNormalized = t.resultName.toLowerCase();
+    const isFavorite = favoritesStore.has(resultItemNormalized);
+    const starClass = isFavorite ? 'favorite-star active' : 'favorite-star';
+    
+    if (!isFavorite) {
+        return { isFavorite: false, isDealAlert: false, starClass };
+    }
+    
+    const deviationResult = getDeviation(t);
+    const deviationPercent = deviationResult?.percent;
+    const isDealAlert = deviationPercent !== undefined 
+        && favoritesStore.meetsThreshold(resultItemNormalized, deviationPercent);
+    
+    return { isFavorite, isDealAlert, starClass };
+}
+
+/**
  * Create a trade row DOM element for a single result
  */
 function createTradeRowElement(result: FilterResult): HTMLElement {
@@ -889,6 +922,16 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const isInCart = cartStore.has(t);
     const inCartClass = isInCart ? ' in-cart' : '';
     
+    // Check favorite status (what you're buying)
+    const { isFavorite, isDealAlert, starClass } = getFavoriteInfo(t);
+    
+    if (isFavorite) {
+        row.classList.add('favorite');
+    }
+    if (isDealAlert) {
+        row.classList.add('deal-alert');
+    }
+    
     // Check if this is a new trade that should be highlighted
     // Highlights persist until page refresh so users don't miss new items
     const isNewTrade = newTradeKeys.has(tradeKey);
@@ -901,6 +944,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const costInfoIcon = costHasDetails ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
     
     row.innerHTML = `
+        <button class="col ${starClass}" data-item="${escapeHtml(t.resultName)}" title="${isFavorite ? 'Edit favorite' : 'Add to favorites'}">★</button>
         <span class="col result-amt">${showAmount}</span>
         <span class="col result-name">${resultDisplay}${resultInfoIcon}</span>
         <span class="col cost-amt">${costAmt}</span>
@@ -911,6 +955,13 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
         <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
+    
+    // Star button click handler (opens popover)
+    const starButton = row.querySelector('.favorite-star') as HTMLButtonElement;
+    starButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        showFavoritePopover(starButton, t.resultName);
+    });
     
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
     cartButton.addEventListener('click', (event) => {
@@ -1610,6 +1661,268 @@ function renderCartDialog(): void {
         li.textContent = `${amount}× ${name}`;
         gainsContainer.append(li);
     }
+}
+
+// ============================================================================
+// Favorites Watchlist
+// ============================================================================
+
+/** State for the popover */
+let activePopoverItemName: string | undefined;
+
+/**
+ * Show the favorite popover positioned near the star button
+ */
+function showFavoritePopover(button: HTMLElement, itemName: string): void {
+    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
+    if (!popover) { return; }
+    
+    activePopoverItemName = itemName;
+    
+    // Update popover header
+    const header = popover.querySelector('#popover-item-name') as HTMLElement;
+    if (header) {
+        header.textContent = itemName;
+    }
+    
+    // Get current favorite settings
+    const favorite = favoritesStore.get(itemName);
+    const isFavorite = Boolean(favorite);
+    const hasThreshold = favorite?.maxDeviation !== undefined;
+    const thresholdValue = favorite?.maxDeviation === undefined ? 20 : Math.abs(favorite.maxDeviation);
+    
+    // Update radio buttons
+    const anyPriceRadio = popover.querySelector('input[name="threshold-type"][value="any"]') as HTMLInputElement;
+    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
+    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
+    
+    if (anyPriceRadio && thresholdRadio && thresholdInput) {
+        anyPriceRadio.checked = !hasThreshold;
+        thresholdRadio.checked = hasThreshold;
+        thresholdInput.value = String(thresholdValue);
+    }
+    
+    // Show/hide buttons based on whether it's already a favorite
+    const removeButton = popover.querySelector('#popover-remove') as HTMLElement;
+    const saveButton = popover.querySelector('#popover-save') as HTMLElement;
+    if (removeButton && saveButton) {
+        removeButton.classList.toggle('hidden', !isFavorite);
+        saveButton.classList.toggle('hidden', isFavorite);
+    }
+    
+    // Position popover near the button (or center if button not visible)
+    const rect = button.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        popover.style.top = `${rect.bottom + 4}px`;
+        popover.style.left = `${Math.max(8, rect.left - 100)}px`;
+        popover.style.transform = 'none';
+    } else {
+        // Button not visible, center popover on screen
+        popover.style.top = '50%';
+        popover.style.left = '50%';
+        popover.style.transform = 'translate(-50%, -50%)';
+    }
+    
+    // Show popover
+    popover.classList.remove('hidden');
+    
+    // Close when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', handlePopoverOutsideClick);
+    }, 0);
+}
+
+/**
+ * Hide the favorite popover
+ */
+function hideFavoritePopover(): void {
+    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
+    if (popover) {
+        popover.classList.add('hidden');
+    }
+    activePopoverItemName = undefined;
+    document.removeEventListener('click', handlePopoverOutsideClick);
+}
+
+/**
+ * Handle clicks outside the popover to close it
+ */
+function handlePopoverOutsideClick(event: MouseEvent): void {
+    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER);
+    const target = event.target as HTMLElement;
+    
+    if (popover && !popover.contains(target) && !target.classList.contains('favorite-star')) {
+        hideFavoritePopover();
+    }
+}
+
+/**
+ * Save the favorite from the popover
+ */
+function saveFavoriteFromPopover(): void {
+    if (!activePopoverItemName) { return; }
+    
+    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
+    if (!popover) { return; }
+    
+    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
+    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
+    
+    let maxDeviation: number | undefined;
+    if (thresholdRadio?.checked && thresholdInput) {
+        const value = Number.parseInt(thresholdInput.value, 10);
+        maxDeviation = Number.isNaN(value) ? -20 : -Math.abs(value);
+    }
+    
+    favoritesStore.add(activePopoverItemName, maxDeviation);
+    hideFavoritePopover();
+    
+    // Re-render to update star states
+    triggerSearch();
+    updateFavoritesBadge();
+}
+
+/**
+ * Remove favorite from popover
+ */
+function removeFavoriteFromPopover(): void {
+    if (!activePopoverItemName) { return; }
+    
+    favoritesStore.remove(activePopoverItemName);
+    hideFavoritePopover();
+    
+    // Re-render to update star states
+    triggerSearch();
+    updateFavoritesBadge();
+}
+
+/**
+ * Update the favorites badge count
+ */
+function updateFavoritesBadge(): void {
+    const badge = document.querySelector('.favorites-badge') as HTMLElement;
+    if (!badge) { return; }
+    
+    const count = favoritesStore.getAll().length;
+    badge.textContent = String(count);
+    badge.classList.toggle('hidden', count === 0);
+}
+
+/**
+ * Render the favorites dialog content
+ */
+function renderFavoritesDialog(): void {
+    const list = document.querySelector('.favorites-list') as HTMLElement;
+    const empty = document.querySelector('.favorites-empty') as HTMLElement;
+    
+    if (!list || !empty) { return; }
+    
+    const favorites = favoritesStore.getAll();
+    
+    // Toggle empty state
+    list.classList.toggle('hidden', favorites.length === 0);
+    empty.classList.toggle('hidden', favorites.length > 0);
+    
+    // Clear and rebuild list
+    list.innerHTML = '';
+    
+    for (const fav of favorites) {
+        const item = document.createElement('div');
+        item.className = 'favorites-item';
+        
+        const thresholdText = fav.maxDeviation === undefined 
+            ? 'No threshold'
+            : `Alert ≤${fav.maxDeviation}%`;
+        
+        item.innerHTML = `
+            <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
+            <span class="favorites-item-threshold">${thresholdText}</span>
+            <div class="favorites-item-actions">
+                <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
+                <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
+            </div>
+        `;
+        
+        list.append(item);
+    }
+}
+
+/**
+ * Setup favorites dialog event handlers
+ */
+function setupFavoritesDialog(): void {
+    // Open favorites dialog
+    const openButton = document.querySelector('#open-favorites');
+    openButton?.addEventListener('click', () => {
+        renderFavoritesDialog();
+        openDialog('favorites-dialog');
+    });
+    
+    // Close favorites dialog
+    const closeButton = document.querySelector('#close-favorites');
+    closeButton?.addEventListener('click', () => {
+        const dialog = document.querySelector('#favorites-dialog') as HTMLDialogElement;
+        dialog?.close();
+    });
+    
+    // Favorites list delegation
+    const favoritesContent = document.querySelector('.favorites-content');
+    favoritesContent?.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        const itemName = target.dataset['item'];
+        
+        if (target.classList.contains('remove-favorite') && itemName) {
+            favoritesStore.remove(itemName);
+            renderFavoritesDialog();
+            updateFavoritesBadge();
+            triggerSearch();
+        }
+        
+        if (target.classList.contains('edit-favorite') && itemName) {
+            // Close dialog and show popover for the item
+            const dialog = document.querySelector('#favorites-dialog') as HTMLDialogElement;
+            dialog?.close();
+            
+            // Show popover using the edit button as anchor, fall back to star in table
+            const starButton = document.querySelector(`.favorite-star[data-item="${itemName}"]`) as HTMLElement;
+            const anchor = starButton ?? target;
+            showFavoritePopover(anchor, itemName);
+        }
+    });
+    
+    // Popover save/cancel/remove
+    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER);
+    
+    popover?.querySelector('.btn-primary')?.addEventListener('click', () => {
+        saveFavoriteFromPopover();
+    });
+    
+    popover?.querySelector('.btn-secondary')?.addEventListener('click', () => {
+        hideFavoritePopover();
+    });
+    
+    popover?.querySelector('.btn-remove')?.addEventListener('click', () => {
+        removeFavoriteFromPopover();
+    });
+    
+    popover?.querySelector('.popover-close')?.addEventListener('click', () => {
+        hideFavoritePopover();
+    });
+    
+    // Filter favorites toggle
+    const filterButton = document.querySelector('#filter-favorites');
+    filterButton?.addEventListener('click', () => {
+        filterButton.classList.toggle('active');
+        triggerSearch();
+    });
+}
+
+/**
+ * Check if favorites filter is active
+ */
+function isFavoritesFilterActive(): boolean {
+    const filterButton = document.querySelector('#filter-favorites');
+    return filterButton?.classList.contains('active') ?? false;
 }
 
 // ============================================================================
@@ -3026,6 +3339,11 @@ document.addEventListener('DOMContentLoaded', () => {
     cartStore.load();
     navigationStore.loadProgress();
     navigationStore.loadMode();
+    
+    // Initialize favorites
+    favoritesStore.load();
+    setupFavoritesDialog();
+    updateFavoritesBadge();
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();

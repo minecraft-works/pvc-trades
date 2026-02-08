@@ -276,7 +276,7 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         await page.evaluate(() => window.scrollBy(0, 1000));
         await page.waitForTimeout(200);
 
-        // Header has 10 cols (desktop + mobile distance), row has 9
+        // Header has 10 cols, row has 10
         // Only visible columns should align
         const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col, .add-to-cart-btn');
@@ -284,9 +284,9 @@ test.describe('Virtual Scrolling - Layout Integrity', () => {
         const headerCount = await headerCols.count();
         const rowColCount = await firstRowCols.count();
 
-        // On desktop, header has 9 visible cols (desktop-only shown, mobile-only hidden)
-        expect(headerCount, 'Header should have 9 visible columns on desktop').toBe(9);
-        expect(rowColCount, 'Row should have 9 columns').toBe(9);
+        // Header and row should both have 10 columns
+        expect(headerCount, 'Header should have 10 visible columns on desktop').toBe(10);
+        expect(rowColCount, 'Row should have 10 columns').toBe(10);
 
         // Check alignment of visible columns
         for (let index = 0; index < headerCount; index++) {

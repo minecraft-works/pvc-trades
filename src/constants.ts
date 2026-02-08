@@ -48,6 +48,7 @@ export const SORT = {
 /** localStorage keys for persistence */
 export const STORAGE_KEYS = {
     CART: 'pvc-trades-cart',
+    FAVORITES: 'pvc-trades-favorites',
     NAV_PROGRESS: 'pvc-trades-nav-progress',
     NAV_PLAYER: 'pvc-trades-nav-player',
     NAV_TAB: 'pvc-trades-nav-tab',
@@ -79,6 +80,7 @@ export const SELECTORS = {
     RECENTER_MAP: '#recenter-map',
     NAV_VIEW_MODE_TOGGLE: '#nav-view-mode-toggle',
     NAV_WORLD_TOGGLE: '#nav-world-toggle',
+    FAVORITE_POPOVER: '#favorite-popover',
 } as const;
 
 // ============================================================================
