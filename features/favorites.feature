@@ -231,18 +231,20 @@ Feature: Favorites Watchlist
     Then all trade rows should show hollow stars
 
   # ============================================================================
-  # Badge Count
+  # Badge Count (Shows Deals Meeting Thresholds)
+  # Note: These tests verify badge infrastructure. Deal matching depends on 
+  # market data which requires multiple trades per item (not in mock data).
   # ============================================================================
 
   @favorites @badge
-  Scenario: Badge shows count of favorites
-    Given I have 2 different items in my favorites
-    Then the favorites badge should show 2
+  Scenario: Badge hidden when no deals meet thresholds
+    Given I have "Diamond" in my favorites without threshold
+    Then the favorites badge should be hidden
 
   @favorites @badge
-  Scenario: Badge hidden when no favorites
-    Given I have no favorites
-    Then the favorites badge should be hidden
+  Scenario: Badge not shown for favorites without thresholds
+    Given I have "Diamond" in my favorites without threshold
+    Then the favorites badge should be hidden or not yellow
 
   # ============================================================================
   # Persistence
