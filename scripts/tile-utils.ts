@@ -14,7 +14,6 @@ import {
 } from '../src/tile-coords.js';
 
 // Re-export types from shared module
-export type { Coordinates };
 
 // Re-export TileCoords as an alias to ZoomedTileCoords for backward compatibility
 export type TileCoords = ZoomedTileCoords;
@@ -190,7 +189,7 @@ export function getUniqueTiles(
         }
     }
     
-    return Array.from(tilesMap.values());
+    return [...tilesMap.values()];
 }
 
 /**
@@ -258,3 +257,5 @@ export function calculateRateLimitDelay(
     
     return { delay: 0, batchComplete: false };
 }
+
+export {type Coordinates} from '../src/tile-coords.js';

@@ -3222,8 +3222,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
 
         // Click on info icon → open trade details popover
-        const infoIcon = target.closest('.info-icon') as HTMLElement | null;
-        if (infoIcon) {
+        const infoIcon = target.closest('.info-icon');
+        if (infoIcon instanceof HTMLElement) {
             const isResult = infoIcon.dataset['info'] === 'result';
             openTradeDetailsPopover(row, isResult, target);
             return;

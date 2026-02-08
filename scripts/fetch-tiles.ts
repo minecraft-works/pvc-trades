@@ -1,7 +1,7 @@
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import path from 'node:path';
 import type { Page } from 'playwright';
 import {
     getTilePath,
@@ -44,7 +44,7 @@ async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise
     const tilePath = getTilePath(zoom, tile.tileX, tile.tileZ);
     const normalizedWorld = getNormalizedWorld(tile.world);
     
-    const filepath = join(outputDir, normalizedWorld, tilePath);
+    const filepath = path.join(outputDir, normalizedWorld, tilePath);
     
     // Skip if already exists (from previous run)
     if (existsSync(filepath)) {
@@ -53,7 +53,7 @@ async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise
     }
     
     // Create directory structure
-    mkdirSync(dirname(filepath), { recursive: true });
+    mkdirSync(path.dirname(filepath), { recursive: true });
     
     // Log the exact URL being fetched
     console.log(`  [FETCH] ${tile.url}`);
@@ -62,7 +62,7 @@ async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise
         // Navigate to the tile URL (same approach as fetch-data.ts)
         const response = await page.goto(tile.url, { 
             waitUntil: 'load', 
-            timeout: 30000 
+            timeout: 30_000 
         });
         
         if (!response) {
@@ -112,7 +112,7 @@ async function main() {
         process.exit(1);
     }
     
-    const shopData = JSON.parse(readFileSync(dataPath, 'utf-8'));
+    const shopData = JSON.parse(readFileSync(dataPath, 'utf8'));
     console.log(`Loaded ${shopData.data.length} shops`);
     
     // Get zoom 8 tiles around shops (5x5 grid per shop)
@@ -131,7 +131,7 @@ async function main() {
             tilesMap.set(key, tile);
         }
     }
-    const tiles = Array.from(tilesMap.values());
+    const tiles = [...tilesMap.values()];
     console.log(`\nTotal unique tiles: ${tiles.length}`);
     
     // Group by world and zoom for summary
@@ -162,7 +162,7 @@ async function main() {
     
     // Visit homepage first to get cookies
     console.log('Visiting homepage for cookies...');
-    await page.goto(CONFIG.homepageUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    await page.goto(CONFIG.homepageUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     await sleep(3000);
     
     // Sanity check: fetch a center tile (0_0) to verify dynmap is accessible
@@ -171,7 +171,7 @@ async function main() {
     console.log(`Testing: ${testUrl}`);
     
     try {
-        const testResponse = await page.goto(testUrl, { waitUntil: 'load', timeout: 30000 });
+        const testResponse = await page.goto(testUrl, { waitUntil: 'load', timeout: 30_000 });
         const testStatus = testResponse?.status();
         const testContentType = testResponse?.headers()['content-type'] || '';
         
@@ -257,7 +257,7 @@ async function main() {
         blocksPerTile: t.blocksPerTile,
         shopCount: t.shops.length
     }));
-    writeFileSync(join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    writeFileSync(path.join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
     console.log(`\nSaved tile manifest with ${manifest.length} entries (${failed} failed tiles excluded)`);
     
     console.log('\n=== Complete ===');
@@ -266,7 +266,7 @@ async function main() {
     console.log('Zoom 4: Base map coverage (-5 to 4 range)');
 }
 
-main().catch(err => {
-    console.error('Fatal error:', err);
+main().catch(error => {
+    console.error('Fatal error:', error);
     process.exit(1);
 });

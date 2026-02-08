@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 
 // Add stealth plugin to avoid Cloudflare detection
 chromium.use(StealthPlugin());
@@ -25,7 +25,7 @@ async function fetchData() {
     
     // Log all network responses
     page.on('response', response => {
-        console.log(`[Network] ${response.status()} ${response.url().substring(0, 100)}`);
+        console.log(`[Network] ${response.status()} ${response.url().slice(0, 100)}`);
     });
     
     // Log console messages from the page
@@ -38,12 +38,12 @@ async function fetchData() {
         // Use 'domcontentloaded' instead of 'networkidle' - the page has many external resources
         // (Facebook, Google Analytics, fonts) that keep making requests and cause networkidle to timeout
         console.log('\n--- Step 1: Visiting homepage to get cookies ---');
-        const homeResponse = await page.goto(HOMEPAGE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        const homeResponse = await page.goto(HOMEPAGE_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
         console.log(`Homepage response status: ${homeResponse?.status()}`);
         
         const cookies = await context.cookies();
         console.log(`Cookies received: ${cookies.length}`);
-        cookies.forEach(c => console.log(`  - ${c.name}: ${c.value.substring(0, 30)}...`));
+        cookies.forEach(c => console.log(`  - ${c.name}: ${c.value.slice(0, 30)}...`));
         
         // Wait a bit for any JS to execute
         console.log('Waiting 3s for JS execution...');
@@ -51,7 +51,7 @@ async function fetchData() {
         
         // Now navigate to data.json
         console.log('\n--- Step 2: Navigating to data.json ---');
-        const dataResponse = await page.goto(DATA_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        const dataResponse = await page.goto(DATA_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
         console.log(`Data.json response status: ${dataResponse?.status()}`);
         console.log('Data.json response headers:');
         const headers = dataResponse?.headers() || {};
@@ -72,7 +72,7 @@ async function fetchData() {
             console.log(`  URL: ${url}`);
             console.log(`  Title: "${title}"`);
             console.log(`  Content length: ${contentLength} chars`);
-            console.log(`  Content preview: ${content.substring(0, 200).replace(/\n/g, ' ')}`);
+            console.log(`  Content preview: ${content.slice(0, 200).replaceAll('\n', ' ')}`);
             
             // Check if we got the JSON (starts with { and contains "information")
             if (content.includes('"information"') && content.includes('"data"')) {
@@ -115,7 +115,7 @@ async function fetchData() {
         console.log('\n=== FAILED: Timeout reached ===');
         const finalContent = await page.content();
         console.log('Final page content:');
-        console.log(finalContent.substring(0, 2000));
+        console.log(finalContent.slice(0, 2000));
         
         throw new Error('Timeout waiting for Cloudflare challenge to complete');
     } catch (error) {

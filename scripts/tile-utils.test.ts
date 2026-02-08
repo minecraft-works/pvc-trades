@@ -170,7 +170,7 @@ describe('parseLocation', () => {
     });
     
     it('handles undefined gracefully', () => {
-        expect(parseLocation(undefined)).toEqual({ x: 0, y: 0, z: 0 });
+        expect(parseLocation()).toEqual({ x: 0, y: 0, z: 0 });
     });
     
     it('handles partial coordinates', () => {

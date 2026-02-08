@@ -335,9 +335,29 @@ describe('getRegex', () => {
         expect(regex.test('Cooked cod')).toBe(true);
     });
 
-    test('handles special chars in query gracefully', () => {
-        const regex = getRegex('test');
-        expect(() => regex.test('test')).not.toThrow();
+    test('handles regex special chars without throwing', () => {
+        // These all contain regex special characters that would throw if not escaped
+        const specialPatterns = ['[test]', '(foo)', 'a+b', 'c?d', 'x.y', 'a|b', 'a{2}', '^start', 'end$', String.raw`back\slash`];
+        for (const pattern of specialPatterns) {
+            expect(() => getRegex(pattern)).not.toThrow();
+        }
+    });
+
+    test('matches text containing special regex chars', () => {
+        expect(getRegex('[Diamond]').test('[Diamond]')).toBe(true);
+        expect(getRegex('foo(bar)').test('foo(bar)')).toBe(true);
+        expect(getRegex('a+b').test('a+b')).toBe(true);
+        expect(getRegex('item.name').test('item.name')).toBe(true);
+    });
+
+    test('special chars work with flexible spacing', () => {
+        expect(getRegex('[test]').test('[_test_]')).toBe(true);
+        expect(getRegex('(foo)').test('( foo )')).toBe(true);
+    });
+
+    test('special chars work with wildcards', () => {
+        expect(getRegex('[*]').test('[anything]')).toBe(true);
+        expect(getRegex('(*test)').test('(my test)')).toBe(true);
     });
 });
 

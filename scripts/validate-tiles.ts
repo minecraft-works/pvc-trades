@@ -15,8 +15,8 @@
  * npx tsx scripts/validate-tiles.ts
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
 import {
     getTileCoordsAtZoom,
     parseLocation,
@@ -28,7 +28,7 @@ import {
 // ============================================================================
 
 const TILES_DIR = 'public/tiles';
-const MANIFEST_PATH = join(TILES_DIR, 'manifest.json');
+const MANIFEST_PATH = path.join(TILES_DIR, 'manifest.json');
 const DATA_PATH = 'public/data.json';
 
 const TILE_SIZE = 512;
@@ -49,17 +49,6 @@ interface ShopData {
     world: string;
 }
 
-interface ValidationResult {
-    manifestEntriesWithoutFiles: string[];
-    filesWithoutManifestEntries: string[];
-    shopsMissingTiles: Array<{
-        shop: string;
-        world: string;
-        location: string;
-        missingTiles: string[];
-    }>;
-}
-
 // ============================================================================
 // File Scanning
 // ============================================================================
@@ -75,14 +64,14 @@ function scanPngFiles(dir: string, baseDir: string = dir): string[] {
     }
     
     for (const entry of readdirSync(dir)) {
-        const fullPath = join(dir, entry);
+        const fullPath = path.join(dir, entry);
         const stat = statSync(fullPath);
         
         if (stat.isDirectory()) {
             files.push(...scanPngFiles(fullPath, baseDir));
         } else if (entry.endsWith('.png')) {
             // Normalize path separators to forward slashes (matching manifest format)
-            const relativePath = relative(baseDir, fullPath).replaceAll('\\', '/');
+            const relativePath = path.relative(baseDir, fullPath).replaceAll('\\', '/');
             files.push(relativePath);
         }
     }
@@ -93,9 +82,10 @@ function scanPngFiles(dir: string, baseDir: string = dir): string[] {
 /**
  * Parse a tile path like "overworld/8/0/0.png" into components
  */
-function parseTilePath(path: string): { world: string; zoom: number; tileX: number; tileZ: number } | undefined {
+function parseTilePath(tilePath: string): { world: string; zoom: number; tileX: number; tileZ: number } | undefined {
     // Format: {world}/{zoom}/{x}/{z}.png
-    const match = path.match(/^([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png$/);
+    const regex = /^([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png$/;
+    const match = regex.exec(tilePath);
     if (!match) {
         return undefined;
     }
@@ -166,7 +156,7 @@ function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<str
     // Check each file - only zoom 8 files should be in manifest
     for (const file of tileFiles) {
         const parsed = parseTilePath(file);
-        if (!parsed) continue;
+        if (!parsed) {continue;}
         
         if (parsed.zoom === MANIFEST_ZOOM) {
             if (!manifestPaths.has(file)) {
@@ -256,7 +246,7 @@ function main(): void {
     }
     
     // Load manifest
-    const manifest: ManifestEntry[] = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
+    const manifest: ManifestEntry[] = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
     console.log(`Manifest entries: ${manifest.length}`);
     
     // Scan tile files
@@ -303,7 +293,7 @@ function main(): void {
     // Validate shop coverage (warnings only)
     if (existsSync(DATA_PATH)) {
         console.log('\n--- Shop Coverage ---');
-        const shopData = JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
+        const shopData = JSON.parse(readFileSync(DATA_PATH, 'utf8'));
         const shops: ShopData[] = shopData.data || [];
         console.log(`Shops in data.json: ${shops.length}`);
         
@@ -313,7 +303,7 @@ function main(): void {
             console.warn(`\nWARNING: ${shopsMissingTiles.length} shops have incomplete tile coverage:`);
             
             // Group by severity (more missing = more severe)
-            const sorted = [...shopsMissingTiles].sort((a, b) => b.missingTiles.length - a.missingTiles.length);
+            const sorted = [...shopsMissingTiles].toSorted((a, b) => b.missingTiles.length - a.missingTiles.length);
             
             for (const { shop, world, location, missingTiles } of sorted.slice(0, 20)) {
                 console.warn(`  - ${shop} (${world} @ ${location}): missing ${missingTiles.length}/25 tiles`);
