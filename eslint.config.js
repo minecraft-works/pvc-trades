@@ -18,6 +18,7 @@ export default tseslint.config(
             '*.cjs',
             '*.config.js',
             '*.config.ts',
+            '*.config.mjs',
             'eslint.config.js'
         ]
     },
@@ -34,7 +35,7 @@ export default tseslint.config(
             sourceType: 'module',
             parserOptions: {
                 projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts', 'scripts/*.ts'],
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts', 'scripts/*.ts'],
                     defaultProject: './tsconfig.eslint.json',
                     maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 50
                 },
@@ -205,6 +206,46 @@ export default tseslint.config(
             'sonarjs/prefer-regexp-exec': 'off',
             'sonarjs/no-os-command-from-path': 'off',
             '@typescript-eslint/no-unnecessary-condition': 'off'
+        }
+    },
+    // Relaxed rules for CLI build scripts
+    {
+        files: ['scripts/*.ts'],
+        rules: {
+            // CLI scripts commonly use process.exit
+            'unicorn/no-process-exit': 'off',
+            // top-level await not always appropriate for CLI entry points
+            'unicorn/prefer-top-level-await': 'off',
+            // CLI scripts can have higher complexity
+            'complexity': ['error', { max: 25 }],
+            'sonarjs/cognitive-complexity': 'off',
+            'max-lines-per-function': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+            // Allow more params for utility functions
+            'max-params': ['error', { max: 10 }],
+            // Allow forEach in scripts (simpler for logging)
+            'unicorn/no-array-for-each': 'off',
+            // Allow null for external API compat
+            'unicorn/no-null': 'off',
+            // Allow abbreviations common in scripts including "utils" in filenames
+            'unicorn/prevent-abbreviations': ['error', {
+                replacements: {
+                    dir: false,
+                    msg: false,
+                    err: false,
+                    i: false,
+                    utils: false
+                }
+            }],
+            // Allow unsafe any in build scripts
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            // Duplicate strings in logging are fine
+            'sonarjs/no-duplicate-string': 'off',
+            // Deprecated APIs may be used in test files
+            'sonarjs/deprecation': 'off',
+            // Allow callback reference in simple cases
+            'unicorn/no-array-callback-reference': 'off'
         }
     }
 );

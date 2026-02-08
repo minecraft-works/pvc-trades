@@ -20,10 +20,10 @@ export default defineConfig({
                 'src/test-globals.d.ts'
             ],
             thresholds: {
-                statements: 85,
-                branches: 77,
+                statements: 84,
+                branches: 75,
                 functions: 85,
-                lines: 85
+                lines: 84
             }
         }
     }

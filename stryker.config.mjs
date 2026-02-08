@@ -12,7 +12,9 @@ export default {
         configFile: 'vitest.config.js'
     },
     mutate: [
-        'src/library.ts'
+        'src/library.ts',
+        'src/stores/cart-store.ts',
+        'src/stores/navigation-store.ts'
     ],
     // Mutation score thresholds
     thresholds: {

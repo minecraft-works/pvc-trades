@@ -8,40 +8,37 @@
  * FILE NAVIGATION INDEX
  * ============================================================================
  * 
- * STORES & CONFIGURATION
- *   35 - Configuration Store        ConfigStore class, getConfig(), loadConfig()
- *  113 - Core Blocks Store          CoreBlocksStore, loadCoreBlocks()
- *  176 - Block Conversions Store    BlockConversionsStore, loadBlockConversions()
+ * STORES (re-exported from src/stores/)
+ *   80 - Store Re-exports           configStore, coreBlocksStore, blockConversionsStore
  * 
  * TEXT PROCESSING
- *  230 - Query Matching Functions   matchQuery(), matchItem(), matchShop()
- *  289 - Formatting Functions       formatItemName(), formatPrice(), escapeHtml()
- *  358 - Shulker Box Parsing        parseShulkerItems(), extractShulkerCount()
- *  403 - HTML Utilities             stripHtml(), splitWordBoundary()
+ *   92 - Query Matching Functions   matchQuery(), matchItem(), matchShop()
+ *  160 - Formatting Functions       formatItemName(), formatPrice(), escapeHtml()
+ *  230 - Shulker Box Parsing        parseShulkerItems(), extractShulkerCount()
+ *  275 - HTML Utilities             stripHtml(), splitWordBoundary()
  * 
  * LOCATION & GEOMETRY
- *  444 - Location & Distance        isValidCoord(), formatCoords(), getDimension()
- *  466 - Trade Processing           normalizeItem(), parseTradeInput()
- *  530 - Trade Filtering            filterTrades(), applyFilters()
+ *  316 - Location & Distance        isValidCoord(), formatCoords(), getDimension()
+ *  338 - Trade Processing           normalizeItem(), parseTradeInput()
+ *  402 - Trade Filtering            filterTrades(), applyFilters()
  * 
  * SORTING & COMPARISONS
- *  602 - Sorting                    sortTrades(), compareByColumn()
+ *  474 - Sorting                    sortTrades(), compareByColumn()
  * 
  * VALUE CALCULATIONS
- *  671 - Ratio Graph                buildRatioGraph(), findConversionPath()
- *  762 - Item Value Calculation     calculateValue(), getTrustedValue()
- *  915 - Statistical Functions      median(), independentShopsCount()
+ *  543 - Ratio Graph                buildRatioGraph(), findConversionPath()
+ *  634 - Item Value Calculation     calculateValue(), getTrustedValue()
+ *  787 - Statistical Functions      median(), independentShopsCount()
  * 
  * MAP & NAVIGATION
- * 1105 - Map Utilities              calculateBounds(), coordsToLatLng()
- * 1350 - Route Optimization (TSP)   optimizeRoute(), nearestNeighbor()
- * 1637 - Shopping & Navigation      buildShoppingList(), getRouteStops()
+ *  977 - Map Utilities              calculateBounds(), coordsToLatLng()
+ * 1222 - Route Optimization (TSP)   optimizeRoute(), nearestNeighbor()
+ * 1509 - Shopping & Navigation      buildShoppingList(), getRouteStops()
  * 
  * ============================================================================
  */
 
 import {
-    type AppConfig,
     type BlockConversions,
     type Item,
     type MappingRule,
@@ -63,211 +60,36 @@ import {
     type TradeInput,
     type ShoppingList,
     type RouteStop,
-    AppConfigSchema,
-    BlockConversionsSchema,
-    DEFAULT_CONFIG
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
 // Import for internal use AND re-export for consumers
-import { getTileCoords, getTileCoordsAtZoom, getTileBounds, getBlocksPerTile } from './tile-coords.js';
-export { getTileCoords, getTileCoordsAtZoom, getTileBounds, getBlocksPerTile };
+import { getTileCoords,    } from './tile-coords.js';
+
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
 // ============================================================================
-// Configuration Store
+// Store Re-exports (stores moved to src/stores/)
 // ============================================================================
 
-class ConfigStore {
-    private config: AppConfig = DEFAULT_CONFIG;
-    private loaded = false;
+// Import stores for internal use within library.ts
+import {
+    configStore,
+    coreBlocksStore,
+    blockConversionsStore,
+} from './stores/index.js';
 
-    get(): AppConfig {
-        return this.config;
-    }
-
-    isLoaded(): boolean {
-        return this.loaded;
-    }
-
-    async load(): Promise<AppConfig> {
-        try {
-            const response = await fetch('config.json');
-            if (!response.ok) {
-                console.warn('Failed to load config, using defaults');
-                return this.config;
-            }
-            const data: unknown = await response.json();
-            const parsed = AppConfigSchema.safeParse(data);
-            if (parsed.success) {
-                this.config = parsed.data;
-            } else {
-                console.warn('Invalid config format, using defaults:', parsed.error);
-            }
-            this.loaded = true;
-            return this.config;
-        } catch (error) {
-            console.warn('Error loading config, using defaults:', error);
-            this.loaded = true;
-            return this.config;
-        }
-    }
-
-    // For testing purposes
-    _setConfig(config: AppConfig): void {
-        this.config = config;
-        this.loaded = true;
-    }
-}
-
-export const configStore = new ConfigStore();
-
-// Convenience exports (delegate to store)
-
-/**
- * Get the current application configuration.
- * Returns default config if not yet loaded.
- * 
- * @returns The current AppConfig object
- * 
- * @example
- * const config = getConfig();
- * console.log(config.dynmap.baseUrl);
- */
-export function getConfig(): AppConfig {
-    return configStore.get();
-}
-
-/**
- * Load application configuration from config.json.
- * Falls back to default config on error.
- * 
- * @returns Promise resolving to the loaded AppConfig
- * 
- * @example
- * await loadConfig();
- * const config = getConfig();
- */
-export async function loadConfig(): Promise<AppConfig> {
-    return configStore.load();
-}
-
-// ============================================================================
-// Core Blocks Store
-// ============================================================================
-
-class CoreBlocksStore {
-    private blocks: string[] = [];
-
-    get(): string[] {
-        return this.blocks;
-    }
-
-    async load(): Promise<string[]> {
-        try {
-            const response = await fetch('core_currencies.json');
-            if (!response.ok) {
-                console.warn('Failed to load base items, using defaults');
-                return this.blocks;
-            }
-            const data: unknown = await response.json();
-            if (Array.isArray(data) && data.every(item => typeof item === 'string')) {
-                this.blocks = data;
-            }
-            return this.blocks;
-        } catch (error) {
-            console.warn('Error loading base items:', error);
-            return this.blocks;
-        }
-    }
-
-    // For testing purposes
-    _setBlocks(blocks: string[]): void {
-        this.blocks = blocks;
-    }
-}
-
-export const coreBlocksStore = new CoreBlocksStore();
-
-/**
- * Get the list of core currency blocks used for ratio calculations.
- * 
- * @returns Array of block names (e.g., ['Emerald Block', 'Diamond Block'])
- * 
- * @example
- * const coreBlocks = getCoreBlocks();
- * const isCoreBlock = coreBlocks.includes('Diamond Block');
- */
-export function getCoreBlocks(): string[] {
-    return coreBlocksStore.get();
-}
-
-/**
- * Load core currency blocks from core_currencies.json.
- * 
- * @returns Promise resolving to array of block names
- * 
- * @example
- * await loadBaseItems();
- * const blocks = getCoreBlocks();
- */
-export async function loadBaseItems(): Promise<string[]> {
-    return coreBlocksStore.load();
-}
-
-// ============================================================================
-// Block Conversions Store
-// ============================================================================
-
-class BlockConversionsStore {
-    private conversions: BlockConversions = {};
-
-    get(): BlockConversions {
-        return this.conversions;
-    }
-
-    async load(): Promise<BlockConversions> {
-        try {
-            const response = await fetch('block_conversions.json');
-            if (!response.ok) {
-                console.warn('Failed to load fixed ratios, using defaults');
-                return this.conversions;
-            }
-            const data: unknown = await response.json();
-            const parsed = BlockConversionsSchema.safeParse(data);
-            if (parsed.success) {
-                this.conversions = parsed.data;
-            } else {
-                console.warn('Invalid block conversions format:', parsed.error);
-            }
-            return this.conversions;
-        } catch (error) {
-            console.warn('Error loading block conversions:', error);
-            return this.conversions;
-        }
-    }
-
-    // For testing purposes
-    _setConversions(conversions: BlockConversions): void {
-        this.conversions = conversions;
-    }
-}
-
-export const blockConversionsStore = new BlockConversionsStore();
-
-/**
- * Load block-to-ingot conversion ratios from block_conversions.json.
- * Used for calculating block values from ingot values (e.g., Diamond Block = 9 Diamonds).
- * 
- * @returns Promise resolving to BlockConversions map
- * 
- * @example
- * await loadFixedRatios();
- * // Now blockConversionsStore contains { 'diamond block': { base: 'diamond', multiplier: 9 } }
- */
-export async function loadFixedRatios(): Promise<BlockConversions> {
-    return blockConversionsStore.load();
-}
+// Re-export stores for backward compatibility - stores are now in src/stores/
+export {
+    configStore,
+    getConfig,
+    loadConfig,
+    coreBlocksStore,
+    getCoreBlocks,
+    loadBaseItems,
+    blockConversionsStore,
+    loadFixedRatios,
+} from './stores/index.js';
 
 // ============================================================================
 // Query Matching Functions
@@ -389,13 +211,38 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
  * @example
  * getRegex('diamond*').test('Diamond Pickaxe')  // true
  * getRegex('cooked').test('cooked_beef')        // true
+ * getRegex('[test]').test('[test]')             // true (special chars escaped)
  */
 export function getRegex(pattern: string): RegExp {
     const withPlaceholder = pattern.replaceAll('*', '\u0000');
-    const escaped = withPlaceholder.replaceAll(/[.+^${}()|[\]\\]/g, String.raw`\$&`);
-    const chars = [...escaped];
-    const flexible = chars.join('[_ ]*');
+    const escaped = withPlaceholder.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
+    // Split preserving escape sequences (e.g., \[ stays together as one unit)
+    const tokens = splitPreservingEscapes(escaped);
+    const flexible = tokens.join('[_ ]*');
     return new RegExp(flexible.replaceAll('\u0000', '.*'), 'i');
+}
+
+/**
+ * Split string into tokens, keeping backslash escape sequences together.
+ * Used by getRegex to ensure escaped characters aren't separated.
+ * 
+ * @param str - String to split
+ * @returns Array of tokens (single chars or escape sequences)
+ */
+function splitPreservingEscapes(string_: string): string[] {
+    const result: string[] = [];
+    let index = 0;
+    while (index < string_.length) {
+        if (string_[index] === '\\' && index + 1 < string_.length) {
+            // Keep escape sequence together
+            result.push(string_.slice(index, index + 2));
+            index += 2;
+        } else {
+            result.push(string_.slice(index, index + 1));
+            index += 1;
+        }
+    }
+    return result;
 }
 
 // ============================================================================
@@ -1888,3 +1735,5 @@ export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string 
     }
     return text;
 }
+
+export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';

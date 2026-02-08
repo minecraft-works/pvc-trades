@@ -206,6 +206,36 @@ export function calculateZoom4Coords(z8x: number, z8z: number): { x: number; z: 
 }
 
 // ============================================================================
+// Cache Access (for shop map integration)
+// ============================================================================
+
+/**
+ * Get a cached tile blob URL if available.
+ * @param worldId - World identifier
+ * @param zoom - Zoom level (4 or 8)
+ * @param tx - Tile X coordinate
+ * @param tz - Tile Z coordinate
+ * @returns Blob URL if cached, undefined otherwise
+ */
+export function getCachedTileUrl(worldId: string, zoom: number, tx: number, tz: number): string | undefined {
+    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+    return tileBlobCache.get(cacheKey);
+}
+
+/**
+ * Cache a tile blob URL for future reuse.
+ * @param worldId - World identifier
+ * @param zoom - Zoom level (4 or 8)
+ * @param tx - Tile X coordinate
+ * @param tz - Tile Z coordinate
+ * @param blobUrl - The blob URL to cache
+ */
+export function setCachedTileUrl(worldId: string, zoom: number, tx: number, tz: number, blobUrl: string): void {
+    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+    tileBlobCache.set(cacheKey, blobUrl);
+}
+
+// ============================================================================
 // Testing Utilities
 // ============================================================================
 

@@ -76,7 +76,7 @@ describe('getTileCoordsAtZoom', () => {
     test('zoom 0: 131072 blocks per tile', () => {
         // 131072 = 512 × 2^(8-0) = 512 × 256
         const result = getTileCoordsAtZoom(600, -100, 0, MAX_ZOOM, TILE_SIZE);
-        expect(result).toEqual({ tileX: 0, tileZ: -1, blocksPerTile: 131072 });
+        expect(result).toEqual({ tileX: 0, tileZ: -1, blocksPerTile: 131_072 });
     });
 
     test('origin falls in tile 0,0 at all zoom levels', () => {
@@ -125,7 +125,7 @@ describe('getBlocksPerTile', () => {
         expect(getBlocksPerTile(6, 8, 512)).toBe(2048);
         expect(getBlocksPerTile(5, 8, 512)).toBe(4096);
         expect(getBlocksPerTile(4, 8, 512)).toBe(8192);
-        expect(getBlocksPerTile(0, 8, 512)).toBe(131072);
+        expect(getBlocksPerTile(0, 8, 512)).toBe(131_072);
     });
 
     test('scales proportionally with tile size', () => {
@@ -156,7 +156,7 @@ describe('parseLocation', () => {
 
     test('handles null and undefined', () => {
         expect(parseLocation(null)).toEqual({ x: 0, y: 0, z: 0 });
-        expect(parseLocation(undefined)).toEqual({ x: 0, y: 0, z: 0 });
+        expect(parseLocation()).toEqual({ x: 0, y: 0, z: 0 });
     });
 
     test('handles empty string', () => {
@@ -283,7 +283,7 @@ describe('Cross-module consistency', () => {
     test('getTileCoordsAtZoom at max zoom matches getTileCoords', () => {
         const testCoords = [
             [0, 0], [512, 0], [0, 512], [-512, -512],
-            [1000, 2000], [-1000, 2000], [50000, -50000]
+            [1000, 2000], [-1000, 2000], [50_000, -50_000]
         ];
         
         for (const [x, z] of testCoords) {

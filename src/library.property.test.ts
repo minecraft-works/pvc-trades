@@ -137,12 +137,10 @@ describe('matchesQuery properties', () => {
 });
 
 describe('getRegex properties', () => {
-    // BUG DOCUMENTED: getRegex throws on regex special characters like (, ), [, etc.
-    // The function should escape these but currently does not
-    test('never throws on alphanumeric input', () => {
+    test('never throws on any string input', () => {
         fc.assert(
             fc.property(
-                fc.string().filter((s) => /^[a-zA-Z0-9_ *]+$/.test(s)), // Safe chars only
+                fc.string(), // Any string including special chars
                 (query) => {
                     expect(() => getRegex(query)).not.toThrow();
                 }
@@ -153,6 +151,8 @@ describe('getRegex properties', () => {
     test('returned regex matches the original query', () => {
         fc.assert(
             fc.property(
+                // Filter to non-empty alphanumeric to avoid edge cases with special chars
+                // (special chars ARE escaped, but for "matches original" we keep it simple)
                 fc.string().filter((s) => s.length > 0 && /^[a-zA-Z0-9]+$/.test(s)),
                 (query) => {
                     const regex = getRegex(query);

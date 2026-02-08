@@ -33,15 +33,6 @@ export function shouldDisableAnimations(): boolean {
     return globalThis.__animationsDisabled === true;
 }
 
-/**
- * Get animation duration - returns 0 if animations are disabled.
- * @param defaultMs Default duration in milliseconds
- * @returns Duration to use (0 if disabled, defaultMs otherwise)
- */
-export function getAnimationDuration(defaultMs: number): number {
-    return shouldDisableAnimations() ? 0 : defaultMs;
-}
-
 // ============================================================================
 // Configuration Types
 // ============================================================================
@@ -217,32 +208,6 @@ export interface RouteStop {
     isNether: boolean;
     cartItem?: CartItem;  // Only for shop stops
     portalAction?: 'enter' | 'exit';  // Only for portal stops
-}
-
-/**
- * Type guard to check if a route stop is a shop stop with a cart item.
- * Useful for filtering routes to only include actual shopping stops.
- * 
- * @example
- * const shopsOnly = route.filter(isShopStop);
- * // shopsOnly is now typed as (RouteStop & { type: 'shop'; cartItem: CartItem })[]
- */
-export function isShopStop(
-    stop: RouteStop
-): stop is RouteStop & { type: 'shop'; cartItem: CartItem } {
-    return stop.type === 'shop' && stop.cartItem !== undefined;
-}
-
-/**
- * Type guard to check if a route stop is a portal transition.
- * 
- * @example
- * const portals = route.filter(isPortalStop);
- */
-export function isPortalStop(
-    stop: RouteStop
-): stop is RouteStop & { type: 'portal'; portalAction: 'enter' | 'exit' } {
-    return stop.type === 'portal' && stop.portalAction !== undefined;
 }
 
 export interface ShoppingList {
