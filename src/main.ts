@@ -127,7 +127,7 @@ import {
 } from './map/index.js';
 import type { MapTileContext, LoadNavMapTilesOptions, TileRange } from './map/index.js';
 
-import { renderMatrix } from './dialogs/index.js';
+import { renderMatrix, createEdgeMarker, getWorldDisplayName } from './dialogs/index.js';
 
 import * as L from 'leaflet';
 
@@ -1198,55 +1198,6 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     }
 }
 
-interface EdgeMarkerParameters {
-    player: Player;
-    angle: number;
-    centerX: number;
-    centerY: number;
-    edgeRadius: number;
-    visibleRadiusMapUnits: number;
-    playerCoords: { lat: number; lng: number };
-    mapCenter: L.LatLng;
-}
-
-function createEdgeMarker(parameters: EdgeMarkerParameters): HTMLElement {
-    const { player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter } = parameters;
-    const dx = playerCoords.lng - mapCenter.lng;
-    const dy = playerCoords.lat - mapCenter.lat;
-    const distance = Math.hypot(dx, dy);
-    const minSize = 4;
-    const maxSize = 12;
-    const logScale = Math.log10(distance / visibleRadiusMapUnits + 1);
-    const size = Math.max(minSize, maxSize - logScale * 4);
-    
-    const edgeX = centerX + edgeRadius * Math.cos(angle);
-    const edgeY = centerY - edgeRadius * Math.sin(angle);
-    
-    const edgeMarker = document.createElement('div');
-    edgeMarker.className = 'player-edge-marker';
-    edgeMarker.title = player.name;
-    edgeMarker.style.left = `${edgeX}px`;
-    edgeMarker.style.top = `${edgeY}px`;
-    edgeMarker.style.width = `${size}px`;
-    edgeMarker.style.height = `${size}px`;
-    
-    const nameLabel = document.createElement('span');
-    nameLabel.className = 'player-name';
-    nameLabel.textContent = player.name;
-    
-    const angleDeg = angle * 180 / Math.PI;
-    if (angleDeg > 45 && angleDeg < 135) {
-        nameLabel.classList.add('label-bottom');
-    } else if (angleDeg < -45 && angleDeg > -135) {
-        nameLabel.classList.add('label-top');
-    } else if (edgeX > centerX) {
-        nameLabel.classList.add('label-left');
-    }
-    
-    edgeMarker.append(nameLabel);
-    return edgeMarker;
-}
-
 function updateShopMapPlayerMarkers(
     dialog: HTMLDialogElement,
     container: HTMLElement,
@@ -1399,19 +1350,6 @@ void fetchPlayersAndUpdateCache().then(() => {
     if (typeof globalThis !== 'undefined') {
         (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = leafletMap;
     }
-}
-
-/**
- * Initialize or update the Leaflet map
- */
-function getWorldDisplayName(world: string): string {
-    if (world.includes('nether')) {
-        return 'Nether';
-    }
-    if (world.includes('end')) {
-        return 'The End';
-    }
-    return 'Overworld';
 }
 
 function openMapDialog(x: number, y: number, z: number, world: string): void {
