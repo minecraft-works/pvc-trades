@@ -14,25 +14,21 @@
  * 
  * | Section | Line | Description |
  * |---------|------|-------------|
- * | Types | ~68 | Local interfaces (DeviationResult) |
- * | Dialog Utilities | ~79 | setupDialogBackdropClose, openDialog |
- * | State | ~128 | Global state variables |
+ * | State | ~145 | Global state variables |
  * | Constants | ~188 | CSS classes, selectors, magic numbers |
  * | Shopping Cart Functions | ~209 | Cart CRUD operations |
  * | Navigation Progress | ~303 | Route completion tracking |
  * | DOM Helpers | ~538 | getElement helper |
  * | Data Loading | ~552 | loadShops, processRawData |
- * | Search & Sort | ~610 | debouncedSearch, sortByColumn |
- * | Deviation Calculation | ~743 | getDeviation, deviationCache |
- * | Rendering | ~779 | createTradeRowElement, renderResults |
- * | Matrix Dialog | ~947 | Exchange rate matrix UI |
- * | Map Dialog | ~1034 | Leaflet map, tile loading |
- * | Cart Dialog | ~1613 | Cart items, timeline |
- * | Tab Switching | ~1817 | Cart dialog tabs |
- * | Live Navigation | ~1879 | Player polling, auto-advance |
- * | Shop Tooltip | ~2521 | Proximity-based shop info |
- * | Navigation Map | ~2738 | Navigation-specific map |
- * | Initialization | ~3107 | DOMContentLoaded setup |
+ * | Search & Sort | ~608 | debouncedSearch, sortByColumn |
+ * | Rendering | ~683 | createTradeRowElement, renderResults |
+ * | Matrix Dialog | ~896 | Exchange rate matrix UI |
+ * | Map Dialog | ~983 | Leaflet map, tile loading |
+ * | Cart Dialog | ~1560 | Cart items, timeline |
+ * | Tab Switching | ~1764 | Cart dialog tabs |
+ * | Live Navigation | ~1826 | Player polling, auto-advance |
+ * | Navigation Map | ~2634 | Navigation-specific map |
+ * | Initialization | ~2990 | DOMContentLoaded setup |
  * 
  * ## KEY PATTERNS
  * 
@@ -52,7 +48,6 @@ import {
     processTrade,
     filterTrade,
     calculateItemValues,
-    getTrustedItemValue,
     loadFixedRatios,
     loadBaseItems,
     loadConfig,
@@ -60,11 +55,7 @@ import {
     buildRatioGraph,
     getWorldId,
     getTileCoords,
-    calculateFitZoom,
-    toLeafletCoords,
     toLeafletCoordsRelative,
-    fromLeafletCoordsRelative,
-    clampToCircle,
     calculateRouteDistance,
     computeOptimalOrder,
     isNether,
@@ -74,7 +65,9 @@ import {
     aggregateShoppingList,
     calculateTotalRouteDistance,
     buildMarkerContent,
-    buildStopTooltip
+    buildStopTooltip,
+    getZoomForDistance,
+    hasPositionMoved
 } from './library.js';
 
 import { debugNavigation, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
@@ -100,7 +93,6 @@ import { shouldDisableAnimations } from './types.js';
 
 import {
     NAVIGATION,
-    DEVIATION,
     SORT,
     CSS_CLASSES,
     SELECTORS,
@@ -114,82 +106,31 @@ import { cartStore, navigationStore, favoritesStore } from './stores/index.js';
 
 import {
     TILE_CONFIG,
-    ZOOM4_TILE_SIZE,
     loadTileManifest,
     tileExistsInManifest,
     loadTileToMap,
     calculateZoom4Coords,
-    getCachedTileUrl,
-    setCachedTileUrl,
     getPlayerWorld,
-    getPlayerWorldForFilter,
-    fetchPlayers
+    fetchPlayers,
+    createShopMapDialogHandler
 } from './map/index.js';
-import type { MapTileContext, LoadNavMapTilesOptions, TileRange } from './map/index.js';
+import type { LoadNavMapTilesOptions, TileRange, ShopMapDialogHandler } from './map/index.js';
 
-import { renderMatrix, createEdgeMarker, getWorldDisplayName } from './dialogs/index.js';
+import {
+    renderMatrix,
+    setupDialogBackdropClose,
+    openDialog,
+    createTradeDetailsHandler
+} from './dialogs/index.js';
+
+import { createDeviationCalculator } from './search/index.js';
+
+import { createShopTooltipHandler } from './navigation/index.js';
+
+import { createFavoritesUIHandler, isFavoritesFilterActive } from './favorites/index.js';
+import type { FavoritesUIHandler } from './favorites/index.js';
 
 import * as L from 'leaflet';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface DeviationResult {
-    ratio: number;
-    percent: number;  // Rounded integer for sorting
-    text: string;
-    isGood: boolean | undefined;
-}
-
-// ============================================================================
-// Dialog Utilities
-// ============================================================================
-
-/**
- * Set up a dialog to close when clicking on backdrop (outside the dialog box)
- * Only closes if both mousedown and mouseup happen outside the dialog,
- * preventing accidental closes when panning a map and releasing outside.
- */
-function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
-    let mouseDownOutside = false;
-    
-    const isOutsideDialog = (event: MouseEvent): boolean => {
-        const rect = dialog.getBoundingClientRect();
-        return (
-            event.clientX < rect.left ||
-            event.clientX > rect.right ||
-            event.clientY < rect.top ||
-            event.clientY > rect.bottom
-        );
-    };
-    
-    dialog.addEventListener('mousedown', event => {
-        mouseDownOutside = isOutsideDialog(event);
-    });
-    
-    dialog.addEventListener('click', event => {
-        if (mouseDownOutside && isOutsideDialog(event)) {
-            dialog.close();
-        }
-        mouseDownOutside = false;
-    });
-}
-
-/**
- * Open a dialog with content preparation
- */
-function openDialog(dialogId: string, prepare?: () => void): void {
-    const dialog = document.querySelector<HTMLDialogElement>(`#${dialogId}`);
-    if (!dialog) {
-        return;
-    }
-    
-    if (prepare) {
-        prepare();
-    }
-    dialog.showModal();
-}
 
 // ============================================================================
 // State
@@ -210,7 +151,15 @@ const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT.ASC]]);
 let cachedRegex: RegExp | undefined;
 let cachedPattern = '';
 let searchDebounceTimer: number | undefined;
-const deviationCache = new Map<Trade, DeviationResult | undefined>();
+
+// Deviation calculator (recreated when itemValues changes)
+let getDeviation = createDeviationCalculator(itemValues);
+
+// Favorites UI handler (initialized in DOMContentLoaded)
+let favoritesUI: FavoritesUIHandler;
+
+// Shop map dialog handler (initialized in DOMContentLoaded)
+let shopMapDialog: ShopMapDialogHandler;
 
 // Virtual scroller instance for performance
 let virtualScroller: VirtualScroller<FilterResult> | undefined;
@@ -498,6 +447,7 @@ async function refreshShopData(): Promise<number> {
             item2: t.item2,
             x: t.x, y: t.y, z: t.z
         })), 'emerald');
+        getDeviation = createDeviationCalculator(itemValues);
         
         ratioGraph = buildRatioGraph(itemValues);
         
@@ -549,6 +499,7 @@ async function loadShops(): Promise<void> {
             item2: t.item2,
             x: t.x, y: t.y, z: t.z
         })), 'emerald');
+        getDeviation = createDeviationCalculator(itemValues);
 
         // Build ratio graph for matrix
         ratioGraph = buildRatioGraph(itemValues);
@@ -724,59 +675,6 @@ function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, d
         }
     }
 }
-
-// ============================================================================
-// Deviation Calculation
-// ============================================================================
-
-function getDeviation(trade: Trade): DeviationResult | undefined {
-    if (deviationCache.has(trade)) {
-        return deviationCache.get(trade);
-    }
-
-    if (!itemValues) { return undefined; }
-
-    // Get value of item1
-    const item1Name = formatName(trade.item1);
-    const item1Value = getTrustedItemValue(item1Name, itemValues);
-    if (item1Value === undefined) { return undefined; }
-
-    // Calculate total cost value (item1 + optional item2)
-    let totalCostValue = item1Value * trade.item1.amount;
-    if (trade.item2) {
-        const item2Name = formatName(trade.item2);
-        const item2Value = getTrustedItemValue(item2Name, itemValues);
-        if (item2Value === undefined) { return undefined; }
-        totalCostValue += item2Value * trade.item2.amount;
-    }
-
-    const resultValue = getTrustedItemValue(trade.resultName, itemValues);
-    if (resultValue === undefined) { return undefined; }
-
-    // Expected: how much output value per input value
-    // Actual: total input value / total output value
-    const totalResultValue = resultValue * trade.resultAmount;
-    const actualRate = totalCostValue / totalResultValue;
-
-    // ratio > 1 means paying more than expected (bad deal)
-    // ratio < 1 means paying less than expected (good deal)
-    const ratio = actualRate;
-    const percent = Math.max(DEVIATION.MIN_PERCENT, Math.min(DEVIATION.MAX_PERCENT, Math.round((ratio - 1) * 100)));
-
-    if (percent === 0) {
-        const result = { ratio, percent, text: '0%', isGood: undefined };
-        deviationCache.set(trade, result);
-        return result;
-    }
-
-    const isGood = percent < 0;
-    const text = percent > 0 ? `+${percent}%` : `−${Math.abs(percent)}%`;
-    const result = { ratio, percent, text, isGood };
-    deviationCache.set(trade, result);
-
-    return result;
-}
-
 // ============================================================================
 // Rendering
 // ============================================================================
@@ -960,7 +858,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const starButton = row.querySelector('.favorite-star') as HTMLButtonElement;
     starButton.addEventListener('click', (event) => {
         event.stopPropagation();
-        showFavoritePopover(starButton, t.resultName);
+        favoritesUI.showFavoritePopover(starButton, t.resultName);
     });
     
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
@@ -1021,439 +919,15 @@ function renderMatrixDialog(): void {
 }
 
 // ============================================================================
-// Trade Details Dialog
+// Trade Details Dialog (uses extracted module)
 // ============================================================================
 
 /**
- * Format enchantment name for display (e.g., "sharpness" -> "Sharpness")
+ * Trade details popover handler, configured with trade lookup
  */
-function formatEnchantmentName(name: string): string {
-    return name.charAt(0).toUpperCase() + name.slice(1).replaceAll('_', ' ');
-}
-
-/**
- * Render item details HTML for the trade details dialog
- */
-function renderItemDetails(item: Item): string {
-    const name = formatName(item);
-    const hasLore = item.lore && item.lore.length > 0;
-    const hasEnchants = item.enchant && Object.keys(item.enchant).length > 0;
-
-    let html = `
-        <div class="trade-detail-item">
-            <div class="trade-detail-name">${escapeHtml(name)}</div>
-    `;
-
-    if (hasLore) {
-        html += '<div class="trade-detail-lore">';
-        for (const line of item.lore!) {
-            html += `<span class="trade-detail-lore-line">${escapeHtml(line)}</span>`;
-        }
-        html += '</div>';
-    }
-
-    if (hasEnchants && item.enchant) {
-        html += '<div class="trade-detail-enchants">';
-        for (const [enchant, level] of Object.entries(item.enchant)) {
-            html += `<span class="trade-detail-enchant">${escapeHtml(formatEnchantmentName(enchant))} ${level}</span>`;
-        }
-        html += '</div>';
-    }
-
-    html += '</div>';
-    return html;
-}
-
-/**
- * Open the trade details dialog showing item information
- * @param row - The trade row element
- * @param isResult - True if showing result item, false for cost items
- * @param _target - The clicked element (for future positioning)
- */
-function openTradeDetailsPopover(row: HTMLElement, isResult: boolean, _target: HTMLElement): void {
-    const tradeKey = row.dataset['tradeKey'];
-    if (!tradeKey) { return; }
-
-    const trade = tradesByKey.get(tradeKey);
-    if (!trade) { return; }
-
-    const dialog = document.querySelector<HTMLDialogElement>('#trade-details-dialog');
-    if (!dialog) { return; }
-
-    const titleElement = dialog.querySelector('#trade-details-title');
-    const contentElement = dialog.querySelector('#trade-details-content');
-    if (!titleElement || !contentElement) { return; }
-
-    let html = '';
-
-    titleElement.textContent = 'Item Details';
-
-    if (isResult) {
-        html = renderItemDetails(trade.resultItem);
-    } else {
-        html = renderItemDetails(trade.item1);
-        if (trade.item2) {
-            html += renderItemDetails(trade.item2);
-        }
-    }
-
-    contentElement.innerHTML = html;
-
-    // Set up close button
-    const closeButton = dialog.querySelector('#close-trade-details');
-    closeButton?.addEventListener('click', () => dialog.close(), { once: true });
-
-    // Set up backdrop close
-    setupDialogBackdropClose(dialog);
-
-    dialog.showModal();
-}
-
-// ============================================================================
-// Map Dialog (Leaflet)
-// ============================================================================
-
-// Leaflet map instance (reused across dialog opens)
-let leafletMap: L.Map | undefined;
-
-// Layer group for player markers (to clear/update on pan/zoom)
-let playerMarkersLayer: L.LayerGroup | undefined;
-
-// Cached player data
-let cachedPlayers: Player[] = [];
-
-// Player refresh interval (cleared when dialog closes)
-let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
-
-/**
- * Fetch players and update local cache.
- * Wrapper around players module that maintains cachedPlayers state.
- */
-async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
-    cachedPlayers = await fetchPlayers();
-    return cachedPlayers;
-}
-
-// Shop map uses its own local tile context (different from navigation map)
-interface ShopMapTileContext {
-    worldId: string;
-    centerTileX: number;
-    centerTileZ: number;
-    addedToMapZoom4: Set<string>;
-    addedToMapZoom8: Set<string>;
-    manifest: Set<string>;
-}
-
-function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: number): void {
-    const { worldId, centerTileX, centerTileZ, addedToMapZoom4, manifest } = context;
-    const mapKey = `z4:${z4x},${z4z}`;
-    if (addedToMapZoom4.has(mapKey)) {return;}
-    addedToMapZoom4.add(mapKey);
-    
-    if (!tileExistsInManifest(manifest, worldId, 8192, z4x, z4z)) {return;}
-    
-    const startZ8X = z4x * 16;
-    const startZ8Z = z4z * 16;
-    const dx = startZ8X - centerTileX;
-    const dy = startZ8Z - centerTileZ;
-    const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + ZOOM4_TILE_SIZE]
-    ];
-    
-const cachedBlobUrl = getCachedTileUrl(worldId, 4, z4x, z4z);
-    if (cachedBlobUrl) {
-        if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
-        return;
-    }
-
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
-    fetch(url)
-        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
-        .then(blob => {
-            if (blob && leafletMap) {
-                const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, 4, z4x, z4z, blobUrl);
-                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
-            }
-        })
-        .catch(() => {});
-}
-
-function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
-    const { worldId, addedToMapZoom8, manifest } = context;
-    const mapKey = `z8:${tx},${tz}`;
-    if (addedToMapZoom8.has(mapKey)) {return;}
-    addedToMapZoom8.add(mapKey);
-    
-    if (!tileExistsInManifest(manifest, worldId, 512, tx, tz)) {return;}
-    
-    const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
-    ];
-    
-const cachedBlobUrl = getCachedTileUrl(worldId, 8, tx, tz);
-    if (cachedBlobUrl) {
-        if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
-        return;
-    }
-
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.png`;
-    fetch(url)
-        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
-        .then(blob => {
-            if (blob && leafletMap) {
-                const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, 8, tx, tz, blobUrl);
-                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
-            }
-        })
-        .catch(() => {});
-}
-
-function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
-    if (!leafletMap) {return;}
-    const bounds = leafletMap.getBounds();
-    const currentZoom = leafletMap.getZoom();
-    
-    const minDx = Math.floor(bounds.getWest() / TILE_CONFIG.tileSize);
-    const maxDx = Math.ceil(bounds.getEast() / TILE_CONFIG.tileSize);
-    const minDy = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
-    const maxDy = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
-    
-    const zoom4Tiles = new Set<string>();
-    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
-        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
-            const tx = context.centerTileX + dx;
-            const tz = context.centerTileZ + dy;
-            const z4 = calculateZoom4Coords(tx, tz);
-            const key = `${z4.x},${z4.z}`;
-            if (!zoom4Tiles.has(key)) {
-                zoom4Tiles.add(key);
-                loadZoom4TileToShopMap(context, z4.x, z4.z);
-            }
-        }
-    }
-    
-    // Load zoom 8 (detail) tiles when zoomed in enough to see detail
-    // Threshold lowered from -2 to -3 to ensure tiles load on small screens (< 400px)
-    if (currentZoom > -3) {
-        for (let dy = minDy; dy <= maxDy; dy++) {
-            for (let dx = minDx; dx <= maxDx; dx++) {
-                const tx = context.centerTileX + dx;
-                const tz = context.centerTileZ + dy;
-                loadZoom8TileToShopMap(context, tx, tz, dx, dy);
-            }
-        }
-    }
-}
-
-function updateShopMapPlayerMarkers(
-    dialog: HTMLDialogElement,
-    container: HTMLElement,
-    worldId: string,
-    tileX: number,
-    tileZ: number
-): void {
-    playerMarkersLayer?.clearLayers();
-    for (const element of dialog.querySelectorAll('.player-edge-marker')) {element.remove();}
-    
-    if (!leafletMap || cachedPlayers.length === 0) {return;}
-
-    const playersInWorld = cachedPlayers.filter(p => getPlayerWorldForFilter(p) === worldId);
-
-    const mapCenter = leafletMap.getCenter();
-    const containerRect = container.getBoundingClientRect();
-    const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
-    
-    const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
-    const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
-    const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
-    
-    const centerX = containerRect.width / 2;
-    const centerY = containerRect.height / 2;
-    const edgeRadius = containerRect.width / 2 + 8;
-    
-    for (const player of playersInWorld) {
-        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, TILE_CONFIG.tileSize);
-        const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
-        
-        if (clamped.clamped) {
-            const dx = playerCoords.lng - mapCenter.lng;
-            const dy = playerCoords.lat - mapCenter.lat;
-            const angle = Math.atan2(dy, dx);
-            const marker = createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter });
-            dialog.append(marker);
-        } else {
-            L.marker([playerCoords.lat, playerCoords.lng], {
-                icon: L.divIcon({
-                    className: 'leaflet-player-marker',
-                    html: `<span class="player-name">${player.name}</span>`,
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
-                }),
-                title: player.name
-            }).addTo(playerMarkersLayer!);
-        }
-    }
-}
-
-interface ShopMapSetupParameters {
-    container: HTMLElement;
-    coordinatesElement: HTMLElement;
-    dialog: HTMLDialogElement;
-    worldId: string;
-    worldDisplay: string;
-    x: number;
-    y: number;
-    z: number;
-    tileX: number;
-    tileZ: number;
-    manifest: Set<string>;
-}
-
-function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
-    
-    // Disable animations when testing for faster, more stable tests
-    const animationOptions = shouldDisableAnimations() ? {
-        fadeAnimation: false,
-        zoomAnimation: false,
-        markerZoomAnimation: false
-    } : {};
-    
-    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- This is Leaflet's L.map(), not Array.map()
-    leafletMap = L.map(container, {
-        crs: L.CRS.Simple,
-        minZoom: -5,
-        maxZoom: 2,
-        zoomControl: true,
-        attributionControl: false,
-        zoomSnap: 0,
-        zoomDelta: 0.5,
-        ...animationOptions
-    });
-    
-    const context: MapTileContext = {
-        worldId,
-        centerTileX: tileX,
-        centerTileZ: tileZ,
-        addedToMapZoom4: new Set<string>(),
-        addedToMapZoom8: new Set<string>(),
-        manifest
-    };
-    
-    const loadTiles = () => loadVisibleShopMapTiles(context);
-    leafletMap.on('moveend', loadTiles);
-    leafletMap.on('zoomend', loadTiles);
-    
-    const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, TILE_CONFIG.tileSize);
-    L.marker([markerLat, markerLng], {
-        icon: L.divIcon({
-            className: 'leaflet-pin-marker',
-            iconSize: [24, 24],
-            iconAnchor: [4, 24]
-        })
-    }).addTo(leafletMap);
-    
-    playerMarkersLayer = L.layerGroup().addTo(leafletMap);
-    
-    const updateCoordsLabel = (): void => {
-        if (!leafletMap) {return;}
-        const mapCenter = leafletMap.getCenter();
-        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, TILE_CONFIG.tileSize);
-        coordinatesElement.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
-    };
-    
-    const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
-    
-    const updateZoomClass = () => {
-        container.classList.toggle('zoomed-out', leafletMap!.getZoom() < 0.5);
-    };
-    
-void fetchPlayersAndUpdateCache().then(() => {
-        if (!leafletMap) {return;}
-        updatePlayerMarkers();
-    });
-
-    playerRefreshInterval = setInterval(() => {
-        void fetchPlayersAndUpdateCache().then(() => {
-            if (!leafletMap) {return;}
-            updatePlayerMarkers();
-        });
-    }, 5000);
-    
-    leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
-    leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
-    
-    leafletMap.invalidateSize();
-    const containerSize = leafletMap.getSize();
-    const visibleSize = TILE_CONFIG.tileSize * 3;
-    const smallerDimension = Math.min(containerSize.x, containerSize.y);
-    const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
-    
-    leafletMap.setView([markerLat, markerLng], initialZoom);
-    loadTiles();
-    updateZoomClass();
-    
-    // Expose map for E2E testing (only in test environments)
-    if (typeof globalThis !== 'undefined') {
-        (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = leafletMap;
-    }
-}
-
-function openMapDialog(x: number, y: number, z: number, world: string): void {
-    const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
-    const container = document.querySelector('#map-container');
-    const coordsElement = document.querySelector('#map-coords');
-    
-    if (!dialog || !container || !coordsElement) {
-        return;
-    }
-    
-    const worldId = getWorldId(world);
-    const worldDisplay = getWorldDisplayName(world);
-    coordsElement.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
-    
-    if (playerRefreshInterval) {
-        clearInterval(playerRefreshInterval);
-        playerRefreshInterval = undefined;
-    }
-
-    const closeButton = dialog.querySelector<HTMLElement>('#close-map');
-    if (closeButton && !Object.hasOwn(closeButton.dataset, 'initialized')) {
-        closeButton.dataset.initialized = 'true';
-        closeButton.addEventListener('click', () => dialog.close());
-    }
-
-    dialog.addEventListener('close', () => {
-        if (playerRefreshInterval) {
-            clearInterval(playerRefreshInterval);
-            playerRefreshInterval = undefined;
-        }
-        if (mapOpenedFromCart) {
-            mapOpenedFromCart = false;
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
-            renderCartDialog();
-            cartDialog.showModal();
-        }
-    }, { once: true });
-    
-    const { tileX, tileZ } = getTileCoords(x, z, TILE_CONFIG.tileSize);
-    dialog.showModal();
-    
-    requestAnimationFrame(() => {
-        if (leafletMap) {
-            try { leafletMap.remove(); } catch { /* already removed */ }
-            leafletMap = undefined;
-        }
-        
-        void loadTileManifest().then(manifest => {
-            setupShopMap({ container: container as HTMLElement, coordinatesElement: coordsElement as HTMLElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest });
-        });
-    });
-}
+const openTradeDetailsPopover = createTradeDetailsHandler({
+    getTrade: (key) => tradesByKey.get(key)
+});
 
 // ============================================================================
 // Cart Dialog
@@ -1607,7 +1081,7 @@ function createTimelineStop(
             mapOpenedFromCart = true;
             const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
             cartDialog.close();
-            openMapDialog(stop.x, item.trade.y, stop.z, stop.world);
+            shopMapDialog.open(stop.x, item.trade.y, stop.z, stop.world);
         }
     });
     
@@ -1661,268 +1135,6 @@ function renderCartDialog(): void {
         li.textContent = `${amount}× ${name}`;
         gainsContainer.append(li);
     }
-}
-
-// ============================================================================
-// Favorites Watchlist
-// ============================================================================
-
-/** State for the popover */
-let activePopoverItemName: string | undefined;
-
-/**
- * Show the favorite popover positioned near the star button
- */
-function showFavoritePopover(button: HTMLElement, itemName: string): void {
-    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
-    if (!popover) { return; }
-    
-    activePopoverItemName = itemName;
-    
-    // Update popover header
-    const header = popover.querySelector('#popover-item-name') as HTMLElement;
-    if (header) {
-        header.textContent = itemName;
-    }
-    
-    // Get current favorite settings
-    const favorite = favoritesStore.get(itemName);
-    const isFavorite = Boolean(favorite);
-    const hasThreshold = favorite?.maxDeviation !== undefined;
-    const thresholdValue = favorite?.maxDeviation === undefined ? 20 : Math.abs(favorite.maxDeviation);
-    
-    // Update radio buttons
-    const anyPriceRadio = popover.querySelector('input[name="threshold-type"][value="any"]') as HTMLInputElement;
-    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
-    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
-    
-    if (anyPriceRadio && thresholdRadio && thresholdInput) {
-        anyPriceRadio.checked = !hasThreshold;
-        thresholdRadio.checked = hasThreshold;
-        thresholdInput.value = String(thresholdValue);
-    }
-    
-    // Show/hide buttons based on whether it's already a favorite
-    const removeButton = popover.querySelector('#popover-remove') as HTMLElement;
-    const saveButton = popover.querySelector('#popover-save') as HTMLElement;
-    if (removeButton && saveButton) {
-        removeButton.classList.toggle('hidden', !isFavorite);
-        saveButton.classList.toggle('hidden', isFavorite);
-    }
-    
-    // Position popover near the button (or center if button not visible)
-    const rect = button.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-        popover.style.top = `${rect.bottom + 4}px`;
-        popover.style.left = `${Math.max(8, rect.left - 100)}px`;
-        popover.style.transform = 'none';
-    } else {
-        // Button not visible, center popover on screen
-        popover.style.top = '50%';
-        popover.style.left = '50%';
-        popover.style.transform = 'translate(-50%, -50%)';
-    }
-    
-    // Show popover
-    popover.classList.remove('hidden');
-    
-    // Close when clicking outside
-    setTimeout(() => {
-        document.addEventListener('click', handlePopoverOutsideClick);
-    }, 0);
-}
-
-/**
- * Hide the favorite popover
- */
-function hideFavoritePopover(): void {
-    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
-    if (popover) {
-        popover.classList.add('hidden');
-    }
-    activePopoverItemName = undefined;
-    document.removeEventListener('click', handlePopoverOutsideClick);
-}
-
-/**
- * Handle clicks outside the popover to close it
- */
-function handlePopoverOutsideClick(event: MouseEvent): void {
-    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER);
-    const target = event.target as HTMLElement;
-    
-    if (popover && !popover.contains(target) && !target.classList.contains('favorite-star')) {
-        hideFavoritePopover();
-    }
-}
-
-/**
- * Save the favorite from the popover
- */
-function saveFavoriteFromPopover(): void {
-    if (!activePopoverItemName) { return; }
-    
-    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER) as HTMLElement;
-    if (!popover) { return; }
-    
-    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
-    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
-    
-    let maxDeviation: number | undefined;
-    if (thresholdRadio?.checked && thresholdInput) {
-        const value = Number.parseInt(thresholdInput.value, 10);
-        maxDeviation = Number.isNaN(value) ? -20 : -Math.abs(value);
-    }
-    
-    favoritesStore.add(activePopoverItemName, maxDeviation);
-    hideFavoritePopover();
-    
-    // Re-render to update star states
-    triggerSearch();
-    updateFavoritesBadge();
-}
-
-/**
- * Remove favorite from popover
- */
-function removeFavoriteFromPopover(): void {
-    if (!activePopoverItemName) { return; }
-    
-    favoritesStore.remove(activePopoverItemName);
-    hideFavoritePopover();
-    
-    // Re-render to update star states
-    triggerSearch();
-    updateFavoritesBadge();
-}
-
-/**
- * Update the favorites badge count
- */
-function updateFavoritesBadge(): void {
-    const badge = document.querySelector('.favorites-badge') as HTMLElement;
-    if (!badge) { return; }
-    
-    const count = favoritesStore.getAll().length;
-    badge.textContent = String(count);
-    badge.classList.toggle('hidden', count === 0);
-}
-
-/**
- * Render the favorites dialog content
- */
-function renderFavoritesDialog(): void {
-    const list = document.querySelector('.favorites-list') as HTMLElement;
-    const empty = document.querySelector('.favorites-empty') as HTMLElement;
-    
-    if (!list || !empty) { return; }
-    
-    const favorites = favoritesStore.getAll();
-    
-    // Toggle empty state
-    list.classList.toggle('hidden', favorites.length === 0);
-    empty.classList.toggle('hidden', favorites.length > 0);
-    
-    // Clear and rebuild list
-    list.innerHTML = '';
-    
-    for (const fav of favorites) {
-        const item = document.createElement('div');
-        item.className = 'favorites-item';
-        
-        const thresholdText = fav.maxDeviation === undefined 
-            ? 'No threshold'
-            : `Alert ≤${fav.maxDeviation}%`;
-        
-        item.innerHTML = `
-            <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
-            <span class="favorites-item-threshold">${thresholdText}</span>
-            <div class="favorites-item-actions">
-                <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
-                <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
-            </div>
-        `;
-        
-        list.append(item);
-    }
-}
-
-/**
- * Setup favorites dialog event handlers
- */
-function setupFavoritesDialog(): void {
-    // Open favorites dialog
-    const openButton = document.querySelector('#open-favorites');
-    openButton?.addEventListener('click', () => {
-        renderFavoritesDialog();
-        openDialog('favorites-dialog');
-    });
-    
-    // Close favorites dialog
-    const closeButton = document.querySelector('#close-favorites');
-    closeButton?.addEventListener('click', () => {
-        const dialog = document.querySelector('#favorites-dialog') as HTMLDialogElement;
-        dialog?.close();
-    });
-    
-    // Favorites list delegation
-    const favoritesContent = document.querySelector('.favorites-content');
-    favoritesContent?.addEventListener('click', (event) => {
-        const target = event.target as HTMLElement;
-        const itemName = target.dataset['item'];
-        
-        if (target.classList.contains('remove-favorite') && itemName) {
-            favoritesStore.remove(itemName);
-            renderFavoritesDialog();
-            updateFavoritesBadge();
-            triggerSearch();
-        }
-        
-        if (target.classList.contains('edit-favorite') && itemName) {
-            // Close dialog and show popover for the item
-            const dialog = document.querySelector('#favorites-dialog') as HTMLDialogElement;
-            dialog?.close();
-            
-            // Show popover using the edit button as anchor, fall back to star in table
-            const starButton = document.querySelector(`.favorite-star[data-item="${itemName}"]`) as HTMLElement;
-            const anchor = starButton ?? target;
-            showFavoritePopover(anchor, itemName);
-        }
-    });
-    
-    // Popover save/cancel/remove
-    const popover = document.querySelector(SELECTORS.FAVORITE_POPOVER);
-    
-    popover?.querySelector('.btn-primary')?.addEventListener('click', () => {
-        saveFavoriteFromPopover();
-    });
-    
-    popover?.querySelector('.btn-secondary')?.addEventListener('click', () => {
-        hideFavoritePopover();
-    });
-    
-    popover?.querySelector('.btn-remove')?.addEventListener('click', () => {
-        removeFavoriteFromPopover();
-    });
-    
-    popover?.querySelector('.popover-close')?.addEventListener('click', () => {
-        hideFavoritePopover();
-    });
-    
-    // Filter favorites toggle
-    const filterButton = document.querySelector('#filter-favorites');
-    filterButton?.addEventListener('click', () => {
-        filterButton.classList.toggle('active');
-        triggerSearch();
-    });
-}
-
-/**
- * Check if favorites filter is active
- */
-function isFavoritesFilterActive(): boolean {
-    const filterButton = document.querySelector('#filter-favorites');
-    return filterButton?.classList.contains('active') ?? false;
 }
 
 // ============================================================================
@@ -2165,11 +1377,6 @@ interface PlayerPosition {
     z: number;
     world: string;
     yaw?: number;
-}
-
-function hasPositionMoved(previousPosition: PlayerPosition | undefined, current: PlayerPosition, threshold: number): boolean {
-    if (!previousPosition) {return true;}
-    return Math.abs(previousPosition.x - current.x) > threshold || Math.abs(previousPosition.z - current.z) > threshold;
 }
 
 function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
@@ -2613,111 +1820,20 @@ function checkAutoAdvance(): void {
     }
 }
 
-// Track which shop tooltip is currently shown
-let currentNearbyShopKey: string | undefined;
-
-// Distance threshold to show shop tooltip (in blocks)
-const SHOP_NEARBY_THRESHOLD = 100;
-
 /**
- * Update the shop tooltip when player enters a shop area
- * Shows briefly then auto-hides
+ * Shop tooltip handler - created with lazy dependencies
+ * Uses createShopTooltipHandler from navigation module with closure access to module state
  */
-let shopTooltipTimeout: ReturnType<typeof setTimeout> | undefined;
-
-function updateNearbyShopTooltip(): void {
-    const tooltip = document.querySelector('#nav-shop-tooltip');
-    if (!tooltip || !navigationStore.playerPosition) {
-        return;
-    }
-    
-    // Use current route (already excludes completed items)
-    const route = navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(navigationStore.playerPosition, true);
-    
-    // Find all shops within range (not just current stop)
-    let nearestShop: RouteStop | undefined;
-    let nearestDistance = Infinity;
-    
-    for (const stop of route) {
-        if (!stop.cartItem) { continue; }
-        
-        const distance = calculateRouteDistance(
-            navigationStore.playerPosition.x, navigationStore.playerPosition.z, navigationStore.playerPosition.world,
-            stop.x, stop.z, stop.world
-        );
-        
-        if (distance < SHOP_NEARBY_THRESHOLD && distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestShop = stop;
-        }
-    }
-    
-    if (nearestShop?.cartItem) {
-        const shopKey = `${nearestShop.x},${nearestShop.z}`;
-        
-        // Only show tooltip when ENTERING a new shop area
-        if (currentNearbyShopKey !== shopKey) {
-            currentNearbyShopKey = shopKey;
-            
-            // Group all items at this shop location
-            const itemsAtShop = cartStore.items.filter(item => 
-                item.trade.x === nearestShop.x && 
-                item.trade.z === nearestShop.z &&
-                !navigationStore.progress.completedKeys.has(getTradeKey(item.trade))
-            );
-            
-            // Build shopping list HTML
-            const itemsHtml = itemsAtShop.map(cartItem => 
-                `<li><span class="item-name">${cartItem.trade.resultName}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
-            ).join('');
-            
-            tooltip.innerHTML = `
-                <h4>🛒 Shopping List</h4>
-                <ul>${itemsHtml}</ul>
-            `;
-            tooltip.classList.remove('hidden');
-            
-            // Auto-hide after 4 seconds
-            if (shopTooltipTimeout) {
-                clearTimeout(shopTooltipTimeout);
-            }
-            shopTooltipTimeout = setTimeout(() => {
-                tooltip.classList.add('hidden');
-            }, 4000);
-        }
-    } else {
-        // Left all shop areas
-        currentNearbyShopKey = undefined;
-    }
-}
-
-/**
- * Calculate zoom level based on overworld-equivalent distance.
- * Nether distances are multiplied by 8 to account for portal scaling.
- * 
- * Distance thresholds (in overworld-equivalent blocks):
- *   - < 60 blocks: zoom 2 (maximum - arriving at shop, before auto-advance at 50)
- *   - 60-100 blocks: zoom 1 (close)
- *   - 100-300 blocks: zoom 0 (medium)
- *   - 300-600 blocks: zoom -1 (far)
- *   - 600-1200 blocks: zoom -2 (very far)
- *   - > 1200 blocks: zoom -3 (maximum out)
- */
-function getZoomForDistance(overworldEquivalentDistance: number): number {
-    if (overworldEquivalentDistance < 60) {
-        return 2;  // Maximum zoom - arriving at shop
-    } else if (overworldEquivalentDistance < 100) {
-        return 1;  // Close
-    } else if (overworldEquivalentDistance < 300) {
-        return 0;  // Medium
-    } else if (overworldEquivalentDistance < 600) {
-        return -1; // Far
-    } else if (overworldEquivalentDistance < 1200) {
-        return -2; // Very far
-    } else {
-        return -3; // Maximum out
-    }
-}
+const updateNearbyShopTooltip = createShopTooltipHandler({
+    getRoute: () => navCurrentRoute.length > 0 ? navCurrentRoute : computeRoute(navigationStore.playerPosition, true),
+    getActiveCartItemsAtLocation: (x, z) => cartStore.items.filter(item =>
+        item.trade.x === x &&
+        item.trade.z === z &&
+        !navigationStore.progress.completedKeys.has(getTradeKey(item.trade))
+    ),
+    getTooltipElement: () => document.querySelector('#nav-shop-tooltip'),
+    getPlayerPosition: () => navigationStore.playerPosition
+});
 
 /**
  * Center the navigation map on the player position
@@ -3342,8 +2458,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize favorites
     favoritesStore.load();
-    setupFavoritesDialog();
-    updateFavoritesBadge();
+    favoritesUI = createFavoritesUIHandler({
+        favoritesStore,
+        triggerSearch
+    });
+    favoritesUI.setupFavoritesDialog();
+    favoritesUI.updateFavoritesBadge();
+
+    // Initialize shop map dialog
+    shopMapDialog = createShopMapDialogHandler({
+        onCloseFromCart: () => {
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
+            renderCartDialog();
+            cartDialog.showModal();
+        },
+        isOpenedFromCart: () => mapOpenedFromCart,
+        clearOpenedFromCart: () => { mapOpenedFromCart = false; }
+    });
 
     getElement('searchWant').addEventListener('input', () => {
         debouncedSearch();
@@ -3433,6 +2564,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigationControls();
     
     // Event delegation for trade row clicks (prevents memory leaks)
+    setupTradeRowClickHandler();
+});
+
+/**
+ * Set up event delegation for trade row clicks
+ * Handles info icon clicks, map dialog opening, and ignores add-to-cart
+ */
+function setupTradeRowClickHandler(): void {
     getElement('results').addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
         const row = target.closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
@@ -3447,7 +2586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const infoIcon = target.closest('.info-icon');
         if (infoIcon instanceof HTMLElement) {
             const isResult = infoIcon.dataset['info'] === 'result';
-            openTradeDetailsPopover(row, isResult, target);
+            openTradeDetailsPopover(row, isResult);
             return;
         }
 
@@ -3457,6 +2596,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Click anywhere else on row → open map dialog
-        openMapDialog(x, y, z, world);
+        shopMapDialog.open(x, y, z, world);
     });
-});
+}

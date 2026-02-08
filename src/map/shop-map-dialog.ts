@@ -1,0 +1,420 @@
+/**
+ * Shop Map Dialog Module
+ * 
+ * Displays a Leaflet map centered on a shop location with:
+ * - Tile loading at zoom levels 4 and 8
+ * - Player markers with edge indicators for off-screen players
+ * - Coordinate display updating on pan/zoom
+ * 
+ * @module map/shop-map-dialog
+ */
+
+import L from 'leaflet';
+import type { Player } from '../types.js';
+import { shouldDisableAnimations } from '../types.js';
+import { SELECTORS } from '../constants.js';
+import {
+    TILE_CONFIG,
+    ZOOM4_TILE_SIZE,
+    loadTileManifest,
+    tileExistsInManifest,
+    getCachedTileUrl,
+    setCachedTileUrl,
+    getPlayerWorldForFilter,
+    fetchPlayers,
+    calculateZoom4Coords
+} from './index.js';
+import type { MapTileContext } from './index.js';
+import {
+    toLeafletCoords,
+    toLeafletCoordsRelative,
+    fromLeafletCoordsRelative,
+    clampToCircle,
+    calculateFitZoom,
+    getTileCoords,
+    getWorldId
+} from '../library.js';
+import { createEdgeMarker, getWorldDisplayName } from '../dialogs/index.js';
+
+// ============================================================================
+// Module State
+// ============================================================================
+
+let leafletMap: L.Map | undefined;
+let playerMarkersLayer: L.LayerGroup | undefined;
+let cachedPlayers: Player[] = [];
+let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Tile context for shop map (different from navigation map) */
+interface ShopMapTileContext {
+    worldId: string;
+    centerTileX: number;
+    centerTileZ: number;
+    addedToMapZoom4: Set<string>;
+    addedToMapZoom8: Set<string>;
+    manifest: Set<string>;
+}
+
+/** Parameters for setting up shop map */
+interface ShopMapSetupParameters {
+    container: HTMLElement;
+    coordinatesElement: HTMLElement;
+    dialog: HTMLDialogElement;
+    worldId: string;
+    worldDisplay: string;
+    x: number;
+    y: number;
+    z: number;
+    tileX: number;
+    tileZ: number;
+    manifest: Set<string>;
+}
+
+/** Dependencies for shop map dialog */
+export interface ShopMapDialogDependencies {
+    /** Called when map dialog closes and was opened from cart */
+    onCloseFromCart: () => void;
+    /** Check if dialog was opened from cart */
+    isOpenedFromCart: () => boolean;
+    /** Reset the opened-from-cart flag */
+    clearOpenedFromCart: () => void;
+}
+
+/** Handler returned by factory */
+export interface ShopMapDialogHandler {
+    /** Open the map dialog at specified coordinates */
+    open: (x: number, y: number, z: number, world: string) => void;
+    /** Get the current Leaflet map instance (for testing) */
+    getMap: () => L.Map | undefined;
+}
+
+// ============================================================================
+// Helper Functions (module-level to satisfy unicorn/consistent-function-scoping)
+// ============================================================================
+
+async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
+    cachedPlayers = await fetchPlayers();
+    return cachedPlayers;
+}
+
+function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: number): void {
+    const { worldId, centerTileX, centerTileZ, addedToMapZoom4, manifest } = context;
+    const mapKey = `z4:${z4x},${z4z}`;
+    if (addedToMapZoom4.has(mapKey)) { return; }
+    addedToMapZoom4.add(mapKey);
+    
+    if (!tileExistsInManifest(manifest, worldId, 8192, z4x, z4z)) { return; }
+    
+    const startZ8X = z4x * 16;
+    const startZ8Z = z4z * 16;
+    const dx = startZ8X - centerTileX;
+    const dy = startZ8Z - centerTileZ;
+    const bounds: L.LatLngBoundsExpression = [
+        [-dy * TILE_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + ZOOM4_TILE_SIZE]
+    ];
+    
+    const cachedBlobUrl = getCachedTileUrl(worldId, 4, z4x, z4z);
+    if (cachedBlobUrl) {
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap); }
+        return;
+    }
+
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+    fetch(url)
+        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
+        .then(blob => {
+            if (blob && leafletMap) {
+                const blobUrl = URL.createObjectURL(blob);
+                setCachedTileUrl(worldId, 4, z4x, z4z, blobUrl);
+                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+            }
+        })
+        .catch(() => {});
+}
+
+function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
+    const { worldId, addedToMapZoom8, manifest } = context;
+    const mapKey = `z8:${tx},${tz}`;
+    if (addedToMapZoom8.has(mapKey)) { return; }
+    addedToMapZoom8.add(mapKey);
+    
+    if (!tileExistsInManifest(manifest, worldId, 512, tx, tz)) { return; }
+    
+    const bounds: L.LatLngBoundsExpression = [
+        [-dy * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
+    ];
+    
+    const cachedBlobUrl = getCachedTileUrl(worldId, 8, tx, tz);
+    if (cachedBlobUrl) {
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap); }
+        return;
+    }
+
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.png`;
+    fetch(url)
+        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
+        .then(blob => {
+            if (blob && leafletMap) {
+                const blobUrl = URL.createObjectURL(blob);
+                setCachedTileUrl(worldId, 8, tx, tz, blobUrl);
+                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+            }
+        })
+        .catch(() => {});
+}
+
+function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
+    if (!leafletMap) { return; }
+    const bounds = leafletMap.getBounds();
+    const currentZoom = leafletMap.getZoom();
+    
+    const minDx = Math.floor(bounds.getWest() / TILE_CONFIG.tileSize);
+    const maxDx = Math.ceil(bounds.getEast() / TILE_CONFIG.tileSize);
+    const minDy = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
+    const maxDy = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
+    
+    const zoom4Tiles = new Set<string>();
+    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
+        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
+            const tx = context.centerTileX + dx;
+            const tz = context.centerTileZ + dy;
+            const z4 = calculateZoom4Coords(tx, tz);
+            const key = `${z4.x},${z4.z}`;
+            if (!zoom4Tiles.has(key)) {
+                zoom4Tiles.add(key);
+                loadZoom4TileToShopMap(context, z4.x, z4.z);
+            }
+        }
+    }
+    
+    // Load zoom 8 (detail) tiles when zoomed in enough
+    if (currentZoom > -3) {
+        for (let dy = minDy; dy <= maxDy; dy++) {
+            for (let dx = minDx; dx <= maxDx; dx++) {
+                const tx = context.centerTileX + dx;
+                const tz = context.centerTileZ + dy;
+                loadZoom8TileToShopMap(context, tx, tz, dx, dy);
+            }
+        }
+    }
+}
+
+function updateShopMapPlayerMarkers(
+    dialog: HTMLDialogElement,
+    container: HTMLElement,
+    worldId: string,
+    tileX: number,
+    tileZ: number
+): void {
+    playerMarkersLayer?.clearLayers();
+    for (const element of dialog.querySelectorAll('.player-edge-marker')) { element.remove(); }
+    
+    if (!leafletMap || cachedPlayers.length === 0) { return; }
+
+    const playersInWorld = cachedPlayers.filter(p => getPlayerWorldForFilter(p) === worldId);
+
+    const mapCenter = leafletMap.getCenter();
+    const containerRect = container.getBoundingClientRect();
+    const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
+    
+    const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
+    const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
+    const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
+    
+    const centerX = containerRect.width / 2;
+    const centerY = containerRect.height / 2;
+    const edgeRadius = containerRect.width / 2 + 8;
+    
+    for (const player of playersInWorld) {
+        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, TILE_CONFIG.tileSize);
+        const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
+        
+        if (clamped.clamped) {
+            const dx = playerCoords.lng - mapCenter.lng;
+            const dy = playerCoords.lat - mapCenter.lat;
+            const angle = Math.atan2(dy, dx);
+            const marker = createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter });
+            dialog.append(marker);
+        } else {
+            L.marker([playerCoords.lat, playerCoords.lng], {
+                icon: L.divIcon({
+                    className: 'leaflet-player-marker',
+                    html: `<span class="player-name">${player.name}</span>`,
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                }),
+                title: player.name
+            }).addTo(playerMarkersLayer!);
+        }
+    }
+}
+
+function setupShopMap(parameters: ShopMapSetupParameters): void {
+    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
+    
+    const animationOptions = shouldDisableAnimations() ? {
+        fadeAnimation: false,
+        zoomAnimation: false,
+        markerZoomAnimation: false
+    } : {};
+    
+    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
+    leafletMap = L.map(container, {
+        crs: L.CRS.Simple,
+        minZoom: -5,
+        maxZoom: 2,
+        zoomControl: true,
+        attributionControl: false,
+        zoomSnap: 0,
+        zoomDelta: 0.5,
+        ...animationOptions
+    });
+    
+    const context: MapTileContext = {
+        worldId,
+        centerTileX: tileX,
+        centerTileZ: tileZ,
+        addedToMapZoom4: new Set<string>(),
+        addedToMapZoom8: new Set<string>(),
+        manifest
+    };
+    
+    const loadTiles = () => loadVisibleShopMapTiles(context);
+    leafletMap.on('moveend', loadTiles);
+    leafletMap.on('zoomend', loadTiles);
+    
+    const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, TILE_CONFIG.tileSize);
+    L.marker([markerLat, markerLng], {
+        icon: L.divIcon({
+            className: 'leaflet-pin-marker',
+            iconSize: [24, 24],
+            iconAnchor: [4, 24]
+        })
+    }).addTo(leafletMap);
+    
+    playerMarkersLayer = L.layerGroup().addTo(leafletMap);
+    
+    const updateCoordsLabel = (): void => {
+        if (!leafletMap) { return; }
+        const mapCenter = leafletMap.getCenter();
+        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, TILE_CONFIG.tileSize);
+        coordinatesElement.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
+    };
+    
+    const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
+    
+    const updateZoomClass = () => {
+        container.classList.toggle('zoomed-out', leafletMap!.getZoom() < 0.5);
+    };
+    
+    void fetchPlayersAndUpdateCache().then(() => {
+        if (!leafletMap) { return; }
+        updatePlayerMarkers();
+    });
+
+    playerRefreshInterval = setInterval(() => {
+        void fetchPlayersAndUpdateCache().then(() => {
+            if (!leafletMap) { return; }
+            updatePlayerMarkers();
+        });
+    }, 5000);
+    
+    leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
+    leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
+    
+    leafletMap.invalidateSize();
+    const containerSize = leafletMap.getSize();
+    const visibleSize = TILE_CONFIG.tileSize * 3;
+    const smallerDimension = Math.min(containerSize.x, containerSize.y);
+    const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
+    
+    leafletMap.setView([markerLat, markerLng], initialZoom);
+    loadTiles();
+    updateZoomClass();
+    
+    // Expose map for E2E testing
+    if (typeof globalThis !== 'undefined') {
+        (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = leafletMap;
+    }
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+/**
+ * Create shop map dialog handler
+ */
+export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): ShopMapDialogHandler {
+    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart } = deps;
+    
+    function open(x: number, y: number, z: number, world: string): void {
+        const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
+        const container = document.querySelector('#map-container');
+        const coordsElement = document.querySelector('#map-coords');
+        
+        if (!dialog || !container || !coordsElement) {
+            return;
+        }
+        
+        const worldId = getWorldId(world);
+        const worldDisplay = getWorldDisplayName(world);
+        coordsElement.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
+        
+        if (playerRefreshInterval) {
+            clearInterval(playerRefreshInterval);
+            playerRefreshInterval = undefined;
+        }
+
+        const closeButton = dialog.querySelector<HTMLElement>('#close-map');
+        if (closeButton && !Object.hasOwn(closeButton.dataset, 'initialized')) {
+            closeButton.dataset.initialized = 'true';
+            closeButton.addEventListener('click', () => dialog.close());
+        }
+
+        dialog.addEventListener('close', () => {
+            if (playerRefreshInterval) {
+                clearInterval(playerRefreshInterval);
+                playerRefreshInterval = undefined;
+            }
+            if (isOpenedFromCart()) {
+                clearOpenedFromCart();
+                onCloseFromCart();
+            }
+        }, { once: true });
+        
+        const { tileX, tileZ } = getTileCoords(x, z, TILE_CONFIG.tileSize);
+        dialog.showModal();
+        
+        requestAnimationFrame(() => {
+            if (leafletMap) {
+                try { leafletMap.remove(); } catch { /* already removed */ }
+                leafletMap = undefined;
+            }
+            
+            void loadTileManifest().then(manifest => {
+                setupShopMap({
+                    container: container as HTMLElement,
+                    coordinatesElement: coordsElement as HTMLElement,
+                    dialog,
+                    worldId,
+                    worldDisplay,
+                    x, y, z,
+                    tileX, tileZ,
+                    manifest
+                });
+            });
+        });
+    }
+    
+    return {
+        open,
+        getMap: () => leafletMap
+    };
+}

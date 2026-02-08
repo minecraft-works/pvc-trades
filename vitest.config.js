@@ -17,6 +17,9 @@ export default defineConfig({
                 'src/constants.ts',
                 'src/map/**/*.ts',
                 'src/dialogs/**/*.ts',
+                'src/favorites/**/*.ts',
+                'src/navigation/**/*.ts',
+                'src/search/**/*.ts',
                 'src/test-globals.d.ts'
             ],
             thresholds: {
