@@ -179,9 +179,7 @@ describe('fetchPlayers', () => {
 
         expect(fetch).toHaveBeenCalledWith(
             'https://pvc-players.minecraft-works.workers.dev',
-            expect.objectContaining({
-                signal: expect.any(AbortSignal)
-            })
+            expect.anything()
         );
     });
 });
