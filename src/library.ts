@@ -1736,4 +1736,69 @@ export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string 
     return text;
 }
 
+/**
+ * Calculate zoom level based on overworld-equivalent distance.
+ * Used for dynamic zoom in navigation view - zooms in as player approaches shops.
+ * 
+ * Distance thresholds (in overworld-equivalent blocks):
+ *   - < 60 blocks: zoom 2 (maximum - arriving at shop, before auto-advance at 50)
+ *   - 60-100 blocks: zoom 1 (close)
+ *   - 100-300 blocks: zoom 0 (medium)
+ *   - 300-600 blocks: zoom -1 (far)
+ *   - 600-1200 blocks: zoom -2 (very far)
+ *   - > 1200 blocks: zoom -3 (maximum out)
+ * 
+ * @param overworldEquivalentDistance - Distance in overworld blocks (nether × 8)
+ * @returns Zoom level from -3 to 2
+ * 
+ * @example
+ * getZoomForDistance(50);   // 2 (very close)
+ * getZoomForDistance(200);  // 0 (medium)
+ * getZoomForDistance(2000); // -3 (far away)
+ */
+export function getZoomForDistance(overworldEquivalentDistance: number): number {
+    if (overworldEquivalentDistance < 60) {
+        return 2;  // Maximum zoom - arriving at shop
+    } else if (overworldEquivalentDistance < 100) {
+        return 1;  // Close
+    } else if (overworldEquivalentDistance < 300) {
+        return 0;  // Medium
+    } else if (overworldEquivalentDistance < 600) {
+        return -1; // Far
+    } else if (overworldEquivalentDistance < 1200) {
+        return -2; // Very far
+    } else {
+        return -3; // Maximum out
+    }
+}
+
+/** Simple position for movement comparison */
+interface SimplePosition {
+    x: number;
+    z: number;
+}
+
+/**
+ * Check if a player position has moved beyond a threshold.
+ * Used to determine when to update UI or recalculate routes.
+ * 
+ * @param previous - Previous position (if undefined, returns true)
+ * @param current - Current position
+ * @param threshold - Distance threshold in blocks
+ * @returns True if position moved beyond threshold or previous is undefined
+ * 
+ * @example
+ * hasPositionMoved({ x: 0, z: 0 }, { x: 5, z: 5 }, 10);  // false (within threshold)
+ * hasPositionMoved({ x: 0, z: 0 }, { x: 15, z: 0 }, 10); // true (beyond threshold)
+ * hasPositionMoved(undefined, { x: 0, z: 0 }, 10);       // true (no previous)
+ */
+export function hasPositionMoved(
+    previous: SimplePosition | undefined, 
+    current: SimplePosition, 
+    threshold: number
+): boolean {
+    if (!previous) { return true; }
+    return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
+}
+
 export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';

@@ -37,3 +37,13 @@ export {
     fetchPlayers,
     filterPlayersByWorld
 } from './players.js';
+
+// Shop Map Dialog
+export {
+    createShopMapDialogHandler
+} from './shop-map-dialog.js';
+
+export type {
+    ShopMapDialogDependencies,
+    ShopMapDialogHandler
+} from './shop-map-dialog.js';

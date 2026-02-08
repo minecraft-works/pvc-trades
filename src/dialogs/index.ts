@@ -6,7 +6,18 @@
  * @module dialogs
  */
 
+// Dialog utilities
+export {
+    setupDialogBackdropClose,
+    openDialog
+} from './dialog-utilities.js';
+
+// Matrix dialog
 export { renderMatrix } from './matrix-dialog.js';
+
+// Trade details dialog
+export { createTradeDetailsHandler } from './trade-details.js';
+export type { TradeDetailsOptions } from './trade-details.js';
 
 // Shop map helpers
 export {
