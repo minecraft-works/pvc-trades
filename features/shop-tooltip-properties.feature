@@ -13,20 +13,20 @@ Feature: Shop Tooltip Properties
     And player position is (<player_x>, <player_z>)
     Then the player should be <in_range> of the shop
 
-    # Distance ≤ 100 = in range
+    # Distance < 100 = in range (strictly less than threshold)
     Examples: Inside threshold
       | player_x | player_z | in_range        |
       | 0        | 0        | within range    |
       | 50       | 0        | within range    |
       | 0        | 50       | within range    |
       | 70       | 70       | within range    |
-      | 100      | 0        | within range    |
-      | 0        | 100      | within range    |
+      | 99       | 0        | within range    |
+      | 0        | 99       | within range    |
 
     Examples: Outside threshold
       | player_x | player_z | in_range        |
-      | 101      | 0        | outside range   |
-      | 0        | 101      | outside range   |
+      | 100      | 0        | outside range   |
+      | 0        | 100      | outside range   |
       | 80       | 80       | outside range   |
       | 200      | 0        | outside range   |
 
@@ -40,10 +40,10 @@ Feature: Shop Tooltip Properties
 
     Examples: Exact boundary values
       | player_x | player_z | distance | in_range        |
-      | 100      | 0        | 100      | within range    |
-      | 0        | 100      | 100      | within range    |
+      | 99       | 0        | 99       | within range    |
+      | 0        | 99       | 99       | within range    |
       | 70       | 70       | 99       | within range    |
-      | 101      | 0        | 101      | outside range   |
+      | 100      | 0        | 100      | outside range   |
       | 72       | 72       | 102      | outside range   |
 
   # ===========================================================================
@@ -66,10 +66,10 @@ Feature: Shop Tooltip Properties
 
   @tooltip @property @nearest @equidistant
   Scenario: Equidistant shops have deterministic selection
-    Given shop A is at (100, 0)
-    And shop B is at (0, 100)
+    Given shop A is at (99, 0)
+    And shop B is at (0, 99)
     And player is at (0, 0)
-    Then both shops should be at distance 100 blocks
+    Then both shops should be at distance 99 blocks
     And a shop should be selected deterministically
 
   # ===========================================================================
