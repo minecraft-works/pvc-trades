@@ -17,6 +17,31 @@ import type { FavoritesStore } from '../stores/favorites-store.js';
 /** CSS selector for the favorite popover */
 const FAVORITE_POPOVER_SELECTOR = '#favorite-popover';
 
+/** CSS class for hiding elements */
+const HIDDEN_CLASS = 'hidden';
+
+/** CSS selector for item name input */
+const ITEM_NAME_INPUT_SELECTOR = '.favorites-item-name-input';
+
+/**
+ * Enter inline edit mode for a favorites row (module-level utility function)
+ */
+function enterEditMode(itemRow: HTMLElement): void {
+    // Show edit controls, hide display controls
+    itemRow.querySelector('.favorites-item-display')?.classList.add(HIDDEN_CLASS);
+    itemRow.querySelector('.favorites-item-edit')?.classList.remove(HIDDEN_CLASS);
+
+    // Switch edit to save button, hide delete
+    itemRow.querySelector('.edit-favorite')?.classList.add(HIDDEN_CLASS);
+    itemRow.querySelector('.save-favorite')?.classList.remove(HIDDEN_CLASS);
+    itemRow.querySelector('.remove-favorite')?.classList.add(HIDDEN_CLASS);
+
+    // Focus the input
+    const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
+    input?.focus();
+    input?.select();
+}
+
 /**
  * Check if favorites filter is active (standalone utility - no dependencies)
  */
@@ -49,6 +74,8 @@ export interface FavoritesUIHandler {
     setupFavoritesDialog: () => void;
     /** Render the favorites dialog content */
     renderFavoritesDialog: () => void;
+    /** Open the favorites dialog for a specific item (highlight if exists, pre-fill if new) */
+    openDialogForItem: (itemName: string) => void;
 }
 
 /** Internal state for the favorites UI */
@@ -80,32 +107,70 @@ function renderDialog(favoritesStore: FavoritesStore): void {
 
     const favorites = favoritesStore.getAll();
 
-    // Toggle empty state
-    list.classList.toggle('hidden', favorites.length === 0);
+    // Toggle empty state - but always show if we have the add row
+    list.classList.remove('hidden');
     empty.classList.toggle('hidden', favorites.length > 0);
 
     // Clear and rebuild list
     list.innerHTML = '';
 
+    // Render existing favorites
     for (const fav of favorites) {
         const item = document.createElement('div');
         item.className = 'favorites-item';
+        item.dataset['item'] = fav.itemName;
 
         const thresholdText = fav.maxDeviation === undefined
-            ? 'No threshold'
-            : `Alert ≤${fav.maxDeviation}%`;
+            ? ''
+            : `≤${fav.maxDeviation}%`;
+        const thresholdValue = fav.maxDeviation === undefined ? '' : String(fav.maxDeviation);
 
         item.innerHTML = `
-            <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
-            <span class="favorites-item-threshold">${thresholdText}</span>
+            <div class="favorites-item-content">
+                <div class="favorites-item-display">
+                    <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
+                    ${thresholdText ? `<span class="favorites-item-threshold">${thresholdText}</span>` : ''}
+                </div>
+                <div class="favorites-item-edit hidden">
+                    <input type="text" class="favorites-item-name-input" value="${escapeHtml(fav.itemName)}">
+                    <select class="favorites-threshold-select" title="Only show trades with deviation at or below this value">
+                        <option value=""${thresholdValue === '' ? ' selected' : ''}>Deal</option>
+                        <option value="-25"${thresholdValue === '-25' ? ' selected' : ''}>≤-25%</option>
+                        <option value="-50"${thresholdValue === '-50' ? ' selected' : ''}>≤-50%</option>
+                        <option value="-75"${thresholdValue === '-75' ? ' selected' : ''}>≤-75%</option>
+                        <option value="-100"${thresholdValue === '-100' ? ' selected' : ''}>≤-100%</option>
+                    </select>
+                </div>
+            </div>
             <div class="favorites-item-actions">
-                <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
                 <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
+                <button class="save-favorite hidden" data-item="${escapeHtml(fav.itemName)}" title="Save">💾</button>
+                <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
             </div>
         `;
 
         list.append(item);
     }
+
+    // Add the "new item" row at the bottom (looks like a regular row in edit mode)
+    const addRow = document.createElement('div');
+    addRow.className = 'favorites-item favorites-item-add';
+    addRow.innerHTML = `
+        <div class="favorites-item-content">
+            <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name...">
+            <select class="favorites-threshold-select" id="favorites-new-threshold-select" title="Only show trades with deviation at or below this value">
+                <option value="" selected>Deal</option>
+                <option value="-25">≤-25%</option>
+                <option value="-50">≤-50%</option>
+                <option value="-75">≤-75%</option>
+                <option value="-100">≤-100%</option>
+            </select>
+        </div>
+        <div class="favorites-item-actions">
+            <button class="add-favorite-btn" title="Add to watchlist">💾</button>
+        </div>
+    `;
+    list.append(addRow);
 }
 
 /** Hide the favorite popover and clean up */
@@ -184,7 +249,11 @@ function readThresholdFromPopover(popover: HTMLElement): number | undefined {
 
 /**
  * Create a favorites UI handler
+ *
+ * This is a factory function that creates related event handlers and utilities.
+ * The inner functions share common state and dependencies, making extraction impractical.
  */
+// eslint-disable-next-line max-lines-per-function
 export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies): FavoritesUIHandler {
     const { favoritesStore, triggerSearch } = dependencies;
 
@@ -259,6 +328,54 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         renderDialog(favoritesStore);
     }
 
+    /** Save inline edits for a favorites row */
+    function saveInlineEdit(itemRow: HTMLElement): void {
+        const originalName = itemRow.dataset['item'];
+        if (!originalName) {
+            return;
+        }
+
+        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
+        const newName = input?.value.trim().toLowerCase();
+
+        if (!newName) {
+            return;
+        }
+
+        // Read threshold from select dropdown
+        const select = itemRow.querySelector('.favorites-threshold-select') as HTMLSelectElement;
+        const maxDeviation = select?.value ? Number.parseInt(select.value, 10) : undefined;
+
+        // Remove old and add new (handles rename)
+        if (newName !== originalName) {
+            favoritesStore.remove(originalName);
+        }
+        favoritesStore.add(newName, maxDeviation);
+
+        renderFavoritesDialog();
+        updateFavoritesBadge();
+        triggerSearch();
+    }
+
+    /** Add new item from the inline add row */
+    function addNewFromInlineRow(itemRow: HTMLElement): void {
+        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
+        const itemName = input?.value.trim().toLowerCase();
+
+        if (!itemName) {
+            return;
+        }
+
+        // Read threshold from select dropdown
+        const select = itemRow.querySelector('.favorites-threshold-select') as HTMLSelectElement;
+        const maxDeviation = select?.value ? Number.parseInt(select.value, 10) : undefined;
+
+        favoritesStore.add(itemName, maxDeviation);
+        renderFavoritesDialog();
+        updateFavoritesBadge();
+        triggerSearch();
+    }
+
     function setupFavoritesDialog(): void {
         // Open favorites dialog
         document.querySelector('#open-favorites')?.addEventListener('click', () => {
@@ -274,8 +391,10 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         // Favorites list delegation
         document.querySelector('.favorites-content')?.addEventListener('click', (event) => {
             const target = event.target as HTMLElement;
+            const itemRow = target.closest('.favorites-item') as HTMLElement;
             const itemName = target.dataset['item'];
 
+            // Delete button
             if (target.classList.contains('remove-favorite') && itemName) {
                 favoritesStore.remove(itemName);
                 renderFavoritesDialog();
@@ -283,10 +402,19 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
                 triggerSearch();
             }
 
-            if (target.classList.contains('edit-favorite') && itemName) {
-                (document.querySelector('#favorites-dialog') as HTMLDialogElement)?.close();
-                const starButton = document.querySelector(`.favorite-star[data-item="${itemName}"]`) as HTMLElement;
-                showFavoritePopover(starButton ?? target, itemName);
+            // Edit button - switch to inline edit mode
+            if (target.classList.contains('edit-favorite') && itemName && itemRow) {
+                enterEditMode(itemRow);
+            }
+
+            // Save button - save inline edits
+            if (target.classList.contains('save-favorite') && itemRow) {
+                saveInlineEdit(itemRow);
+            }
+
+            // Add button - add new item
+            if (target.classList.contains('add-favorite-btn') && itemRow) {
+                addNewFromInlineRow(itemRow);
             }
         });
 
@@ -302,6 +430,83 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
             (event.target as HTMLElement).classList.toggle('active');
             triggerSearch();
         });
+
+        // Add new item from inline form
+        document.querySelector('#favorites-add-confirm')?.addEventListener('click', () => {
+            addNewItemFromInlineForm();
+        });
+
+        // Also allow Enter key in the input field
+        document.querySelector('#favorites-item-input')?.addEventListener('keydown', (event) => {
+            if ((event as KeyboardEvent).key === 'Enter') {
+                addNewItemFromInlineForm();
+            }
+        });
+    }
+
+    function addNewItemFromInlineForm(): void {
+        const input = document.querySelector('#favorites-item-input') as HTMLInputElement;
+        const itemName = input?.value.trim().toLowerCase();
+
+        if (!itemName) {
+            return;
+        }
+
+        // Read threshold from inline form
+        const thresholdRadio = document.querySelector('input[name="new-threshold-type"][value="threshold"]') as HTMLInputElement;
+        const thresholdInput = document.querySelector('#favorites-new-threshold') as HTMLInputElement;
+        let maxDeviation: number | undefined;
+
+        if (thresholdRadio?.checked && thresholdInput) {
+            const value = Number.parseInt(thresholdInput.value, 10);
+            maxDeviation = Number.isNaN(value) ? -20 : -Math.abs(value);
+        }
+
+        favoritesStore.add(itemName, maxDeviation);
+
+        // Clear the input and reset form
+        input.value = '';
+        const anyPriceRadio = document.querySelector('input[name="new-threshold-type"][value="any"]') as HTMLInputElement;
+        if (anyPriceRadio) {
+            anyPriceRadio.checked = true;
+        }
+
+        renderFavoritesDialog();
+        updateFavoritesBadge();
+        triggerSearch();
+    }
+
+    /** Open the favorites dialog with a specific item selected or pre-filled */
+    function openDialogForItem(itemName: string): void {
+        // First render and open the dialog
+        renderFavoritesDialog();
+        openDialog('favorites-dialog');
+
+        const list = document.querySelector('.favorites-list') as HTMLElement;
+        if (!list) {
+            return;
+        }
+
+        // Normalize to match how items are stored (lowercase, trimmed)
+        const normalizedName = itemName.toLowerCase().trim();
+
+        // Check if item already exists in favorites
+        const existingRow = list.querySelector(`[data-item="${CSS.escape(normalizedName)}"]`) as HTMLElement;
+        
+        if (existingRow) {
+            // Item exists - scroll to it and enter edit mode
+            existingRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            enterEditMode(existingRow);
+        } else {
+            // Item doesn't exist - pre-fill the add form
+            const addInput = list.querySelector('#favorites-new-item-input') as HTMLInputElement;
+            if (addInput) {
+                addInput.value = itemName;
+                addInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                addInput.focus();
+                addInput.select();
+            }
+        }
     }
 
     return {
@@ -309,6 +514,7 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         hideFavoritePopover,
         updateFavoritesBadge,
         setupFavoritesDialog,
-        renderFavoritesDialog
+        renderFavoritesDialog,
+        openDialogForItem
     };
 }

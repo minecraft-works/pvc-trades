@@ -2440,28 +2440,74 @@ mark {
 .favorites-empty {
     text-align: center;
     color: var(--color-text-muted);
-    padding: 20px;
+    padding: 16px;
 }
 
 .favorites-hint {
     font-size: 0.85rem;
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 .favorites-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .favorites-item {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
     background: var(--color-bg);
     border-radius: var(--border-radius);
+}
+
+.favorites-item.highlighted {
+    animation: highlight-pulse 2s ease-out;
+}
+
+@keyframes highlight-pulse {
+    0% {
+        background: #ffd70040;
+        box-shadow: 0 0 8px #ffd70060;
+    }
+
+    100% {
+        background: var(--color-bg);
+        box-shadow: none;
+    }
+}
+
+/* Content area: takes remaining space */
+.favorites-item-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Add row: input and dropdown side by side */
+.favorites-item-add .favorites-item-content {
+    flex-direction: row;
+    align-items: center;
+}
+
+/* Display mode: name and threshold side by side */
+.favorites-item-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Edit mode: input and threshold dropdown side by side */
+.favorites-item-edit {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
 }
 
 .favorites-item-name {
@@ -2473,11 +2519,47 @@ mark {
 .favorites-item-threshold {
     font-size: 0.85rem;
     color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.favorites-item-name-input {
+    flex: 1;
+    min-width: 100px;
+    padding: 6px 10px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: #ffd700;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.favorites-item-name-input:focus {
+    outline: none;
+    border-color: #ffd700;
+}
+
+.favorites-threshold-select {
+    padding: 4px 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.favorites-threshold-select:focus {
+    outline: none;
+    border-color: #ffd700;
 }
 
 .favorites-item-actions {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
+    align-self: flex-start;
 }
 
 .favorites-item-actions button {
@@ -2485,81 +2567,37 @@ mark {
     border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    padding: 4px;
-    font-size: 0.9rem;
+    padding: 4px 6px;
+    font-size: 1rem;
+    border-radius: 4px;
+    transition: background-color 0.15s, color 0.15s;
 }
 
 .favorites-item-actions button:hover {
     color: var(--color-text);
+    background: var(--color-bg-secondary);
 }
 
-/* Favorites add section */
-.favorites-add-section {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--color-border);
-}
-
-.favorites-add-btn {
-    width: 100%;
-    padding: 10px;
-    background: var(--color-bg);
-    border: 1px dashed var(--color-border);
-    border-radius: var(--border-radius);
+.add-favorite-btn {
+    background: none;
+    border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.favorites-add-btn:hover {
-    border-color: #ffd700;
-    color: #ffd700;
-}
-
-.favorites-add-form {
-    padding: 12px;
-    background: var(--color-bg);
-    border-radius: var(--border-radius);
-}
-
-.favorites-add-form input[type="text"] {
-    width: 100%;
-    padding: 8px 12px;
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    color: var(--color-text);
-    font-size: 0.9rem;
-    margin-bottom: 8px;
-}
-
-.favorites-add-form input[type="text"]:focus {
-    outline: none;
-    border-color: #ffd700;
-}
-
-.favorites-warning {
-    font-size: 0.8rem;
-    color: #ff9800;
-    margin-bottom: 8px;
-    padding: 4px 8px;
-    background: rgb(255 152 0 / 10%);
+    padding: 4px 6px;
+    font-size: 1rem;
     border-radius: 4px;
+    transition: background-color 0.15s, color 0.15s;
 }
 
-.favorites-threshold-options {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px;
+.add-favorite-btn:hover {
+    color: var(--color-text);
+    background: var(--color-bg-secondary);
 }
 
-.favorites-threshold-options label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    color: var(--color-text-muted);
+/* Add new item row */
+.favorites-item-add {
+    border: 1px dashed var(--color-border);
+    background: transparent;
 }
 
 .threshold-input {

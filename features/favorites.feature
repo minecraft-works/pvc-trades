@@ -7,107 +7,114 @@ Feature: Favorites Watchlist
     Given the app is loaded with mock shop data
 
   # ============================================================================
-  # Adding Favorites from Trade Rows
+  # Adding Favorites from Trade Rows (Star Opens Dialog)
   # ============================================================================
 
   @favorites @add
-  Scenario: Add item to favorites from trade row
-    When I click the favorite star on a trade row
-    Then I should see a popover with threshold options
-    When I click the popover "Add to Watchlist" button
+  Scenario: Click star on new item opens dialog with pre-filled add form
+    When I click the star on a trade row for a new item
+    Then I should see the favorites dialog
+    And the add input should contain the item name
+    And the add input should be focused
+
+  @favorites @add
+  Scenario: Add item with no threshold filter
+    When I click the star on a trade row for a new item
+    And the threshold dropdown shows "Deal"
+    And I click the save button in the add row
     Then the star should be filled
-    And the trade row should have a favorite indicator
+    And the item should be in my favorites
+    And the item should have no threshold filter
 
   @favorites @add
-  Scenario: Add favorite with deal threshold
-    When I click the favorite star on a trade row
-    And I select "Below market by 20%"
-    And I click the popover "Add to Watchlist" button
-    Then the item should be in my favorites with threshold -20
+  Scenario: Add item with threshold filter
+    When I click the star on a trade row for a new item
+    And I select "≤-25%" in the add row dropdown
+    And I click the save button in the add row
+    Then the item should be in my favorites with threshold -25
 
   @favorites @add
-  Scenario: Add favorite without threshold
-    When I click the favorite star on a trade row
-    And I select "Any price"
-    And I click the popover "Add to Watchlist" button
-    Then the item should be in my favorites without a threshold
-
-  @favorites @add
-  Scenario: Cancel adding favorite closes popover
-    When I click the favorite star on a trade row
-    And I click outside the popover
-    Then the popover should close
-    And the star should remain hollow
+  Scenario: Close dialog without saving does not add item
+    When I click the star on a trade row for a new item
+    And I close the favorites dialog
+    Then the star should remain hollow
+    And the item should not be in my favorites
 
   # ============================================================================
-  # Popover Button Visibility
+  # Editing Favorites from Trade Rows (Star Opens Dialog in Edit Mode)
   # ============================================================================
 
-  @favorites @popover
-  Scenario: Popover shows Add button when item is not in favorites
-    When I click the favorite star on a trade row for an item not in favorites
-    Then I should see the "Add to Watchlist" button
-    And I should not see the "Remove" button
-
-  @favorites @popover
-  Scenario: Popover shows Remove button when item is already a favorite
+  @favorites @edit
+  Scenario: Click star on existing favorite opens dialog in edit mode
     Given I have "Diamond" in my favorites
     When I click the filled star on a "Diamond" trade row
-    Then I should see the "Remove" button
-    And I should not see the "Add to Watchlist" button
+    Then I should see the favorites dialog
+    And the item row should be in edit mode
+    And the edit input should contain the item name
 
-  @favorites @popover
-  Scenario: Popover defaults to Any price radio option
-    When I click the favorite star on a trade row
-    Then the "Any price" radio option should be selected
-    And the "Below market by" radio option should not be selected
+  @favorites @edit
+  Scenario: Save edited threshold from trade row star
+    Given I have "Diamond" in my favorites with threshold -25
+    When I click the filled star on a "Diamond" trade row
+    And I select "≤-50%" in the edit dropdown
+    And I click the save button in the row
+    Then the item should have threshold -50
+
+  @favorites @edit
+  Scenario: Cancel edit mode reverts changes
+    Given I have "Diamond" in my favorites with threshold -25
+    When I click the filled star on a "Diamond" trade row
+    And I select "≤-75%" in the edit dropdown
+    And I close the favorites dialog
+    Then the item should still have threshold -25
+
+  # ============================================================================
+  # Editing Favorites via Edit Button
+  # ============================================================================
+
+  @favorites @edit
+  Scenario: Edit button enters inline edit mode
+    Given I have "Diamond" in my favorites
+    When I open the favorites dialog
+    And I click the edit button for the item
+    Then the item row should be in edit mode
+    And the save button should be visible
+    And the edit button should be hidden
+
+  @favorites @edit
+  Scenario: Save inline edit
+    Given I have "Diamond" in my favorites without threshold
+    When I open the favorites dialog
+    And I click the edit button for the item
+    And I select "≤-50%" in the edit dropdown
+    And I click the save button in the row
+    Then the item should have threshold -50
 
   # ============================================================================
   # Removing Favorites
   # ============================================================================
 
   @favorites @remove
-  Scenario: Remove favorite from trade row
+  Scenario: Remove favorite from dialog
     Given I have "Diamond Pickaxe" in my favorites
-    When I click the filled star on a "Diamond Pickaxe" trade row
-    And I click the popover "Remove from Watchlist" button
-    Then the star should be hollow
-    And the trade row should not have a favorite indicator
+    When I open the favorites dialog
+    And I click the delete button for the item
+    Then the item should not be in my favorites
+    And the star should be hollow
 
   @favorites @remove
-  Scenario: Remove favorite from favorites dialog
-    Given I have "Diamond Pickaxe" in my favorites
+  Scenario: Delete button is always visible in normal mode
+    Given I have "Diamond" in my favorites
     When I open the favorites dialog
-    And I click the delete button for "Diamond Pickaxe"
-    Then "Diamond Pickaxe" should not be in my favorites
-
-  # ============================================================================
-  # Editing Favorites
-  # ============================================================================
-
-  @favorites @edit @skip
-  Scenario: Edit favorite threshold from trade row
-    Given I have "Diamond Pickaxe" in my favorites with threshold -10
-    When I click the filled star on a "Diamond Pickaxe" trade row
-    And I change the threshold to -30
-    And I click "Update"
-    Then the item should be in my favorites with threshold -30
-
-  @favorites @edit @skip
-  Scenario: Edit favorite threshold from favorites dialog
-    Given I have "Diamond Pickaxe" in my favorites with threshold -10
-    When I open the favorites dialog
-    And I click the edit button for "Diamond Pickaxe"
-    And I change the threshold to -20
-    And I click "Save"
-    Then the item should be in my favorites with threshold -20
+    Then the delete button should be visible
+    And the edit button should be visible
 
   # ============================================================================
   # Favorites Dialog
   # ============================================================================
 
   @favorites @dialog
-  Scenario: Open favorites dialog
+  Scenario: Open favorites dialog via button
     When I click the favorites button in the search bar
     Then I should see the favorites dialog
 
@@ -126,37 +133,69 @@ Feature: Favorites Watchlist
     Then I should see "Diamond Pickaxe" in the favorites list
     And I should see "Mending Book" in the favorites list
 
-  @favorites @dialog @skip
+  @favorites @dialog
   Scenario: Favorites dialog shows threshold for each item
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
-    And I have "Mending Book" in my favorites without threshold
+    Given I have "Diamond" in my favorites with threshold -25
     When I open the favorites dialog
-    Then I should see "Diamond Pickaxe" with threshold display
-    And I should see "Mending Book" with any price display
+    Then I should see "≤-25%" displayed for the item
+
+  @favorites @dialog
+  Scenario: Items without threshold show no filter indicator
+    Given I have "Diamond" in my favorites without threshold
+    When I open the favorites dialog
+    Then no threshold should be displayed for the item
 
   # ============================================================================
-  # Adding New Items via Dialog
+  # Adding New Items via Dialog Inline Form
   # ============================================================================
 
-  @favorites @add-new @skip
-  Scenario: Add new item from favorites dialog
+  @favorites @add-new
+  Scenario: Add row is always visible at bottom of list
+    Given I have "Diamond" in my favorites
     When I open the favorites dialog
-    And I click the "Watch new item" button in the dialog
-    Then I should see an item name input
+    Then I should see the add row at the bottom
+    And the add row should have an input field
+    And the add row should have a threshold dropdown
 
-  @favorites @add-new @skip
-  Scenario: Autocomplete suggests known items
+  @favorites @add-new
+  Scenario: Add new item from dialog
     When I open the favorites dialog
-    And I click "Watch new item"
-    And I type "pick" in the new item input
-    Then I should see autocomplete suggestions containing "Pickaxe"
+    And I type "Mending Book" in the add input
+    And I click the save button in the add row
+    Then "Mending Book" should be in my favorites
+    And the add input should be cleared
 
-  @favorites @add-new @skip
-  Scenario: Adding unknown item shows warning
+  @favorites @add-new
+  Scenario: Add new item with threshold from dialog
     When I open the favorites dialog
-    And I click "Watch new item"
-    And I type "Elytra" in the new item input
-    Then I should see a warning about no current trades
+    And I type "Mending Book" in the add input
+    And I select "≤-50%" in the add row dropdown
+    And I click the save button in the add row
+    Then "Mending Book" should be in my favorites with threshold -50
+
+  # ============================================================================
+  # Threshold Dropdown Options
+  # ============================================================================
+
+  @favorites @threshold
+  Scenario: Threshold dropdown has correct options
+    When I open the favorites dialog
+    Then the add row dropdown should have options:
+      | Deal   |
+      | ≤-25%  |
+      | ≤-50%  |
+      | ≤-75%  |
+      | ≤-100% |
+
+  @favorites @threshold
+  Scenario: Default threshold is Deal (no filter)
+    When I click the star on a trade row for a new item
+    Then the add row threshold should be "Deal"
+
+  @favorites @threshold
+  Scenario: Dropdown has tooltip explaining purpose
+    When I open the favorites dialog
+    Then the add row dropdown should have title "Only show trades with deviation at or below this value"
 
   # ============================================================================
   # Filtering by Favorites
@@ -168,16 +207,6 @@ Feature: Favorites Watchlist
     When I click the favorites filter button
     Then I should only see trades for favorited items
     And the favorites button should show active state
-
-  # TODO: These scenarios need mock data with specific deviations
-  @favorites @filter @skip
-  Scenario: Filter respects deal threshold
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
-    And there is a trade for "Diamond Pickaxe" with deviation -25
-    And there is a trade for "Diamond Pickaxe" with deviation -10
-    When I click the favorites filter button
-    Then I should see the trade with deviation -25
-    And I should not see the trade with deviation -10
 
   @favorites @filter
   Scenario: Toggle favorites filter off
@@ -196,36 +225,24 @@ Feature: Favorites Watchlist
     Given I have "Diamond Pickaxe" in my favorites
     Then all "Diamond Pickaxe" trade rows should show filled stars
 
-  # TODO: Needs mock data with specific deviations
-  @favorites @visual @skip
-  Scenario: Favorited items meeting threshold show deal highlight
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
-    And there is a trade for "Diamond Pickaxe" with deviation -25
-    Then that trade row should have deal-alert styling
-
   @favorites @visual
-  Scenario: Favorited items above threshold show normal styling
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
-    And there is a trade for "Diamond Pickaxe" with deviation -10
-    Then that trade row should not have deal-alert styling
+  Scenario: Non-favorited items show hollow star
+    Given I have no favorites
+    Then all trade rows should show hollow stars
 
   # ============================================================================
   # Badge Count
   # ============================================================================
 
-  # TODO: Needs multiple trades for same item in mock data
-  @favorites @badge @skip
-  Scenario: Badge shows count of matching deals
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
-    And there are 2 trades for "Diamond Pickaxe" below threshold
-    Then the favorites button badge should show "2"
+  @favorites @badge
+  Scenario: Badge shows count of favorites
+    Given I have 2 different items in my favorites
+    Then the favorites badge should show 2
 
-  # TODO: Needs mock data with specific deviations
-  @favorites @badge @skip
-  Scenario: Badge hidden when no matching deals
-    Given I have "Diamond Pickaxe" in my favorites with threshold -50
-    And there are no trades for "Diamond Pickaxe" below threshold
-    Then the favorites button badge should be hidden
+  @favorites @badge
+  Scenario: Badge hidden when no favorites
+    Given I have no favorites
+    Then the favorites badge should be hidden
 
   # ============================================================================
   # Persistence
@@ -240,6 +257,6 @@ Feature: Favorites Watchlist
 
   @favorites @persistence
   Scenario: Threshold persists across page refresh
-    Given I have "Diamond Pickaxe" in my favorites with threshold -20
+    Given I have "Diamond Pickaxe" in my favorites with threshold -50
     When I refresh the page
-    Then the item should still have threshold -20
+    Then the item should still have threshold -50
