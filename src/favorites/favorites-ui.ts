@@ -96,6 +96,71 @@ function updateBadge(favoritesStore: FavoritesStore): void {
     badge.classList.toggle('hidden', count === 0);
 }
 
+/** Build threshold display text and select value from deviation */
+function buildThresholdValues(maxDeviation: number | undefined): { text: string; value: string } {
+    if (maxDeviation === undefined) {
+        return { text: '', value: '' };
+    }
+    return { text: `≤${maxDeviation}%`, value: String(maxDeviation) };
+}
+
+/** Create the HTML for a favorite item row */
+function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: number }): HTMLDivElement {
+    const item = document.createElement('div');
+    item.className = 'favorites-item';
+    item.dataset['item'] = fav.itemName;
+
+    const { text: thresholdText, value: thresholdValue } = buildThresholdValues(fav.maxDeviation);
+
+    item.innerHTML = `
+        <div class="favorites-item-content">
+            <div class="favorites-item-display">
+                <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
+                ${thresholdText ? `<span class="favorites-item-threshold">${thresholdText}</span>` : ''}
+            </div>
+            <div class="favorites-item-edit hidden">
+                <input type="text" class="favorites-item-name-input" value="${escapeHtml(fav.itemName)}">
+                <select class="favorites-threshold-select" title="Only show trades with deviation at or below this value">
+                    <option value=""${thresholdValue === '' ? ' selected' : ''}>Deal</option>
+                    <option value="-25"${thresholdValue === '-25' ? ' selected' : ''}>≤-25%</option>
+                    <option value="-50"${thresholdValue === '-50' ? ' selected' : ''}>≤-50%</option>
+                    <option value="-75"${thresholdValue === '-75' ? ' selected' : ''}>≤-75%</option>
+                    <option value="-100"${thresholdValue === '-100' ? ' selected' : ''}>≤-100%</option>
+                </select>
+            </div>
+        </div>
+        <div class="favorites-item-actions">
+            <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
+            <button class="save-favorite hidden" data-item="${escapeHtml(fav.itemName)}" title="Save">💾</button>
+            <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
+        </div>
+    `;
+
+    return item;
+}
+
+/** Create the "add new item" row HTML */
+function createAddRow(): HTMLDivElement {
+    const addRow = document.createElement('div');
+    addRow.className = 'favorites-item favorites-item-add';
+    addRow.innerHTML = `
+        <div class="favorites-item-content">
+            <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name...">
+            <select class="favorites-threshold-select" id="favorites-new-threshold-select" title="Only show trades with deviation at or below this value">
+                <option value="" selected>Deal</option>
+                <option value="-25">≤-25%</option>
+                <option value="-50">≤-50%</option>
+                <option value="-75">≤-75%</option>
+                <option value="-100">≤-100%</option>
+            </select>
+        </div>
+        <div class="favorites-item-actions">
+            <button class="add-favorite-btn" title="Add to watchlist">💾</button>
+        </div>
+    `;
+    return addRow;
+}
+
 /** Render the favorites dialog content */
 function renderDialog(favoritesStore: FavoritesStore): void {
     const list = document.querySelector('.favorites-list') as HTMLElement;
@@ -116,61 +181,11 @@ function renderDialog(favoritesStore: FavoritesStore): void {
 
     // Render existing favorites
     for (const fav of favorites) {
-        const item = document.createElement('div');
-        item.className = 'favorites-item';
-        item.dataset['item'] = fav.itemName;
-
-        const thresholdText = fav.maxDeviation === undefined
-            ? ''
-            : `≤${fav.maxDeviation}%`;
-        const thresholdValue = fav.maxDeviation === undefined ? '' : String(fav.maxDeviation);
-
-        item.innerHTML = `
-            <div class="favorites-item-content">
-                <div class="favorites-item-display">
-                    <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
-                    ${thresholdText ? `<span class="favorites-item-threshold">${thresholdText}</span>` : ''}
-                </div>
-                <div class="favorites-item-edit hidden">
-                    <input type="text" class="favorites-item-name-input" value="${escapeHtml(fav.itemName)}">
-                    <select class="favorites-threshold-select" title="Only show trades with deviation at or below this value">
-                        <option value=""${thresholdValue === '' ? ' selected' : ''}>Deal</option>
-                        <option value="-25"${thresholdValue === '-25' ? ' selected' : ''}>≤-25%</option>
-                        <option value="-50"${thresholdValue === '-50' ? ' selected' : ''}>≤-50%</option>
-                        <option value="-75"${thresholdValue === '-75' ? ' selected' : ''}>≤-75%</option>
-                        <option value="-100"${thresholdValue === '-100' ? ' selected' : ''}>≤-100%</option>
-                    </select>
-                </div>
-            </div>
-            <div class="favorites-item-actions">
-                <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
-                <button class="save-favorite hidden" data-item="${escapeHtml(fav.itemName)}" title="Save">💾</button>
-                <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
-            </div>
-        `;
-
-        list.append(item);
+        list.append(createFavoriteItemElement(fav));
     }
 
-    // Add the "new item" row at the bottom (looks like a regular row in edit mode)
-    const addRow = document.createElement('div');
-    addRow.className = 'favorites-item favorites-item-add';
-    addRow.innerHTML = `
-        <div class="favorites-item-content">
-            <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name...">
-            <select class="favorites-threshold-select" id="favorites-new-threshold-select" title="Only show trades with deviation at or below this value">
-                <option value="" selected>Deal</option>
-                <option value="-25">≤-25%</option>
-                <option value="-50">≤-50%</option>
-                <option value="-75">≤-75%</option>
-                <option value="-100">≤-100%</option>
-            </select>
-        </div>
-        <div class="favorites-item-actions">
-            <button class="add-favorite-btn" title="Add to watchlist">💾</button>
-        </div>
-    `;
-    list.append(addRow);
+    // Add the "new item" row at the bottom
+    list.append(createAddRow());
 }
 
 /** Hide the favorite popover and clean up */

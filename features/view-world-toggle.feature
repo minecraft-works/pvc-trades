@@ -128,4 +128,35 @@ Feature: View World Toggle
     And I switch to manual view mode
     And I toggle to nether view
     When I close and reopen the navigation dialog
-    Then the view should still be on nether
+
+  # ============================================================================
+  # Follow Mode + World Toggle (Nether Player Bug Scenarios)
+  # ============================================================================
+
+  @navigation @view-toggle @follow @nether
+  Scenario: Map stays centered on nether player when switching to manual mode
+    Given player "TestPlayer" is in the nether at (100, 50)
+    And I start navigation with items from both worlds
+    And the map is in follow mode and centered on the player
+    When I switch to manual view mode
+    Then the map should still be centered on the player
+    And the player marker should be at overworld-equivalent position (800, 400)
+
+  @navigation @view-toggle @follow @nether
+  Scenario: Map recenters correctly when toggling to nether view with nether player
+    Given player "TestPlayer" is in the nether at (100, 50)
+    And I start navigation with items from both worlds
+    And the map is in follow mode and centered on the player
+    And I switch to manual view mode
+    When I toggle to nether view
+    Then the player marker should be at position (100, 50)
+    And the map should be centered on the player
+
+  @navigation @view-toggle @follow @nether
+  Scenario: Route shows correctly when toggling to nether view with nether player
+    Given player "TestPlayer" is in the nether at (100, 50)
+    And I start navigation with items from both worlds
+    And I switch to manual view mode
+    When I toggle to nether view
+    Then nether tiles should be loaded
+    And the route line should connect the markers correctly

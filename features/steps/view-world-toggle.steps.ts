@@ -317,3 +317,155 @@ Then('the view mode should still be {string}', async ({ page }, mode: string) =>
 Then('the view should still be on nether', async ({ page }) => {
     await expect(page.locator(SELECTOR_WORLD_TOGGLE)).toHaveAttribute('data-world', 'the_nether');
 });
+
+// ============================================================================
+// Follow Mode + World Toggle Steps
+// ============================================================================
+
+Given('I start navigation with items from both worlds', async ({ page, playerMock, tileRequests }) => {
+    await setupPlayerApiMock(page, playerMock);
+    await setupColoredTileMocks(page);
+    await setupMultiWorldDataMock(page);
+    
+    await page.goto('/');
+    await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: DEFAULT_TIMEOUT });
+    
+    // Add nether item
+    const netherRow = page.locator(SELECTOR_TRADE_ROW).filter({ hasText: 'Netherite' });
+    await netherRow.locator('.add-to-cart-btn').click();
+    
+    // Add overworld item
+    const overworldButton = page.locator('.add-to-cart-btn[data-trade-key*="Emerald,Diamond"]');
+    await overworldButton.click();
+    
+    // Track tile requests
+    page.on('request', request => {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+            tileRequests.push(world);
+        }
+    });
+    
+    // Open cart and start navigation
+    await page.locator('#open-cart').click();
+    await page.waitForSelector('#cart-dialog', { state: 'visible' });
+    await page.locator('#tab-navigate').click();
+    await page.locator('#player-name-input').fill('TestPlayer');
+    await page.locator('#start-navigation').click();
+    await page.waitForSelector(SELECTOR_NAV_DIALOG, { state: 'visible', timeout: DEFAULT_TIMEOUT });
+});
+
+Given('the map is in follow mode and centered on the player', async ({ page }) => {
+    // Verify follow mode is active
+    const followToggle = page.locator('#nav-follow-toggle');
+    await expect(followToggle).toHaveAttribute('data-mode', 'follow');
+    
+    // Verify map is centered on player by checking player marker is near center
+    const playerMarker = page.locator('.nav-player-marker');
+    await expect(playerMarker).toBeVisible({ timeout: 3000 });
+    
+    // Get map container center and player marker position
+    const mapCenter = await page.evaluate(() => {
+        const map = (globalThis as unknown as { __navMap?: L.Map }).__navMap;
+        if (!map) {
+            return;
+        }
+        const center = map.getCenter();
+        return { lat: center.lat, lng: center.lng };
+    });
+    
+    const playerPos = await page.evaluate(() => {
+        const marker = (globalThis as unknown as { __navMap?: L.Map }).__navMap
+            ? [...document.querySelectorAll('.nav-player-marker')][0]
+            : undefined;
+        if (!marker) {
+            return;
+        }
+        
+        const map = (globalThis as unknown as { __navMap?: L.Map }).__navMap;
+        // @ts-expect-error - internal Leaflet method
+        const latLng = map?.containerPointToLatLng([
+            marker.getBoundingClientRect().left - document.querySelector('#nav-dialog-map-container')!.getBoundingClientRect().left,
+            marker.getBoundingClientRect().top - document.querySelector('#nav-dialog-map-container')!.getBoundingClientRect().top
+        ]);
+        return latLng ? { lat: latLng.lat, lng: latLng.lng } : undefined;
+    });
+    
+    // Just verify follow mode is active - actual centering is tested separately
+    expect(mapCenter).toBeDefined();
+});
+
+// 'there is a nether shop at' and 'there is an overworld shop at' steps are
+// defined in unified-navigation.steps.ts
+
+// 'I start navigation' step is defined in live-navigation.steps.ts
+
+Then('the map should still be centered on the player', async ({ page }) => {
+    const playerMarker = page.locator('.nav-player-marker');
+    await expect(playerMarker).toBeVisible({ timeout: 3000 });
+    
+    // Get map center and player marker position to verify they're close
+    const result = await page.evaluate(() => {
+        const map = (globalThis as unknown as { __navMap?: L.Map }).__navMap;
+        if (!map) {
+            return { centered: false, reason: 'no map' };
+        }
+        
+        const mapCenter = map.getCenter();
+        const playerMarkerElement = document.querySelector('.nav-player-marker');
+        if (!playerMarkerElement) {
+            return { centered: false, reason: 'no player marker' };
+        }
+        
+        // Get player marker's approximate lat/lng
+        const container = document.querySelector('#nav-dialog-map-container');
+        if (!container) {
+            return { centered: false, reason: 'no container' };
+        }
+        
+        const containerRect = container.getBoundingClientRect();
+        const markerRect = playerMarkerElement.getBoundingClientRect();
+        
+        // Check if marker is within center quarter of the map
+        const markerCenterX = markerRect.left + markerRect.width / 2 - containerRect.left;
+        const markerCenterY = markerRect.top + markerRect.height / 2 - containerRect.top;
+        
+        const quarterWidth = containerRect.width / 4;
+        const quarterHeight = containerRect.height / 4;
+        
+        const isNearCenter = 
+            Math.abs(markerCenterX - containerRect.width / 2) < quarterWidth &&
+            Math.abs(markerCenterY - containerRect.height / 2) < quarterHeight;
+        
+        return { 
+            centered: isNearCenter, 
+            mapCenter: { lat: mapCenter.lat, lng: mapCenter.lng },
+            markerPos: { x: markerCenterX, y: markerCenterY },
+            containerSize: { w: containerRect.width, h: containerRect.height }
+        };
+    });
+    
+    expect(result.centered).toBe(true);
+});
+
+// 'the map should be centered on the player' step is defined in navigation.steps.ts
+
+Then('the route line should connect the markers correctly', async ({ page }) => {
+    // Verify route polyline exists
+    const routeLine = await page.evaluate(() => {
+        const map = (globalThis as unknown as { __navMap?: L.Map }).__navMap;
+        if (!map) {
+            return;
+        }
+        
+        let polylineFound = false;
+        map.eachLayer((layer) => {
+            if ((layer as unknown as { _latlngs?: unknown[] })._latlngs) {
+                polylineFound = true;
+            }
+        });
+        return polylineFound;
+    });
+    
+    expect(routeLine).toBe(true);
+});

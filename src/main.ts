@@ -1845,11 +1845,12 @@ function centerMapOnPlayer(): void {
         return;
     }
     
-    // UNIFIED VIEW: Use overworld-equivalent coordinates
-    const displayCoords = toOverworldEquivalent(
+    // Transform player coords to current view world for correct map centering
+    const displayCoords = toViewCoords(
         navigationStore.playerPosition.x,
         navigationStore.playerPosition.z,
-        navigationStore.playerPosition.world
+        navigationStore.playerPosition.world,
+        navigationStore.viewWorld
     );
     
     const { lat, lng } = toLeafletCoordsRelative(
@@ -2023,7 +2024,12 @@ function toggleViewWorld(): void {
     
     // Reinitialize the map to show the new world
     if (navMap && navCurrentRoute.length > 0) {
-        void initNavigationMapDialog(navCurrentRoute);
+        void initNavigationMapDialog(navCurrentRoute).then(() => {
+            // If follow mode is active, recenter on player after map reinitialization
+            if (navigationStore.mode === 'follow') {
+                centerMapOnPlayer();
+            }
+        });
     }
 }
 
