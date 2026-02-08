@@ -9,6 +9,7 @@
 export { cartStore } from './cart-store.js';
 export { navigationStore } from './navigation-store.js';
 export type { PlayerPosition } from './navigation-store.js';
+export { favoritesStore } from './favorites-store.js';
 
 // Configuration stores
 export { configStore, getConfig, loadConfig } from './config-store.js';

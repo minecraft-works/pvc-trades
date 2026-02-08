@@ -284,6 +284,31 @@ export interface TradeInput {
 }
 
 // ============================================================================
+// Favorites Types
+// ============================================================================
+
+/**
+ * A favorited item the user wants to watch for deals.
+ * Items are identified by normalized (lowercase) result item name.
+ */
+export interface FavoriteItem {
+    /** Normalized item name (lowercase) */
+    itemName: string;
+    /** Optional: only highlight if deviation ≤ this value (e.g., -20 means 20% below market) */
+    maxDeviation?: number;
+    /** Timestamp when added (for sort order) */
+    addedAt: number;
+}
+
+const FavoriteItemSchema = z.object({
+    itemName: z.string().min(1),
+    maxDeviation: z.number().int().min(-99).max(999).optional(),
+    addedAt: z.number().int().positive()
+});
+
+export const FavoriteItemArraySchema = z.array(FavoriteItemSchema);
+
+// ============================================================================
 // Player Types
 // ============================================================================
 
