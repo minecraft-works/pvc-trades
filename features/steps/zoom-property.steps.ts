@@ -3,9 +3,10 @@
  * Tests zoom level calculation based on distance thresholds
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
 import { setupColoredTileMocks, setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
+import { simpleDistance, NETHER_RATIO } from './test-math-utilities';
 
 // ============================================================================
 // Zoom level thresholds (from the app)
@@ -29,19 +30,11 @@ function getZoomLevelForDistance(distance: number): number {
     return 0;
 }
 
-function calculateDistance(x1: number, z1: number, x2: number, z2: number): number {
-    return Math.hypot(x2 - x1, z2 - z1);
-}
-
 // ============================================================================
 // Page tracking interface
 // ============================================================================
 
-interface PageWithZoomTracking extends Page {
-    __playerX?: number;
-    __playerZ?: number;
-    __shopX?: number;
-    __shopZ?: number;
+interface PageWithZoomTracking extends Page, BasePageTracking {
     __isNether?: boolean;
     __calculatedDistance?: number;
     __calculatedZoom?: number;
@@ -139,7 +132,7 @@ When('I calculate the zoom level for that distance', async ({ page }) => {
     const shopX = p.__shopX ?? 0;
     const shopZ = p.__shopZ ?? 0;
     
-    const distance = calculateDistance(playerX, playerZ, shopX, shopZ);
+    const distance = simpleDistance(playerX, playerZ, shopX, shopZ);
     p.__calculatedDistance = distance;
     p.__calculatedZoom = getZoomLevelForDistance(distance);
 });
@@ -151,19 +144,19 @@ When('I calculate the zoom level', async ({ page }) => {
     const shopX = p.__shopX ?? 0;
     const shopZ = p.__shopZ ?? 0;
     
-    const distance = calculateDistance(playerX, playerZ, shopX, shopZ);
+    const distance = simpleDistance(playerX, playerZ, shopX, shopZ);
     p.__calculatedDistance = distance;
     p.__calculatedZoom = getZoomLevelForDistance(distance);
 });
 
 When('I calculate the overworld-equivalent distance', async ({ page }) => {
     const p = page as PageWithZoomTracking;
-    const playerX = (p.__playerX ?? 0) * 8;  // Nether to overworld ×8
-    const playerZ = (p.__playerZ ?? 0) * 8;
-    const shopX = (p.__shopX ?? 0) * 8;
-    const shopZ = (p.__shopZ ?? 0) * 8;
+    const playerX = (p.__playerX ?? 0) * NETHER_RATIO;  // Nether to overworld ×8
+    const playerZ = (p.__playerZ ?? 0) * NETHER_RATIO;
+    const shopX = (p.__shopX ?? 0) * NETHER_RATIO;
+    const shopZ = (p.__shopZ ?? 0) * NETHER_RATIO;
     
-    p.__calculatedDistance = calculateDistance(playerX, playerZ, shopX, shopZ);
+    p.__calculatedDistance = simpleDistance(playerX, playerZ, shopX, shopZ);
 });
 
 When('I calculate the distance', async ({ page }) => {
@@ -173,7 +166,7 @@ When('I calculate the distance', async ({ page }) => {
     const shopX = p.__shopX ?? 0;
     const shopZ = p.__shopZ ?? 0;
     
-    p.__calculatedDistance = calculateDistance(playerX, playerZ, shopX, shopZ);
+    p.__calculatedDistance = simpleDistance(playerX, playerZ, shopX, shopZ);
 });
 
 When('the player crosses the {int} block boundary multiple times', async ({ page }, boundary: number) => {

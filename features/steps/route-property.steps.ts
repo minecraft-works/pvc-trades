@@ -3,14 +3,19 @@
  * Tests mathematical correctness of coordinate conversion and distance calculations
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { 
+    calculateDistance, 
+    overworldToNether,
+    netherToOverworld
+} from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface
 // ============================================================================
 
-interface PageWithRouteTracking extends Page {
+interface PageWithRouteTracking extends Page, BasePageTracking {
     __shop1X?: number;
     __shop1Z?: number;
     __shop1World?: string;
@@ -22,44 +27,6 @@ interface PageWithRouteTracking extends Page {
     __stopCount?: number;
     __travelStartX?: number;
     __travelEndX?: number;
-}
-
-// ============================================================================
-// Helper functions (pure math)
-// ============================================================================
-
-/**
- * Convert nether coordinates to overworld equivalent
- */
-function netherToOverworld(x: number, z: number): { x: number; z: number } {
-    return { x: x * 8, z: z * 8 };
-}
-
-/**
- * Convert overworld coordinates to nether equivalent (floor division)
- */
-function overworldToNether(x: number, z: number): { x: number; z: number } {
-    return { x: Math.floor(x / 8), z: Math.floor(z / 8) };
-}
-
-/**
- * Convert coordinates to overworld-equivalent for distance calculation
- */
-function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
-    const isNether = world.toLowerCase().includes('nether');
-    return isNether ? netherToOverworld(x, z) : { x, z };
-}
-
-/**
- * Calculate distance between two points, accounting for world differences
- */
-function calculateDistance(
-    x1: number, z1: number, world1: string,
-    x2: number, z2: number, world2: string
-): number {
-    const p1 = toOverworldEquivalent(x1, z1, world1);
-    const p2 = toOverworldEquivalent(x2, z2, world2);
-    return Math.hypot(p1.x - p2.x, p1.z - p2.z);
 }
 
 // ============================================================================

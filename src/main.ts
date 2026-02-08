@@ -854,11 +854,11 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
     
-    // Star button click handler (opens popover)
+    // Star button click handler (opens favorites dialog)
     const starButton = row.querySelector('.favorite-star') as HTMLButtonElement;
     starButton.addEventListener('click', (event) => {
         event.stopPropagation();
-        favoritesUI.showFavoritePopover(starButton, t.resultName);
+        favoritesUI.openDialogForItem(t.resultName);
     });
     
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;

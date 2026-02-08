@@ -124,27 +124,6 @@
                 <p>No items in watchlist</p>
                 <p class="favorites-hint">Click ☆ on any trade to start watching</p>
             </div>
-            <div id="favorites-add-section" class="favorites-add-section">
-                <button id="favorites-add-new" type="button" class="favorites-add-btn">+ Watch new item...</button>
-                <div id="favorites-add-form" class="favorites-add-form hidden">
-                    <input type="text" id="favorites-item-input" placeholder="Item name..." list="favorites-suggestions">
-                    <datalist id="favorites-suggestions"></datalist>
-                    <div id="favorites-add-warning" class="favorites-warning hidden">No current trades for this item</div>
-                    <div class="favorites-threshold-options">
-                        <label>
-                            <input type="radio" name="new-threshold-type" value="any" checked> Any price
-                        </label>
-                        <label>
-                            <input type="radio" name="new-threshold-type" value="threshold"> Below market by
-                            <input type="number" id="favorites-new-threshold" value="20" min="1" max="99" class="threshold-input">%
-                        </label>
-                    </div>
-                    <div class="favorites-add-actions">
-                        <button id="favorites-add-cancel" type="button" class="btn-secondary">Cancel</button>
-                        <button id="favorites-add-confirm" type="button" class="btn-primary">Add</button>
-                    </div>
-                </div>
-            </div>
         </div>
     </dialog>
 
