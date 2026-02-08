@@ -1,13 +1,19 @@
 # PVC Trades Repository Review
 
 **Date**: February 8, 2026  
-**Status**: 8/10 action items completed, 2 deferred (large refactoring)
+**Status**: Phased refactoring in progress (main.ts: 3241 → 2949 lines, -292)
 
 ---
 
 ## Summary
 
-Well-architected vanilla TypeScript application with exemplary documentation, strict tooling, and comprehensive testing strategy. Main technical debt is `main.ts` at 3,241 lines. The codebase follows established patterns consistently, uses property-based testing, and has minimal runtime dependencies.
+Well-architected vanilla TypeScript application with exemplary documentation, strict tooling, and comprehensive testing strategy. Main technical debt is `main.ts` at 2,949 lines (reduced from 3,241). The codebase follows established patterns consistently, uses property-based testing, and has minimal runtime dependencies.
+
+### Refactoring Progress
+- **Phase 1**: Extract player management to `src/map/players.ts` ✅
+- **Phase 2**: Consolidate tile cache in `src/map/tile-loader.ts` ✅  
+- **Phase 3**: Extract shop map helpers to `src/dialogs/shop-map-helpers.ts` ✅
+- **Phase 4-7**: Deferred (route display, search UI, navigation map) 
 
 ---
 
