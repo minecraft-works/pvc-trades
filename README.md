@@ -148,8 +148,6 @@ Coverage thresholds are set to 80% for all metrics (lines, functions, branches, 
 - [Code Patterns](docs/code-patterns.md)
 - [Domain Glossary](docs/glossary.md)
 - [Testing Guide](docs/testing-guide.md)
-- [Test Scenarios](SCENARIOS.md)
-- [Quality Analysis](docs/quality-analysis.md)
 
 ### Architecture Decision Records
 

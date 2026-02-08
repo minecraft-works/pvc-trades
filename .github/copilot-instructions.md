@@ -380,7 +380,6 @@ Logs appear in browser console with namespace prefixes (e.g., `pvc:navigation St
 - `config.json` - App configuration (Dynmap URLs, analysis settings)
 - `core_currencies.json` - List of core blocks for ratio matrix
 - `block_conversions.json` - Block ↔ ingot conversion rates
-- `SCENARIOS.md` - Test scenario coverage matrix
 
 ### Architectural Decision Records (ADRs)
 
