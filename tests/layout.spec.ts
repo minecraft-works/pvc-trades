@@ -131,15 +131,15 @@ test.describe('CSS Layout - Table Structure', () => {
         expect(display).toBe('block');
     });
 
-    test('table header uses CSS grid with 9 visible columns', async ({ page }) => {
+    test('table header uses CSS grid with 10 visible columns', async ({ page }) => {
         const header = page.locator('#table-header');
         const display = await header.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('grid');
         
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
-        // Should have 9 column values (including cart button column)
+        // Should have 10 column values (fav, amt, name, amt, name, deal, stock, distance, world, cart)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(9);
+        expect(columnCount).toBe(10);
     });
 
     test('header row exists and is visible', async ({ page }) => {
@@ -168,7 +168,7 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(count).toBeGreaterThan(0);
     });
 
-    test('each trade row has exactly 9 columns in DOM', async ({ page }) => {
+    test('each trade row has exactly 10 columns in DOM', async ({ page }) => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();
         
@@ -176,13 +176,13 @@ test.describe('CSS Layout - Trade Rows', () => {
             const row = rows.nth(index);
             const columns = row.locator('.col, .add-to-cart-btn');
             const colCount = await columns.count();
-            // 9 columns: amt, name, amt, name, deal, stock, distance, world, cart button
-            expect(colCount, `Row ${index} should have exactly 9 columns in DOM`).toBe(9);
+            // 10 columns: fav, amt, name, amt, name, deal, stock, distance, world, cart button
+            expect(colCount, `Row ${index} should have exactly 10 columns in DOM`).toBe(10);
         }
     });
 
     test('header columns align with trade row columns', async ({ page }) => {
-        // Header has 10 cols (desktop + mobile distance), row has 9
+        // Header has 10 cols, row has 10
         // Only visible columns should align
         const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col, .add-to-cart-btn');
@@ -190,9 +190,9 @@ test.describe('CSS Layout - Trade Rows', () => {
         const headerCount = await headerCols.count();
         const rowCount = await firstRowCols.count();
         
-        // On desktop, header has 9 visible cols (desktop-only shown, mobile-only hidden)
-        expect(headerCount, 'Header should have 9 visible columns on desktop').toBe(9);
-        expect(rowCount, 'Row should have 9 columns').toBe(9);
+        // Header and row should both have 10 columns
+        expect(headerCount, 'Header should have 10 visible columns on desktop').toBe(10);
+        expect(rowCount, 'Row should have 10 columns').toBe(10);
         
         // Check each column's left edge alignment
         for (let index = 0; index < headerCount; index++) {
@@ -215,8 +215,8 @@ test.describe('CSS Layout - Trade Rows', () => {
                 `Column ${index} left edges should align (header: ${headerBox!.x}, row: ${rowBox!.x})`
             ).toBeLessThanOrEqual(1);
             
-            // Skip cart button column (index 8) as button has different width than header
-            if (index < 8) {
+            // Skip cart button column (index 9) as button has different width than header
+            if (index < 9) {
                 // Widths should match (allow 1px tolerance)
                 expect(
                     Math.abs(headerBox!.width - rowBox!.width),
@@ -227,9 +227,11 @@ test.describe('CSS Layout - Trade Rows', () => {
     });
 
     test('header and cell text alignment matches for each column', async ({ page }) => {
-        // Exclude cart column header from alignment check (it's empty placeholder)
+        // Exclude non-sortable columns (favorites header and cart column)
+        // Compare only sortable headers with corresponding row cells
         const headerCols = page.locator('#table-header .col.header:not(.mobile-only)');
-        const firstRowCols = page.locator('.trade-row').first().locator('.col');
+        // Skip first col (favorite-star) in row to align with sortable headers
+        const firstRowCols = page.locator('.trade-row').first().locator('.col:not(.favorite-star)');
         
         const count = await headerCols.count();
         
@@ -543,9 +545,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         const header = page.locator('#table-header');
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         
-        // Mobile shows 9 columns: #, name, #, name, deal, stock, distance, world, cart button
+        // Mobile shows 10 columns: fav, #, name, #, name, deal, stock, distance, world, cart button
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(9);
+        expect(columnCount).toBe(10);
     });
 
     test('search container has reduced padding on mobile', async ({ page }) => {
