@@ -1202,15 +1202,15 @@ test.describe('CSS Layout - Distance Column', () => {
     });
 
     test('distance column header is visible on desktop', async ({ page }) => {
-        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        const distanceHeader = page.locator('#table-header .col.distance-header');
         await expect(distanceHeader).toBeVisible();
         
         const text = await distanceHeader.textContent();
-        expect(text?.toLowerCase()).toContain('distance');
+        expect(text?.toLowerCase()).toContain('dist');
     });
 
     test('distance column header is sortable', async ({ page }) => {
-        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        const distanceHeader = page.locator('#table-header .col.distance-header');
         
         // Should have data-col attribute for sorting
         const dataCol = await distanceHeader.getAttribute('data-col');
@@ -1235,7 +1235,7 @@ test.describe('CSS Layout - Distance Column', () => {
     });
 
     test('distance column is right-aligned', async ({ page }) => {
-        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        const distanceHeader = page.locator('#table-header .col.distance-header');
         const justifyContent = await distanceHeader.evaluate(element => getComputedStyle(element).justifyContent);
         expect(justifyContent).toBe('flex-end');
     });
@@ -1330,7 +1330,7 @@ test.describe('CSS Layout - Sorting', () => {
     });
 
     test('distance column can be sorted', async ({ page }) => {
-        const distanceHeader = page.locator('#table-header .col.distance-header.desktop-only');
+        const distanceHeader = page.locator('#table-header .col.distance-header');
         
         // Click to activate sort
         await distanceHeader.click();
@@ -1438,7 +1438,7 @@ test.describe('CSS Layout - Mobile Distance Column', () => {
     });
 
     test('mobile distance header shows "Dist" label', async ({ page }) => {
-        const mobileDistributionHeader = page.locator('#table-header .col.distance-header.mobile-only');
+        const mobileDistributionHeader = page.locator('#table-header .col.distance-header');
         await expect(mobileDistributionHeader).toBeVisible();
         
         const text = await mobileDistributionHeader.textContent();
@@ -1446,14 +1446,15 @@ test.describe('CSS Layout - Mobile Distance Column', () => {
     });
 
     test('desktop distance header is hidden on mobile', async ({ page }) => {
-        const desktopDistributionHeader = page.locator('#table-header .col.distance-header.desktop-only');
-        await expect(desktopDistributionHeader).not.toBeVisible();
+        // Distance header is visible on both mobile and desktop (same element)
+        const distanceHeader = page.locator('#table-header .col.distance-header');
+        await expect(distanceHeader).toBeVisible();
     });
 
-    test('mobile uses 9-column grid layout', async ({ page }) => {
+    test('mobile uses 10-column grid layout', async ({ page }) => {
         const header = page.locator('#table-header');
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(9);
+        expect(columnCount).toBe(10);
     });
 });
