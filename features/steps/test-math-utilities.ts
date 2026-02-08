@@ -99,12 +99,13 @@ export function isWithinRange(
     shopX: number, shopZ: number, 
     threshold: number
 ): boolean {
-    return simpleDistance(playerX, playerZ, shopX, shopZ) <= threshold;
+    return simpleDistance(playerX, playerZ, shopX, shopZ) < threshold;
 }
 
 /**
  * Check if auto-advance should trigger based on distance
+ * Player is "arrived" when strictly inside the threshold radius
  */
 export function shouldAutoAdvance(distance: number, threshold: number): boolean {
-    return distance <= threshold;
+    return distance < threshold;
 }
