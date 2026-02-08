@@ -91,7 +91,6 @@ import type {
     SortColumn,
     SortDirection,
     Player,
-    PlayersData,
     RouteStop,
     ShoppingList,
     Item
@@ -119,7 +118,12 @@ import {
     loadTileManifest,
     tileExistsInManifest,
     loadTileToMap,
-    calculateZoom4Coords
+    calculateZoom4Coords,
+    getCachedTileUrl,
+    setCachedTileUrl,
+    getPlayerWorld,
+    getPlayerWorldForFilter,
+    fetchPlayers
 } from './map/index.js';
 import type { MapTileContext, LoadNavMapTilesOptions, TileRange } from './map/index.js';
 
@@ -1070,43 +1074,12 @@ let cachedPlayers: Player[] = [];
 // Player refresh interval (cleared when dialog closes)
 let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
-// Global cache for tile blob URLs for shop map (persists across dialog opens)
-// Key format: "world/zoom/x/z" -> blob URL
-// Note: Navigation map uses the shared cache in the map module
-const shopMapTileBlobCache = new Map<string, string>();
-
 /**
- * Determine which world a player is in.
- * Uses the `world` field if available, otherwise falls back to `foreign` flag.
- * `foreign: true` means the player is in the nether (different server in linked network).
+ * Fetch players and update local cache.
+ * Wrapper around players module that maintains cachedPlayers state.
  */
-function getPlayerWorld(player: Player): string {
-    if (player.world) {
-        return getWorldId(player.world);
-    }
-    // Fallback: foreign=true means nether, false means overworld
-    return player.foreign ? WORLDS.NETHER : WORLDS.OVERWORLD;
-}
-
-/**
- * Fetch player positions from API
- * Returns empty array if fetch fails (no dots shown)
- */
-async function fetchPlayers(): Promise<Player[]> {
-    try {
-        const response = await fetch('https://pvc-players.minecraft-works.workers.dev', {
-            signal: AbortSignal.timeout(3000)
-        });
-        if (response.ok) {
-            const data = (await response.json()) as PlayersData;
-            cachedPlayers = data.players || [];
-            return cachedPlayers;
-        }
-    } catch (error) {
-        console.warn('Failed to fetch players:', error);
-    }
-    // Return empty on failure - no dots shown
-    cachedPlayers = [];
+async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
+    cachedPlayers = await fetchPlayers();
     return cachedPlayers;
 }
 
@@ -1137,20 +1110,19 @@ function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: n
         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + ZOOM4_TILE_SIZE]
     ];
     
-    const cacheKey = `${worldId}/4/${z4x}/${z4z}`;
-    const cachedBlobUrl = shopMapTileBlobCache.get(cacheKey);
+const cachedBlobUrl = getCachedTileUrl(worldId, 4, z4x, z4z);
     if (cachedBlobUrl) {
         if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
         return;
     }
-    
+
     const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                shopMapTileBlobCache.set(cacheKey, blobUrl);
+                setCachedTileUrl(worldId, 4, z4x, z4z, blobUrl);
                 L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
             }
         })
@@ -1170,20 +1142,19 @@ function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: num
         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
     ];
     
-    const cacheKey = `${worldId}/8/${tx}/${tz}`;
-    const cachedBlobUrl = shopMapTileBlobCache.get(cacheKey);
+const cachedBlobUrl = getCachedTileUrl(worldId, 8, tx, tz);
     if (cachedBlobUrl) {
         if (leafletMap) {L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap);}
         return;
     }
-    
+
     const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.png`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                shopMapTileBlobCache.set(cacheKey, blobUrl);
+                setCachedTileUrl(worldId, 8, tx, tz, blobUrl);
                 L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
             }
         })
@@ -1287,12 +1258,9 @@ function updateShopMapPlayerMarkers(
     for (const element of dialog.querySelectorAll('.player-edge-marker')) {element.remove();}
     
     if (!leafletMap || cachedPlayers.length === 0) {return;}
-    
-    const playersInWorld = cachedPlayers.filter(p => {
-        const pWorld = p.world ? getWorldId(p.world) : WORLDS.OVERWORLD;
-        return pWorld === worldId;
-    });
-    
+
+    const playersInWorld = cachedPlayers.filter(p => getPlayerWorldForFilter(p) === worldId);
+
     const mapCenter = leafletMap.getCenter();
     const containerRect = container.getBoundingClientRect();
     const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
@@ -1402,16 +1370,14 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         container.classList.toggle('zoomed-out', leafletMap!.getZoom() < 0.5);
     };
     
-    void fetchPlayers().then(players => {
+void fetchPlayersAndUpdateCache().then(() => {
         if (!leafletMap) {return;}
-        cachedPlayers = players;
         updatePlayerMarkers();
     });
-    
+
     playerRefreshInterval = setInterval(() => {
-        void fetchPlayers().then(players => {
+        void fetchPlayersAndUpdateCache().then(() => {
             if (!leafletMap) {return;}
-            cachedPlayers = players;
             updatePlayerMarkers();
         });
     }, 5000);

@@ -24,6 +24,16 @@ export {
     tileExistsInManifest,
     loadTileToMap,
     calculateZoom4Coords,
+    getCachedTileUrl,
+    setCachedTileUrl,
     _getBlobCacheSize,
     _clearCaches
 } from './tile-loader.js';
+
+// Player utilities
+export {
+    getPlayerWorld,
+    getPlayerWorldForFilter,
+    fetchPlayers,
+    filterPlayersByWorld
+} from './players.js';
