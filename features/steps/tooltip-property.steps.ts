@@ -3,46 +3,25 @@
  * Tests proximity detection, nearest shop selection, and item counting
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { simpleDistance, isWithinRange } from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface
 // ============================================================================
 
-interface PageWithTooltipTracking extends Page {
+interface PageWithTooltipTracking extends Page, BasePageTracking {
     __proximityThreshold?: number;
-    __shopX?: number;
-    __shopZ?: number;
     __shopAX?: number;
     __shopAZ?: number;
     __shopBX?: number;
     __shopBZ?: number;
-    __playerX?: number;
-    __playerZ?: number;
     __totalItems?: number;
     __completedItems?: number;
     __autoHideDelay?: number;
     __tooltipVisible?: boolean;
     __elapsedSeconds?: number;
-}
-
-// ============================================================================
-// Helper functions (pure math)
-// ============================================================================
-
-/**
- * Calculate distance between two points
- */
-function calculateDistance(x1: number, z1: number, x2: number, z2: number): number {
-    return Math.hypot(x1 - x2, z1 - z2);
-}
-
-/**
- * Check if player is within range of shop
- */
-function isWithinRange(playerX: number, playerZ: number, shopX: number, shopZ: number, threshold: number): boolean {
-    return calculateDistance(playerX, playerZ, shopX, shopZ) <= threshold;
 }
 
 // ============================================================================
@@ -150,7 +129,7 @@ Then('the player should be {word} {word} of the shop', async ({ page }, state: s
 Then('the proximity distance should be approximately {int} blocks', async ({ page }, expected: number) => {
     const p = page as PageWithTooltipTracking;
     
-    const distance = calculateDistance(
+    const distance = simpleDistance(
         p.__playerX ?? 0,
         p.__playerZ ?? 0,
         p.__shopX ?? 0,
@@ -167,12 +146,12 @@ Then('the proximity distance should be approximately {int} blocks', async ({ pag
 Then('the nearest shop should be shop {word}', async ({ page }, expected: string) => {
     const p = page as PageWithTooltipTracking;
     
-    const distributionA = calculateDistance(
+    const distributionA = simpleDistance(
         p.__playerX ?? 0, p.__playerZ ?? 0,
         p.__shopAX ?? 0, p.__shopAZ ?? 0
     );
     
-    const distributionB = calculateDistance(
+    const distributionB = simpleDistance(
         p.__playerX ?? 0, p.__playerZ ?? 0,
         p.__shopBX ?? 0, p.__shopBZ ?? 0
     );
@@ -184,12 +163,12 @@ Then('the nearest shop should be shop {word}', async ({ page }, expected: string
 Then('both shops should be at distance {int} blocks', async ({ page }, expected: number) => {
     const p = page as PageWithTooltipTracking;
     
-    const distributionA = calculateDistance(
+    const distributionA = simpleDistance(
         p.__playerX ?? 0, p.__playerZ ?? 0,
         p.__shopAX ?? 0, p.__shopAZ ?? 0
     );
     
-    const distributionB = calculateDistance(
+    const distributionB = simpleDistance(
         p.__playerX ?? 0, p.__playerZ ?? 0,
         p.__shopBX ?? 0, p.__shopBZ ?? 0
     );

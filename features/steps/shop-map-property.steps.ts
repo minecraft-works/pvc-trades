@@ -3,20 +3,15 @@
  * Tests world filtering and edge marker behavior
  */
 import { expect } from '@playwright/test';
-import { Given, Then } from './fixtures';
+import { Given, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { getDirectionFromDelta } from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface
 // ============================================================================
 
-interface PageWithMapTracking extends Page {
-    __shopWorld?: string;
-    __shopX?: number;
-    __shopZ?: number;
-    __playerWorld?: string;
-    __playerX?: number;
-    __playerZ?: number;
+interface PageWithMapTracking extends Page, BasePageTracking {
     __overworldPlayerCount?: number;
     __netherPlayerCount?: number;
     __viewportMin?: number;
@@ -32,25 +27,6 @@ interface PageWithMapTracking extends Page {
  */
 function isPlayerVisible(shopWorld: string, playerWorld: string): boolean {
     return shopWorld === playerWorld;
-}
-
-/**
- * Get compass direction from origin to target
- */
-function getDirection(x: number, z: number): string {
-    // Handle cardinal directions first
-    if (x > 0 && z === 0) {return 'east';}
-    if (x < 0 && z === 0) {return 'west';}
-    if (x === 0 && z > 0) {return 'south';}
-    if (x === 0 && z < 0) {return 'north';}
-    
-    // Handle diagonal directions
-    if (x > 0 && z > 0) {return 'southeast';}
-    if (x > 0 && z < 0) {return 'northeast';}
-    if (x < 0 && z > 0) {return 'southwest';}
-    if (x < 0 && z < 0) {return 'northwest';}
-    
-    return 'none';
 }
 
 /**
@@ -161,6 +137,6 @@ Then('the edge marker should point {word}', async ({ page }, expectedDirection: 
     const dx = (p.__playerX ?? 0) - (p.__shopX ?? 0);
     const dz = (p.__playerZ ?? 0) - (p.__shopZ ?? 0);
     
-    const direction = getDirection(dx, dz);
+    const direction = getDirectionFromDelta(dx, dz);
     expect(direction).toBe(expectedDirection);
 });

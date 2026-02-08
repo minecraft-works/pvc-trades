@@ -2,9 +2,9 @@
  * Step definitions for unified multi-world navigation
  * All shops displayed on a single map using overworld-equivalent coordinates
  */
-/* eslint-disable @typescript-eslint/no-unsafe-argument -- page.evaluate returns browser context values */
 import { expect } from '@playwright/test';
 import { Given, When, Then } from './fixtures';
+import { NETHER_RATIO } from './test-math-utilities';
 
 // Constants
 const SELECTOR_NAV_ROUTE_MARKER = '.nav-route-marker';
@@ -130,8 +130,8 @@ Then('the nether shop marker should be positioned at 8x nether coordinates', asy
     
     expect(coords).toBeDefined();
     // Display coords should be 8× the raw nether coords
-    expect(coords?.displayX).toBe((coords?.rawX ?? 0) * 8);
-    expect(coords?.displayZ).toBe((coords?.rawZ ?? 0) * 8);
+    expect(coords?.displayX).toBe((coords?.rawX ?? 0) * NETHER_RATIO);
+    expect(coords?.displayZ).toBe((coords?.rawZ ?? 0) * NETHER_RATIO);
 });
 
 // ============================================================================

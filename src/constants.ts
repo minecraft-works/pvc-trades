@@ -19,6 +19,8 @@ export const NAVIGATION = {
     ARRIVAL_THRESHOLD: 8,
     /** Distance in blocks to show nearby shop tooltip */
     NEARBY_THRESHOLD: 100,
+    /** Distance in blocks to trigger route recalculation */
+    RECALCULATION_THRESHOLD: 10,
 } as const;
 
 // ============================================================================
@@ -102,6 +104,8 @@ export const WORLDS = {
     OVERWORLD: 'overworld',
     NETHER: 'the_nether',
     END: 'the_end',
+    /** Nether coordinate ratio (nether * 8 = overworld) */
+    NETHER_RATIO: 8,
 } as const;
 
 // ============================================================================
