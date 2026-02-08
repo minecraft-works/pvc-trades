@@ -181,6 +181,9 @@ const newTradeKeys = new Set<string>();
 // Filter state: when true, only show new trades
 let filterNewOnly = false;
 
+// Filter state: when true, only show trades in cart
+let filterCartOnly = false;
+
 // ============================================================================
 // Cart Helper Functions
 // ============================================================================
@@ -554,6 +557,28 @@ function debouncedSearch(): void {
     });
 }
 
+/**
+ * Count trades in results that meet their favorite threshold.
+ * A "deal" is a trade for a favorited item with:
+ * - A threshold set AND deviation meets that threshold
+ */
+function countDeals(results: FilterResult[]): number {
+    let count = 0;
+    for (const result of results) {
+        const trade = result.trade;
+        const itemName = trade.resultName.toLowerCase();
+        const favorite = favoritesStore.get(itemName);
+        if (!favorite || favorite.maxDeviation === undefined) {
+            continue;
+        }
+        const deviation = getDeviation(trade);
+        if (deviation && deviation.percent <= favorite.maxDeviation) {
+            count++;
+        }
+    }
+    return count;
+}
+
 function search(): void {
     const wantQuery = getInputValue('searchWant');
     const giveQuery = getInputValue('searchGive');
@@ -568,6 +593,11 @@ function search(): void {
             continue;
         }
         
+        // Apply cart filter if active
+        if (filterCartOnly && !cartStore.has(trade)) {
+            continue;
+        }
+        
         // Apply favorites filter if active
         if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) {
             continue;
@@ -579,6 +609,10 @@ function search(): void {
 
     sortResults(results);
     renderResults(results, wantRegex, giveRegex);
+    
+    // Update deals badge with count of trades meeting thresholds
+    const dealsCount = countDeals(results);
+    favoritesUI.updateDealsBadge(dealsCount);
 }
 
 /**
@@ -701,7 +735,7 @@ function updateSortArrows(): void {
 function renderHeader(): void {
     const header = getElement('table-header');
     header.innerHTML = `
-        <span class="col fav-col-header" title="Favorites">★</span>
+        <span class="col fav-col-header" title="Filter by favorites">★<span id="favorites-badge" class="favorites-badge hidden"></span></span>
         <span class="col header amt" data-col="result-amt" data-label="#">#</span>
         <span class="col header" data-col="result-name" data-label="Item">Item</span>
         <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
@@ -710,7 +744,8 @@ function renderHeader(): void {
         <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
         <span class="col header distance-header" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
         <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
-        <span class="col cart-col-header" title="Add to cart"></span>
+        <span class="col new-col-header" title="Filter new items">🆕</span>
+        <span class="col cart-col-header" title="Add to cart">🛒</span>
     `;
 
     for (const element of header.querySelectorAll<HTMLElement>('.header')) {
@@ -719,6 +754,29 @@ function renderHeader(): void {
             if (col) { sortByColumn(col); }
         });
     }
+
+    // Favorites filter toggle on header star
+    const favHeader = header.querySelector('.fav-col-header');
+    favHeader?.addEventListener('click', () => {
+        favHeader.classList.toggle('active');
+        search();
+    });
+
+    // New items filter toggle
+    const newHeader = header.querySelector('.new-col-header');
+    newHeader?.addEventListener('click', () => {
+        filterNewOnly = !filterNewOnly;
+        newHeader.classList.toggle('active', filterNewOnly);
+        search();
+    });
+
+    // Cart filter toggle
+    const cartHeader = header.querySelector('.cart-col-header');
+    cartHeader?.addEventListener('click', () => {
+        filterCartOnly = !filterCartOnly;
+        cartHeader.classList.toggle('active', filterCartOnly);
+        search();
+    });
 
     updateSortArrows();
 }
@@ -770,20 +828,34 @@ function getDeviationDisplayInfo(t: Trade): { devClass: string; devText: string 
 
 /**
  * Get favorite status info for a trade's result item
+ * 
+ * Star is filled (active) when:
+ * - Item is in favorites with NO threshold (watching at any price)
+ * - Item is in favorites WITH threshold AND deviation meets threshold
  */
 function getFavoriteInfo(t: Trade): { isFavorite: boolean; isDealAlert: boolean; starClass: string } {
     const resultItemNormalized = t.resultName.toLowerCase();
-    const isFavorite = favoritesStore.has(resultItemNormalized);
-    const starClass = isFavorite ? 'favorite-star active' : 'favorite-star';
+    const favorite = favoritesStore.get(resultItemNormalized);
+    const isFavorite = Boolean(favorite);
     
-    if (!isFavorite) {
-        return { isFavorite: false, isDealAlert: false, starClass };
+    if (!favorite) {
+        return { isFavorite: false, isDealAlert: false, starClass: 'favorite-star' };
     }
     
     const deviationResult = getDeviation(t);
     const deviationPercent = deviationResult?.percent;
-    const isDealAlert = deviationPercent !== undefined 
-        && favoritesStore.meetsThreshold(resultItemNormalized, deviationPercent);
+    
+    // No threshold = watching at any price, star is always active
+    const hasThreshold = favorite.maxDeviation !== undefined;
+    
+    // Deal alert: has threshold AND deviation meets it
+    const isDealAlert = hasThreshold 
+        && deviationPercent !== undefined 
+        && deviationPercent <= favorite.maxDeviation!;
+    
+    // Star is active if: no threshold (any price) OR threshold is met
+    const starActive = !hasThreshold || isDealAlert;
+    const starClass = starActive ? 'favorite-star active' : 'favorite-star';
     
     return { isFavorite, isDealAlert, starClass };
 }
@@ -851,6 +923,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col stock ${stockClass}">${t.displayStock}</span>
         <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
+        <span class="col new-col"></span>
         <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
     
@@ -2494,11 +2567,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const wantValue = wantInput.value;
         wantInput.value = giveInput.value;
         giveInput.value = wantValue;
-        search();
-    });
-    getElement('filter-new').addEventListener('click', () => {
-        filterNewOnly = !filterNewOnly;
-        getElement('filter-new').classList.toggle('active', filterNewOnly);
         search();
     });
 

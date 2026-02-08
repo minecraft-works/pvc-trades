@@ -13,8 +13,8 @@ import { setupMultiWorldDataMock, setupColoredTileMocks } from '../../tests/help
 const TRADE_ROW_SELECTOR = '.trade-row';
 const FAVORITE_STAR_SELECTOR = '.favorite-star';
 const FAVORITES_DIALOG_SELECTOR = '#favorites-dialog';
-const FILTER_FAVORITES_BTN_SELECTOR = '#filter-favorites';
-const OPEN_FAVORITES_SELECTOR = '#open-favorites';
+const FILTER_FAVORITES_BTN_SELECTOR = '.fav-col-header';  // Header star for filter
+const ADD_TO_WATCHLIST_SELECTOR = '#add-to-watchlist';    // Star in search input
 const CLOSE_FAVORITES_SELECTOR = '#close-favorites';
 const FAVORITES_BADGE_SELECTOR = '.favorites-badge';
 const FAVORITES_LIST_SELECTOR = '.favorites-list';
@@ -173,6 +173,27 @@ Given('I have {int} different items in my favorites', async ({ page }, count: nu
     await page.waitForSelector(TRADE_ROW_SELECTOR, { state: 'visible' });
 });
 
+Given('I have multiple favorites with thresholds that are met', async ({ page }) => {
+    // Get item names from actual trades on the page
+    const itemName = await getFirstTradeItemName(page);
+    
+    // Set up favorites with very high thresholds (999%) that will match any deviation
+    // This ensures trades will always meet the threshold
+    const favorites = [
+        { itemName: itemName.toLowerCase(), maxDeviation: 999, addedAt: Date.now() }
+    ];
+    
+    await page.evaluate((favs) => {
+        localStorage.setItem('pvc-trades-favorites', JSON.stringify(favs));
+    }, favorites);
+    
+    // Re-apply mocks before reload
+    await setupColoredTileMocks(page);
+    await setupMultiWorldDataMock(page);
+    await page.reload();
+    await page.waitForSelector(TRADE_ROW_SELECTOR, { state: 'visible' });
+});
+
 Given('the favorites filter is active', async ({ page }) => {
     const filterButton = page.locator(FILTER_FAVORITES_BTN_SELECTOR);
     const isActive = await filterButton.evaluate(element => element.classList.contains('active'));
@@ -192,9 +213,19 @@ When('I click the star on a trade row for a new item', async ({ page }) => {
     await hollowStar.click();
 });
 
-When('I click the filled star on a {string} trade row', async ({ page }, _itemName: string) => {
-    // Find a star that is marked as a favorite (active class)
-    const star = page.locator(`${FAVORITE_STAR_SELECTOR}.active`).first();
+When('I click the filled star on a {string} trade row', async ({ page }, itemName: string) => {
+    // Find any star for this item (filled or hollow - star is clickable regardless)
+    // With threshold behavior, starred items may not have .active class if threshold isn't met
+    let actualItemName = itemName;
+    const placeholders = ['Diamond', 'TestItem', 'Diamond Pickaxe'];
+    
+    if (placeholders.includes(itemName)) {
+        // Get the original case item name from the page
+        actualItemName = await page.locator(`${TRADE_ROW_SELECTOR} .result-name`).first().textContent() ?? itemName;
+    }
+    
+    // data-item attribute preserves original case, so we search with that case
+    const star = page.locator(`${FAVORITE_STAR_SELECTOR}[data-item="${actualItemName}"]`).first();
     lastClickedItemName = await star.getAttribute('data-item') ?? '';
     await star.click();
 });
@@ -204,7 +235,7 @@ When('I click the filled star on a {string} trade row', async ({ page }, _itemNa
 // ============================================================================
 
 When('I open the favorites dialog', async ({ page }) => {
-    await page.locator(OPEN_FAVORITES_SELECTOR).click();
+    await page.locator(ADD_TO_WATCHLIST_SELECTOR).click();
     await page.waitForSelector(FAVORITES_DIALOG_SELECTOR, { state: 'visible' });
 });
 
@@ -213,7 +244,7 @@ When('I close the favorites dialog', async ({ page }) => {
 });
 
 When('I click the favorites button in the search bar', async ({ page }) => {
-    await page.locator(OPEN_FAVORITES_SELECTOR).click();
+    await page.locator(ADD_TO_WATCHLIST_SELECTOR).click();
 });
 
 // ============================================================================
@@ -530,6 +561,24 @@ Then('the favorites badge should show {int}', async ({ page }, count: number) =>
 
 Then('the favorites badge should be hidden', async ({ page }) => {
     await expect(page.locator(FAVORITES_BADGE_SELECTOR)).toHaveClass(/hidden/);
+});
+
+Then('the favorites badge should be visible', async ({ page }) => {
+    const badge = page.locator(FAVORITES_BADGE_SELECTOR);
+    await expect(badge).not.toHaveClass(/hidden/);
+});
+
+Then('the favorites badge should be yellow', async ({ page }) => {
+    const badge = page.locator(FAVORITES_BADGE_SELECTOR);
+    await expect(badge).toHaveClass(/has-deals/);
+});
+
+Then('the favorites badge should be hidden or not yellow', async ({ page }) => {
+    const badge = page.locator(FAVORITES_BADGE_SELECTOR);
+    // Either hidden or doesn't have has-deals class
+    const isHidden = await badge.evaluate(element => element.classList.contains('hidden'));
+    const hasDeals = await badge.evaluate(element => element.classList.contains('has-deals'));
+    expect(isHidden || !hasDeals).toBe(true);
 });
 
 // ============================================================================

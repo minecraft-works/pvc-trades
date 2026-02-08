@@ -46,8 +46,8 @@ function enterEditMode(itemRow: HTMLElement): void {
  * Check if favorites filter is active (standalone utility - no dependencies)
  */
 export function isFavoritesFilterActive(): boolean {
-    const filterButton = document.querySelector('#filter-favorites');
-    return filterButton?.classList.contains('active') ?? false;
+    const headerStar = document.querySelector('.fav-col-header');
+    return headerStar?.classList.contains('active') ?? false;
 }
 
 /**
@@ -70,6 +70,8 @@ export interface FavoritesUIHandler {
     hideFavoritePopover: () => void;
     /** Update the favorites badge count */
     updateFavoritesBadge: () => void;
+    /** Update the deals badge with count of trades meeting thresholds */
+    updateDealsBadge: (dealsCount: number) => void;
     /** Setup the favorites dialog and popover event handlers */
     setupFavoritesDialog: () => void;
     /** Render the favorites dialog content */
@@ -84,7 +86,7 @@ interface FavoritesUIState {
     handlePopoverOutsideClick: ((event: MouseEvent) => void) | undefined;
 }
 
-/** Update the favorites badge count */
+/** Update the favorites badge count (number of watched items) */
 function updateBadge(favoritesStore: FavoritesStore): void {
     const badge = document.querySelector('.favorites-badge') as HTMLElement;
     if (!badge) {
@@ -94,6 +96,20 @@ function updateBadge(favoritesStore: FavoritesStore): void {
     const count = favoritesStore.getAll().length;
     badge.textContent = String(count);
     badge.classList.toggle('hidden', count === 0);
+    // Reset deals highlight when updating favorites count
+    badge.classList.remove('has-deals');
+}
+
+/** Update the deals badge with count of trades meeting thresholds */
+function updateDealsBadgeElement(dealsCount: number): void {
+    const badge = document.querySelector('.favorites-badge') as HTMLElement;
+    if (!badge) {
+        return;
+    }
+
+    badge.textContent = String(dealsCount);
+    badge.classList.toggle('hidden', dealsCount === 0);
+    badge.classList.toggle('has-deals', dealsCount > 0);
 }
 
 /** Build threshold display text and select value from deviation */
@@ -392,12 +408,6 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     }
 
     function setupFavoritesDialog(): void {
-        // Open favorites dialog
-        document.querySelector('#open-favorites')?.addEventListener('click', () => {
-            renderFavoritesDialog();
-            openDialog('favorites-dialog');
-        });
-
         // Close favorites dialog
         document.querySelector('#close-favorites')?.addEventListener('click', () => {
             (document.querySelector('#favorites-dialog') as HTMLDialogElement)?.close();
@@ -440,10 +450,11 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         popover?.querySelector('.btn-remove')?.addEventListener('click', removeFavoriteFromPopover);
         popover?.querySelector('.popover-close')?.addEventListener('click', hideFavoritePopover);
 
-        // Filter favorites toggle
-        document.querySelector('#filter-favorites')?.addEventListener('click', (event) => {
-            (event.target as HTMLElement).classList.toggle('active');
-            triggerSearch();
+        // Add to watchlist button (in search input) - opens dialog with search query
+        document.querySelector('#add-to-watchlist')?.addEventListener('click', () => {
+            const searchInput = document.querySelector('#searchWant') as HTMLInputElement;
+            const query = searchInput?.value.trim() ?? '';
+            openDialogForItem(query);
         });
 
         // Add new item from inline form
@@ -528,6 +539,7 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         showFavoritePopover,
         hideFavoritePopover,
         updateFavoritesBadge,
+        updateDealsBadge: updateDealsBadgeElement,
         setupFavoritesDialog,
         renderFavoritesDialog,
         openDialogForItem

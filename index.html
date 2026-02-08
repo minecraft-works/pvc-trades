@@ -13,16 +13,14 @@
 
     <div class="search-container">
         <div class="search-box">
-            <button id="filter-favorites" type="button" title="Show only watched items" aria-label="Toggle favorites filter">☆</button>
-            <label for="searchWant" class="visually-hidden">Search for items to buy</label>
-            <input type="text" id="searchWant" placeholder="Buying..." autofocus>
+            <div class="search-input-wrapper">
+                <label for="searchWant" class="visually-hidden">Search for items to buy</label>
+                <input type="text" id="searchWant" placeholder="Buying..." autofocus>
+                <button id="add-to-watchlist" type="button" title="Add search to watchlist" aria-label="Add to watchlist">☆</button>
+            </div>
             <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
             <label for="searchGive" class="visually-hidden">Search by cost item</label>
             <input type="text" id="searchGive" placeholder="Paying...">
-            <button id="filter-new" type="button" title="Show only new items" aria-label="Toggle new items filter">🆕</button>
-            <button id="open-favorites" type="button" title="Watchlist" aria-label="Open watchlist">
-                ⭐<span id="favorites-badge" class="favorites-badge hidden"></span>
-            </button>
             <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">💱</button>
             <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">
                 🛒<span id="cart-badge" class="cart-badge hidden"></span>

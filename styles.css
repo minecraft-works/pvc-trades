@@ -98,12 +98,62 @@ body {
     height: 36px;
     padding: 0 12px;
     font-size: 1rem;
+}
+
+/* Search input wrapper - contains input and add-to-watchlist button */
+.search-input-wrapper {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    background: var(--color-input-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+}
+
+.search-input-wrapper:focus-within {
+    border-color: var(--color-accent);
+}
+
+.search-input-wrapper #searchWant:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+#add-to-watchlist {
+    position: relative;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+    padding: 0 8px;
+    height: 100%;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    opacity: 0.6;
+}
+
+#add-to-watchlist:hover {
+    color: #ffd700;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+#searchGive {
     border: 2px solid var(--color-border);
     border-radius: var(--border-radius);
     background: var(--color-input-bg);
-    color: #fff;
+    color: var(--color-text);
     outline: none;
     box-sizing: border-box;
+}
+
+.search-input-wrapper #searchWant {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+    color: var(--color-text);
 }
 
 #searchWant:focus,
@@ -130,8 +180,8 @@ body {
 #table-header {
     display: grid;
 
-    /* Match trade-row: star, #, name, #, name, deal, stock, dist, world, cart */
-    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
+    /* Match trade-row: star, #, name, #, name, deal, stock, dist, world, new, cart */
+    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 28px 36px;
     gap: 2px 0;
 }
 
@@ -145,8 +195,8 @@ body {
     display: grid;
     margin-top: 2px; /* Gap between rows (was grid gap before) */
 
-    /* Match header's column definition exactly: star, #, name, #, name, deal, stock, dist, world, cart */
-    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
+    /* Match header's column definition exactly: star, #, name, #, name, deal, stock, dist, world, new, cart */
+    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 28px 36px;
     cursor: pointer;
     position: relative; /* For ::before indicator */
 }
@@ -221,7 +271,7 @@ body {
     border-radius: 4px 0 0 4px;
 }
 
-.trade-row:hover > .col:not(.add-to-cart-btn) {
+.trade-row:hover > .col:not(.add-to-cart-btn, .new-col) {
     background: #333;
 }
 
@@ -392,18 +442,7 @@ mark {
     /* inherits from .search-box button */
 }
 
-/* New items filter toggle */
-#filter-new {
-    color: var(--color-text-muted);
-    filter: grayscale(100%);
-    opacity: 0.6;
-}
 
-#filter-new.active {
-    color: var(--color-accent);
-    filter: none;
-    opacity: 1;
-}
 
 /* Exchange rates button */
 #open-matrix {
@@ -491,6 +530,17 @@ mark {
 
 .cart-col-header {
     width: 36px;
+    cursor: pointer;
+    filter: grayscale(100%);
+    transition: filter 0.2s;
+}
+
+.cart-col-header:hover {
+    filter: grayscale(50%);
+}
+
+.cart-col-header.active {
+    filter: none;
 }
 
 /* Cart dialog */
@@ -1976,13 +2026,13 @@ mark {
         font-size: 0.85rem;
     }
 
-    /* Compact 10-column layout: star, #, name, #, name, deal, stock, dist, world, cart */
+    /* Compact 11-column layout: star, #, name, #, name, deal, stock, dist, world, new, cart */
     #table-header {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 22px 24px;
     }
 
     .trade-row {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 22px 24px;
     }
 
     /* Smaller add button on mobile */
@@ -2275,36 +2325,54 @@ mark {
    Favorites Watchlist
    ============================================================================ */
 
-/* Favorites button in search bar */
-#filter-favorites {
-    color: var(--color-text-muted);
-    filter: grayscale(100%);
-    opacity: 0.6;
-}
-
-#filter-favorites.active {
-    color: #ffd700;
-    filter: none;
-    opacity: 1;
-}
-
-#open-favorites {
+/* Table header favorites filter */
+.fav-col-header {
     position: relative;
-    filter: grayscale(100%);
-    opacity: 0.6;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: color 0.2s, opacity 0.2s;
 }
 
-#open-favorites:hover {
+.fav-col-header .favorites-badge {
+    top: -8px;
+    right: -10px;
+    opacity: 0.7;
+}
+
+.fav-col-header:hover {
+    color: #ffd700;
+}
+
+.fav-col-header.active {
+    color: #ffd700 !important;
+}
+
+/* New items filter header */
+.new-col-header {
+    cursor: pointer;
+    filter: grayscale(100%);
+    transition: filter 0.2s;
+}
+
+.new-col-header:hover {
+    filter: grayscale(50%);
+}
+
+.new-col-header.active {
     filter: none;
-    opacity: 1;
+}
+
+/* Empty new column in trade rows */
+.new-col {
+    background: transparent;
 }
 
 .favorites-badge {
     position: absolute;
     top: -4px;
     right: -4px;
-    background: #ffd700;
-    color: var(--color-bg);
+    background: #666;
+    color: #fff;
     font-size: 0.6rem;
     font-weight: 700;
     min-width: 14px;
@@ -2313,6 +2381,11 @@ mark {
     text-align: center;
     border-radius: 50%;
     padding: 0 2px;
+}
+
+.favorites-badge.has-deals {
+    background: #ffd700;
+    color: var(--color-bg);
 }
 
 .favorites-badge.hidden {
