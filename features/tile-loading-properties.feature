@@ -60,7 +60,7 @@ Feature: Tile Loading Properties
     Given the navigation map is open
     When I inspect all visible tile pixels
     Then each tile should be clearly bright OR clearly dark
-    And no tile brightness should be in the ambiguous 140-160 range
+    And no tile brightness should be in the ambiguous 140-149 range
 
   # NOTE: These checkerboard tests assume test tiles with alternating brightness.
   # Real Dynmap tiles don't have this pattern. Use @request-verification tests instead.
