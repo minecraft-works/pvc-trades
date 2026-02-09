@@ -120,7 +120,7 @@ function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: n
     
     const cachedBlobUrl = getCachedTileUrl(worldId, 4, z4x, z4z);
     if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap); }
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesZoom4' }).addTo(leafletMap); }
         return;
     }
 
@@ -131,7 +131,7 @@ function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: n
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
                 setCachedTileUrl(worldId, 4, z4x, z4z, blobUrl);
-                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+                L.imageOverlay(blobUrl, bounds, { pane: 'tilesZoom4' }).addTo(leafletMap);
             }
         })
         .catch(() => {});
@@ -152,7 +152,7 @@ function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: num
     
     const cachedBlobUrl = getCachedTileUrl(worldId, 8, tx, tz);
     if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds).addTo(leafletMap); }
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesZoom8' }).addTo(leafletMap); }
         return;
     }
 
@@ -163,7 +163,7 @@ function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: num
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
                 setCachedTileUrl(worldId, 8, tx, tz, blobUrl);
-                L.imageOverlay(blobUrl, bounds).addTo(leafletMap);
+                L.imageOverlay(blobUrl, bounds, { pane: 'tilesZoom8' }).addTo(leafletMap);
             }
         })
         .catch(() => {});
@@ -275,6 +275,11 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         zoomDelta: 0.5,
         ...animationOptions
     });
+    
+    // Create custom panes for proper z-ordering: zoom 4 below zoom 8
+    // Default overlayPane z-index is 400, we put zoom4 below and zoom8 above
+    leafletMap.createPane('tilesZoom4').style.zIndex = '350';
+    leafletMap.createPane('tilesZoom8').style.zIndex = '360';
     
     const context: MapTileContext = {
         worldId,

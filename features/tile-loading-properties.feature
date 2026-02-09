@@ -190,3 +190,26 @@ Feature: Tile Loading Properties
   #   When player position updates 10 times within the same tile
   #   Then the tile request count should not increase
   #   And visible tiles should remain stable
+  # ===========================================================================
+  # Z-Order / Layer Stacking Properties
+  # ===========================================================================
+  # These tests verify that zoom-8 (detail) tiles render ON TOP of zoom-4 (fallback)
+  # regardless of which fetch completes first. Uses screenshot-based verification
+  # to check actual rendered pixels, not just DOM element existence.
+
+  @tiles @property @z-order
+  Scenario: Zoom-8 tiles render on top of zoom-4 tiles
+    Given the tile loading test app is configured with color-coded tiles
+    And both zoom levels will load with artificial delay
+    When I open the navigation map with an overworld item
+    And I wait for all tiles to finish loading
+    Then the rendered map center should show zoom-8 brightness
+    And the topmost visible tile should be from zoom level 8
+
+  @tiles @property @z-order @race-condition
+  Scenario: Zoom-8 tiles visible even when zoom-4 loads last
+    Given the tile loading test app is configured with color-coded tiles
+    And zoom-4 tiles are delayed to load after zoom-8
+    When I open the navigation map with an overworld item
+    And I wait for all tiles to finish loading
+    Then the rendered map center should show zoom-8 brightness

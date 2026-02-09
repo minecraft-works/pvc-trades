@@ -46,6 +46,8 @@ export interface LoadTileOptions {
     bounds: L.LatLngBoundsExpression;
     /** Set tracking tiles already added to this map instance */
     addedToMap: Set<string>;
+    /** Optional pane name for z-ordering */
+    pane?: string;
 }
 
 /** Context for loading shop map tiles */

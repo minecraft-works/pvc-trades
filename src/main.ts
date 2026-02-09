@@ -2264,7 +2264,7 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
                         [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
                         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize]
                     ];
-                    loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap });
+                    loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap, pane: 'tilesZoom4' });
                 } else {
                     zoom4Skipped++;
                 }
@@ -2286,7 +2286,7 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
                         [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
                         [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
                     ];
-                    loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap });
+                    loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap, pane: 'tilesZoom8' });
                 } else {
                     zoom8Skipped++;
                 }
@@ -2415,6 +2415,11 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
         maxBoundsViscosity: 1,
         ...animationOptions
     });
+    
+    // Create custom panes for proper z-ordering: zoom 4 below zoom 8
+    // This prevents race conditions where zoom 4 tiles load after zoom 8 and obscure detail
+    navMap.createPane('tilesZoom4').style.zIndex = '350';
+    navMap.createPane('tilesZoom8').style.zIndex = '360';
     
     // Add zoom control at bottom-left to avoid overlap with nav controls at top-left
     L.control.zoom({ position: 'bottomleft' }).addTo(navMap);
