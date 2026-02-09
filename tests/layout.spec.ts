@@ -131,15 +131,15 @@ test.describe('CSS Layout - Table Structure', () => {
         expect(display).toBe('block');
     });
 
-    test('table header uses CSS grid with 10 visible columns', async ({ page }) => {
+    test('table header uses CSS grid with 11 visible columns', async ({ page }) => {
         const header = page.locator('#table-header');
         const display = await header.evaluate(element => getComputedStyle(element).display);
         expect(display).toBe('grid');
         
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
-        // Should have 10 column values (fav, amt, name, amt, name, deal, stock, distance, world, cart)
+        // Should have 11 column values (fav, amt, name, amt, name, deal, stock, distance, world, new, cart)
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(10);
+        expect(columnCount).toBe(11);
     });
 
     test('header row exists and is visible', async ({ page }) => {
@@ -168,7 +168,7 @@ test.describe('CSS Layout - Trade Rows', () => {
         expect(count).toBeGreaterThan(0);
     });
 
-    test('each trade row has exactly 10 columns in DOM', async ({ page }) => {
+    test('each trade row has exactly 11 columns in DOM', async ({ page }) => {
         const rows = page.locator('.trade-row');
         const rowCount = await rows.count();
         
@@ -176,13 +176,13 @@ test.describe('CSS Layout - Trade Rows', () => {
             const row = rows.nth(index);
             const columns = row.locator('.col, .add-to-cart-btn');
             const colCount = await columns.count();
-            // 10 columns: fav, amt, name, amt, name, deal, stock, distance, world, cart button
-            expect(colCount, `Row ${index} should have exactly 10 columns in DOM`).toBe(10);
+            // 11 columns: fav, amt, name, amt, name, deal, stock, distance, world, new, cart button
+            expect(colCount, `Row ${index} should have exactly 11 columns in DOM`).toBe(11);
         }
     });
 
     test('header columns align with trade row columns', async ({ page }) => {
-        // Header has 10 cols, row has 10
+        // Header has 11 cols, row has 11
         // Only visible columns should align
         const headerCols = page.locator('#table-header .col:not(.mobile-only)');
         const firstRowCols = page.locator('.trade-row').first().locator('.col, .add-to-cart-btn');
@@ -190,9 +190,9 @@ test.describe('CSS Layout - Trade Rows', () => {
         const headerCount = await headerCols.count();
         const rowCount = await firstRowCols.count();
         
-        // Header and row should both have 10 columns
-        expect(headerCount, 'Header should have 10 visible columns on desktop').toBe(10);
-        expect(rowCount, 'Row should have 10 columns').toBe(10);
+        // Header and row should both have 11 columns
+        expect(headerCount, 'Header should have 11 visible columns on desktop').toBe(11);
+        expect(rowCount, 'Row should have 11 columns').toBe(11);
         
         // Check each column's left edge alignment
         for (let index = 0; index < headerCount; index++) {
@@ -545,9 +545,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         const header = page.locator('#table-header');
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         
-        // Mobile shows 10 columns: fav, #, name, #, name, deal, stock, distance, world, cart button
+        // Mobile shows 11 columns: fav, #, name, #, name, deal, stock, distance, world, new, cart button
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(10);
+        expect(columnCount).toBe(11);
     });
 
     test('search container has reduced padding on mobile', async ({ page }) => {
@@ -1453,10 +1453,10 @@ test.describe('CSS Layout - Mobile Distance Column', () => {
         await expect(distanceHeader).toBeVisible();
     });
 
-    test('mobile uses 10-column grid layout', async ({ page }) => {
+    test('mobile uses 11-column grid layout', async ({ page }) => {
         const header = page.locator('#table-header');
         const gridCols = await header.evaluate(element => getComputedStyle(element).gridTemplateColumns);
         const columnCount = gridCols.split(/\s+/).filter(v => v && v !== 'none').length;
-        expect(columnCount).toBe(10);
+        expect(columnCount).toBe(11);
     });
 });
