@@ -139,7 +139,7 @@ export function tileExistsInManifest(
  * @param options - Tile loading options
  */
 export function loadTileToMap(options: LoadTileOptions): void {
-    const { map, worldId, zoom, tx, tz, bounds, addedToMap } = options;
+    const { map, worldId, zoom, tx, tz, bounds, addedToMap, pane } = options;
     const mapKey = `z${zoom}:${tx},${tz}`;
     if (addedToMap.has(mapKey)) {
         debugTiles('loadTile: SKIP already added mapKey=%s', mapKey);
@@ -148,12 +148,13 @@ export function loadTileToMap(options: LoadTileOptions): void {
     addedToMap.add(mapKey);
     
     const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+    const overlayOptions: L.ImageOverlayOptions = pane ? { pane } : {};
     
     // Check if we already have this tile cached
     const cachedBlobUrl = tileBlobCache.get(cacheKey);
     if (cachedBlobUrl) {
         debugTiles('loadTile: CACHE HIT cacheKey=%s', cacheKey);
-        L.imageOverlay(cachedBlobUrl, bounds).addTo(map);
+        L.imageOverlay(cachedBlobUrl, bounds, overlayOptions).addTo(map);
         return;
     }
     
@@ -176,7 +177,7 @@ export function loadTileToMap(options: LoadTileOptions): void {
                 // Check map still exists before adding
                 if (map.getContainer()?.isConnected) {
                     debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
-                    L.imageOverlay(blobUrl, bounds).addTo(map);
+                    L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
                 } else {
                     debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
                 }

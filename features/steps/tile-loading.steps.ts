@@ -169,6 +169,8 @@ interface PageWithTileTracking extends Page {
     __zoom8Available?: boolean;
     __manifestRequestTime?: number;
     __firstTileRequestTime?: number;
+    __zoom4Delay?: number;
+    __zoom8Delay?: number;
 }
 
 // ============================================================================
@@ -311,17 +313,20 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
         }
 
         // Parse URL to extract tile info
-        // Format: /tiles/{world}/{blocksPerTile}/{tileX}/{tileZ}.png
+        // Format: /tiles/{world}/{zoom}/{tileX}/{tileZ}.png
+        // zoom 8 = 512 blocks per tile, zoom 4 = 8192 blocks per tile
         const match = url.match(/tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
 
         if (match) {
-            const [, world, bptString, tileXString, tileZString] = match;
-            const blocksPerTile = Number.parseInt(bptString, 10);
+            const [, world, zoomString, tileXString, tileZString] = match;
+            const zoom = Number.parseInt(zoomString, 10);
             const tileX = Number.parseInt(tileXString, 10);
             const tileZ = Number.parseInt(tileZString, 10);
+            // Convert zoom level to blocks per tile: zoom 8 = 512, zoom 4 = 8192
+            const blocksPerTile = zoom === 8 ? 512 : 8192;
 
             // Check if zoom 8 is available (for fallback tests)
-            if (blocksPerTile === 512 && !p.__zoom8Available) {
+            if (zoom === 8 && !p.__zoom8Available) {
                 await route.fulfill({ status: 404 });
                 return;
             }
@@ -332,6 +337,13 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
                 tileX,
                 tileZ
             });
+
+            // Apply artificial delay if configured (for z-order race condition testing)
+            const pWithDelay = p as PageWithTileTracking & { __zoom4Delay?: number; __zoom8Delay?: number };
+            const delay = zoom === 8 ? pWithDelay.__zoom8Delay : pWithDelay.__zoom4Delay;
+            if (delay && delay > 0) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
 
             await route.fulfill({
                 status: 200,

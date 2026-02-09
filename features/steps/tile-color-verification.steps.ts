@@ -35,6 +35,8 @@ interface PageWithTileTracking extends Page {
     __firstTileRequestTime?: number;
     __currentMapZoom?: number;
     __savedTileCount?: number;
+    __zoom4Delay?: number;
+    __zoom8Delay?: number;
 }
 
 // ============================================================================
@@ -1001,5 +1003,110 @@ Then('tile URLs should only contain {string}', async ({ page }, pattern: string)
     
     for (const url of requests) {
         expect(url).toContain(pattern);
+    }
+});
+
+// ============================================================================
+// Z-Order / Layer Stacking Verification Steps
+// ============================================================================
+// These steps verify that zoom-8 tiles render ON TOP of zoom-4 tiles
+// by taking screenshots and sampling actual rendered pixel colors.
+
+Given('both zoom levels will load with artificial delay', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    // Both zoom levels load with same small delay - tests natural race conditions
+    p.__zoom4Delay = 100;
+    p.__zoom8Delay = 100;
+});
+
+Given('zoom-4 tiles are delayed to load after zoom-8', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    // Zoom 4 loads 500ms after zoom 8 - simulates the bug condition
+    p.__zoom4Delay = 600;
+    p.__zoom8Delay = 100;
+});
+
+When('I wait for all tiles to finish loading', async ({ page }) => {
+    // Wait for network to settle and any artificial delays to complete
+    await page.waitForTimeout(1000);
+    await page.waitForLoadState('networkidle');
+    // Extra wait for any delayed tile renders
+    await page.waitForTimeout(500);
+});
+
+Then('the rendered map center should show zoom-8 brightness', async ({ page }) => {
+    // Take a screenshot and sample the center pixel
+    // Wait for Leaflet to initialize and make the container visible
+    const mapContainer = page.locator('#nav-dialog .leaflet-container, #map-dialog .leaflet-container').first();
+    await expect(mapContainer).toBeVisible({ timeout: 10_000 });
+    
+    const screenshot = await mapContainer.screenshot();
+    const base64Screenshot = screenshot.toString('base64');
+    
+    // Decode PNG and get center pixel color using Image element
+    const centerColor = await page.evaluate(async (b64: string) => {
+        return new Promise<{ r: number; g: number; b: number }>((resolve) => {
+            const img = new Image();
+            img.addEventListener('load', () => {
+                // Draw to canvas to get pixel data
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const context = canvas.getContext('2d');
+                if (!context) { 
+                    resolve({ r: 0, g: 0, b: 0 }); 
+                    return;
+                }
+                
+                context.drawImage(img, 0, 0);
+                
+                // Sample slightly off-center to avoid the shop marker
+                // The marker is typically centered, so offset by ~30 pixels
+                const centerX = Math.floor(img.width / 2) + 50;
+                const centerY = Math.floor(img.height / 2) + 50;
+                const imageData = context.getImageData(centerX, centerY, 1, 1);
+                const [r, g, b] = imageData.data;
+                
+                resolve({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
+            });
+            img.addEventListener('error', () => {
+                resolve({ r: 0, g: 0, b: 0 });
+            });
+            img.src = `data:image/png;base64,${b64}`;
+        });
+    }, base64Screenshot);
+    
+    // Zoom 8 tiles should be bright (average RGB > 150)
+    const brightness = (centerColor.r + centerColor.g + centerColor.b) / 3;
+    expect(brightness, `Expected bright zoom-8 tile at center (got brightness ${brightness})`).toBeGreaterThanOrEqual(BRIGHTNESS_THRESHOLD);
+});
+
+Then('the topmost visible tile should be from zoom level 8', async ({ page }) => {
+    // Check that the z-index of zoom-8 pane is higher than zoom-4 pane
+    const zIndexes = await page.evaluate(() => {
+        const zoom4Pane = document.querySelector<HTMLElement>('.leaflet-tilesZoom4-pane, [class*="tilesZoom4"]');
+        const zoom8Pane = document.querySelector<HTMLElement>('.leaflet-tilesZoom8-pane, [class*="tilesZoom8"]');
+        
+        // Also check via computed styles on overlay images
+        const overlays = document.querySelectorAll('.leaflet-image-layer');
+        const overlayZIndexes: number[] = [];
+        for (const overlay of overlays) {
+            const style = globalThis.getComputedStyle(overlay);
+            const zIndex = Number.parseInt(style.zIndex, 10);
+            if (!Number.isNaN(zIndex)) {
+                overlayZIndexes.push(zIndex);
+            }
+        }
+        
+        return {
+            zoom4: zoom4Pane ? Number.parseInt(globalThis.getComputedStyle(zoom4Pane).zIndex, 10) : undefined,
+            zoom8: zoom8Pane ? Number.parseInt(globalThis.getComputedStyle(zoom8Pane).zIndex, 10) : undefined,
+            overlayZIndexes
+        };
+    });
+    
+    // If panes exist, zoom8 should be higher than zoom4
+    if (zIndexes.zoom4 !== undefined && zIndexes.zoom8 !== undefined) {
+        expect(zIndexes.zoom8, 'zoom-8 pane z-index should be higher than zoom-4').toBeGreaterThan(zIndexes.zoom4);
     }
 });
