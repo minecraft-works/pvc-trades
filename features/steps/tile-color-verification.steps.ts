@@ -12,8 +12,8 @@ import type { Page } from '@playwright/test';
 // ============================================================================
 
 const BRIGHTNESS_THRESHOLD = 150;  // Above = bright (zoom 8), Below = dark (zoom 4)
-const AMBIGUOUS_MIN = 140;
-const AMBIGUOUS_MAX = 160;
+const AMBIGUOUS_MIN = 140;         // Ambiguous range: [140, 149] - gap between dark and bright
+const AMBIGUOUS_MAX = 149;
 const CHECKERBOARD_DIFFERENCE = 0.15;  // 15% brightness difference
 
 interface RGB {
