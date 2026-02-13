@@ -1,5 +1,5 @@
 {
-  "dataUrl": "./data.json",
+  "dataUrl": "https://pvc-shops.minecraft-works.workers.dev/",
   "dataRefreshMs": 60000,
   "dynmap": {
     "baseUrl": "https://web.peacefulvanilla.club/maps",
