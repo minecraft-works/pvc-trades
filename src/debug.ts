@@ -20,3 +20,4 @@ export const debugNavigation = Debug('pvc:navigation');
 export const debugPlayerPoll = Debug('pvc:playerpoll');
 export const debugMap = Debug('pvc:map');
 export const debugTiles = Debug('pvc:tiles');
+export const debugInterpolation = Debug('pvc:interpolation');

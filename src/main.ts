@@ -70,7 +70,7 @@ import {
     hasPositionMoved
 } from './library.js';
 
-import { debugNavigation, debugPlayerPoll, debugMap, debugTiles } from './debug.js';
+import { debugNavigation, debugPlayerPoll, debugMap, debugTiles, debugInterpolation } from './debug.js';
 
 import VirtualScroller from 'virtual-scroller/dom';
 
@@ -102,7 +102,7 @@ import {
     STORAGE_KEYS
 } from './constants.js';
 
-import { cartStore, navigationStore, favoritesStore } from './stores/index.js';
+import { cartStore, navigationStore, favoritesStore, getInterpolator, removeInterpolator } from './stores/index.js';
 
 import {
     TILE_CONFIG,
@@ -1286,6 +1286,9 @@ function setupPlayerNameInput(): void {
 let navMapCenterTileX = 0;
 let navMapCenterTileZ = 0;
 
+// Animation frame ID for smooth player marker interpolation
+let navAnimationFrameId: number | undefined;
+
 /**
  * Start live navigation - poll player position and update map
  */
@@ -1338,6 +1341,16 @@ async function startNavigation(): Promise<void> {
                 // Expose for E2E testing
                 // @ts-expect-error - exposed for testing
                 globalThis.__currentPlayerPosition = position;
+                
+                // Seed the interpolator with the initial position
+                const interpolator = getInterpolator(player.name);
+                interpolator.pushSample({
+                    x: player.position.x,
+                    z: player.position.z,
+                    yaw: player.rotation?.yaw,
+                    timestamp: performance.now()
+                });
+                
                 debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
             }
         } catch (error) {
@@ -1368,6 +1381,9 @@ async function startNavigation(): Promise<void> {
                 void pollPlayerPosition();
                 const config = getConfig();
                 navigationStore.setRefreshInterval(setInterval(() => void pollPlayerPosition(), config.dynmap.playerRefreshMs));
+                
+                // Start smooth marker animation loop (predictive lerp)
+                startNavAnimationLoop();
             })();
         });
     } else {
@@ -1381,6 +1397,12 @@ async function startNavigation(): Promise<void> {
 function stopNavigation(): void {
     const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
     const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
+    
+    // Stop smooth marker animation loop and clean up interpolator
+    // Must capture player name before stop() clears it
+    const stoppingPlayerName = navigationStore.playerName;
+    stopNavAnimationLoop();
+    removeInterpolator(stoppingPlayerName);
     
     // Use store's stop method which handles cleanup
     navigationStore.stop();
@@ -1483,6 +1505,16 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
         debugNavigation('Player crossed portal from %s to %s, auto-switching view', previousWorld, playerWorld);
         navigationStore.setViewWorld(playerWorld);
         
+        // Reset interpolator on portal crossing — can't extrapolate across dimensions
+        const interpolator = getInterpolator(player.name);
+        interpolator.reset();
+        interpolator.pushSample({
+            x: player.position.x,
+            z: player.position.z,
+            yaw: player.rotation?.yaw,
+            timestamp: performance.now()
+        });
+        
         // Update world toggle button state
         const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
         if (worldToggleButton) {
@@ -1496,7 +1528,21 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
         }
     }
     
+    // Feed sample to interpolator (marker position is updated by the rAF loop)
+    const interpolator = getInterpolator(player.name);
+    interpolator.pushSample({
+        x: player.position.x,
+        z: player.position.z,
+        yaw: player.rotation?.yaw,
+        timestamp: performance.now()
+    });
+    debugInterpolation('sample pushed player=%s phase=%s vx=%.4f vz=%.4f',
+        player.name, interpolator.phase, interpolator.velocity.vx, interpolator.velocity.vz);
+    
+    // Update marker icon (nether styling, yaw arrow) — position is handled by rAF loop
     updatePlayerMarker();
+    
+    // Authoritative updates use real (non-interpolated) position
     updateLiveDistance();
     checkAutoAdvance();
     updateNearbyShopTooltip();
@@ -1544,7 +1590,9 @@ async function pollPlayerPosition(): Promise<void> {
 }
 
 /**
- * Update or create the player marker on the navigation map
+ * Update or create the player marker on the navigation map.
+ * Handles icon creation/update and position. Called on poll for icon changes.
+ * For smooth 60fps position updates, the rAF loop calls updatePlayerMarkerPosition().
  */
 function updatePlayerMarker(): void {
     const playerPos = navigationStore.playerPosition;
@@ -1580,8 +1628,8 @@ function updatePlayerMarker(): void {
     const netherClass = playerIsNether ? ' nav-player-marker--nether' : '';
     
     const playerIconHtml = hasHeading
-        ? `<div class="nav-player-dot"><div class="nav-player-arrow" style="transform: rotate(${rotation}deg) translate(-50%, -100%)"></div></div>`
-        : '<div class="nav-player-dot"></div>';
+        ? `<div class="nav-player-arrow" style="transform: rotate(${rotation}deg)"></div>`
+        : '<div class="nav-player-arrow" style="transform: rotate(0deg)"></div>';
     
     let navPlayerMarker = navigationStore.mapObjects.playerMarker;
     
@@ -1609,6 +1657,86 @@ function updatePlayerMarker(): void {
         navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
         navPlayerMarker.addTo(navMap);
         navigationStore.setPlayerMarker(navPlayerMarker);
+    }
+}
+
+/**
+ * Lightweight position-only update for the player marker.
+ * Called from the rAF animation loop with interpolated coordinates.
+ * Does NOT rebuild the icon — only moves the marker via setLatLng.
+ * 
+ * @param displayX - X coordinate in the current view world's coordinate system
+ * @param displayZ - Z coordinate in the current view world's coordinate system
+ */
+function updatePlayerMarkerPosition(displayX: number, displayZ: number): void {
+    const navPlayerMarker = navigationStore.mapObjects.playerMarker;
+    if (!navPlayerMarker || !navMap) { return; }
+
+    const { lat, lng } = toLeafletCoordsRelative(
+        displayX,
+        displayZ,
+        navMapCenterTileX,
+        navMapCenterTileZ,
+        TILE_CONFIG.tileSize
+    );
+    navPlayerMarker.setLatLng([lat, lng]);
+}
+
+// ============================================================================
+// Navigation Animation Loop (Predictive Lerp)
+// ============================================================================
+
+/**
+ * Start the rAF-based animation loop for smooth player marker movement.
+ * The loop reads the interpolator's predicted display position each frame
+ * and moves the Leaflet marker accordingly.
+ */
+function startNavAnimationLoop(): void {
+    stopNavAnimationLoop();
+
+    function tick(): void {
+        const playerPos = navigationStore.playerPosition;
+        if (!playerPos || !navMap) {
+            navAnimationFrameId = requestAnimationFrame(tick);
+            return;
+        }
+
+        const playerName = navigationStore.playerName;
+        if (!playerName) {
+            navAnimationFrameId = requestAnimationFrame(tick);
+            return;
+        }
+
+        const interpolator = getInterpolator(playerName);
+        const displayPos = interpolator.getDisplayPosition(performance.now());
+
+        if (displayPos) {
+            // Transform interpolated position to current view world coordinates
+            const viewWorld = navigationStore.viewWorld;
+            const viewCoords = toViewCoords(
+                displayPos.x,
+                displayPos.z,
+                playerPos.world, // world doesn't change between polls
+                viewWorld
+            );
+            updatePlayerMarkerPosition(viewCoords.x, viewCoords.z);
+        }
+
+        navAnimationFrameId = requestAnimationFrame(tick);
+    }
+
+    navAnimationFrameId = requestAnimationFrame(tick);
+    debugInterpolation('Animation loop started');
+}
+
+/**
+ * Stop the rAF animation loop.
+ */
+function stopNavAnimationLoop(): void {
+    if (navAnimationFrameId !== undefined) {
+        cancelAnimationFrame(navAnimationFrameId);
+        navAnimationFrameId = undefined;
+        debugInterpolation('Animation loop stopped');
     }
 }
 

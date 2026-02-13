@@ -35,6 +35,7 @@ import {
     getWorldId
 } from '../library.js';
 import { createEdgeMarker, getWorldDisplayName } from '../dialogs/index.js';
+import { getInterpolator, clearAllInterpolators } from '../stores/player-interpolator.js';
 
 // ============================================================================
 // Module State
@@ -44,6 +45,13 @@ let leafletMap: L.Map | undefined;
 let playerMarkersLayer: L.LayerGroup | undefined;
 let cachedPlayers: Player[] = [];
 let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
+/** rAF ID for smooth player marker interpolation on the shop map */
+let shopMapAnimFrameId: number | undefined;
+/** Map of player name → L.Marker for on-screen (non-edge) player markers */
+const onScreenPlayerMarkers = new Map<string, L.Marker>();
+/** Current shop map tile reference coords (for coordinate conversion) */
+let shopMapTileX = 0;
+let shopMapTileZ = 0;
 
 // ============================================================================
 // Types
@@ -98,6 +106,17 @@ export interface ShopMapDialogHandler {
 
 async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
     cachedPlayers = await fetchPlayers();
+    // Feed each player's position to their interpolator
+    const now = performance.now();
+    for (const player of cachedPlayers) {
+        const interpolator = getInterpolator(player.name);
+        interpolator.pushSample({
+            x: player.position.x,
+            z: player.position.z,
+            yaw: player.rotation?.yaw,
+            timestamp: now
+        });
+    }
     return cachedPlayers;
 }
 
@@ -213,6 +232,7 @@ function updateShopMapPlayerMarkers(
     tileZ: number
 ): void {
     playerMarkersLayer?.clearLayers();
+    onScreenPlayerMarkers.clear();
     for (const element of dialog.querySelectorAll('.player-edge-marker')) { element.remove(); }
     
     if (!leafletMap || cachedPlayers.length === 0) { return; }
@@ -231,8 +251,18 @@ function updateShopMapPlayerMarkers(
     const centerY = containerRect.height / 2;
     const edgeRadius = containerRect.width / 2 + 8;
     
+    // Store tile coords for the rAF loop
+    shopMapTileX = tileX;
+    shopMapTileZ = tileZ;
+    
     for (const player of playersInWorld) {
-        const playerCoords = toLeafletCoordsRelative(player.position.x, player.position.z, tileX, tileZ, TILE_CONFIG.tileSize);
+        // Use interpolated position if available, otherwise raw API position
+        const interpolator = getInterpolator(player.name);
+        const interpPos = interpolator.getDisplayPosition(performance.now());
+        const posX = interpPos?.x ?? player.position.x;
+        const posZ = interpPos?.z ?? player.position.z;
+        
+        const playerCoords = toLeafletCoordsRelative(posX, posZ, tileX, tileZ, TILE_CONFIG.tileSize);
         const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
         
         if (clamped.clamped) {
@@ -242,7 +272,7 @@ function updateShopMapPlayerMarkers(
             const marker = createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter });
             dialog.append(marker);
         } else {
-            L.marker([playerCoords.lat, playerCoords.lng], {
+            const leafletMarker = L.marker([playerCoords.lat, playerCoords.lng], {
                 icon: L.divIcon({
                     className: 'leaflet-player-marker',
                     html: `<span class="player-name">${player.name}</span>`,
@@ -251,8 +281,38 @@ function updateShopMapPlayerMarkers(
                 }),
                 title: player.name
             }).addTo(playerMarkersLayer!);
+            onScreenPlayerMarkers.set(player.name.toLowerCase(), leafletMarker);
         }
     }
+}
+
+/** Start rAF loop updating on-screen player marker positions from interpolators. */
+function startShopMapAnimLoop(): void {
+    if (shopMapAnimFrameId !== undefined) { return; }
+
+    function tick(): void {
+        const now = performance.now();
+        for (const [name, marker] of onScreenPlayerMarkers) {
+            const interpolator = getInterpolator(name);
+            const pos = interpolator.getDisplayPosition(now);
+            if (!pos) { continue; }
+            const coords = toLeafletCoordsRelative(pos.x, pos.z, shopMapTileX, shopMapTileZ, TILE_CONFIG.tileSize);
+            marker.setLatLng([coords.lat, coords.lng]);
+        }
+        shopMapAnimFrameId = requestAnimationFrame(tick);
+    }
+
+    shopMapAnimFrameId = requestAnimationFrame(tick);
+}
+
+/** Stop the shop map rAF animation loop. */
+function stopShopMapAnimLoop(): void {
+    if (shopMapAnimFrameId !== undefined) {
+        cancelAnimationFrame(shopMapAnimFrameId);
+        shopMapAnimFrameId = undefined;
+    }
+    onScreenPlayerMarkers.clear();
+    clearAllInterpolators();
 }
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
@@ -321,6 +381,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     void fetchPlayersAndUpdateCache().then(() => {
         if (!leafletMap) { return; }
         updatePlayerMarkers();
+        startShopMapAnimLoop();
     });
 
     playerRefreshInterval = setInterval(() => {
@@ -376,6 +437,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             clearInterval(playerRefreshInterval);
             playerRefreshInterval = undefined;
         }
+        stopShopMapAnimLoop();
 
         const closeButton = dialog.querySelector<HTMLElement>('#close-map');
         if (closeButton && !Object.hasOwn(closeButton.dataset, 'initialized')) {
@@ -388,6 +450,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
                 clearInterval(playerRefreshInterval);
                 playerRefreshInterval = undefined;
             }
+            stopShopMapAnimLoop();
             if (isOpenedFromCart()) {
                 clearOpenedFromCart();
                 onCloseFromCart();
