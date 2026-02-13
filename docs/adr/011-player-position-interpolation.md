@@ -57,7 +57,7 @@ Poll N arrives (t=0)        Poll N+1 arrives (t=1000ms)
 ### Safeguards
 
 - **Teleport rejection**: Speeds >12 blocks/sec (sprint=5.6, horse=10.6) zero the velocity
-- **Direction validation**: Velocity direction checked against Minecraft yaw; flagged if >90° divergence
+- **Speed-only gating**: Extrapolation requires speed ≥ 0.001 blocks/ms. Yaw is intentionally *not* checked against velocity — players routinely strafe, look around while walking, or ride vehicles, causing yaw to diverge from movement direction. The correction mechanism handles prediction errors gracefully.
 - **Max extrapolation**: Capped at 3000ms to prevent runaway prediction
 - **Per-player state**: Each player gets an independent `PlayerInterpolator` instance via a shared registry
 
@@ -68,12 +68,17 @@ library.ts (pure math)
 ├── estimateVelocity(previous, current, dtMs)
 ├── extrapolatePosition(base, velocity, elapsedMs)
 ├── lerpPosition(from, to, t)
-└── shouldExtrapolate(velocity, yaw, threshold)
+├── lerpAngle(from, to, t) — shortest-path angular interpolation
+└── shouldExtrapolate(velocity, _yaw, threshold) — speed-only check
 
 stores/player-interpolator.ts (stateful, per-player)
 ├── PlayerInterpolator class
-│   ├── pushSample(sample)
-│   ├── getDisplayPosition(now) → Position2D | undefined
+│   ├── pushSample(sample) — { x, y, z, yaw?, timestamp }
+│   ├── getDisplayPosition(now) → InterpolatedPosition | undefined
+│   │   Returns { x, y, z, yaw? } with:
+│   │   - X/Z: correction lerp + velocity extrapolation
+│   │   - Y: lerped during correction, held during extrapolation
+│   │   - Yaw: shortest-path lerped during correction, held during extrapolation
 │   └── reset()
 └── Registry functions
     ├── getInterpolator(name) — lazy-creates
@@ -83,7 +88,8 @@ stores/player-interpolator.ts (stateful, per-player)
 
 main.ts (navigation context)
 ├── handleFoundPlayer → pushSample + authoritative logic
-├── startNavAnimationLoop → rAF reads interpolated position
+├── startNavAnimationLoop → rAF reads interpolated position + yaw
+│   Updates marker position via setLatLng AND arrow rotation via CSS transform
 └── stopNavigation → cleanup interpolator
 
 map/shop-map-dialog.ts (shop map context)
@@ -96,8 +102,8 @@ map/shop-map-dialog.ts (shop map context)
 
 Two distinct update paths prevent expensive DOM operations at 60fps:
 
-- **On poll** (1000ms/5000ms): `updatePlayerMarker()` — rebuilds icon HTML (yaw arrow, nether class), updates authoritative distance/auto-advance calculations
-- **On rAF** (~16ms): `marker.setLatLng()` only — moves the existing marker element without DOM reconstruction
+- **On poll** (1000ms/5000ms): `updatePlayerMarker()` — rebuilds icon HTML (nether class), updates authoritative distance/auto-advance calculations
+- **On rAF** (~16ms): `marker.setLatLng()` + arrow rotation via CSS `transform: rotate()` — moves and rotates the existing marker without DOM reconstruction
 
 ## Consequences
 
@@ -121,8 +127,9 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
 
 ## Testing
 
-- **36 unit tests** in `src/interpolation.test.ts` covering all math functions and PlayerInterpolator phases
-- Teleport rejection, portal crossing reset, direction validation all covered
+- **55 unit tests** in `src/interpolation.test.ts` covering all math functions and PlayerInterpolator phases
+- Teleport rejection, portal crossing reset, Y interpolation, yaw shortest-path interpolation all covered
+- `lerpAngle` tested for wrapping, clamping, normalization, and 180° ambiguity
 - Integration tested via existing BDD scenarios (markers still render correctly)
 
 ## References

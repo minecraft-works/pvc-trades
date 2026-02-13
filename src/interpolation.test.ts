@@ -9,6 +9,7 @@ import {
     estimateVelocity,
     extrapolatePosition,
     lerpPosition,
+    lerpAngle,
     shouldExtrapolate,
 } from './library.js';
 import { PlayerInterpolator, getInterpolator, removeInterpolator, clearAllInterpolators, getAllInterpolators } from './stores/player-interpolator.js';
@@ -120,6 +121,51 @@ describe('lerpPosition', () => {
     });
 });
 
+describe('lerpAngle', () => {
+    test('t=0 returns from angle', () => {
+        expect(lerpAngle(30, 90, 0)).toBeCloseTo(30);
+    });
+
+    test('t=1 returns to angle', () => {
+        expect(lerpAngle(30, 90, 1)).toBeCloseTo(90);
+    });
+
+    test('t=0.5 returns midpoint', () => {
+        expect(lerpAngle(0, 90, 0.5)).toBeCloseTo(45);
+    });
+
+    test('wraps around 360 via shortest path (350 → 10)', () => {
+        expect(lerpAngle(350, 10, 0.5)).toBeCloseTo(0);
+    });
+
+    test('wraps around 360 via shortest path (10 → 350)', () => {
+        expect(lerpAngle(10, 350, 0.5)).toBeCloseTo(0);
+    });
+
+    test('handles identical angles', () => {
+        expect(lerpAngle(90, 90, 0.5)).toBeCloseTo(90);
+    });
+
+    test('handles 180 degree difference (ambiguous, goes via 270)', () => {
+        const result = lerpAngle(0, 180, 0.5);
+        expect(result).toBeCloseTo(270);
+    });
+
+    test('normalizes result to [0, 360)', () => {
+        const result = lerpAngle(350, 10, 1);
+        expect(result).toBeGreaterThanOrEqual(0);
+        expect(result).toBeLessThan(360);
+    });
+
+    test('clamps t below 0', () => {
+        expect(lerpAngle(0, 90, -1)).toBeCloseTo(0);
+    });
+
+    test('clamps t above 1', () => {
+        expect(lerpAngle(0, 90, 2)).toBeCloseTo(90);
+    });
+});
+
 describe('shouldExtrapolate', () => {
     test('returns false for zero velocity', () => {
         expect(shouldExtrapolate({ vx: 0, vz: 0 }, 90)).toBe(false);
@@ -139,9 +185,10 @@ describe('shouldExtrapolate', () => {
         expect(shouldExtrapolate({ vx: 0, vz: 0.004 }, 0)).toBe(true);
     });
 
-    test('returns false when velocity opposes heading', () => {
-        // Moving east (+x), but facing west (yaw=90)
-        expect(shouldExtrapolate({ vx: 0.004, vz: 0 }, 90)).toBe(false);
+    test('returns true even when velocity opposes heading', () => {
+        // Moving east (+x), but facing west (yaw=90) — still extrapolate
+        // Yaw is intentionally ignored; correction handles wrong predictions
+        expect(shouldExtrapolate({ vx: 0.004, vz: 0 }, 90)).toBe(true);
     });
 
     test('returns true when no yaw is available', () => {
@@ -171,20 +218,20 @@ describe('PlayerInterpolator', () => {
     });
 
     test('returns exact position after first sample', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         const pos = interpolator.getDisplayPosition(0);
-        expect(pos).toEqual({ x: 100, z: 200 });
+        expect(pos).toEqual({ x: 100, y: 64, z: 200, yaw: undefined });
     });
 
     test('starts correction phase after second sample', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
         expect(interpolator.phase).toBe('correcting');
     });
 
     test('correction lerps toward true position', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
         // At t=1000 (start of correction), display is somewhere
         // Half through correction (100ms into 200ms correction window)
@@ -196,8 +243,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('transitions to extrapolation after correction completes', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
         // Well past correction duration (200ms)
         interpolator.getDisplayPosition(1300);
@@ -206,8 +253,8 @@ describe('PlayerInterpolator', () => {
 
     test('extrapolation moves position forward using velocity', () => {
         // Two samples: player moving east at 4 blocks/sec
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, yaw: 270, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
 
         // Skip past correction, then extrapolate 500ms forward
         // After correction ends at ~1200ms, extrapolation from (104, 200) at 0.004 b/ms
@@ -219,8 +266,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('freezes extrapolation at maximum duration', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, yaw: 270, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
 
         // Way into the future — should freeze at MAX_EXTRAPOLATION_MS (3000ms)
         const pos1 = interpolator.getDisplayPosition(5000);
@@ -229,8 +276,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('stationary player stays at last position', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 1000 });
 
         // Zero velocity → no extrapolation, stays at 100, 200
         const pos = interpolator.getDisplayPosition(1500);
@@ -240,9 +287,9 @@ describe('PlayerInterpolator', () => {
     });
 
     test('rejects teleport velocity', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         // Teleport: 1000 blocks in 1 second
-        interpolator.pushSample({ x: 1100, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 1100, y: 64, z: 200, timestamp: 1000 });
 
         // After correction, should stay near 1100 (no extrapolation due to zero velocity)
         const pos = interpolator.getDisplayPosition(2000);
@@ -251,8 +298,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('reset clears all state', () => {
-        interpolator.pushSample({ x: 100, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, z: 200, timestamp: 1000 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
         interpolator.reset();
 
         expect(interpolator.getDisplayPosition(1500)).toBeUndefined();
@@ -262,8 +309,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('lastConfirmedPosition returns authoritative position', () => {
-        interpolator.pushSample({ x: 100, z: 200, yaw: 90, timestamp: 500 });
-        interpolator.pushSample({ x: 104, z: 200, yaw: 270, timestamp: 1500 });
+        interpolator.pushSample({ x: 100, y: 64, z: 200, yaw: 90, timestamp: 500 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1500 });
 
         const confirmed = interpolator.lastConfirmedPosition;
         expect(confirmed).toBeDefined();
@@ -273,8 +320,8 @@ describe('PlayerInterpolator', () => {
     });
 
     test('velocity is estimated from samples', () => {
-        interpolator.pushSample({ x: 0, z: 0, timestamp: 0 });
-        interpolator.pushSample({ x: 4, z: 0, timestamp: 1000 });
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
+        interpolator.pushSample({ x: 4, y: 64, z: 0, timestamp: 1000 });
 
         expect(interpolator.velocity.vx).toBeCloseTo(0.004);
         expect(interpolator.velocity.vz).toBeCloseTo(0);
@@ -282,9 +329,9 @@ describe('PlayerInterpolator', () => {
 
     test('handles three sequential samples with direction change', () => {
         // Moving east, then turns north
-        interpolator.pushSample({ x: 0, z: 0, timestamp: 0 });
-        interpolator.pushSample({ x: 4, z: 0, yaw: 270, timestamp: 1000 });
-        interpolator.pushSample({ x: 4, z: -4, yaw: 180, timestamp: 2000 });
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
+        interpolator.pushSample({ x: 4, y: 64, z: 0, yaw: 270, timestamp: 1000 });
+        interpolator.pushSample({ x: 4, y: 64, z: -4, yaw: 180, timestamp: 2000 });
 
         // Velocity should now be northward (0, -4 blocks/sec)
         expect(interpolator.velocity.vx).toBeCloseTo(0);
@@ -294,6 +341,40 @@ describe('PlayerInterpolator', () => {
         const pos = interpolator.getDisplayPosition(2700);
         expect(pos).toBeDefined();
         expect(pos!.z).toBeLessThan(-4);
+    });
+
+    test('interpolates Y coordinate during correction', () => {
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 128, z: 200, timestamp: 1000 });
+
+        // Mid-correction
+        const pos = interpolator.getDisplayPosition(1100);
+        expect(pos).toBeDefined();
+        expect(pos!.y).toBeGreaterThanOrEqual(64);
+        expect(pos!.y).toBeLessThanOrEqual(128);
+    });
+
+    test('interpolates yaw via shortest path during correction', () => {
+        interpolator.pushSample({ x: 100, y: 64, z: 200, yaw: 350, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 10, timestamp: 1000 });
+
+        // Mid-correction: yaw should go 350 → 0 → 10 (shortest path)
+        const pos = interpolator.getDisplayPosition(1100);
+        expect(pos).toBeDefined();
+        expect(pos!.yaw).toBeDefined();
+        // Should be near 0 (between 350 and 10 via shortest path)
+        const yaw = pos!.yaw!;
+        expect(yaw >= 350 || yaw <= 10).toBe(true);
+    });
+
+    test('returns Y from last sample during extrapolation', () => {
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 100, z: 200, yaw: 270, timestamp: 1000 });
+
+        // Past correction
+        const pos = interpolator.getDisplayPosition(1500);
+        expect(pos).toBeDefined();
+        expect(pos!.y).toBe(100);
     });
 });
 
@@ -322,7 +403,7 @@ describe('Interpolator Registry', () => {
 
     test('removeInterpolator removes and resets', () => {
         const interp = getInterpolator('Alex');
-        interp.pushSample({ x: 1, z: 2, timestamp: 0 });
+        interp.pushSample({ x: 1, y: 64, z: 2, timestamp: 0 });
         removeInterpolator('Alex');
 
         // Getting again should create a fresh one

@@ -40,7 +40,8 @@ import {
     clampToCircle,
     isNether,
     getTradeKey,
-    shouldSwitchMapWorld
+    shouldSwitchMapWorld,
+    getZoomForHeight
 } from './library.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
 import { AppConfigSchema } from './types.js';
@@ -1972,5 +1973,65 @@ describe('buildStopTooltip', () => {
         };
         const tooltip = buildStopTooltip(stop, false);
         expect(tooltip).toBe('Stop');
+    });
+});
+
+// ============================================================================
+// getZoomForHeight
+// ============================================================================
+
+describe('getZoomForHeight', () => {
+    test('returns zoom 2 at ground level (Y ≤ 80)', () => {
+        expect(getZoomForHeight(0)).toBe(2);
+        expect(getZoomForHeight(64)).toBe(2);
+        expect(getZoomForHeight(80)).toBe(2);
+    });
+
+    test('returns zoom 1 at rooftop height (Y 81-120)', () => {
+        expect(getZoomForHeight(81)).toBe(1);
+        expect(getZoomForHeight(100)).toBe(1);
+        expect(getZoomForHeight(120)).toBe(1);
+    });
+
+    test('returns zoom 0 at medium altitude (Y 121-160)', () => {
+        expect(getZoomForHeight(121)).toBe(0);
+        expect(getZoomForHeight(140)).toBe(0);
+        expect(getZoomForHeight(160)).toBe(0);
+    });
+
+    test('returns zoom -1 at high altitude (Y 161-200)', () => {
+        expect(getZoomForHeight(161)).toBe(-1);
+        expect(getZoomForHeight(180)).toBe(-1);
+        expect(getZoomForHeight(200)).toBe(-1);
+    });
+
+    test('returns zoom -2 at very high altitude (Y 201-256)', () => {
+        expect(getZoomForHeight(201)).toBe(-2);
+        expect(getZoomForHeight(230)).toBe(-2);
+        expect(getZoomForHeight(256)).toBe(-2);
+    });
+
+    test('returns zoom -3 at extreme height (Y > 256)', () => {
+        expect(getZoomForHeight(257)).toBe(-3);
+        expect(getZoomForHeight(300)).toBe(-3);
+        expect(getZoomForHeight(320)).toBe(-3);
+    });
+
+    test('handles negative Y values (below bedrock)', () => {
+        expect(getZoomForHeight(-64)).toBe(2);
+        expect(getZoomForHeight(-1)).toBe(2);
+    });
+
+    test('returns correct zoom at exact boundary values', () => {
+        expect(getZoomForHeight(80)).toBe(2);
+        expect(getZoomForHeight(81)).toBe(1);
+        expect(getZoomForHeight(120)).toBe(1);
+        expect(getZoomForHeight(121)).toBe(0);
+        expect(getZoomForHeight(160)).toBe(0);
+        expect(getZoomForHeight(161)).toBe(-1);
+        expect(getZoomForHeight(200)).toBe(-1);
+        expect(getZoomForHeight(201)).toBe(-2);
+        expect(getZoomForHeight(256)).toBe(-2);
+        expect(getZoomForHeight(257)).toBe(-3);
     });
 });

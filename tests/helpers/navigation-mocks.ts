@@ -104,11 +104,11 @@ export interface PlayerMock {
     /** Current player state */
     state: PlayerState;
     /** Update player position/world */
-    setPosition(x: number, z: number, world?: string): void;
+    setPosition(x: number, z: number, world?: string, y?: number): void;
     /** Move player to nether */
-    moveToNether(x?: number, z?: number): void;
+    moveToNether(x?: number, z?: number, y?: number): void;
     /** Move player to overworld */
-    moveToOverworld(x?: number, z?: number): void;
+    moveToOverworld(x?: number, z?: number, y?: number): void;
 }
 
 /**
@@ -134,23 +134,26 @@ export function createPlayerMock(initialWorld: string = 'World'): PlayerMock {
 
     return {
         state,
-        setPosition(x: number, z: number, world?: string) {
+        setPosition(x: number, z: number, world?: string, y?: number) {
             state.position.x = x;
             state.position.z = z;
+            if (y !== undefined) { state.position.y = y; }
             if (world) {
                 state.world = world;
                 state.foreign = world === 'World_nether' || world.toLowerCase().includes('nether');
             }
         },
-        moveToNether(x = -100, z = -12) {
+        moveToNether(x = -100, z = -12, y?: number) {
             state.position.x = x;
             state.position.z = z;
+            if (y !== undefined) { state.position.y = y; }
             state.world = 'World_nether';
             state.foreign = true;
         },
-        moveToOverworld(x = 0, z = 0) {
+        moveToOverworld(x = 0, z = 0, y?: number) {
             state.position.x = x;
             state.position.z = z;
+            if (y !== undefined) { state.position.y = y; }
             state.world = 'World';
             state.foreign = false;
         }

@@ -24,8 +24,10 @@ import {
     estimateVelocity,
     extrapolatePosition,
     lerpPosition,
+    lerpAngle,
     shouldExtrapolate,
     type Position2D,
+    type InterpolatedPosition,
     type Velocity2D
 } from '../library.js';
 
@@ -46,6 +48,7 @@ const MAX_EXTRAPOLATION_MS = 3000;
 /** A position sample received from the API */
 export interface PositionSample {
     x: number;
+    y: number;
     z: number;
     /** Minecraft yaw (0=south, 90=west, 180=north, 270=east) */
     yaw?: number;
@@ -74,7 +77,7 @@ type Phase = 'idle' | 'correcting' | 'extrapolating';
  * interpolator.pushSample({ x: 100, z: 200, yaw: 90, timestamp: performance.now() });
  * 
  * // In rAF loop:
- * const { x, z } = interpolator.getDisplayPosition(performance.now());
+ * const { x, y, z, yaw } = interpolator.getDisplayPosition(performance.now());
  * marker.setLatLng(toLeaflet(x, z));
  * ```
  */
@@ -96,6 +99,9 @@ export class PlayerInterpolator {
 
     /** Position where correction lerp ends (the new true position) */
     private _correctionTarget: Position2D | undefined;
+
+    /** Y value at the start of correction (from predicted position) */
+    private _correctionStartY: number | undefined;
 
     /** Timestamp when correction phase began */
     private _correctionStartTime = 0;
@@ -125,7 +131,8 @@ export class PlayerInterpolator {
             this._velocity = estimateVelocity(this._lastSample, sample, dt);
 
             // Start correction from our (possibly wrong) predicted position to the true position
-            this._correctionStart = predictedNow;
+            this._correctionStart = { x: predictedNow.x, z: predictedNow.z };
+            this._correctionStartY = predictedNow.y;
             this._correctionTarget = { x: sample.x, z: sample.z };
             this._correctionStartTime = now;
             this._phase = 'correcting';
@@ -145,9 +152,9 @@ export class PlayerInterpolator {
      * Call this from `requestAnimationFrame` for 60fps updates.
      * 
      * @param now - Current timestamp (ms, same timebase as sample timestamps)
-     * @returns Interpolated position, or undefined if no samples received yet
+     * @returns Interpolated position with y and yaw, or undefined if no samples received yet
      */
-    getDisplayPosition(now: number): Position2D | undefined {
+    getDisplayPosition(now: number): InterpolatedPosition | undefined {
         if (!this._lastSample) { return undefined; }
 
         if (this._phase === 'correcting') {
@@ -159,7 +166,12 @@ export class PlayerInterpolator {
         }
 
         // Idle — return last known position
-        return { x: this._lastSample.x, z: this._lastSample.z };
+        return {
+            x: this._lastSample.x,
+            y: this._lastSample.y,
+            z: this._lastSample.z,
+            yaw: this._lastSample.yaw
+        };
     }
 
     /**
@@ -196,6 +208,7 @@ export class PlayerInterpolator {
         this._phase = 'idle';
         this._correctionStart = undefined;
         this._correctionTarget = undefined;
+        this._correctionStartY = undefined;
         this._correctionStartTime = 0;
         this._yaw = undefined;
     }
@@ -209,7 +222,7 @@ export class PlayerInterpolator {
      * Lerps from predicted-but-wrong position to the new true position,
      * then transitions to extrapolation.
      */
-    private _getCorrectedPosition(now: number): Position2D {
+    private _getCorrectedPosition(now: number): InterpolatedPosition {
         const elapsed = now - this._correctionStartTime;
         const t = elapsed / CORRECTION_DURATION_MS;
 
@@ -219,8 +232,18 @@ export class PlayerInterpolator {
             return this._getExtrapolatedPosition(now);
         }
 
-        // Lerp from wrong prediction to true position
-        return lerpPosition(this._correctionStart!, this._correctionTarget!, t);
+        // Lerp from wrong prediction to true position (x, z)
+        const pos2d = lerpPosition(this._correctionStart!, this._correctionTarget!, t);
+
+        // Lerp Y linearly
+        const fromY = this._correctionStartY ?? this._lastSample!.y;
+        const toY = this._lastSample!.y;
+        const y = fromY + (toY - fromY) * Math.max(0, Math.min(1, t));
+
+        // Lerp yaw via shortest path
+        const yaw = this._interpolateYaw(t);
+
+        return { x: pos2d.x, y, z: pos2d.z, yaw };
     }
 
     /**
@@ -228,24 +251,41 @@ export class PlayerInterpolator {
      * Dead reckons forward from last confirmed position using velocity.
      * Freezes after MAX_EXTRAPOLATION_MS to prevent runaway.
      */
-    private _getExtrapolatedPosition(now: number): Position2D {
+    private _getExtrapolatedPosition(now: number): InterpolatedPosition {
         if (!this._lastSample) {
-            return { x: 0, z: 0 };
+            return { x: 0, y: 0, z: 0 };
         }
 
         const elapsed = now - this._lastSample.timestamp;
 
         // Don't extrapolate beyond safety limit
         if (elapsed > MAX_EXTRAPOLATION_MS) {
-            return extrapolatePosition(this._lastSample, this._velocity, MAX_EXTRAPOLATION_MS);
+            const pos = extrapolatePosition(this._lastSample, this._velocity, MAX_EXTRAPOLATION_MS);
+            return { x: pos.x, y: this._lastSample.y, z: pos.z, yaw: this._lastSample.yaw };
         }
 
         // Check if extrapolation is appropriate (speed + yaw agreement)
         if (!shouldExtrapolate(this._velocity, this._yaw)) {
-            return { x: this._lastSample.x, z: this._lastSample.z };
+            return {
+                x: this._lastSample.x,
+                y: this._lastSample.y,
+                z: this._lastSample.z,
+                yaw: this._lastSample.yaw
+            };
         }
 
-        return extrapolatePosition(this._lastSample, this._velocity, elapsed);
+        const pos = extrapolatePosition(this._lastSample, this._velocity, elapsed);
+        return { x: pos.x, y: this._lastSample.y, z: pos.z, yaw: this._lastSample.yaw };
+    }
+
+    /**
+     * Interpolate yaw between previous and current sample using shortest path.
+     */
+    private _interpolateYaw(t: number): number | undefined {
+        const fromYaw = this._prevSample?.yaw;
+        const toYaw = this._lastSample?.yaw;
+        if (fromYaw === undefined || toYaw === undefined) { return toYaw ?? fromYaw; }
+        return lerpAngle(fromYaw, toYaw, t);
     }
 }
 

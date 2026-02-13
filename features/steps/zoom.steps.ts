@@ -139,6 +139,18 @@ When(String.raw`player is at \({int}, {int})`, async ({ page, playerMock }, x: n
     await page.waitForTimeout(1500);
 });
 
+When(String.raw`player is at position \({int}, {int}, {int})`, async ({ page, playerMock }, x: number, y: number, z: number) => {
+    playerMock.setPosition(x, z, undefined, y);
+    // Wait for polling to pick up position change and update zoom
+    await page.waitForTimeout(1500);
+});
+
+When(String.raw`player is at nether position \({int}, {int}, {int})`, async ({ page, playerMock }, x: number, y: number, z: number) => {
+    playerMock.moveToNether(x, z, y);
+    // Wait for polling to pick up position change and update zoom
+    await page.waitForTimeout(1500);
+});
+
 When(String.raw`player is at \({int}, {int}) in the nether`, async ({ page, playerMock }, x: number, z: number) => {
     playerMock.moveToNether(x, z);
     // Wait for polling to pick up position change and update zoom

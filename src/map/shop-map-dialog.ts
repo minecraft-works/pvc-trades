@@ -112,6 +112,7 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
         const interpolator = getInterpolator(player.name);
         interpolator.pushSample({
             x: player.position.x,
+            y: player.position.y,
             z: player.position.z,
             yaw: player.rotation?.yaw,
             timestamp: now

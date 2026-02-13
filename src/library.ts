@@ -1737,36 +1737,36 @@ export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string 
 }
 
 /**
- * Calculate zoom level based on overworld-equivalent distance.
- * Used for dynamic zoom in navigation view - zooms in as player approaches shops.
+ * Calculate zoom level based on player Y coordinate (height).
+ * Used for dynamic zoom in navigation view — higher altitude = more zoomed out.
  * 
- * Distance thresholds (in overworld-equivalent blocks):
- *   - < 60 blocks: zoom 2 (maximum - arriving at shop, before auto-advance at 50)
- *   - 60-100 blocks: zoom 1 (close)
- *   - 100-300 blocks: zoom 0 (medium)
- *   - 300-600 blocks: zoom -1 (far)
- *   - 600-1200 blocks: zoom -2 (very far)
- *   - > 1200 blocks: zoom -3 (maximum out)
+ * Height thresholds (Minecraft Y coordinate):
+ *   - Y ≤ 80:  zoom 2 (ground level — maximum detail)
+ *   - Y ≤ 120: zoom 1 (rooftops / low hills)
+ *   - Y ≤ 160: zoom 0 (medium altitude)
+ *   - Y ≤ 200: zoom -1 (high altitude)
+ *   - Y ≤ 256: zoom -2 (very high)
+ *   - Y > 256: zoom -3 (maximum out — elytra / extreme height)
  * 
- * @param overworldEquivalentDistance - Distance in overworld blocks (nether × 8)
+ * @param y - Player Y coordinate (height in Minecraft blocks)
  * @returns Zoom level from -3 to 2
  * 
  * @example
- * getZoomForDistance(50);   // 2 (very close)
- * getZoomForDistance(200);  // 0 (medium)
- * getZoomForDistance(2000); // -3 (far away)
+ * getZoomForHeight(64);  // 2 (ground level)
+ * getZoomForHeight(150); // 0 (medium altitude)
+ * getZoomForHeight(300); // -3 (extreme height)
  */
-export function getZoomForDistance(overworldEquivalentDistance: number): number {
-    if (overworldEquivalentDistance < 60) {
-        return 2;  // Maximum zoom - arriving at shop
-    } else if (overworldEquivalentDistance < 100) {
-        return 1;  // Close
-    } else if (overworldEquivalentDistance < 300) {
-        return 0;  // Medium
-    } else if (overworldEquivalentDistance < 600) {
-        return -1; // Far
-    } else if (overworldEquivalentDistance < 1200) {
-        return -2; // Very far
+export function getZoomForHeight(y: number): number {
+    if (y <= 80) {
+        return 2;  // Ground level — maximum detail
+    } else if (y <= 120) {
+        return 1;  // Rooftops / low hills
+    } else if (y <= 160) {
+        return 0;  // Medium altitude
+    } else if (y <= 200) {
+        return -1; // High altitude
+    } else if (y <= 256) {
+        return -2; // Very high
     } else {
         return -3; // Maximum out
     }
@@ -1817,6 +1817,15 @@ export interface Velocity2D {
 export interface Position2D {
     x: number;
     z: number;
+}
+
+/** 3D position with optional yaw, used for full interpolation */
+export interface InterpolatedPosition {
+    x: number;
+    y: number;
+    z: number;
+    /** Interpolated yaw in Minecraft degrees (0=south, 90=west, 180=north, 270=east) */
+    yaw?: number;
 }
 
 /** Minecraft walking speed is ~4.3 blocks/sec = 0.0043 blocks/ms */
@@ -1890,43 +1899,55 @@ export function lerpPosition(from: Position2D, to: Position2D, t: number): Posit
 }
 
 /**
- * Determine whether extrapolation should be used based on velocity and yaw.
- * Suppresses extrapolation when the player appears stationary or when
- * the velocity direction diverges significantly from the heading (yaw).
+ * Linearly interpolate between two angles, taking the shortest path around the circle.
+ * Handles wrapping correctly (e.g., 350° → 10° goes through 0°, not through 180°).
+ *
+ * @param from - Start angle in degrees
+ * @param to - End angle in degrees
+ * @param t - Interpolation factor, clamped to [0, 1]
+ * @returns Interpolated angle in degrees, normalized to [0, 360)
+ *
+ * @example
+ * lerpAngle(350, 10, 0.5)  // 0 (shortest path through 360)
+ * lerpAngle(10, 350, 0.5)  // 0 (shortest path through 360)
+ * lerpAngle(0, 180, 0.5)   // 90
+ */
+export function lerpAngle(from: number, to: number, t: number): number {
+    const clamped = Math.max(0, Math.min(1, t));
+    // Find shortest delta (handles wrapping)
+    const delta = ((to - from) % 360 + 540) % 360 - 180;
+    const result = from + delta * clamped;
+    // Normalize to [0, 360)
+    return ((result % 360) + 360) % 360;
+}
+
+/**
+ * Determine whether extrapolation should be used based on velocity magnitude.
+ * Suppresses extrapolation only when the player appears stationary.
+ * 
+ * Yaw is intentionally NOT checked against velocity direction.
+ * In Minecraft, players frequently strafe, look around while walking,
+ * or ride vehicles — head direction often diverges from movement.
+ * Checking yaw agreement would suppress extrapolation during normal
+ * gameplay, causing the marker to sit still and then "jump" on each
+ * poll. The correction mechanism handles wrong predictions gracefully.
  * 
  * @param velocity - Current estimated velocity
- * @param yaw - Player's heading in Minecraft degrees (0=south, 90=west, 180=north, 270=east), or undefined
+ * @param _yaw - Unused (kept for API compatibility)
  * @param speedThreshold - Minimum speed (blocks/ms) to consider the player moving. Default: walking speed / 4
  * @returns True if extrapolation is appropriate
  * 
  * @example
- * shouldExtrapolate({ vx: 0.004, vz: 0 }, 270, 0.001) // true — moving east, facing east
- * shouldExtrapolate({ vx: 0, vz: 0 }, 90)               // false — stationary
+ * shouldExtrapolate({ vx: 0.004, vz: 0 }, 270)  // true — moving
+ * shouldExtrapolate({ vx: 0, vz: 0 }, 90)         // false — stationary
  */
 export function shouldExtrapolate(
     velocity: Velocity2D,
-    yaw: number | undefined,
+    _yaw?: number,
     speedThreshold: number = 0.001
 ): boolean {
     const speed = Math.hypot(velocity.vx, velocity.vz);
-    if (speed < speedThreshold) { return false; }
-
-    // If no yaw data, extrapolate based on velocity alone
-    if (yaw === undefined) { return true; }
-
-    // Convert Minecraft yaw to math angle (radians)
-    // Minecraft: 0=south(+z), 90=west(-x), 180=north(-z), 270=east(+x)
-    // Math: 0=east(+x), π/2=north(-z in screen, but +z in MC is south)
-    // We convert yaw to a direction vector to compare with velocity
-    const yawRad = (yaw * Math.PI) / 180;
-    const yawDx = -Math.sin(yawRad); // Minecraft: yaw 90 = west = -x
-    const yawDz = Math.cos(yawRad);  // Minecraft: yaw 0 = south = +z
-
-    // Dot product of normalized velocity and yaw direction
-    const dot = (velocity.vx * yawDx + velocity.vz * yawDz) / speed;
-
-    // If velocity and heading diverge by more than 90°, player likely turned — suppress
-    return dot > 0;
+    return speed >= speedThreshold;
 }
 
 export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';
