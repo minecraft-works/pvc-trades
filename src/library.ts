@@ -1801,4 +1801,132 @@ export function hasPositionMoved(
     return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
 }
 
+// ============================================================================
+// Player Position Interpolation (Predictive Lerp)
+// ============================================================================
+
+/** 2D velocity vector in blocks per millisecond */
+export interface Velocity2D {
+    /** X velocity in blocks/ms */
+    vx: number;
+    /** Z velocity in blocks/ms */
+    vz: number;
+}
+
+/** 2D position used for interpolation */
+export interface Position2D {
+    x: number;
+    z: number;
+}
+
+/** Minecraft walking speed is ~4.3 blocks/sec = 0.0043 blocks/ms */
+const MAX_SPEED_BLOCKS_PER_MS = 0.012; // ~12 blocks/sec covers sprinting + speed effects
+
+/**
+ * Estimate velocity from two position samples.
+ * Clamps to maximum plausible Minecraft speed to reject teleports.
+ * 
+ * @param previous - Previous position
+ * @param current - Current position
+ * @param dtMs - Time delta in milliseconds between samples
+ * @returns Velocity vector, or zero velocity if dt is 0 or speed exceeds plausible maximum
+ * 
+ * @example
+ * estimateVelocity({ x: 0, z: 0 }, { x: 4, z: 0 }, 1000)
+ * // { vx: 0.004, vz: 0 } — 4 blocks/sec eastward
+ */
+export function estimateVelocity(previous: Position2D, current: Position2D, dtMs: number): Velocity2D {
+    if (dtMs <= 0) { return { vx: 0, vz: 0 }; }
+
+    const vx = (current.x - previous.x) / dtMs;
+    const vz = (current.z - previous.z) / dtMs;
+    const speed = Math.hypot(vx, vz);
+
+    // Reject implausible speeds (teleports, dimension changes)
+    if (speed > MAX_SPEED_BLOCKS_PER_MS) {
+        return { vx: 0, vz: 0 };
+    }
+
+    return { vx, vz };
+}
+
+/**
+ * Extrapolate a position forward in time using a velocity vector.
+ * 
+ * @param base - Starting position
+ * @param velocity - Velocity vector (blocks/ms)
+ * @param elapsedMs - Milliseconds to extrapolate forward
+ * @returns Predicted position
+ * 
+ * @example
+ * extrapolatePosition({ x: 100, z: 200 }, { vx: 0.004, vz: 0 }, 500)
+ * // { x: 102, z: 200 } — moved 2 blocks east in 500ms
+ */
+export function extrapolatePosition(base: Position2D, velocity: Velocity2D, elapsedMs: number): Position2D {
+    return {
+        x: base.x + velocity.vx * elapsedMs,
+        z: base.z + velocity.vz * elapsedMs
+    };
+}
+
+/**
+ * Linearly interpolate between two positions.
+ * 
+ * @param from - Start position (t=0)
+ * @param to - End position (t=1)
+ * @param t - Interpolation factor, clamped to [0, 1]
+ * @returns Interpolated position
+ * 
+ * @example
+ * lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 0.5)
+ * // { x: 5, z: 10 }
+ */
+export function lerpPosition(from: Position2D, to: Position2D, t: number): Position2D {
+    const clamped = Math.max(0, Math.min(1, t));
+    return {
+        x: from.x + (to.x - from.x) * clamped,
+        z: from.z + (to.z - from.z) * clamped
+    };
+}
+
+/**
+ * Determine whether extrapolation should be used based on velocity and yaw.
+ * Suppresses extrapolation when the player appears stationary or when
+ * the velocity direction diverges significantly from the heading (yaw).
+ * 
+ * @param velocity - Current estimated velocity
+ * @param yaw - Player's heading in Minecraft degrees (0=south, 90=west, 180=north, 270=east), or undefined
+ * @param speedThreshold - Minimum speed (blocks/ms) to consider the player moving. Default: walking speed / 4
+ * @returns True if extrapolation is appropriate
+ * 
+ * @example
+ * shouldExtrapolate({ vx: 0.004, vz: 0 }, 270, 0.001) // true — moving east, facing east
+ * shouldExtrapolate({ vx: 0, vz: 0 }, 90)               // false — stationary
+ */
+export function shouldExtrapolate(
+    velocity: Velocity2D,
+    yaw: number | undefined,
+    speedThreshold: number = 0.001
+): boolean {
+    const speed = Math.hypot(velocity.vx, velocity.vz);
+    if (speed < speedThreshold) { return false; }
+
+    // If no yaw data, extrapolate based on velocity alone
+    if (yaw === undefined) { return true; }
+
+    // Convert Minecraft yaw to math angle (radians)
+    // Minecraft: 0=south(+z), 90=west(-x), 180=north(-z), 270=east(+x)
+    // Math: 0=east(+x), π/2=north(-z in screen, but +z in MC is south)
+    // We convert yaw to a direction vector to compare with velocity
+    const yawRad = (yaw * Math.PI) / 180;
+    const yawDx = -Math.sin(yawRad); // Minecraft: yaw 90 = west = -x
+    const yawDz = Math.cos(yawRad);  // Minecraft: yaw 0 = south = +z
+
+    // Dot product of normalized velocity and yaw direction
+    const dot = (velocity.vx * yawDx + velocity.vz * yawDz) / speed;
+
+    // If velocity and heading diverge by more than 90°, player likely turned — suppress
+    return dot > 0;
+}
+
 export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';

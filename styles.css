@@ -902,19 +902,6 @@ mark {
     background: transparent;
 }
 
-.nav-player-dot {
-    position: relative;
-    width: 20px;
-    height: 20px;
-    background: #ef4444;
-    border: 3px solid white;
-    border-radius: 50%;
-    box-shadow: 
-        0 0 0 2px #ef4444,
-        0 2px 8px rgb(0 0 0 / 50%);
-    animation: player-pulse 2s ease-in-out infinite;
-}
-
 /* Direction arrow - cone/wedge style pointing outward */
 .nav-player-arrow {
     position: absolute;
@@ -922,37 +909,15 @@ mark {
     left: 50%;
     width: 0;
     height: 0;
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
-    border-bottom: 20px solid white;
-    filter: drop-shadow(0 0 3px rgb(0 0 0 / 60%));
-    transform-origin: 0 0;
-    margin-left: 0;
-    margin-top: 0;
-}
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 24px solid rgb(239 68 68 / 60%);
+    filter: drop-shadow(0 1px 4px rgb(0 0 0 / 40%));
+    transform-origin: center center;
 
-.nav-player-arrow::after {
-    content: '';
-    position: absolute;
-    top: 4px;
-    left: -5px;
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-bottom: 14px solid #ef4444;
-}
-
-@keyframes player-pulse {
-    0%, 100% {
-        transform: scale(1);
-        box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
-    }
-
-    50% {
-        transform: scale(1.1);
-        box-shadow: 0 2px 10px rgb(239 68 68 / 60%);
-    }
+    /* Center the triangle: move left by half width (10px) and up by 2/3 height (16px) */
+    margin-left: -10px;
+    margin-top: -16px;
 }
 
 /* Navigation Route Markers */
@@ -1031,14 +996,8 @@ mark {
 }
 
 /* Player marker nether styling */
-.nav-player-marker--nether .nav-player-dot {
-    background: #dc2626;
-    border-color: #fbbf24;
-    box-shadow: 0 0 8px rgb(220 38 38 / 70%);
-}
-
 .nav-player-marker--nether .nav-player-arrow {
-    border-bottom-color: #dc2626;
+    border-bottom-color: rgb(220 38 38 / 60%);
 }
 
 .cart-route-section {
