@@ -4,6 +4,8 @@
  */
 
 import { describe, test, expect, beforeAll, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import {
     matchesQuery,
     enchantsMatch,
@@ -41,6 +43,7 @@ import {
     shouldSwitchMapWorld
 } from './library.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop } from './types.js';
+import { AppConfigSchema } from './types.js';
 
 // String constants to avoid duplication
 const EMERALD = 'EMERALD';
@@ -461,6 +464,18 @@ describe('config loading', () => {
         expect(config.analysis.shopClusterDistance).toBe(16);
         expect(config.analysis.maxTransitiveIterations).toBe(10);
         expect(config.analysis.minIndependentShops).toBe(3);
+    });
+});
+
+describe('config.json file validation', () => {
+    test('dataUrl points to remote API, not a local file', async () => {
+        const raw = await readFile(path.resolve(__dirname, '..', CONFIG_JSON), 'utf8');
+        const json: unknown = JSON.parse(raw);
+        const result = AppConfigSchema.safeParse(json);
+        expect(result.success).toBe(true);
+        if (!result.success) { return; }
+        expect(result.data.dataUrl).toMatch(/^https?:\/\//);
+        expect(result.data.dataUrl).not.toMatch(/^\.[\\/]/);
     });
 });
 
