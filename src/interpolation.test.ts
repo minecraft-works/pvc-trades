@@ -251,6 +251,40 @@ describe('PlayerInterpolator', () => {
         expect(interpolator.phase).toBe('extrapolating');
     });
 
+    test('correction→extrapolation transition is seamless (no position jump)', () => {
+        // Player moving east at 4 blocks/sec
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
+
+        // Get position 1ms before correction ends and 1ms after
+        const justBefore = interpolator.getDisplayPosition(1199);
+        const justAfter = interpolator.getDisplayPosition(1201);
+
+        expect(justBefore).toBeDefined();
+        expect(justAfter).toBeDefined();
+
+        // The positions should be very close (< 0.1 block) — no visible jump
+        const dx = Math.abs(justAfter!.x - justBefore!.x);
+        const dz = Math.abs(justAfter!.z - justBefore!.z);
+        expect(dx).toBeLessThan(0.1);
+        expect(dz).toBeLessThan(0.1);
+    });
+
+    test('correction target moves with velocity for fast players', () => {
+        // Player moving east at 8 blocks/sec (sprinting)
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 108, y: 64, z: 200, yaw: 270, timestamp: 1000 });
+
+        // At end of correction (t=1200), the position should account for
+        // continued movement during the 200ms correction window
+        const posAtCorrectionEnd = interpolator.getDisplayPosition(1200);
+        expect(posAtCorrectionEnd).toBeDefined();
+
+        // With moving target: 108 + 0.008 * 200 = 109.6 (accounts for movement)
+        // Without moving target: would have ended at 108 then jumped to 109.6
+        expect(posAtCorrectionEnd!.x).toBeGreaterThan(108);
+    });
+
     test('extrapolation moves position forward using velocity', () => {
         // Two samples: player moving east at 4 blocks/sec
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });

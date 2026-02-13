@@ -219,8 +219,15 @@ export class PlayerInterpolator {
 
     /**
      * Get position during the correction phase.
-     * Lerps from predicted-but-wrong position to the new true position,
-     * then transitions to extrapolation.
+     * Lerps from predicted-but-wrong position toward the extrapolated path,
+     * then transitions seamlessly to pure extrapolation.
+     *
+     * The correction target is a **moving target**: the sample position
+     * extrapolated forward by the current velocity. This ensures the lerp
+     * converges to exactly where the extrapolation phase would be at t=1,
+     * eliminating a position discontinuity at the transition. It also keeps
+     * the marker tracking a fast-moving player during the correction window
+     * instead of lagging behind the stale sample position.
      */
     private _getCorrectedPosition(now: number): InterpolatedPosition {
         const elapsed = now - this._correctionStartTime;
@@ -232,8 +239,17 @@ export class PlayerInterpolator {
             return this._getExtrapolatedPosition(now);
         }
 
-        // Lerp from wrong prediction to true position (x, z)
-        const pos2d = lerpPosition(this._correctionStart!, this._correctionTarget!, t);
+        // Move the correction target forward with velocity so the lerp
+        // converges smoothly to the extrapolated path (no jump at t=1).
+        const timeSinceSample = now - this._lastSample!.timestamp;
+        const movingTarget = extrapolatePosition(
+            this._correctionTarget!,
+            this._velocity,
+            timeSinceSample
+        );
+
+        // Lerp from wrong prediction to moving target (x, z)
+        const pos2d = lerpPosition(this._correctionStart!, movingTarget, t);
 
         // Lerp Y linearly
         const fromY = this._correctionStartY ?? this._lastSample!.y;
