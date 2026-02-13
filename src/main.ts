@@ -66,7 +66,7 @@ import {
     calculateTotalRouteDistance,
     buildMarkerContent,
     buildStopTooltip,
-    getZoomForDistance,
+    getZoomForHeight,
     hasPositionMoved
 } from './library.js';
 
@@ -1346,6 +1346,7 @@ async function startNavigation(): Promise<void> {
                 const interpolator = getInterpolator(player.name);
                 interpolator.pushSample({
                     x: player.position.x,
+                    y: player.position.y,
                     z: player.position.z,
                     yaw: player.rotation?.yaw,
                     timestamp: performance.now()
@@ -1510,6 +1511,7 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
         interpolator.reset();
         interpolator.pushSample({
             x: player.position.x,
+            y: player.position.y,
             z: player.position.z,
             yaw: player.rotation?.yaw,
             timestamp: performance.now()
@@ -1532,6 +1534,7 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
     const interpolator = getInterpolator(player.name);
     interpolator.pushSample({
         x: player.position.x,
+        y: player.position.y,
         z: player.position.z,
         yaw: player.rotation?.yaw,
         timestamp: performance.now()
@@ -1661,14 +1664,15 @@ function updatePlayerMarker(): void {
 }
 
 /**
- * Lightweight position-only update for the player marker.
+ * Lightweight position + rotation update for the player marker.
  * Called from the rAF animation loop with interpolated coordinates.
- * Does NOT rebuild the icon — only moves the marker via setLatLng.
+ * Updates marker position via setLatLng and rotates the direction arrow.
  * 
  * @param displayX - X coordinate in the current view world's coordinate system
  * @param displayZ - Z coordinate in the current view world's coordinate system
+ * @param yaw - Interpolated Minecraft yaw (0=south, 90=west, 180=north, 270=east), or undefined
  */
-function updatePlayerMarkerPosition(displayX: number, displayZ: number): void {
+function updatePlayerMarkerPosition(displayX: number, displayZ: number, yaw?: number): void {
     const navPlayerMarker = navigationStore.mapObjects.playerMarker;
     if (!navPlayerMarker || !navMap) { return; }
 
@@ -1680,6 +1684,16 @@ function updatePlayerMarkerPosition(displayX: number, displayZ: number): void {
         TILE_CONFIG.tileSize
     );
     navPlayerMarker.setLatLng([lat, lng]);
+
+    // Smoothly rotate the direction arrow if yaw is available
+    if (yaw !== undefined) {
+        const markerElement = navPlayerMarker.getElement();
+        const arrow = markerElement?.querySelector<HTMLElement>('.nav-player-arrow');
+        if (arrow) {
+            const rotation = yaw + 180; // Minecraft yaw 0=south → CSS 0=north
+            arrow.style.transform = `rotate(${rotation}deg)`;
+        }
+    }
 }
 
 // ============================================================================
@@ -1719,7 +1733,7 @@ function startNavAnimationLoop(): void {
                 playerPos.world, // world doesn't change between polls
                 viewWorld
             );
-            updatePlayerMarkerPosition(viewCoords.x, viewCoords.z);
+            updatePlayerMarkerPosition(viewCoords.x, viewCoords.z, displayPos.yaw);
         }
 
         navAnimationFrameId = requestAnimationFrame(tick);
@@ -2038,8 +2052,8 @@ const updateNearbyShopTooltip = createShopTooltipHandler({
 
 /**
  * Center the navigation map on the player position
- * Zoom level adjusts based on overworld-equivalent distance to nearest shop
- * (Nether distances are multiplied by 8 to account for portal scaling)
+ * Zoom level adjusts based on player Y height (altitude)
+ * Higher altitude = more zoomed out for a bird's-eye view
  */
 function centerMapOnPlayer(): void {
     if (!navMap || !navigationStore.playerPosition) {
@@ -2062,22 +2076,7 @@ function centerMapOnPlayer(): void {
         TILE_CONFIG.tileSize
     );
     
-    // Calculate distance to nearest non-completed shop using display coords
-    const route = navCurrentWorldRoute.length > 0 ? navCurrentWorldRoute : [];
-    let minDistance = Infinity;
-    
-    for (const stop of route) {
-        // Use displayX/displayZ for consistent distance calculation
-        const deltaX = displayCoords.x - stop.displayX;
-        const deltaZ = displayCoords.z - stop.displayZ;
-        const distance = Math.hypot(deltaX, deltaZ);
-        
-        if (distance < minDistance) {
-            minDistance = distance;
-        }
-    }
-    
-    const zoom = getZoomForDistance(minDistance);
+    const zoom = getZoomForHeight(navigationStore.playerPosition.y);
     
     // Use flyTo for smooth pan-zoom animation
     // In tests, Leaflet's flyTo is patched to use setView with animate:false for reliability

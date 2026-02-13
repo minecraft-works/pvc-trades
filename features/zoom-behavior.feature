@@ -1,7 +1,7 @@
 Feature: Zoom Behavior
   As a player navigating to shops
-  I want the map to zoom automatically
-  So that I see appropriate detail based on my distance
+  I want the map to zoom automatically based on my altitude
+  So that I see appropriate detail when on the ground and overview when high up
 
   Background:
     Given the app is loaded with shops in the overworld
@@ -9,90 +9,66 @@ Feature: Zoom Behavior
     And I start navigation as "TestPlayer"
 
   # ============================================================================
-  # Distance-Based Zoom (Overworld)
-  # Note: Mock shop is at (100, 200) in the overworld
-  # Distance thresholds in overworld blocks:
-  #   - < 60 blocks: zoom 2 (maximum - arriving at shop)
-  #   - 60-100 blocks: zoom 1 (close)
-  #   - 100-300 blocks: zoom 0 (medium)
-  #   - 300-600 blocks: zoom -1 (far)
-  #   - 600-1200 blocks: zoom -2 (very far)
-  #   - > 1200 blocks: zoom -3 (maximum out)
-  # Note: Auto-advance triggers at 50 blocks, so testing max zoom requires
-  #       positioning near a shop that's NOT the current target, or testing
-  #       after the first shop auto-completes when close to the next shop.
+  # Height-Based Zoom (Y coordinate)
+  # Thresholds:
+  #   - Y ≤ 80:  zoom 2 (ground level — maximum detail)
+  #   - Y ≤ 120: zoom 1 (rooftops / low hills)
+  #   - Y ≤ 160: zoom 0 (medium altitude)
+  #   - Y ≤ 200: zoom -1 (high altitude)
+  #   - Y ≤ 256: zoom -2 (very high)
+  #   - Y > 256: zoom -3 (maximum out — elytra / extreme height)
   # ============================================================================
 
-  @zoom @distance @wip
-  Scenario: Maximum zoom when very close to shop (near arrival)
-    # With two shops in cart: (100, 200) and (800, 400)
-    # Position player 55 blocks from first shop to trigger zoom 2 
-    # (within 60 block threshold but outside 50 block auto-advance)
-    Given the next shop is at (100, 200)
-    When player is at (100, 145)
+  @zoom @height @wip
+  Scenario: Maximum zoom at ground level (Y ≤ 80)
+    When player is at position (100, 64, 200)
     Then the map should be at zoom level 2 (maximum)
 
-  @zoom @distance @wip
-  Scenario: Zoom in when close to shop (60-100 blocks)
-    Given the next shop is at (100, 200)
-    # 80 blocks away - in the close range
-    When player is at (100, 120)
+  @zoom @height @wip
+  Scenario: Zoom out slightly at rooftop height (Y 80-120)
+    When player is at position (100, 100, 200)
     Then the map should be at zoom level 1
 
-  @zoom @distance @wip
-  Scenario: Medium zoom when close (100-300 blocks)
-    Given the next shop is at (100, 200)
-    # 100 blocks away
-    When player is at (100, 100)
+  @zoom @height @wip
+  Scenario: Medium zoom at moderate altitude (Y 120-160)
+    When player is at position (100, 140, 200)
     Then the map should be at zoom level 0
 
-  @zoom @distance @wip
-  Scenario: Zoom out when moderately far (300-600 blocks)
-    Given the next shop is at (100, 200)
-    # 300 blocks away
-    When player is at (100, -100)
+  @zoom @height @wip
+  Scenario: Zoom out at high altitude (Y 160-200)
+    When player is at position (100, 180, 200)
     Then the map should be at zoom level -1
 
-  @zoom @distance @wip
-  Scenario: Further zoom out (600-1200 blocks)
-    Given the next shop is at (100, 200)
-    # 600 blocks away
-    When player is at (100, -400)
+  @zoom @height @wip
+  Scenario: Further zoom out at very high altitude (Y 200-256)
+    When player is at position (100, 230, 200)
     Then the map should be at zoom level -2
 
-  @zoom @distance @wip
-  Scenario: Maximum zoom out when far (> 1200 blocks)
-    Given the next shop is at (100, 200)
-    # 900 blocks away
-    When player is at (100, -700)
+  @zoom @height @wip
+  Scenario: Maximum zoom out at extreme height (Y > 256)
+    When player is at position (100, 300, 200)
     Then the map should be at zoom level -3
 
   # ============================================================================
-  # Nether Zoom - accounts for 8x multiplier
-  # When in nether, distances are multiplied by 8 for zoom calculation
-  # So 100 nether blocks = 800 overworld-equivalent blocks
-  # Note: These tests need a separate feature file without the overworld Background
+  # Height-Based Zoom in Nether
+  # Same thresholds apply — Y coordinate works identically in both dimensions
   # ============================================================================
 
   @zoom @nether @wip @skip
-  Scenario: Nether zoom accounts for 8x multiplier - close
+  Scenario: Ground level zoom in nether
     Given the app is loaded with shops in the nether
     And I have nether items in my cart
     And I start navigation as "TestPlayer" in the nether
-    And the next nether shop is at (100, 50)
-    # 10 nether blocks = 80 OW-equivalent (close range)
-    When player is at (100, 40) in the nether
-    Then the map should be at zoom level 1
+    When player is at nether position (100, 64, 50)
+    Then the map should be at zoom level 2
 
   @zoom @nether @wip @skip
-  Scenario: Nether zoom accounts for 8x multiplier - far
+  Scenario: High altitude zoom in nether (above nether ceiling)
     Given the app is loaded with shops in the nether
     And I have nether items in my cart
     And I start navigation as "TestPlayer" in the nether
-    And the next nether shop is at (100, 50)
-    # 100 nether blocks = 800 OW-equivalent (far range)
-    When player is at (100, -50) in the nether
-    Then the map should be at zoom level -2
+    When player is at nether position (100, 200, 50)
+    Then the map should be at zoom level -1
 
   # ============================================================================
   # Follow Mode  

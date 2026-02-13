@@ -1,33 +1,32 @@
 /**
- * Step definitions for zoom distance property tests
- * Tests zoom level calculation based on distance thresholds
+ * Step definitions for zoom height property tests
+ * Tests zoom level calculation based on player Y height thresholds
  */
 import { expect } from '@playwright/test';
 import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
 import { setupColoredTileMocks, setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
-import { simpleDistance, NETHER_RATIO } from './test-math-utilities';
 
 // ============================================================================
-// Zoom level thresholds (from the app)
+// Zoom level thresholds (from the app — matches getZoomForHeight in library.ts)
 // ============================================================================
 
-const ZOOM_THRESHOLDS = [
-    { maxDistance: 60, zoom: 5 },
-    { maxDistance: 100, zoom: 4 },
-    { maxDistance: 300, zoom: 3 },
-    { maxDistance: 600, zoom: 2 },
-    { maxDistance: 1200, zoom: 1 },
-    { maxDistance: Infinity, zoom: 0 },
+const HEIGHT_THRESHOLDS = [
+    { maxHeight: 80, zoom: 2 },
+    { maxHeight: 120, zoom: 1 },
+    { maxHeight: 160, zoom: 0 },
+    { maxHeight: 200, zoom: -1 },
+    { maxHeight: 256, zoom: -2 },
+    { maxHeight: Infinity, zoom: -3 },
 ];
 
-function getZoomLevelForDistance(distance: number): number {
-    for (const threshold of ZOOM_THRESHOLDS) {
-        if (distance < threshold.maxDistance) {
+function getZoomLevelForHeight(y: number): number {
+    for (const threshold of HEIGHT_THRESHOLDS) {
+        if (y <= threshold.maxHeight) {
             return threshold.zoom;
         }
     }
-    return 0;
+    return -3;
 }
 
 // ============================================================================
@@ -35,10 +34,8 @@ function getZoomLevelForDistance(distance: number): number {
 // ============================================================================
 
 interface PageWithZoomTracking extends Page, BasePageTracking {
-    __isNether?: boolean;
-    __calculatedDistance?: number;
+    __playerY?: number;
     __calculatedZoom?: number;
-    __currentZoom?: number;
     __zoomChanges?: number[];
 }
 
@@ -54,148 +51,56 @@ Given('the navigation test app is configured', async ({ page }) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
-Given(String.raw`the player is at \({int}, {int}\)`, async ({ page }, x: number, z: number) => {
+Given('the player height is {int}', async ({ page }, y: number) => {
     const p = page as PageWithZoomTracking;
-    p.__playerX = x;
-    p.__playerZ = z;
+    p.__playerY = y;
 });
 
-Given(String.raw`the shop is at \({int}, {int}\)`, async ({ page }, x: number, z: number) => {
+Given('the player is bobbing between height {int} and {int}', async ({ page }, low: number, high: number) => {
     const p = page as PageWithZoomTracking;
-    p.__shopX = x;
-    p.__shopZ = z;
-});
-
-Given('the shop is exactly {int} blocks away', async ({ page }, distance: number) => {
-    const p = page as PageWithZoomTracking;
-    // Place shop at (distance, 0) from player at (0, 0)
-    p.__shopX = distance;
-    p.__shopZ = 0;
-});
-
-Given(String.raw`the player is in the nether at \({int}, {int}\)`, async ({ page }, x: number, z: number) => {
-    const p = page as PageWithZoomTracking;
-    p.__playerX = x;
-    p.__playerZ = z;
-    p.__isNether = true;
-});
-
-Given(String.raw`a nether shop is at \({int}, {int}\)`, async ({ page }, x: number, z: number) => {
-    const p = page as PageWithZoomTracking;
-    p.__shopX = x;
-    p.__shopZ = z;
-    p.__isNether = true;
-});
-
-Given(String.raw`the player is at overworld \({int}, {int}\)`, async ({ page }, x: number, z: number) => {
-    const p = page as PageWithZoomTracking;
-    p.__playerX = x;
-    p.__playerZ = z;
-    p.__isNether = false;
-});
-
-Given(String.raw`a nether shop at \({int}, {int}\) which is \({int}, {int}\) in overworld`, async ({ page }, netherX: number, netherZ: number, owX: number, owZ: number) => {
-    const p = page as PageWithZoomTracking;
-    // Use overworld coordinates for calculation
-    p.__shopX = owX;
-    p.__shopZ = owZ;
-});
-
-Given('the player is moving toward a shop', async ({ page }) => {
-    const p = page as PageWithZoomTracking;
-    p.__playerX = 150;
-    p.__playerZ = 0;
-    p.__shopX = 0;
-    p.__shopZ = 0;
+    p.__playerY = low;
+    (p as unknown as { __bobbingLow: number }).__bobbingLow = low;
+    (p as unknown as { __bobbingHigh: number }).__bobbingHigh = high;
     p.__zoomChanges = [];
-});
-
-Given('the current zoom level is {int}', async ({ page }, zoom: number) => {
-    const p = page as PageWithZoomTracking;
-    p.__currentZoom = zoom;
-});
-
-Given('the distance changes from {int} to {int}', async ({ page }, fromDistance: number, toDistance: number) => {
-    const p = page as PageWithZoomTracking;
-    p.__calculatedDistance = toDistance;
-    (p as unknown as { __fromDistance: number }).__fromDistance = fromDistance;
 });
 
 // ============================================================================
 // WHEN Steps
 // ============================================================================
 
-When('I calculate the zoom level for that distance', async ({ page }) => {
+When('I calculate the zoom level for that height', async ({ page }) => {
     const p = page as PageWithZoomTracking;
-    const playerX = p.__playerX ?? 0;
-    const playerZ = p.__playerZ ?? 0;
-    const shopX = p.__shopX ?? 0;
-    const shopZ = p.__shopZ ?? 0;
-    
-    const distance = simpleDistance(playerX, playerZ, shopX, shopZ);
-    p.__calculatedDistance = distance;
-    p.__calculatedZoom = getZoomLevelForDistance(distance);
+    const y = p.__playerY ?? 64;
+    p.__calculatedZoom = getZoomLevelForHeight(y);
 });
 
 When('I calculate the zoom level', async ({ page }) => {
     const p = page as PageWithZoomTracking;
-    const playerX = p.__playerX ?? 0;
-    const playerZ = p.__playerZ ?? 0;
-    const shopX = p.__shopX ?? 0;
-    const shopZ = p.__shopZ ?? 0;
-    
-    const distance = simpleDistance(playerX, playerZ, shopX, shopZ);
-    p.__calculatedDistance = distance;
-    p.__calculatedZoom = getZoomLevelForDistance(distance);
-});
-
-When('I calculate the overworld-equivalent distance', async ({ page }) => {
-    const p = page as PageWithZoomTracking;
-    const playerX = (p.__playerX ?? 0) * NETHER_RATIO;  // Nether to overworld ×8
-    const playerZ = (p.__playerZ ?? 0) * NETHER_RATIO;
-    const shopX = (p.__shopX ?? 0) * NETHER_RATIO;
-    const shopZ = (p.__shopZ ?? 0) * NETHER_RATIO;
-    
-    p.__calculatedDistance = simpleDistance(playerX, playerZ, shopX, shopZ);
-});
-
-When('I calculate the distance', async ({ page }) => {
-    const p = page as PageWithZoomTracking;
-    const playerX = p.__playerX ?? 0;
-    const playerZ = p.__playerZ ?? 0;
-    const shopX = p.__shopX ?? 0;
-    const shopZ = p.__shopZ ?? 0;
-    
-    p.__calculatedDistance = simpleDistance(playerX, playerZ, shopX, shopZ);
+    const y = p.__playerY ?? 64;
+    p.__calculatedZoom = getZoomLevelForHeight(y);
 });
 
 When('the player crosses the {int} block boundary multiple times', async ({ page }, boundary: number) => {
     const p = page as PageWithZoomTracking;
     p.__zoomChanges = [];
-    
-    // Simulate crossing the boundary
-    const positions = [
-        boundary - 10,  // Before
-        boundary + 10,  // After
-        boundary - 5,   // Back before
-        boundary + 5,   // After again
+
+    // Simulate crossing the height boundary
+    const heights = [
+        boundary - 10,  // Below
+        boundary + 10,  // Above
+        boundary - 5,   // Back below
+        boundary + 5,   // Above again
     ];
-    
-    let lastZoom = getZoomLevelForDistance(positions[0]!);
-    
-    for (const pos of positions) {
-        const newZoom = getZoomLevelForDistance(pos);
+
+    let lastZoom = getZoomLevelForHeight(heights[0]!);
+
+    for (const h of heights) {
+        const newZoom = getZoomLevelForHeight(h);
         if (newZoom !== lastZoom) {
             p.__zoomChanges.push(newZoom);
             lastZoom = newZoom;
         }
     }
-});
-
-When('I recalculate the zoom level', async ({ page }) => {
-    const p = page as PageWithZoomTracking;
-    const distance = p.__calculatedDistance ?? 0;
-    p.__calculatedZoom = getZoomLevelForDistance(distance);
 });
 
 // ============================================================================
@@ -207,37 +112,12 @@ Then('the zoom level should be {int}', async ({ page }, expectedZoom: number) =>
     expect(p.__calculatedZoom).toBe(expectedZoom);
 });
 
-// Note: "the distance should be {int} blocks" is defined in route.steps.ts
-
-Then('the calculated distance should be {int} blocks', async ({ page }, expectedDistance: number) => {
-    const p = page as PageWithZoomTracking;
-    expect(Math.round(p.__calculatedDistance ?? 0)).toBe(expectedDistance);
-});
-
-Then('the distance should be approximately {int} blocks', async ({ page }, expectedDistance: number) => {
-    const p = page as PageWithZoomTracking;
-    const actual = p.__calculatedDistance ?? 0;
-    // Allow 1% tolerance for floating point
-    expect(Math.abs(actual - expectedDistance)).toBeLessThan(expectedDistance * 0.02 + 1);
-});
-
 Then('the zoom level should not rapidly change', async ({ page }) => {
     const p = page as PageWithZoomTracking;
-    // Rapid changes would be more than 2 changes
     expect((p.__zoomChanges?.length ?? 0)).toBeLessThanOrEqual(4);
 });
 
 Then('there should be at most {int} zoom changes', async ({ page }, maxChanges: number) => {
     const p = page as PageWithZoomTracking;
     expect((p.__zoomChanges?.length ?? 0)).toBeLessThanOrEqual(maxChanges);
-});
-
-Then('the zoom should change to {int}', async ({ page }, expectedZoom: number) => {
-    const p = page as PageWithZoomTracking;
-    expect(p.__calculatedZoom).toBe(expectedZoom);
-});
-
-Then('the zoom should stay at {int}', async ({ page }, expectedZoom: number) => {
-    const p = page as PageWithZoomTracking;
-    expect(p.__calculatedZoom).toBe(expectedZoom);
 });
