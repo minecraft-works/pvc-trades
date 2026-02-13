@@ -563,7 +563,7 @@ Given(String.raw`the next shop is at \({int}, {int})`, async ({}, _x: number, _z
 });
 
 Then('a dotted green line should connect player to shop', async ({ page }) => {
-    const polyline = page.locator('.leaflet-interactive');
+    const polyline = page.locator('path.leaflet-interactive[stroke="#22c55e"]');
     await expect(polyline.first()).toBeVisible({ timeout: 5000 });
 });
 
@@ -574,8 +574,8 @@ When(String.raw`player moves to \({int}, {int})`, async ({ page, playerMock }, x
 });
 
 Then('the dotted line should update to new positions', async ({ page }) => {
-    const polyline = page.locator('.leaflet-interactive');
-    await expect(polyline.first()).toBeVisible();
+    const polyline = page.locator('path.leaflet-interactive[stroke="#22c55e"]');
+    await expect(polyline.first()).toBeVisible({ timeout: 5000 });
 });
 
 // ============================================================================
