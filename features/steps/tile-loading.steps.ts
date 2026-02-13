@@ -580,8 +580,10 @@ When('I close and reopen the navigation map', async ({ page }) => {
 
 Then('zoom 8 tiles should be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const zoom8Requests = p.__tileRequests?.filter(url => url.includes('/8/')) ?? [];
-    expect(zoom8Requests.length, 'Expected zoom 8 tile requests').toBeGreaterThan(0);
+    await expect(async () => {
+        const zoom8Requests = p.__tileRequests?.filter(url => url.includes('/8/')) ?? [];
+        expect(zoom8Requests.length, 'Expected zoom 8 tile requests').toBeGreaterThan(0);
+    }).toPass({ timeout: 10_000, intervals: [500] });
 });
 
 Then('zoom 4 tiles should be requested', async ({ page }) => {
