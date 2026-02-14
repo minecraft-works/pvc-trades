@@ -744,10 +744,13 @@ function buildNewTradesSection(count: number): HTMLDivElement {
 /**
  * Build the price drops section HTML.
  */
-function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
+function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
-    const dropItems = drops.map(drop => {
+    // Only show drops that fell below median (negative deviation)
+    const belowMedian = drops.filter(drop => drop.newDeviation < 0);
+    if (belowMedian.length === 0) { return undefined; }
+    const dropItems = belowMedian.map(drop => {
         const deviationText = formatDeviationText(drop.newDeviation);
         const oldText = formatDeviationText(drop.oldDeviation);
         return `<div class="dashboard-item">
@@ -757,7 +760,7 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
         </div>`;
     }).join('');
     section.innerHTML = `
-        <div class="dashboard-section-title">📉 Price Drops (${drops.length})</div>
+        <div class="dashboard-section-title">📉 Price Drops (${belowMedian.length})</div>
         <div class="dashboard-section-items">${dropItems}</div>
     `;
     return section;
@@ -786,7 +789,10 @@ function renderDashboard(data: DashboardData): void {
         sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
     }
     if (data.priceDrops.length > 0) {
-        sectionsElement.append(buildPriceDropsSection(data.priceDrops));
+        const priceDropsSection = buildPriceDropsSection(data.priceDrops);
+        if (priceDropsSection) {
+            sectionsElement.append(priceDropsSection);
+        }
     }
 
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
