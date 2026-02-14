@@ -274,13 +274,12 @@ export type ItemValues = Map<string, ItemValueEntry>;
 
 export type RatioGraph = Map<string, number>;
 
-export interface PriceTableEntry {
-    name: string;
-    buyPrice: number | undefined;
-    sellPrice: number | undefined;
-    spread: number | undefined;
-    /** True when prices are derived from base item × multiplier (e.g. diamond × 9) */
-    derived: boolean;
+/** NxN exchange rate matrix for core currencies */
+export interface ExchangeMatrix {
+    /** Currency names in display order */
+    labels: string[];
+    /** ratios[row][col] = how many of labels[col] for 1 of labels[row], or undefined */
+    ratios: (number | undefined)[][];
 }
 
 // ============================================================================

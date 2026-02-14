@@ -66,7 +66,7 @@ import {
     type DashboardData,
     type PriceDrop,
     type WatchlistHit,
-    type PriceTableEntry,
+    type ExchangeMatrix,
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
@@ -669,77 +669,79 @@ export function getRatio(graph: RatioGraph, from: string, to: string): number | 
     return graph.get(key);
 }
 
-function calculateSpread(buyPrice: number | undefined, sellPrice: number | undefined): number | undefined {
-    if (buyPrice === undefined || sellPrice === undefined) { return undefined; }
-    return ((buyPrice - sellPrice) / buyPrice) * 100;
-}
+/**
+ * Build emerald values using only buy or sell medians.
+ * Used to create separate buy/sell exchange matrices.
+ */
+function buildDirectionalEmeraldValues(
+    itemValues: ItemValues,
+    side: 'buy' | 'sell'
+): Map<string, number> {
+    const emeraldValues = new Map<string, number>();
+    const config = configStore.get();
+    const coreBlocks = coreBlocksStore.get();
+    const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
 
-function buildDirectEntry(block: string, entry: ItemValueEntry): PriceTableEntry | undefined {
-    const buyPrice = median(entry.buyPrices);
-    const sellPrice = median(entry.sellPrices);
-    if (buyPrice === undefined && sellPrice === undefined) { return undefined; }
+    for (const [key, entry] of itemValues.entries()) {
+        if (coreBlocksLower.has(key) && !hasEnoughIndependentData(entry, config.analysis.minIndependentShops)) {
+            continue;
+        }
 
-    return {
-        name: block,
-        buyPrice,
-        sellPrice,
-        spread: calculateSpread(buyPrice, sellPrice),
-        derived: false,
-    };
-}
+        const prices = side === 'buy' ? entry.buyPrices : entry.sellPrices;
+        const value = median(prices);
+        if (value !== undefined) {
+            emeraldValues.set(key, value);
+        }
+    }
 
-function buildDerivedEntry(
-    block: string,
-    baseEntry: ItemValueEntry,
-    multiplier: number
-): PriceTableEntry | undefined {
-    const baseBuy = median(baseEntry.buyPrices);
-    const baseSell = median(baseEntry.sellPrices);
-    if (baseBuy === undefined && baseSell === undefined) { return undefined; }
-
-    const buyPrice = baseBuy === undefined ? undefined : baseBuy * multiplier;
-    const sellPrice = baseSell === undefined ? undefined : baseSell * multiplier;
-
-    return {
-        name: block,
-        buyPrice,
-        sellPrice,
-        spread: calculateSpread(buyPrice, sellPrice),
-        derived: true,
-    };
+    emeraldValues.set('emerald', 1);
+    const blockConversions = blockConversionsStore.get();
+    addBlockConversionValues(emeraldValues, blockConversions);
+    return emeraldValues;
 }
 
 /**
- * Build a price table showing buy/sell prices for core blocks in emeralds.
- * Each entry includes median buy/sell price, trade counts, independent shop count, and spread.
- * Falls back to base item × multiplier when no direct trades exist.
- * Sorted by buy price descending (most expensive first).
+ * Build an NxN exchange matrix for core currencies.
+ * Each cell shows how many of column-currency you get for 1 of row-currency.
+ *
+ * @param itemValues - The computed item values from trades
+ * @param side - Whether to use buy (ask) or sell (bid) prices
+ * @returns Matrix with labels and ratio grid
+ *
+ * @example
+ * const matrix = buildExchangeMatrix(itemValues, 'buy');
+ * // matrix.ratios[0][1] = how many of labels[1] for 1 of labels[0]
  */
-export function buildPriceTable(itemValues: ItemValues): PriceTableEntry[] {
+export function buildExchangeMatrix(itemValues: ItemValues, side: 'buy' | 'sell'): ExchangeMatrix {
     const coreBlocks = coreBlocksStore.get();
-    const blockConversions = blockConversionsStore.get();
-    const entries: PriceTableEntry[] = [];
+    const emeraldValues = buildDirectionalEmeraldValues(itemValues, side);
+
+    const labels: string[] = [];
+    const values: number[] = [];
 
     for (const block of coreBlocks) {
-        const key = block.toLowerCase();
-        const entry = itemValues.get(key);
-
-        if (entry) {
-            const direct = buildDirectEntry(block, entry);
-            if (direct) { entries.push(direct); continue; }
+        const value = emeraldValues.get(block.toLowerCase());
+        if (value !== undefined) {
+            labels.push(block);
+            values.push(value);
         }
-
-        // Fall back to base item × multiplier (e.g. diamond × 9 = diamond block)
-        const conversion = blockConversions[key];
-        if (!conversion) { continue; }
-        const baseEntry = itemValues.get(conversion.base.toLowerCase());
-        if (!baseEntry) { continue; }
-
-        const derived = buildDerivedEntry(block, baseEntry, conversion.multiplier);
-        if (derived) { entries.push(derived); }
     }
 
-    return entries.toSorted((a, b) => (b.buyPrice ?? 0) - (a.buyPrice ?? 0));
+    const ratios: (number | undefined)[][] = [];
+    for (const [rowIndex, rowValue] of values.entries()) {
+        const row: (number | undefined)[] = [];
+        for (const [colIndex, colValue] of values.entries()) {
+            if (rowIndex === colIndex) {
+                row.push(1);
+            } else {
+                const ratio = rowValue / colValue;
+                row.push(Number.isFinite(ratio) && ratio > 0 ? ratio : undefined);
+            }
+        }
+        ratios.push(row);
+    }
+
+    return { labels, ratios };
 }
 
 // ============================================================================

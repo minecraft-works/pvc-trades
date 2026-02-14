@@ -13,7 +13,7 @@ export {
 } from './dialog-utilities.js';
 
 // Price table dialog
-export { renderPriceTable } from './matrix-dialog.js';
+export { renderExchangeMatrix } from './matrix-dialog.js';
 
 // Trade details dialog
 export { createTradeDetailsHandler } from './trade-details.js';

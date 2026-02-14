@@ -121,7 +121,7 @@ import {
 import type { LoadNavMapTilesOptions, TileRange, ShopMapDialogHandler } from './map/index.js';
 
 import {
-    renderPriceTable,
+    renderExchangeMatrix,
     setupDialogBackdropClose,
     openDialog,
     createTradeDetailsHandler
@@ -1222,11 +1222,11 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | undefined, g
 // ============================================================================
 
 /**
- * Render the price table dialog using the extracted module
+ * Render the exchange rate matrix dialog using the extracted module
  */
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-    renderPriceTable(container, itemValues, getElement);
+    renderExchangeMatrix(container, itemValues, getElement);
 }
 
 // ============================================================================
