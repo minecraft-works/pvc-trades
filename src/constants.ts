@@ -51,12 +51,23 @@ export const SORT = {
 export const STORAGE_KEYS = {
     CART: 'pvc-trades-cart',
     FAVORITES: 'pvc-trades-favorites',
+    SNAPSHOT: 'pvc-trades-snapshot',
     NAV_PROGRESS: 'pvc-trades-nav-progress',
     NAV_PLAYER: 'pvc-trades-nav-player',
     NAV_TAB: 'pvc-trades-nav-tab',
     NAV_MODE: 'pvc-trades-nav-mode',
     NAV_VIEW_WORLD: 'pvc-trades-nav-view-world',
     NAV_VIEW_WORLD_MODE: 'pvc-trades-nav-view-world-mode',
+} as const;
+
+// ============================================================================
+// Dashboard Constants
+// ============================================================================
+
+/** Daily deals dashboard thresholds */
+export const DASHBOARD = {
+    /** Minimum deviation improvement (percentage points) to count as a price drop */
+    PRICE_DROP_THRESHOLD: 5,
 } as const;
 
 // ============================================================================

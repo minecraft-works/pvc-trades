@@ -60,6 +60,12 @@ import {
     type TradeInput,
     type ShoppingList,
     type RouteStop,
+    type TradeSnapshot,
+    type TradeSnapshotEntry,
+    type FavoriteItem,
+    type DashboardData,
+    type PriceDrop,
+    type WatchlistHit,
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
@@ -1948,6 +1954,173 @@ export function shouldExtrapolate(
 ): boolean {
     const speed = Math.hypot(velocity.vx, velocity.vz);
     return speed >= speedThreshold;
+}
+
+// ============================================================================
+// Daily Deals Dashboard
+// ============================================================================
+
+/**
+ * Format a timestamp as a relative time string (e.g., "14h ago", "2d ago").
+ * 
+ * @param timestamp - The past timestamp to format
+ * @param now - The current time (default: Date.now()), injectable for testing
+ * @returns Human-readable relative time string
+ * 
+ * @example
+ * formatRelativeTime(Date.now() - 3_600_000)  // "1h ago"
+ * formatRelativeTime(Date.now() - 86_400_000) // "1d ago"
+ */
+export function formatRelativeTime(timestamp: number, now: number = Date.now()): string {
+    const diffMs = now - timestamp;
+    const minutes = Math.floor(diffMs / 60_000);
+    const hours = Math.floor(diffMs / 3_600_000);
+    const days = Math.floor(diffMs / 86_400_000);
+
+    if (minutes < 1) { return 'just now'; }
+    if (minutes < 60) { return `${minutes}m ago`; }
+    if (hours < 24) { return `${hours}h ago`; }
+    return `${days}d ago`;
+}
+
+/**
+ * Compute dashboard data by comparing current trades against a previous snapshot.
+ * 
+ * Detects:
+ * - **New trades**: trade keys present now but not in the previous snapshot
+ * - **Price drops**: trades where deviation improved by ≥ `dropThreshold` percentage points
+ * - **Watchlist hits**: favorited items with deviation meeting their threshold,
+ *   annotated with previous deviation for delta display
+ * 
+ * Pure function — no side effects, fully unit-testable.
+ * 
+ * @param currentTrades - All current trades
+ * @param getDeviation - Deviation calculator for current item values
+ * @param previousSnapshot - Previous session's snapshot (undefined = first visit)
+ * @param favorites - User's watchlist items
+ * @param dropThreshold - Minimum deviation improvement (percentage points) to count as a drop
+ * @returns Dashboard data with new trades, price drops, and watchlist hits
+ * 
+ * @example
+ * const data = computeDashboardData(allTrades, getDeviation, snapshot, favorites);
+ * if (data.watchlistHits.length > 0) { showBanner(data); }
+ */
+/**
+ * Check if a trade is new (not in previous snapshot).
+ */
+function isNewTrade(key: string, previousSnapshot: TradeSnapshot | undefined, previousTrades: Record<string, TradeSnapshotEntry>): boolean {
+    return Boolean(previousSnapshot) && !(key in previousTrades);
+}
+
+/**
+ * Check if a trade has a price drop exceeding the threshold.
+ */
+function detectPriceDrop(
+    trade: Trade,
+    key: string,
+    deviation: { percent: number } | undefined,
+    previous: TradeSnapshotEntry | undefined,
+    dropThreshold: number
+): PriceDrop | undefined {
+    if (!previous || !deviation || previous.deviationPercent === undefined) {
+        return undefined;
+    }
+    const improvement = previous.deviationPercent - deviation.percent;
+    if (improvement < dropThreshold) {
+        return undefined;
+    }
+    return {
+        tradeKey: key,
+        itemName: trade.resultName,
+        oldDeviation: previous.deviationPercent,
+        newDeviation: deviation.percent
+    };
+}
+
+/**
+ * Update the watchlist hit map with the best deal per favorite item.
+ */
+function updateWatchlistHit(
+    trade: Trade,
+    deviation: { percent: number },
+    previousDeviation: number | undefined,
+    favorite: FavoriteItem,
+    watchlistHitMap: Map<string, WatchlistHit>
+): void {
+    const meetsThreshold = favorite.maxDeviation === undefined
+        || deviation.percent <= favorite.maxDeviation;
+    if (!meetsThreshold) { return; }
+
+    const normalizedName = trade.resultName.toLowerCase();
+    const existing = watchlistHitMap.get(normalizedName);
+    if (existing && deviation.percent >= existing.currentDeviation) { return; }
+
+    watchlistHitMap.set(normalizedName, {
+        itemName: trade.resultName,
+        currentDeviation: deviation.percent,
+        previousDeviation
+    });
+}
+
+/**
+ * Compute dashboard data by comparing current trades against a previous snapshot.
+ * Pure function: no side effects.
+ *
+ * @param currentTrades - All current trades
+ * @param getDeviation - Function to calculate deviation for a trade
+ * @param previousSnapshot - Previously saved snapshot (undefined on first visit)
+ * @param favorites - User's watchlist items
+ * @param dropThreshold - Minimum deviation improvement (percentage points) to count as a price drop
+ * @returns Dashboard data with new trades, price drops, and watchlist hits
+ */
+export function computeDashboardData(
+    currentTrades: Trade[],
+    getDeviation: (trade: Trade) => { percent: number } | undefined,
+    previousSnapshot: TradeSnapshot | undefined,
+    favorites: FavoriteItem[],
+    dropThreshold: number = 5
+): DashboardData {
+    const newTradeKeysList: string[] = [];
+    const priceDrops: PriceDrop[] = [];
+    const watchlistHitMap = new Map<string, WatchlistHit>();
+
+    const favoritesByName = new Map<string, FavoriteItem>();
+    for (const fav of favorites) {
+        favoritesByName.set(fav.itemName.toLowerCase(), fav);
+    }
+
+    const previousTrades = previousSnapshot?.trades ?? {};
+
+    for (const trade of currentTrades) {
+        const key = getTradeKey(trade);
+        const currentDeviation = getDeviation(trade);
+        const previous = previousTrades[key];
+
+        if (isNewTrade(key, previousSnapshot, previousTrades)) {
+            newTradeKeysList.push(key);
+        }
+
+        const drop = detectPriceDrop(trade, key, currentDeviation, previous, dropThreshold);
+        if (drop) {
+            priceDrops.push(drop);
+        }
+
+        const normalizedName = trade.resultName.toLowerCase();
+        const favorite = favoritesByName.get(normalizedName);
+        if (favorite && currentDeviation) {
+            const previousDeviation = previousSnapshot ? previous?.deviationPercent : undefined;
+            updateWatchlistHit(trade, currentDeviation, previousDeviation, favorite, watchlistHitMap);
+        }
+    }
+
+    priceDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
+
+    return {
+        newTradeKeys: newTradeKeysList,
+        priceDrops,
+        watchlistHits: [...watchlistHitMap.values()],
+        lastVisit: previousSnapshot?.timestamp
+    };
 }
 
 export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';

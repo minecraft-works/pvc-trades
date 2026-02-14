@@ -67,7 +67,9 @@ import {
     buildMarkerContent,
     buildStopTooltip,
     getZoomForHeight,
-    hasPositionMoved
+    hasPositionMoved,
+    computeDashboardData,
+    formatRelativeTime
 } from './library.js';
 
 import { debugNavigation, debugPlayerPoll, debugMap, debugTiles, debugInterpolation } from './debug.js';
@@ -86,7 +88,10 @@ import type {
     Player,
     RouteStop,
     ShoppingList,
-    Item
+    Item,
+    DashboardData,
+    PriceDrop,
+    WatchlistHit
 } from './types.js';
 
 import { shouldDisableAnimations } from './types.js';
@@ -102,7 +107,7 @@ import {
     STORAGE_KEYS
 } from './constants.js';
 
-import { cartStore, navigationStore, favoritesStore, getInterpolator, removeInterpolator } from './stores/index.js';
+import { cartStore, navigationStore, favoritesStore, snapshotStore, getInterpolator, removeInterpolator } from './stores/index.js';
 
 import {
     TILE_CONFIG,
@@ -510,6 +515,9 @@ async function loadShops(): Promise<void> {
         renderHeader();
         search(); // Show all trades on load
         
+        // Show daily deals dashboard (compare with previous session)
+        showDashboard();
+        
         // Start background refresh interval
         if (config.dataRefreshMs && config.dataRefreshMs > 0) {
             _shopRefreshInterval = setInterval(() => void refreshShopData(), config.dataRefreshMs);
@@ -619,6 +627,275 @@ function search(): void {
  * Trigger a search refresh (used by favorites and other features)
  */
 function triggerSearch(): void {
+    search();
+}
+
+// ============================================================================
+// Daily Deals Dashboard
+// ============================================================================
+
+/**
+ * Show the daily deals dashboard banner.
+ * Loads previous snapshot, computes diff against current data, renders banner.
+ * The snapshot is NOT auto-saved — user must explicitly "Mark as seen".
+ */
+function showDashboard(): void {
+    const previousSnapshot = snapshotStore.load();
+    const favorites = favoritesStore.getAll();
+
+    const dashboardData = computeDashboardData(
+        allTrades,
+        getDeviation,
+        previousSnapshot,
+        favorites
+    );
+
+    // Only show banner if there's something to report
+    const hasContent = dashboardData.watchlistHits.length > 0
+        || dashboardData.newTradeKeys.length > 0
+        || dashboardData.priceDrops.length > 0;
+
+    if (!hasContent || !previousSnapshot) {
+        // First visit: save an initial snapshot silently (no dashboard to show)
+        if (!previousSnapshot) {
+            snapshotStore.save(allTrades, getDeviation);
+        }
+        return;
+    }
+
+    renderDashboard(dashboardData);
+
+    // Show the toggle button in the header
+    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
+    toggleButton?.classList.remove('hidden');
+}
+
+// Dashboard CSS class for delta spans
+const DELTA_CLASS = 'dashboard-item-delta';
+const SECTION_CLASS = 'dashboard-section';
+
+// Dashboard element selectors
+const DASHBOARD_SELECTOR = '#deals-dashboard';
+const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
+
+/**
+ * Format a deviation value as a signed percentage string.
+ */
+function formatDeviationText(deviation: number): string {
+    return deviation > 0 ? `+${deviation}%` : `${deviation}%`;
+}
+
+/**
+ * Render a single watchlist hit item as HTML.
+ */
+function renderWatchlistItem(hit: WatchlistHit): string {
+    const deviationClass = hit.currentDeviation < 0 ? 'good' : 'bad';
+    const deviationText = formatDeviationText(hit.currentDeviation);
+    const deltaHtml = buildWatchlistDelta(hit);
+    return `<div class="dashboard-item">
+        <span class="dashboard-item-name">${escapeHtml(hit.itemName)}</span>
+        <span class="dashboard-item-dev ${deviationClass}">${deviationText}</span>
+        ${deltaHtml}
+    </div>`;
+}
+
+/**
+ * Build the delta comparison HTML for a watchlist hit.
+ */
+function buildWatchlistDelta(hit: WatchlistHit): string {
+    if (hit.previousDeviation === undefined) { return ''; }
+    const diff = hit.currentDeviation - hit.previousDeviation;
+    const previousText = formatDeviationText(hit.previousDeviation);
+    if (diff < 0) {
+        return `<span class="${DELTA_CLASS} improved">(was ${previousText}) ↓ better</span>`;
+    }
+    if (diff > 0) {
+        return `<span class="${DELTA_CLASS}">(was ${previousText}) ↑ worse</span>`;
+    }
+    return `<span class="${DELTA_CLASS}">(unchanged)</span>`;
+}
+
+/**
+ * Build the watchlist hits section HTML.
+ */
+function buildWatchlistSection(hits: WatchlistHit[]): HTMLDivElement {
+    const section = document.createElement('div');
+    section.className = SECTION_CLASS;
+    const items = hits.map(hit => renderWatchlistItem(hit)).join('');
+    section.innerHTML = `
+        <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>
+        <div class="dashboard-section-items">${items}</div>
+    `;
+    return section;
+}
+
+/**
+ * Build the new trades section HTML.
+ */
+function buildNewTradesSection(count: number): HTMLDivElement {
+    const section = document.createElement('div');
+    section.className = SECTION_CLASS;
+    section.innerHTML = `
+        <div class="dashboard-section-title">🆕 New Trades</div>
+        <div class="dashboard-summary">${count} new listing${count === 1 ? '' : 's'} appeared</div>
+    `;
+    return section;
+}
+
+/**
+ * Build the price drops section HTML.
+ */
+function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
+    const section = document.createElement('div');
+    section.className = SECTION_CLASS;
+    const topDrops = drops.slice(0, 5);
+    const dropItems = topDrops.map(drop => {
+        const deviationText = formatDeviationText(drop.newDeviation);
+        const oldText = formatDeviationText(drop.oldDeviation);
+        return `<div class="dashboard-item">
+            <span class="dashboard-item-name">${escapeHtml(drop.itemName)}</span>
+            <span class="dashboard-item-dev good">${deviationText}</span>
+            <span class="${DELTA_CLASS} improved">(was ${oldText})</span>
+        </div>`;
+    }).join('');
+    const moreText = drops.length > 5
+        ? `<div class="dashboard-summary">...and ${drops.length - 5} more</div>`
+        : '';
+    section.innerHTML = `
+        <div class="dashboard-section-title">📉 Price Drops (${drops.length})</div>
+        <div class="dashboard-section-items">${dropItems}</div>
+        ${moreText}
+    `;
+    return section;
+}
+
+/**
+ * Render the dashboard banner with sections for watchlist hits, new trades, and price drops.
+ */
+function renderDashboard(data: DashboardData): void {
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
+    if (!dashboard) { return; }
+
+    const timeAgoElement = document.querySelector('#dashboard-time-ago');
+    if (timeAgoElement && data.lastVisit) {
+        timeAgoElement.textContent = formatRelativeTime(data.lastVisit);
+    }
+
+    const sectionsElement = document.querySelector('#dashboard-sections');
+    if (!sectionsElement) { return; }
+    sectionsElement.innerHTML = '';
+
+    if (data.watchlistHits.length > 0) {
+        sectionsElement.append(buildWatchlistSection(data.watchlistHits));
+    }
+    if (data.newTradeKeys.length > 0) {
+        sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
+    }
+    if (data.priceDrops.length > 0) {
+        sectionsElement.append(buildPriceDropsSection(data.priceDrops));
+    }
+
+    renderDashboardActions(data);
+
+    document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
+    document.querySelector('#mark-as-seen')?.addEventListener('click', markDashboardAsSeen);
+    document.querySelector(DASHBOARD_TOGGLE_SELECTOR)?.addEventListener('click', toggleDashboard);
+    dashboard.classList.remove('hidden');
+}
+
+/**
+ * Render action buttons in the dashboard.
+ */
+function renderDashboardActions(data: DashboardData): void {
+    const actionsElement = document.querySelector('#dashboard-actions');
+    if (!actionsElement) { return; }
+    actionsElement.innerHTML = '';
+
+    if (data.watchlistHits.length > 0) {
+        const button = createDashboardButton('Show Watchlist Deals', true, () => {
+            activateFavoritesFilter();
+            dismissDashboard();
+        });
+        actionsElement.append(button);
+    }
+
+    if (data.newTradeKeys.length > 0) {
+        for (const key of data.newTradeKeys) {
+            newTradeKeys.add(key);
+        }
+        const button = createDashboardButton('Show New Trades', false, () => {
+            activateNewFilter();
+            dismissDashboard();
+        });
+        actionsElement.append(button);
+    }
+
+    if (data.priceDrops.length > 0) {
+        const button = createDashboardButton('Show Price Drops', false, () => {
+            activeSorts.clear();
+            activeSorts.set('dev', SORT.ASC);
+            search();
+            dismissDashboard();
+        });
+        actionsElement.append(button);
+    }
+}
+
+/** Create a styled action button for the dashboard */
+function createDashboardButton(text: string, primary: boolean, onClick: () => void): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `dashboard-action-btn${primary ? ' primary' : ''}`;
+    button.textContent = text;
+    button.addEventListener('click', onClick);
+    return button;
+}
+
+/** Dismiss the dashboard banner */
+function dismissDashboard(): void {
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
+    if (dashboard) {
+        dashboard.classList.add('hidden');
+    }
+}
+
+/** Toggle the dashboard banner visibility */
+function toggleDashboard(): void {
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
+    if (dashboard) {
+        dashboard.classList.toggle('hidden');
+    }
+}
+
+/**
+ * Mark the current data as "seen" — saves a new snapshot and hides the dashboard.
+ * Future visits will compare against this point in time.
+ */
+function markDashboardAsSeen(): void {
+    snapshotStore.save(allTrades, getDeviation);
+    dismissDashboard();
+
+    // Hide the toggle button since there's nothing to show anymore
+    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
+    toggleButton?.classList.add('hidden');
+}
+
+/** Activate the favorites filter from the dashboard */
+function activateFavoritesFilter(): void {
+    const favHeader = document.querySelector('.fav-col-header');
+    if (favHeader && !favHeader.classList.contains('active')) {
+        favHeader.classList.add('active');
+        search();
+    }
+}
+
+/** Activate the new trades filter from the dashboard */
+function activateNewFilter(): void {
+    filterNewOnly = true;
+    const newHeader = document.querySelector('.new-col-header');
+    if (newHeader) {
+        newHeader.classList.add('active');
+    }
     search();
 }
 

@@ -309,6 +309,81 @@ const FavoriteItemSchema = z.object({
 export const FavoriteItemArraySchema = z.array(FavoriteItemSchema);
 
 // ============================================================================
+// Snapshot Types (Daily Deals Dashboard)
+// ============================================================================
+
+/**
+ * A snapshot of a single trade's state at a point in time.
+ * Used to detect price changes and new trades between sessions.
+ */
+export interface TradeSnapshotEntry {
+    /** Deviation percentage from median market price (undefined if not calculable) */
+    deviationPercent?: number;
+    /** Stock level at snapshot time */
+    stock: number;
+}
+
+const TradeSnapshotEntrySchema = z.object({
+    deviationPercent: z.number().optional(),
+    stock: z.number().int().nonnegative()
+});
+
+/**
+ * Full snapshot of all trade state, persisted between sessions.
+ */
+export interface TradeSnapshot {
+    /** When this snapshot was saved (Date.now()) */
+    timestamp: number;
+    /** Trade states keyed by getTradeKey() */
+    trades: Record<string, TradeSnapshotEntry>;
+}
+
+export const TradeSnapshotSchema = z.object({
+    timestamp: z.number().positive(),
+    trades: z.record(z.string(), TradeSnapshotEntrySchema)
+});
+
+/**
+ * A price drop detected between two snapshots.
+ */
+export interface PriceDrop {
+    /** Trade key for lookup */
+    tradeKey: string;
+    /** Display name of the result item */
+    itemName: string;
+    /** Previous deviation percentage */
+    oldDeviation: number;
+    /** Current deviation percentage */
+    newDeviation: number;
+}
+
+/**
+ * A watchlist item that currently has a deal.
+ */
+export interface WatchlistHit {
+    /** Normalized item name */
+    itemName: string;
+    /** Current best deviation for this item */
+    currentDeviation: number;
+    /** Previous deviation for this item (undefined if new) */
+    previousDeviation: number | undefined;
+}
+
+/**
+ * Computed dashboard data from comparing snapshots.
+ */
+export interface DashboardData {
+    /** Trade keys that are new since last visit */
+    newTradeKeys: string[];
+    /** Trades where deviation improved by ≥5 percentage points */
+    priceDrops: PriceDrop[];
+    /** Watchlist items with active deals */
+    watchlistHits: WatchlistHit[];
+    /** Timestamp of previous snapshot (for "14h ago" display) */
+    lastVisit: number | undefined;
+}
+
+// ============================================================================
 // Player Types
 // ============================================================================
 
