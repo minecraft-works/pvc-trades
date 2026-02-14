@@ -676,9 +676,12 @@ const DASHBOARD_SELECTOR = '#deals-dashboard';
 
 /**
  * Format a deviation value as a signed percentage string.
+ * Uses the minus glyph (−) for negative values, matching the main trade table.
  */
 function formatDeviationText(deviation: number): string {
-    return deviation > 0 ? `+${deviation}%` : `${deviation}%`;
+    if (deviation > 0) { return `+${deviation}%`; }
+    if (deviation < 0) { return `−${Math.abs(deviation)}%`; }
+    return '0%';
 }
 
 /**
@@ -744,8 +747,7 @@ function buildNewTradesSection(count: number): HTMLDivElement {
 function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
-    const topDrops = drops.slice(0, 5);
-    const dropItems = topDrops.map(drop => {
+    const dropItems = drops.map(drop => {
         const deviationText = formatDeviationText(drop.newDeviation);
         const oldText = formatDeviationText(drop.oldDeviation);
         return `<div class="dashboard-item">
@@ -754,13 +756,9 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
             <span class="${DELTA_CLASS} improved">(was ${oldText})</span>
         </div>`;
     }).join('');
-    const moreText = drops.length > 5
-        ? `<div class="dashboard-summary">...and ${drops.length - 5} more</div>`
-        : '';
     section.innerHTML = `
         <div class="dashboard-section-title">📉 Price Drops (${drops.length})</div>
         <div class="dashboard-section-items">${dropItems}</div>
-        ${moreText}
     `;
     return section;
 }
