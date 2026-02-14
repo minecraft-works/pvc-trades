@@ -312,12 +312,12 @@ describe('median properties', () => {
     test('order does not affect result', () => {
         fc.assert(
             fc.property(
-                fc.array(fc.double({ min: -1e6, max: 1e6, noNaN: true }), { minLength: 1, maxLength: 20 }),
+                fc.array(fc.double({ min: -1e6, max: 1e6, noNaN: true, noDefaultInfinity: true }), { minLength: 1, maxLength: 20 }),
                 (numbers) => {
                     // Use fast-check's shuffled array instead of Math.random
                     const reversed = [...numbers].toReversed();
-                    // Use toEqual for numeric equality (-0 === 0)
-                    expect(median(numbers)).toEqual(median(reversed));
+                    // Add 0 to coerce -0 to +0 before comparing
+                    expect(median(numbers) + 0).toEqual(median(reversed) + 0);
                 }
             )
         );

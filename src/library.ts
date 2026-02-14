@@ -669,37 +669,80 @@ export function getRatio(graph: RatioGraph, from: string, to: string): number | 
     return graph.get(key);
 }
 
+function calculateSpread(buyPrice: number | undefined, sellPrice: number | undefined): number | undefined {
+    if (buyPrice === undefined || sellPrice === undefined) { return undefined; }
+    return ((buyPrice - sellPrice) / buyPrice) * 100;
+}
+
+function buildDirectEntry(block: string, entry: ItemValueEntry): PriceTableEntry | undefined {
+    const buyPrice = median(entry.buyPrices);
+    const sellPrice = median(entry.sellPrices);
+    if (buyPrice === undefined && sellPrice === undefined) { return undefined; }
+
+    return {
+        name: block,
+        buyPrice,
+        sellPrice,
+        buyTradeCount: entry.buyPrices.length,
+        sellTradeCount: entry.sellPrices.length,
+        independentShopCount: countIndependentShops([...entry.buyPrices, ...entry.sellPrices]),
+        spread: calculateSpread(buyPrice, sellPrice),
+        derived: false,
+    };
+}
+
+function buildDerivedEntry(
+    block: string,
+    baseEntry: ItemValueEntry,
+    multiplier: number
+): PriceTableEntry | undefined {
+    const baseBuy = median(baseEntry.buyPrices);
+    const baseSell = median(baseEntry.sellPrices);
+    if (baseBuy === undefined && baseSell === undefined) { return undefined; }
+
+    const buyPrice = baseBuy === undefined ? undefined : baseBuy * multiplier;
+    const sellPrice = baseSell === undefined ? undefined : baseSell * multiplier;
+
+    return {
+        name: block,
+        buyPrice,
+        sellPrice,
+        buyTradeCount: baseBuy === undefined ? 0 : baseEntry.buyPrices.length,
+        sellTradeCount: baseSell === undefined ? 0 : baseEntry.sellPrices.length,
+        independentShopCount: countIndependentShops([...baseEntry.buyPrices, ...baseEntry.sellPrices]),
+        spread: calculateSpread(buyPrice, sellPrice),
+        derived: true,
+    };
+}
+
 /**
  * Build a price table showing buy/sell prices for core blocks in emeralds.
  * Each entry includes median buy/sell price, trade counts, independent shop count, and spread.
+ * Falls back to base item × multiplier when no direct trades exist.
  * Sorted by buy price descending (most expensive first).
  */
 export function buildPriceTable(itemValues: ItemValues): PriceTableEntry[] {
     const coreBlocks = coreBlocksStore.get();
+    const blockConversions = blockConversionsStore.get();
     const entries: PriceTableEntry[] = [];
 
     for (const block of coreBlocks) {
         const key = block.toLowerCase();
         const entry = itemValues.get(key);
-        if (!entry) { continue; }
 
-        const buyPrice = median(entry.buyPrices);
-        const sellPrice = median(entry.sellPrices);
-        if (buyPrice === undefined && sellPrice === undefined) { continue; }
+        if (entry) {
+            const direct = buildDirectEntry(block, entry);
+            if (direct) { entries.push(direct); continue; }
+        }
 
-        const spread = buyPrice !== undefined && sellPrice !== undefined
-            ? ((buyPrice - sellPrice) / buyPrice) * 100
-            : undefined;
+        // Fall back to base item × multiplier (e.g. diamond × 9 = diamond block)
+        const conversion = blockConversions[key];
+        if (!conversion) { continue; }
+        const baseEntry = itemValues.get(conversion.base.toLowerCase());
+        if (!baseEntry) { continue; }
 
-        entries.push({
-            name: block,
-            buyPrice,
-            sellPrice,
-            buyTradeCount: entry.buyPrices.length,
-            sellTradeCount: entry.sellPrices.length,
-            independentShopCount: countIndependentShops([...entry.buyPrices, ...entry.sellPrices]),
-            spread,
-        });
+        const derived = buildDerivedEntry(block, baseEntry, conversion.multiplier);
+        if (derived) { entries.push(derived); }
     }
 
     return entries.toSorted((a, b) => (b.buyPrice ?? 0) - (a.buyPrice ?? 0));

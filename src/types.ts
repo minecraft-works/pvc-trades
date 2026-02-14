@@ -282,6 +282,8 @@ export interface PriceTableEntry {
     sellTradeCount: number;
     independentShopCount: number;
     spread: number | undefined;
+    /** True when prices are derived from base item × multiplier (e.g. diamond × 9) */
+    derived: boolean;
 }
 
 // ============================================================================

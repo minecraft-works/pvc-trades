@@ -87,8 +87,11 @@ function buildPriceTableRow(entry: PriceTableEntry): string {
         sellTitle = `${entry.sellPrice.toFixed(4)} emeralds — ${sellTitle}`;
     }
 
-    return `<tr>
-        <td>${getItemIcon(entry.name)}</td>
+    const derivedClass = entry.derived ? ' class="price-derived"' : '';
+    const derivedMark = entry.derived ? ' <span class="price-derived-mark" title="Derived from base item">*</span>' : '';
+
+    return `<tr${derivedClass}>
+        <td>${getItemIcon(entry.name)}${derivedMark}</td>
         <td title="${buyTitle}">${formatPrice(entry.buyPrice, entry.buyTradeCount)}</td>
         <td title="${sellTitle}">${formatPrice(entry.sellPrice, entry.sellTradeCount)}</td>
         <td>${formatSpread(entry.spread)}</td>
@@ -132,7 +135,7 @@ export function renderPriceTable(
     }
 
     html += '</tbody></table>';
-    html += '<p class="price-table-hint">Prices in emeralds. Trade counts in parentheses. Spread = (buy−sell)/buy.</p>';
+    html += '<p class="price-table-hint">Prices in emeralds. Trade counts in parentheses. Spread = (buy\u2212sell)/buy.<br><span class="price-derived-mark">*</span> Derived from base item (e.g. diamond \u00D7 9).</p>';
     html += '</div>';
     container.innerHTML = html;
 

@@ -1371,6 +1371,15 @@ mark {
     font-size: 0.8rem;
 }
 
+.price-derived {
+    opacity: 0.7;
+}
+
+.price-derived-mark {
+    color: var(--color-primary);
+    font-weight: bold;
+}
+
 /* ============================================================================
  * Map Dialog (Leaflet)
  * ============================================================================ */

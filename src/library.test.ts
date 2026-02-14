@@ -903,6 +903,65 @@ describe('buildPriceTable', () => {
         expect(table[0]!.name).toBe('Diamond Block');
         expect(table[1]!.name).toBe('Iron Block');
     });
+
+    test('derives block price from base item when no direct trades', () => {
+        // Only "diamond" has trades, not "diamond block"
+        // Should derive Diamond Block = diamond × 9
+        const values: ItemValues = new Map([
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 8, x: 0, y: 0, z: 0 },
+                    { price: 8, x: 100, y: 0, z: 0 },
+                    { price: 8, x: 200, y: 0, z: 0 }
+                ]
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
+        expect(diamondBlock).toBeDefined();
+        expect(diamondBlock!.buyPrice).toBe(90);  // 10 × 9
+        expect(diamondBlock!.sellPrice).toBe(72);  // 8 × 9
+        expect(diamondBlock!.derived).toBe(true);
+        expect(diamondBlock!.spread).toBeCloseTo(20); // (90-72)/90 = 20%
+    });
+
+    test('prefers direct trades over derived values', () => {
+        // Both "diamond" and "diamond block" have trades
+        // Diamond Block should use its own data, not diamond × 9
+        const values: ItemValues = new Map([
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 100, x: 0, y: 0, z: 0 },
+                    { price: 100, x: 100, y: 0, z: 0 },
+                    { price: 100, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
+        expect(diamondBlock).toBeDefined();
+        expect(diamondBlock!.buyPrice).toBe(100); // direct, not 10×9=90
+        expect(diamondBlock!.derived).toBe(false);
+    });
 });
 
 describe('getTrustedItemValue - advanced cases', () => {
