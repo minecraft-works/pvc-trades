@@ -48,10 +48,11 @@ function getItemIcon(name: string): string {
 
 /**
  * Format a ratio value for display
+ * @param isDiagonal - True if this is a diagonal cell (same currency)
  */
-function formatRatio(value: number | undefined): string {
+function formatRatio(value: number | undefined, isDiagonal: boolean): string {
     if (value === undefined) { return '<span class="price-na">\u2014</span>'; }
-    if (value === 1) { return '<span class="matrix-diagonal">\u2014</span>'; }
+    if (value === 1 && isDiagonal) { return '<span class="matrix-diagonal">\u2014</span>'; }
     const rounded = Math.round(value * 100) / 100;
     return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
 }
@@ -71,8 +72,8 @@ function buildMatrixTable(matrix: ExchangeMatrix): string {
         html += `<tr><th>${getItemIcon(label)}</th>`;
         const row = matrix.ratios[rowIndex];
         if (row) {
-            for (const cell of row) {
-                html += `<td>${formatRatio(cell)}</td>`;
+            for (const [colIndex, cell] of row.entries()) {
+                html += `<td>${formatRatio(cell, rowIndex === colIndex)}</td>`;
             }
         }
         html += '</tr>';

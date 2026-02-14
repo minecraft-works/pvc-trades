@@ -66,17 +66,21 @@ The base value items used for price comparison:
 - Netherite Ingot
 
 ### Item Value
-The calculated worth of an item in emerald-equivalent units, derived from:
-1. Fixed ratios (block_conversions.json)
-2. Market medians from independent shop trades
+The calculated worth of an item in emerald-equivalent units, derived through:
+1. **Phase 1 — Direct trades**: trades where one side is emerald (or emerald block)
+2. **Phase 2 — Transitive derivation**: iteratively using known item values as intermediaries (e.g., Diamond Block → Netherite Ingot)
+3. **Block conversions**: bidirectional derivation via block_conversions.json (ingot × 9 ↔ block ÷ 9)
 
 ### Ratio Graph
 A data structure mapping item-to-item conversion rates, built from:
-- Fixed conversions (9 ingots = 1 block)
+- Fixed conversions (9 ingots = 1 block, bidirectional)
 - Trade data (what shops actually exchange)
+- Transitive derivation (items priced through intermediary currencies)
+
+Used by `buildRatioGraph()` for deviation calculations and `buildExchangeMatrix()` for the NxN matrix dialog.
 
 ### Trusted Value
-A price value with high confidence, derived from independent shops with sufficient data points.
+A price value with high confidence, derived from independent shops with sufficient data points. For core currencies, requires ≥3 independent shops (>16 blocks apart). Values can come from direct trades, block conversions (ingot × 9), or transitive derivation through known intermediaries.
 
 ## Navigation Concepts
 
@@ -124,7 +128,7 @@ Visual representation of the route with stops showing:
 - Trade details
 
 ### Matrix Dialog
-A grid showing exchange rates between all core currency pairs.
+A tabbed NxN grid showing exchange rates between all core currency pairs. Has **Buy** and **Sell** tabs for ask and bid prices respectively. Ratios are derived from median emerald values via direct trades and transitive derivation (e.g., Netherite Ingot valued through Diamond Block → Emerald chains). The diagonal shows "—"; off-diagonal 1:1 ratios display as "1".
 
 ### Dynmap
 A web-based map renderer for Minecraft servers. Used for:

@@ -110,7 +110,7 @@
 | Module | Responsibility |
 |--------|----------------|
 | `dialog-utilities.ts` | Backdrop close, openDialog helper |
-| `matrix-dialog.ts` | Exchange rate matrix UI |
+| `matrix-dialog.ts` | Exchange rate matrix with Buy/Sell tabs |
 | `shop-map-helpers.ts` | Map marker utilities |
 | `trade-details.ts` | Trade details popover |
 
@@ -169,19 +169,19 @@
 | Navigation Map | 2738-3106 | Navigation-specific map view |
 | Initialization | 3107-3191 | DOMContentLoaded setup |
 
-### `src/library.ts` (1277 lines)
+### `src/library.ts` (~2100 lines)
 **Role**: Pure functions, no DOM dependencies
 
 | Category | Functions |
 |----------|-----------|
 | Search | `matchesQuery`, `getRegex`, `filterTrade`, `sortResults` |
 | Values | `calculateItemValues`, `getTrustedItemValue`, `getRatio` |
-| Ratios | `buildRatioGraph`, `loadFixedRatios`, `loadBaseItems` |
+| Ratios | `buildRatioGraph`, `buildExchangeMatrix`, `buildDirectionalEmeraldValues` |
 | Route | `computeOptimalOrder`, `twoOptOptimize`, `calculateRouteDistance` |
 | Coordinates | `getTileCoords`, `toLeafletCoords`, `clampToCircle` |
 | Utilities | `median`, `formatName`, `highlight`, `escapeHtml` |
 
-### `src/types.ts` (301 lines)
+### `src/types.ts` (~430 lines)
 **Role**: TypeScript types and Zod schemas
 
 | Category | Items |
@@ -362,12 +362,12 @@ export default defineConfig({
 │                                                                   │
 │                    ┌───────────────┐                             │
 │                    │  E2E (BDD)    │  features/*.feature          │
-│                    │ ~280 scenarios│  Playwright + playwright-bdd │
+│                    │ ~290 scenarios│  Playwright + playwright-bdd │
 │                    └───────────────┘                             │
 │                                                                   │
 │            ┌─────────────────────────────┐                       │
 │            │      Unit Tests             │  src/*.test.ts         │
-│            │      607 tests              │  Vitest                │
+│            │      ~620 tests             │  Vitest                │
 │            └─────────────────────────────┘                       │
 │                                                                   │
 │    ┌─────────────────────────────────────────────┐               │
