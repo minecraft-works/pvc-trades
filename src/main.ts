@@ -637,35 +637,30 @@ function triggerSearch(): void {
 
 /**
  * Show the daily deals dashboard banner.
- * Loads previous snapshot, computes diff against current data, renders banner.
- * Only overwrites the snapshot if it is at least 24 hours old (or none exists).
+ * Loads baseline snapshot (~24h old), computes diff against current data, renders banner.
+ * Appends a new snapshot to the rolling history if the save interval has elapsed.
  */
 function showDashboard(): void {
-    const previousSnapshot = snapshotStore.load();
+    const baseline = snapshotStore.loadBaseline();
     const favorites = favoritesStore.getAll();
 
     const dashboardData = computeDashboardData(
         allTrades,
         getDeviation,
-        previousSnapshot,
+        baseline,
         favorites,
         DASHBOARD.PRICE_DROP_THRESHOLD
     );
 
-    // Save snapshot only if none exists or the existing one is old enough
-    const snapshotAge = previousSnapshot
-        ? Date.now() - previousSnapshot.timestamp
-        : Infinity;
-    if (snapshotAge >= DASHBOARD.SNAPSHOT_MIN_AGE_MS) {
-        snapshotStore.save(allTrades, getDeviation);
-    }
+    // Append a new snapshot to the rolling history (respects 6h interval)
+    snapshotStore.appendIfDue(allTrades, getDeviation);
 
     // Only show banner if there's something to report
     const hasContent = dashboardData.watchlistHits.length > 0
         || dashboardData.newTradeKeys.length > 0
         || dashboardData.priceDrops.length > 0;
 
-    if (!hasContent || !previousSnapshot) {
+    if (!hasContent || !baseline) {
         return;
     }
 

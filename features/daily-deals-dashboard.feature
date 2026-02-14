@@ -99,17 +99,17 @@ Feature: Daily Deals Dashboard
     Then the deals dashboard should be visible
 
   # ============================================================================
-  # Snapshot Age Gating
+  # Rolling Snapshot History
   # ============================================================================
 
   @dashboard @snapshot
-  Scenario: Snapshot is not overwritten when less than 24 hours old
+  Scenario: Old baseline snapshot is preserved in rolling history
     Given I have a previous snapshot with different prices
     When I reload the app
     Then the snapshot timestamp should not have changed
 
   @dashboard @snapshot
-  Scenario: Snapshot is overwritten when more than 24 hours old
+  Scenario: New snapshot is appended when interval has elapsed
     Given I have an old snapshot from 25 hours ago
     When I reload the app
     Then the snapshot timestamp should be recent
