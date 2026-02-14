@@ -1,0 +1,3346 @@
+[32m09:53:08 (33536) INFO ProjectReader[39m Found 3 of 3685 file(s) to be mutated using incremental report with 1475 mutant(s), and 468 test(s).
+[32m09:53:08 (33536) INFO Instrumenter[39m Instrumented 3 source file(s) with 1475 mutant(s)
+[33m09:53:09 (33536) WARN DisableTypeChecksPreprocessor[39m Unable to disable type checking for file "D:\_projects\pvc-trades\docs\api\functions\library.highlight.html". Shouldn't type checking be disabled for this file? Consider configuring a more restrictive "disableTypeChecks" settings (or turn it completely off with `false`) ParseError: Parse error in D:\_projects\pvc-trades\docs\api\functions\library.highlight.html (2:41) Unexpected closing tag "p". It may happen when the tag has already been closed by another tag. For more info see https://www.w3.org/TR/html5/syntax.html#closing-elements-that-have-implied-end-tags
+    at ngHtmlParser (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/instrumenter/dist/src/parsers/html-parser.js:32:15)
+    at async parse (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/instrumenter/dist/src/parsers/html-parser.js:16:18)
+    at async DisableTypeChecksPreprocessor.disableTypeChecks [as impl] (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/instrumenter/dist/src/disable-type-checks.js:28:17)
+    at async file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/sandbox/disable-type-checks-preprocessor.js:27:41
+    at async Promise.all (index 1788)
+    at async DisableTypeChecksPreprocessor.preprocess (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/sandbox/disable-type-checks-preprocessor.js:24:9)
+    at async MultiPreprocessor.preprocess (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/sandbox/multi-preprocessor.js:8:13)
+    at async MutantInstrumenterExecutor.execute (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/process/2-mutant-instrumenter-executor.js:30:9)
+    at async Stryker.run (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/stryker.js:49:48)
+    at async Stryker.runMutationTest (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/stryker.js:27:20)
+    at async Command.<anonymous> (file:///D:/_projects/pvc-trades/node_modules/@stryker-mutator/core/dist/src/stryker-cli.js:43:13)
+[33m09:53:09 (33536) WARN DisableTypeChecksPreprocessor[39m (disable "warnings.preprocessorErrors" to ignore this warning
+[32m09:53:09 (33536) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m09:53:15 (33536) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[32m09:53:17 (33536) INFO DryRunExecutor[39m Starting initial test run (vitest test runner with "perTest" coverage analysis). This may take a while.
+[32m09:53:22 (33536) INFO DryRunExecutor[39m Initial test run succeeded. Ran 468 tests in 4 seconds (net 2075.0911000000065 ms, overhead 2509.9088999999935 ms).
+[32m09:53:22 (33536) INFO IncrementalDiffer[39m Incremental report:
+	Mutants:	0 files changed (+0 -0)
+	Tests:		0 files changed (+0 -0)
+	Result:		1475 of 1475 mutant result(s) are reused.
+
+All tests
+  map/players.test.ts
+    Γ£ÿ getPlayerWorld returns normalized world ID when player has world field (covered 0)
+    Γ£ÿ getPlayerWorld returns overworld for player without world field and foreign=false (covered 0)
+    Γ£ÿ getPlayerWorld returns nether for player without world field and foreign=true (covered 0)
+    Γ£ÿ getPlayerWorld returns overworld for player without world field and undefined foreign (covered 0)
+    Γ£ÿ getPlayerWorld prefers world field over foreign flag (covered 0)
+    Γ£ÿ getPlayerWorldForFilter uses getWorldId when player has world field (covered 0)
+    Γ£ÿ getPlayerWorldForFilter defaults to overworld when player has no world field (covered 0)
+    Γ£ÿ filterPlayersByWorld filters players in overworld (covered 0)
+    Γ£ÿ filterPlayersByWorld filters players in nether (covered 0)
+    Γ£ÿ filterPlayersByWorld filters players in end (covered 0)
+    Γ£ÿ filterPlayersByWorld returns empty array for world with no players (covered 0)
+    Γ£ÿ filterPlayersByWorld returns empty array for empty players list (covered 0)
+    Γ£ÿ fetchPlayers returns players on successful fetch (covered 0)
+    Γ£ÿ fetchPlayers returns empty array when response is not ok (covered 0)
+    Γ£ÿ fetchPlayers returns empty array when fetch throws (covered 0)
+    Γ£ÿ fetchPlayers returns empty array when players field is missing (covered 0)
+    Γ£ÿ fetchPlayers calls correct API endpoint (covered 0)
+  stores
+    cart-store.test.ts
+      Γ£ô CartStore add adds new trade to cart (killed 3)
+      Γ£ô CartStore add increments quantity when adding existing trade (killed 6)
+      Γ£ô CartStore add treats different trades as separate items (killed 1)
+      Γ£ô CartStore remove removes trade from cart (killed 4)
+      Γ£ô CartStore remove does nothing when removing non-existent trade (killed 2)
+      Γ£ô CartStore updateQuantity increments quantity with positive delta (killed 7)
+      ~ CartStore updateQuantity decrements quantity with negative delta (covered 31)
+      ~ CartStore updateQuantity clamps quantity to zero minimum (covered 26)
+      Γ£ô CartStore setQuantity sets exact quantity (killed 6)
+      ~ CartStore setQuantity clamps to zero for negative values (covered 25)
+      Γ£ô CartStore find returns cart item when found (killed 3)
+      ~ CartStore find returns undefined when not found (covered 7)
+      Γ£ô CartStore has returns true when trade is in cart (killed 3)
+      Γ£ô CartStore has returns false when trade is not in cart (killed 1)
+      Γ£ô CartStore cleanupZeroQuantity removes items with zero quantity (killed 11)
+      Γ£ô CartStore cleanupZeroQuantity returns false when no zero-quantity items (killed 2)
+      Γ£ô CartStore clear removes all items from cart (killed 1)
+      Γ£ô CartStore getters totalQuantity returns sum of all quantities (killed 1)
+      ~ CartStore getters uniqueCount returns number of unique trades (covered 20)
+      Γ£ô CartStore getters isEmpty returns true when cart is empty (killed 2)
+      Γ£ô CartStore getters isEmpty returns false when cart has items (killed 1)
+      ~ CartStore getters items returns a copy (immutable) (covered 16)
+      Γ£ô CartStore onChange calls callback when cart changes (killed 2)
+      Γ£ô CartStore onChange unsubscribe stops callbacks (killed 4)
+      ~ CartStore onChange multiple callbacks are all called (covered 16)
+      Γ£ô CartStore persistence saves to localStorage on add (killed 2)
+      Γ£ô CartStore persistence loads from localStorage (killed 5)
+      ~ CartStore persistence handles invalid localStorage data gracefully (covered 13)
+      ~ CartStore persistence handles missing localStorage data (covered 10)
+    navigation-store.test.ts
+      Γ£ô NavigationStore initial state isActive is false (killed 1)
+      ~ NavigationStore initial state mode is follow (covered 23)
+      Γ£ô NavigationStore initial state playerName is empty (killed 1)
+      ~ NavigationStore initial state playerPosition is undefined (covered 23)
+      ~ NavigationStore initial state progress has empty completedKeys and zero currentIndex (covered 23)
+      ~ NavigationStore initial state route and worldRoute are empty (covered 24)
+      ~ NavigationStore initial state viewport defaults to overworld at origin (covered 23)
+      Γ£ô NavigationStore start sets isActive to true (killed 2)
+      ~ NavigationStore start sets playerName (covered 28)
+      Γ£ô NavigationStore start saves player name to localStorage (killed 2)
+      Γ£ô NavigationStore start resets mode to follow even if previously manual (killed 1)
+      Γ£ô NavigationStore stop sets isActive to false (killed 1)
+      Γ£ô NavigationStore stop clears refresh interval (killed 4)
+      Γ£ô NavigationStore toggleMode toggles from follow to manual (killed 2)
+      Γ£ô NavigationStore toggleMode toggles from manual to follow (killed 1)
+      Γ£ô NavigationStore toggleMode saves mode to localStorage (killed 2)
+      ~ NavigationStore setMode sets mode to manual (covered 26)
+      ~ NavigationStore setMode sets mode to follow (covered 26)
+      ~ NavigationStore setMode saves mode to localStorage (covered 25)
+      ~ NavigationStore loadMode loads follow mode from localStorage (covered 32)
+      Γ£ô NavigationStore loadMode loads manual mode from localStorage (killed 3)
+      Γ£ô NavigationStore loadMode returns default mode when localStorage is empty (killed 1)
+      ~ NavigationStore loadMode ignores invalid mode values (covered 33)
+      Γ£ô NavigationStore setPlayerPosition sets player position (killed 1)
+      ~ NavigationStore setPlayerPosition can set position with yaw (covered 24)
+      ~ NavigationStore setPlayerPosition can clear position with undefined (covered 24)
+      Γ£ô NavigationStore setRoute sets the full route (killed 1)
+      ~ NavigationStore setRoute replaces existing route (covered 24)
+      Γ£ô NavigationStore setWorldRoute sets the world-filtered route (killed 1)
+      ~ NavigationStore currentStop returns first stop when currentIndex is 0 (covered 24)
+      ~ NavigationStore currentStop returns undefined when worldRoute is empty (covered 23)
+      Γ£ô NavigationStore currentStop returns correct stop after advancing (killed 5)
+      ~ NavigationStore remainingStops returns total count when at start (covered 25)
+      Γ£ô NavigationStore remainingStops decreases after advancing (killed 1)
+      ~ NavigationStore remainingStops returns 0 for empty route (covered 24)
+      Γ£ô NavigationStore markStopComplete adds key to completedKeys (killed 1)
+      ~ NavigationStore markStopComplete can mark multiple stops complete (covered 28)
+      Γ£ô NavigationStore markStopComplete saves progress to localStorage (killed 2)
+      Γ£ô NavigationStore unmarkStopComplete removes key from completedKeys (killed 1)
+      ~ NavigationStore unmarkStopComplete handles unmarking non-existent key gracefully (covered 28)
+      Γ£ô NavigationStore syncProgress updates completedKeys and currentIndex (killed 1)
+      ~ NavigationStore syncProgress saves progress to localStorage (covered 28)
+      ~ NavigationStore advanceToNextStop increments currentIndex (covered 36)
+      Γ£ô NavigationStore advanceToNextStop does not exceed route length (killed 3)
+      ~ NavigationStore advanceToNextStop saves progress to localStorage (covered 35)
+      Γ£ô NavigationStore setCurrentIndex sets currentIndex to specified value (killed 2)
+      ~ NavigationStore setCurrentIndex clamps to minimum 0 (covered 32)
+      Γ£ô NavigationStore setCurrentIndex clamps to maximum route length minus 1 (killed 2)
+      Γ£ô NavigationStore resetProgress clears completedKeys (killed 1)
+      ~ NavigationStore resetProgress resets currentIndex to 0 (covered 38)
+      Γ£ô NavigationStore loadProgress loads progress from localStorage (killed 3)
+      ~ NavigationStore loadProgress handles empty localStorage gracefully (covered 27)
+      ~ NavigationStore loadProgress handles invalid JSON gracefully (covered 28)
+      ~ NavigationStore loadPlayerName returns stored player name (covered 25)
+      Γ£ô NavigationStore loadPlayerName returns empty string when not stored (killed 1)
+      Γ£ô NavigationStore setMapWorld sets viewport world (killed 1)
+      Γ£ô NavigationStore setMapCenter sets viewport center coordinates (killed 1)
+      ~ NavigationStore setRefreshInterval stores interval reference (covered 24)
+      ~ NavigationStore setRefreshInterval clears previous interval when setting new one (covered 25)
+      ~ NavigationStore clearRefreshInterval clears interval and sets to undefined (covered 25)
+      ~ NavigationStore clearRefreshInterval handles clearing when no interval is set (covered 22)
+      ~ NavigationStore _reset resets all state to initial values (covered 47)
+    snapshot-store.test.ts
+      Γ£ÿ SnapshotStore load returns undefined when no snapshot stored (covered 0)
+      Γ£ÿ SnapshotStore load returns parsed snapshot when valid data exists (covered 0)
+      Γ£ÿ SnapshotStore load returns undefined for corrupted JSON (covered 0)
+      Γ£ÿ SnapshotStore load returns undefined for invalid schema (covered 0)
+      Γ£ÿ SnapshotStore load returns undefined for negative timestamp (covered 0)
+      Γ£ÿ SnapshotStore load accepts snapshot with optional deviationPercent (covered 0)
+      ~ SnapshotStore save saves trades with deviations to localStorage (covered 2)
+      ~ SnapshotStore save saves undefined deviation when calculator returns undefined (covered 2)
+      Γ£ô SnapshotStore save saves multiple trades with unique keys (killed 1)
+      ~ SnapshotStore save overwrites previous snapshot (covered 2)
+      ~ SnapshotStore clear removes snapshot from localStorage (covered 2)
+      Γ£ÿ SnapshotStore clear does not throw when no snapshot exists (covered 0)
+      ~ SnapshotStore round-trip save then load returns equivalent data (covered 2)
+  interpolation.test.ts
+    ~ estimateVelocity calculates velocity from two positions (covered 14)
+    ~ estimateVelocity calculates diagonal velocity (covered 14)
+    ~ estimateVelocity returns zero velocity for zero time delta (covered 7)
+    ~ estimateVelocity returns zero velocity for negative time delta (covered 7)
+    Γ£ô estimateVelocity rejects implausible speed (teleport) (killed 3)
+    Γ£ô estimateVelocity accepts sprinting speed (~6 blocks/sec) (killed 4)
+    ~ estimateVelocity stationary player returns zero velocity (covered 14)
+    Γ£ô extrapolatePosition extrapolates forward using velocity (killed 2)
+    Γ£ô extrapolatePosition extrapolates diagonally (killed 2)
+    ~ extrapolatePosition zero elapsed returns base position (covered 6)
+    ~ extrapolatePosition zero velocity returns base position (covered 6)
+    Γ£ô lerpPosition t=0 returns from position (killed 3)
+    Γ£ô lerpPosition t=1 returns to position (killed 3)
+    ~ lerpPosition t=0.5 returns midpoint (covered 10)
+    ~ lerpPosition clamps t below 0 (covered 10)
+    ~ lerpPosition clamps t above 1 (covered 10)
+    Γ£ô lerpAngle t=0 returns from angle (killed 5)
+    Γ£ô lerpAngle t=1 returns to angle (killed 5)
+    Γ£ô lerpAngle t=0.5 returns midpoint (killed 2)
+    ~ lerpAngle wraps around 360 via shortest path (350 ΓåÆ 10) (covered 13)
+    ~ lerpAngle wraps around 360 via shortest path (10 ΓåÆ 350) (covered 13)
+    ~ lerpAngle handles identical angles (covered 13)
+    ~ lerpAngle handles 180 degree difference (ambiguous, goes via 270) (covered 13)
+    ~ lerpAngle normalizes result to [0, 360) (covered 13)
+    ~ lerpAngle clamps t below 0 (covered 13)
+    ~ lerpAngle clamps t above 1 (covered 13)
+    Γ£ô shouldExtrapolate returns false for zero velocity (killed 2)
+    ~ shouldExtrapolate returns false for very low speed (covered 5)
+    Γ£ô shouldExtrapolate returns true when velocity matches heading (east) (killed 1)
+    ~ shouldExtrapolate returns true when velocity matches heading (south) (covered 5)
+    ~ shouldExtrapolate returns true even when velocity opposes heading (covered 5)
+    ~ shouldExtrapolate returns true when no yaw is available (covered 5)
+    ~ shouldExtrapolate respects custom speed threshold (covered 5)
+    Γ£ÿ PlayerInterpolator returns undefined before any samples (covered 0)
+    Γ£ÿ PlayerInterpolator returns exact position after first sample (covered 0)
+    ~ PlayerInterpolator starts correction phase after second sample (covered 19)
+    Γ£ô PlayerInterpolator correction lerps toward true position (killed 1)
+    ~ PlayerInterpolator transitions to extrapolation after correction completes (covered 25)
+    Γ£ô PlayerInterpolator correctionΓåÆextrapolation transition is seamless (no position jump) (killed 1)
+    Γ£ô PlayerInterpolator correction target moves with velocity for fast players (killed 2)
+    ~ PlayerInterpolator extrapolation moves position forward using velocity (covered 25)
+    ~ PlayerInterpolator freezes extrapolation at maximum duration (covered 25)
+    ~ PlayerInterpolator stationary player stays at last position (covered 19)
+    ~ PlayerInterpolator rejects teleport velocity (covered 20)
+    ~ PlayerInterpolator reset clears all state (covered 19)
+    ~ PlayerInterpolator lastConfirmedPosition returns authoritative position (covered 19)
+    ~ PlayerInterpolator velocity is estimated from samples (covered 19)
+    Γ£ô PlayerInterpolator handles three sequential samples with direction change (killed 1)
+    ~ PlayerInterpolator interpolates Y coordinate during correction (covered 35)
+    ~ PlayerInterpolator interpolates yaw via shortest path during correction (covered 48)
+    ~ PlayerInterpolator returns Y from last sample during extrapolation (covered 25)
+    Γ£ÿ Interpolator Registry getInterpolator creates new instance for unknown player (covered 0)
+    Γ£ÿ Interpolator Registry getInterpolator returns same instance for same player (case-insensitive) (covered 0)
+    Γ£ÿ Interpolator Registry removeInterpolator removes and resets (covered 0)
+    Γ£ÿ Interpolator Registry removeInterpolator is no-op for unknown player (covered 0)
+    Γ£ÿ Interpolator Registry clearAllInterpolators removes all (covered 0)
+    Γ£ÿ Interpolator Registry getAllInterpolators returns readonly map (covered 0)
+  library.property.test.ts
+    ~ escapeHtml properties output never contains dangerous HTML characters (covered 4)
+    ~ escapeHtml properties escaping is idempotent for safe strings (covered 3)
+    Γ£ô escapeHtml properties output length is >= input length (killed 3)
+    ~ matchesQuery properties never throws on arbitrary unicode input (covered 25)
+    ~ matchesQuery properties empty query matches everything (covered 16)
+    ~ matchesQuery properties text always matches itself (covered 16)
+    ~ matchesQuery properties normalized text includes normalized query (covered 16)
+    Γ£ô getRegex properties never throws on any string input (killed 5)
+    ~ getRegex properties returned regex matches the original query (covered 25)
+    ~ getRegex properties wildcard * matches any characters (covered 25)
+    ~ formatName properties output starts with uppercase letter (covered 14)
+    ~ formatName properties underscores are converted to spaces (covered 14)
+    Γ£ô highlight properties output length >= input length (killed 1)
+    ~ highlight properties mark tags are properly balanced (covered 7)
+    ~ parseLocation properties roundtrip for valid coordinates (covered 15)
+    ~ parseLocation properties never throws on malformed input (covered 17)
+    Γ£ô median properties result is within bounds of input array (killed 8)
+    ~ median properties single element returns itself (covered 15)
+    Γ£ô median properties returns undefined for empty array (killed 2)
+    Γ£ô median properties two elements returns average (killed 2)
+    Γ£ô median properties order does not affect result (killed 2)
+    ~ toOverworldEquivalent properties nether coordinates are multiplied by 8 (covered 9)
+    ~ toOverworldEquivalent properties overworld coordinates are unchanged (covered 6)
+    ~ toOverworldEquivalent properties world name matching is case-insensitive for nether (covered 9)
+    ~ calculateRouteDistance properties distance is symmetric (A to B equals B to A) (covered 13)
+    ~ calculateRouteDistance properties distance from point to itself is zero (covered 13)
+    ~ calculateRouteDistance properties distance is always non-negative (covered 13)
+    ~ calculateRouteDistance properties triangle inequality holds (covered 9)
+    ~ getTileCoords properties tile coords are consistent with offset (covered 6)
+    Γ£ÿ getTileCoords properties adjacent coordinates have adjacent or same tiles (covered 0)
+    ~ getTileOffset properties offset is always within tile bounds (covered 6)
+    ~ clampToCircle properties output is always within or on radius (covered 17)
+    ~ clampToCircle properties points inside circle are unchanged (covered 10)
+    ~ clampToCircle properties clamped flag is true only when point was outside (covered 17)
+    Γ£ô isNether properties nether variants return true (killed 1)
+    ~ isNether properties overworld variants return false (covered 3)
+    ~ getWorldId properties output is one of three valid values (covered 9)
+    ~ getWorldId properties nether keywords return the_nether (covered 7)
+    Γ£ô nearestNeighborOrder properties output is a valid permutation of indices (killed 7)
+    ~ nearestNeighborOrder properties empty input returns empty output (covered 22)
+    ~ nearestNeighborOrder properties single point returns [0] (covered 47)
+    Γ£ô twoOptOptimize properties output distance is less than or equal to input distance (killed 9)
+    Γ£ô twoOptOptimize properties output is a valid permutation of input (killed 2)
+    Γ£ô twoOptOptimize properties small inputs returned unchanged (< 3 elements) (killed 1)
+    ~ twoOptOptimize properties optimization is idempotent (covered 135)
+    ~ buildDistanceMatrix properties matrix is symmetric (covered 44)
+    ~ buildDistanceMatrix properties diagonal is zero (covered 44)
+    ~ buildDistanceMatrix properties all values are non-negative (covered 44)
+    ~ buildDistanceMatrix properties matrix size is points.length + 1 (covered 44)
+    Γ£ô calculateOrderDistance properties empty order returns zero (killed 2)
+    ~ calculateOrderDistance properties result is non-negative (covered 94)
+    Γ£ô filterTrade properties empty queries match all non-zero stock trades (killed 3)
+    Γ£ô filterTrade properties zero stock trades never match (killed 2)
+    Γ£ô filterTrade properties exact case match returns defined result (killed 5)
+    ~ sortResults properties length is preserved after sort (covered 35)
+    ~ sortResults properties same elements after sort (covered 31)
+  library.test.ts
+    Γ£ô matchesQuery exact match (killed 1)
+    ~ matchesQuery partial match (covered 16)
+    Γ£ô matchesQuery no-space query matches spaced text (killed 6)
+    Γ£ô matchesQuery words in any order (killed 3)
+    Γ£ô matchesQuery no match returns false (killed 2)
+    ~ matchesQuery underscore in query matches space in text (covered 15)
+    ~ matchesQuery underscore in text matches space in query (covered 12)
+    ~ matchesQuery no separator matches text with space (covered 16)
+    Γ£ô enchantsMatch exact enchant match (killed 3)
+    Γ£ô enchantsMatch enchant level mismatch (killed 4)
+    Γ£ô enchantsMatch undefined item enchants (killed 1)
+    ~ enchantsMatch undefined rule enchants (covered 8)
+    ~ enchantsMatch multiple enchants all match (covered 11)
+    ~ enchantsMatch multiple enchants one mismatch (covered 12)
+    ~ enchantsMatch item has extra enchants beyond rule (covered 11)
+    ~ enchantsMatch item missing enchant from rule (covered 12)
+    Γ£ô formatName uses item name if present (killed 7)
+    Γ£ô formatName uses type if no name (killed 2)
+    ~ formatName replaces underscores with spaces (covered 14)
+    Γ£ô formatName handles empty name and type (killed 1)
+    Γ£ô applyMapping maps vote diamond correctly (killed 10)
+    Γ£ô applyMapping does not map without matching enchant (killed 2)
+    Γ£ô applyMapping does not map without matching name (killed 2)
+    ~ applyMapping handles undefined item (covered 5)
+    Γ£ô applyMapping handles minecraft: prefix in type (killed 2)
+    Γ£ô getRegex basic pattern (killed 7)
+    Γ£ô getRegex wildcard pattern (killed 1)
+    Γ£ô getRegex matches text with space when query has no space (killed 2)
+    ~ getRegex matches text with underscore when query has no separator (covered 25)
+    ~ getRegex wildcard does not break flexible matching (covered 25)
+    Γ£ô getRegex handles regex special chars without throwing (killed 3)
+    Γ£ô getRegex matches text containing special regex chars (killed 2)
+    ~ getRegex special chars work with flexible spacing (covered 33)
+    Γ£ô getRegex special chars work with wildcards (killed 2)
+    Γ£ô parseShulkerContents parses single item type (killed 15)
+    Γ£ô parseShulkerContents parses mixed items and returns most common (killed 1)
+    Γ£ô parseShulkerContents includes minority items for search (killed 1)
+    Γ£ô parseShulkerContents handles empty lore (killed 3)
+    ~ parseShulkerContents sums up multiple stacks (covered 36)
+    ~ highlight highlights matching text (covered 6)
+    Γ£ô highlight escapes HTML in text (killed 3)
+    ~ escapeHtml escapes angle brackets (covered 4)
+    ~ escapeHtml escapes ampersand (covered 4)
+    Γ£ô escapeHtml escapes quotes (killed 1)
+    ~ escapeHtml escapes single quotes (covered 4)
+    Γ£ô parseLocation parses comma-separated coordinates (killed 4)
+    ~ parseLocation handles floats (covered 15)
+    ~ parseLocation handles missing values (covered 17)
+    Γ£ÿ config loading getConfig returns config (covered 0)
+    Γ£ÿ config loading config has analysis settings (covered 0)
+    Γ£ÿ config.json file validation dataUrl points to remote API, not a local file (covered 0)
+    Γ£ô sortResults sorts by result-amt descending (killed 6)
+    Γ£ô sortResults sorts by result-name ascending (killed 2)
+    Γ£ô sortResults sorts by world ascending (killed 1)
+    Γ£ô sortResults sorts by distance descending (killed 1)
+    ~ sortResults sorts by distance ascending (covered 18)
+    ~ sortResults distance uses euclidean distance from origin (covered 18)
+    Γ£ô countIndependentShops counts distant shops as independent (killed 9)
+    Γ£ô countIndependentShops clusters nearby shops (killed 8)
+    ~ countIndependentShops returns 0 for empty array (covered 5)
+    Γ£ô hasEnoughIndependentData returns true when enough independent shops (killed 4)
+    Γ£ô hasEnoughIndependentData returns false when not enough independent shops (killed 1)
+    ~ hasEnoughIndependentData considers both buy and sell prices (covered 31)
+    Γ£ô getTrustedItemValue emerald always returns 1 (killed 4)
+    Γ£ô getTrustedItemValue emerald block always returns 9 (killed 5)
+    Γ£ô getTrustedItemValue returns median for trusted item (killed 5)
+    Γ£ô calculateItemValues calculates buy prices from emerald trades (killed 22)
+    Γ£ô calculateItemValues calculates sell prices (killed 6)
+    Γ£ô calculateItemValues handles emerald block as 9 emeralds (killed 6)
+    Γ£ô buildRatioGraph and getRatio builds ratio graph from item values (killed 25)
+    ~ buildRatioGraph and getRatio returns null for unknown ratio (covered 33)
+    Γ£ô getTrustedItemValue - advanced cases uses average of buy and sell when both available (killed 3)
+    ~ getTrustedItemValue - advanced cases uses sell price when buy unavailable (covered 47)
+    ~ getTrustedItemValue - advanced cases returns null for unknown item (covered 35)
+    Γ£ô getTrustedItemValue - advanced cases falls back to block conversion for core block ingot (killed 8)
+    Γ£ô getTrustedItemValue - advanced cases core block requires min independent shops (killed 4)
+    ~ median returns null for empty array (covered 5)
+    ~ median returns single value (covered 15)
+    ~ median returns middle value for odd count (covered 16)
+    ~ median returns average of two middle values for even count (covered 18)
+    ~ median handles number array (covered 16)
+    ~ filterTrade returns null when out of stock (covered 5)
+    Γ£ô filterTrade matches by result text (killed 2)
+    Γ£ô filterTrade matches by cost text (killed 3)
+    Γ£ô filterTrade returns null for no match (killed 4)
+    Γ£ô filterTrade matches shulker contents (killed 5)
+    Γ£ô filterTrade returns match when no queries provided (killed 4)
+    Γ£ô processTrade processes basic trade (killed 2)
+    ~ processTrade applies mapping rules (covered 73)
+    Γ£ô processTrade processes shulker trade (killed 4)
+    Γ£ô getWorldId returns overworld for normal world (killed 5)
+    Γ£ô getWorldId returns the_nether for nether world (killed 4)
+    Γ£ô getWorldId returns the_end for end world (killed 3)
+    ~ getWorldId returns overworld for World (capitalized) (covered 9)
+    ~ getWorldId returns the_nether for World_nether (covered 7)
+    ~ getWorldId returns the_end for World_the_end (covered 10)
+    ~ getWorldId handles empty string as overworld (covered 9)
+    ~ getWorldId handles mixed case nether variants (covered 7)
+    ~ getWorldId handles mixed case end variants (covered 10)
+    Γ£ÿ getTileCoords calculates tile for positive coordinates (covered 0)
+    Γ£ÿ getTileCoords calculates tile for negative coordinates (covered 0)
+    Γ£ÿ getTileCoords respects custom tile size for coords calculation (covered 0)
+    Γ£ô getTileOffset calculates offset for positive coordinates (killed 4)
+    ~ getTileOffset calculates offset for negative coordinates (covered 6)
+    ~ getTileOffset respects custom tile size for offset calculation (covered 6)
+    Γ£ô calculateFitZoom calculates zoom for exact fit (killed 1)
+    ~ calculateFitZoom calculates fractional zoom (covered 2)
+    ~ calculateFitZoom handles various container sizes (covered 2)
+    Γ£ô toLeafletCoords converts positive coordinates to Leaflet latLng (killed 1)
+    ~ toLeafletCoords converts coordinates at tile boundary (covered 9)
+    ~ toLeafletCoords converts negative coordinates correctly (covered 9)
+    ~ toLeafletCoords converts coordinates with negative Z (covered 9)
+    ~ toLeafletCoords respects custom tile size for leaflet conversion (covered 9)
+    Γ£ô toLeafletCoordsRelative converts coords relative to center tile at origin (killed 1)
+    Γ£ô toLeafletCoordsRelative converts coords relative to non-origin center tile (killed 4)
+    ~ toLeafletCoordsRelative handles player in different tile than center (covered 7)
+    ~ toLeafletCoordsRelative handles negative player coordinates (covered 7)
+    ~ toLeafletCoordsRelative handles negative center tile (covered 7)
+    ~ toLeafletCoordsRelative respects custom tile size for relative conversion (covered 7)
+    Γ£ô fromLeafletCoordsRelative converts origin coords back to world coords at tile 0,0 (killed 1)
+    Γ£ô fromLeafletCoordsRelative converts positive offset back to world coords (killed 1)
+    Γ£ô fromLeafletCoordsRelative converts coords at non-zero tile center (killed 3)
+    ~ fromLeafletCoordsRelative is inverse of toLeafletCoordsRelative (covered 14)
+    ~ fromLeafletCoordsRelative handles negative world coords (covered 14)
+    ~ fromLeafletCoordsRelative rounds to nearest integer (covered 7)
+    Γ£ô clampToCircle returns original point when inside circle (killed 4)
+    Γ£ô clampToCircle returns original point when exactly on circle edge (killed 1)
+    ~ clampToCircle returns original point at center (covered 10)
+    Γ£ô clampToCircle clamps point outside circle to edge (right) (killed 5)
+    Γ£ô clampToCircle clamps point outside circle to edge (diagonal) (killed 2)
+    ~ clampToCircle clamps point outside circle to edge (negative) (covered 14)
+    Γ£ô clampToCircle handles non-origin center (killed 1)
+    ~ clampToCircle handles very far points correctly (covered 14)
+    Γ£ô toOverworldEquivalent returns same coords for overworld (killed 2)
+    Γ£ô toOverworldEquivalent multiplies coords by 8 for nether (killed 5)
+    ~ toOverworldEquivalent handles nether case-insensitively (covered 9)
+    ~ toOverworldEquivalent handles negative coordinates for world conversion (covered 9)
+    ~ calculateRouteDistance calculates distance between overworld points (covered 9)
+    ~ calculateRouteDistance calculates distance from overworld to nether using OW-equivalent (covered 13)
+    ~ calculateRouteDistance calculates distance between nether points using OW-equivalent (covered 12)
+    ~ calculateRouteDistance handles negative coordinates for route distance (covered 9)
+    Γ£ô buildDistanceMatrix returns 1x1 matrix for empty points (killed 1)
+    Γ£ô buildDistanceMatrix builds correct matrix for single point (killed 6)
+    Γ£ô buildDistanceMatrix builds symmetric matrix for multiple points (killed 5)
+    ~ buildDistanceMatrix handles nether points correctly (covered 38)
+    Γ£ô buildDistanceMatrix uses custom origin when provided (killed 1)
+    ~ buildDistanceMatrix uses custom origin in nether (covered 37)
+    Γ£ô buildDistanceMatrix custom origin affects distances between all points (killed 4)
+    ~ nearestNeighborOrder returns empty array for empty points (covered 22)
+    Γ£ô nearestNeighborOrder returns [0] for single point (killed 1)
+    ~ nearestNeighborOrder visits nearest point first (covered 73)
+    Γ£ô nearestNeighborOrder visits all points (killed 2)
+    Γ£ô nearestNeighborOrder follows greedy path (killed 1)
+    Γ£ô calculateOrderDistance returns 0 for empty order (killed 1)
+    Γ£ô calculateOrderDistance calculates distance for single point (killed 5)
+    Γ£ô calculateOrderDistance calculates total distance for multiple points (killed 7)
+    ~ twoOptOptimize returns copy for orders with less than 3 points (covered 41)
+    Γ£ô twoOptOptimize does not modify original order (killed 2)
+    ~ twoOptOptimize improves crossed path (covered 120)
+    ~ twoOptOptimize returns same order if already optimal (covered 90)
+    ~ computeOptimalOrder returns empty array for empty points (covered 6)
+    Γ£ô computeOptimalOrder returns [0] for single point (killed 2)
+    Γ£ô computeOptimalOrder returns optimal order for simple case (killed 2)
+    Γ£ô computeOptimalOrder optimizes crossed path (killed 1)
+    ~ computeOptimalOrder handles mixed overworld and nether points (covered 91)
+    ~ computeOptimalOrder visits all points exactly once (covered 138)
+    ~ computeOptimalOrder uses custom origin for route calculation (covered 130)
+    ~ computeOptimalOrder uses custom origin in nether world (covered 90)
+    ~ computeOptimalOrder custom origin respects different worlds (covered 90)
+    ~ isNether returns true for "the_nether" (covered 3)
+    ~ isNether returns true for "nether" (covered 3)
+    ~ isNether returns true for "World_nether" (covered 3)
+    ~ isNether returns true for "THE_NETHER" (case insensitive) (covered 3)
+    Γ£ô isNether returns false for "overworld" (killed 1)
+    ~ isNether returns false for "the_end" (covered 3)
+    ~ isNether returns false for empty string (covered 3)
+    ~ isNether returns false for "World" (covered 3)
+    ~ getTradeKey generates key from trade coordinates and items (covered 2)
+    ~ getTradeKey different coordinates produce different keys (covered 2)
+    ~ getTradeKey different worlds produce different keys (covered 2)
+    ~ getTradeKey different items produce different keys (covered 2)
+    ~ getTradeKey same trade produces same key (covered 2)
+    ~ getTradeKey handles negative coordinates for trade key (covered 2)
+    ~ getTradeKey handles item names with spaces (covered 2)
+    Γ£ô shouldSwitchMapWorld returns false when no previous position (first poll) (killed 4)
+    Γ£ô shouldSwitchMapWorld returns false when player stayed in same world (killed 1)
+    Γ£ô shouldSwitchMapWorld returns false when map already shows player world (killed 4)
+    Γ£ô shouldSwitchMapWorld returns false when no shops in player new world (killed 3)
+    Γ£ô shouldSwitchMapWorld returns true when player enters nether with nether shops (killed 5)
+    ~ shouldSwitchMapWorld returns true when player returns to overworld with overworld shops (covered 14)
+    ~ shouldSwitchMapWorld returns true when player enters the_end with end shops (covered 14)
+    ~ shouldSwitchMapWorld returns true with exactly 1 shop in new world (covered 14)
+    ~ shouldSwitchMapWorld handles multiple world transitions correctly (covered 14)
+    ~ shouldSwitchMapWorld returns false when changing worlds but map shows third world with shops there (covered 14)
+    ~ aggregateShoppingList returns empty maps for empty cart (covered 2)
+    Γ£ô aggregateShoppingList aggregates single item correctly (killed 5)
+    ~ aggregateShoppingList aggregates multiple items with same cost (covered 25)
+    Γ£ô aggregateShoppingList handles items with item2 cost (killed 3)
+    ~ aggregateShoppingList aggregates gains for same result item (covered 25)
+    ~ calculateTotalRouteDistance returns 0 for empty route (covered 6)
+    Γ£ô calculateTotalRouteDistance calculates distance from origin to single stop (killed 4)
+    ~ calculateTotalRouteDistance calculates distance through multiple stops (covered 16)
+    ~ calculateTotalRouteDistance uses custom start position (covered 15)
+    ~ calculateTotalRouteDistance handles cross-dimension travel (covered 19)
+    Γ£ô buildMarkerContent builds numbered marker for incomplete stop (killed 3)
+    Γ£ô buildMarkerContent builds checkmark marker for completed stop (killed 3)
+    Γ£ô buildMarkerContent includes nether indicator for nether stops (killed 1)
+    ~ buildMarkerContent includes nether indicator on completed nether stop (covered 6)
+    Γ£ô buildStopTooltip shows item quantity and name (killed 3)
+    Γ£ô buildStopTooltip prefixes with checkmark when completed (killed 3)
+    Γ£ô buildStopTooltip shows nether coordinates for nether stops (killed 4)
+    Γ£ô buildStopTooltip shows "Stop" for stops without cart item (killed 1)
+    Γ£ô getZoomForHeight returns zoom 2 at ground level (Y Γëñ 80) (killed 3)
+    Γ£ô getZoomForHeight returns zoom 1 at rooftop height (Y 81-120) (killed 4)
+    Γ£ô getZoomForHeight returns zoom 0 at medium altitude (Y 121-160) (killed 4)
+    Γ£ô getZoomForHeight returns zoom -1 at high altitude (Y 161-200) (killed 5)
+    Γ£ô getZoomForHeight returns zoom -2 at very high altitude (Y 201-256) (killed 5)
+    Γ£ô getZoomForHeight returns zoom -3 at extreme height (Y > 256) (killed 2)
+    ~ getZoomForHeight handles negative Y values (below bedrock) (covered 6)
+    ~ getZoomForHeight returns correct zoom at exact boundary values (covered 30)
+    Γ£ô formatRelativeTime returns "just now" for less than 1 minute (killed 6)
+    Γ£ô formatRelativeTime returns minutes for less than 1 hour (killed 6)
+    Γ£ô formatRelativeTime returns hours for less than 1 day (killed 7)
+    Γ£ô formatRelativeTime returns days for 24+ hours (killed 4)
+    Γ£ô computeDashboardData returns empty data when no previous snapshot (killed 4)
+    Γ£ô computeDashboardData detects new trades not in previous snapshot (killed 5)
+    ~ computeDashboardData does not flag existing trades as new (covered 43)
+    Γ£ô computeDashboardData detects price drops meeting threshold (killed 2)
+    Γ£ô computeDashboardData ignores price changes below threshold (killed 3)
+    Γ£ô computeDashboardData detects watchlist hits for favorited items (killed 11)
+    Γ£ô computeDashboardData excludes watchlist items exceeding maxDeviation (killed 3)
+    ~ computeDashboardData includes lastVisit from previous snapshot (covered 10)
+    Γ£ô computeDashboardData keeps best deal per favorite item (killed 2)
+    Γ£ô computeDashboardData sorts price drops by improvement magnitude (killed 2)
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:108:51
+-           const item = this._items.find(cartItem => getTradeKey(cartItem.trade) === key);
+
++           const item = this._items.find(cartItem => true);
+
+Tests ran:
+    CartStore updateQuantity increments quantity with positive delta
+    CartStore updateQuantity decrements quantity with negative delta
+    CartStore updateQuantity clamps quantity to zero minimum
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:122:51
+-           const item = this._items.find(cartItem => getTradeKey(cartItem.trade) === key);
+
++           const item = this._items.find(cartItem => true);
+
+Tests ran:
+    CartStore setQuantity sets exact quantity
+    CartStore setQuantity clamps to zero for negative values
+    CartStore cleanupZeroQuantity removes items with zero quantity
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:136:41
+-           return this._items.find(item => getTradeKey(item.trade) === key);
+
++           return this._items.find(item => true);
+
+Tests ran:
+    CartStore find returns cart item when found
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:144:41
+-           return this._items.some(item => getTradeKey(item.trade) === key);
+
++           return this._items.some(item => true);
+
+Tests ran:
+    CartStore has returns true when trade is in cart
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:154:13
+-           if (hadZeroItems) {
+
++           if (true) {
+
+Tests ran:
+    CartStore cleanupZeroQuantity removes items with zero quantity
+    CartStore cleanupZeroQuantity returns false when no zero-quantity items
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:183:21
+-                   if (Array.isArray(parsed)) {
+
++                   if (true) {
+
+Tests ran:
+    CartStore persistence loads from localStorage
+
+
+[Survived] BlockStatement
+src/stores/cart-store.ts:187:17
+-           } catch {
+
+-               this._items = [];
+
+-           }
+
++           } catch {}
+
+Tests ran:
+    CartStore persistence handles invalid localStorage data gracefully
+
+
+[Survived] ConditionalExpression
+src/stores/cart-store.ts:216:17
+-               if (index !== -1) {
+
++               if (true) {
+
+Tests ran:
+    CartStore onChange unsubscribe stops callbacks
+
+
+[Survived] UnaryOperator
+src/stores/cart-store.ts:216:27
+-               if (index !== -1) {
+
++               if (index !== +1) {
+
+Tests ran:
+    CartStore onChange unsubscribe stops callbacks
+
+
+[NoCoverage] BlockStatement
+src/stores/cart-store.ts:247:40
+-       _setItems(items: CartItem[]): void {
+
+-           this._items = items;
+
+-           this._notifyChange();
+
+-       }
+
++       _setItems(items: CartItem[]): void {}
+
+
+[Survived] StringLiteral
+src/stores/navigation-store.ts:68:27
+-       private _playerName = '';
+
++       private _playerName = "Stryker was here!";
+
+Ran all tests for this mutant.
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:207:39
+-       setViewWorld(world: string): void {
+
+-           this._viewWorld = world;
+
+-           this.saveViewWorld();
+
+-       }
+
++       setViewWorld(world: string): void {}
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:217:31
+-           this._viewWorldMode = this._viewWorldMode === 'auto' ? 'manual' : 'auto';
+
++           this._viewWorldMode = true ? 'manual' : 'auto';
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:217:31
+-           this._viewWorldMode = this._viewWorldMode === 'auto' ? 'manual' : 'auto';
+
++           this._viewWorldMode = false ? 'manual' : 'auto';
+
+
+[NoCoverage] EqualityOperator
+src/stores/navigation-store.ts:217:31
+-           this._viewWorldMode = this._viewWorldMode === 'auto' ? 'manual' : 'auto';
+
++           this._viewWorldMode = this._viewWorldMode !== 'auto' ? 'manual' : 'auto';
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:225:49
+-       setViewWorldMode(mode: ViewWorldMode): void {
+
+-           this._viewWorldMode = mode;
+
+-           this.saveViewWorldMode();
+
+-       }
+
++       setViewWorldMode(mode: ViewWorldMode): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:315:42
+-       setMap(map: L.Map | undefined): void {
+
+-           this._mapObjects.map = map;
+
+-       }
+
++       setMap(map: L.Map | undefined): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:322:57
+-       setPlayerMarker(marker: L.Marker | undefined): void {
+
+-           this._mapObjects.playerMarker = marker;
+
+-       }
+
++       setPlayerMarker(marker: L.Marker | undefined): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:329:62
+-       setRoutePolyline(polyline: L.Polyline | undefined): void {
+
+-           this._mapObjects.routePolyline = polyline;
+
+-       }
+
++       setRoutePolyline(polyline: L.Polyline | undefined): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:336:61
+-       setPlayerToNextLine(line: L.Polyline | undefined): void {
+
+-           this._mapObjects.playerToNextLine = line;
+
+-       }
+
++       setPlayerToNextLine(line: L.Polyline | undefined): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:343:47
+-       setStopMarkers(markers: L.Marker[]): void {
+
+-           this._mapObjects.stopMarkers = markers;
+
+-       }
+
++       setStopMarkers(markers: L.Marker[]): void {}
+
+
+[Survived] BlockStatement
+src/stores/navigation-store.ts:350:29
+-       clearMapObjects(): void {
+
+-           // Remove markers from map before clearing
+
+-           if (this._mapObjects.playerMarker) {
+
+-               this._mapObjects.playerMarker.remove();
+
+-           }
+
+-           if (this._mapObjects.routePolyline) {
+
+-               this._mapObjects.routePolyline.remove();
+
+-           }
+
+-           if (this._mapObjects.playerToNextLine) {
+
+-               this._mapObjects.playerToNextLine.remove();
+
+-           }
+
+-           for (const marker of this._mapObjects.stopMarkers) {
+
+-               marker.remove();
+
+-           }
+
+-   
+
+-           this._mapObjects = {
+
+-               map: undefined,
+
+-               playerMarker: undefined,
+
+-               routePolyline: undefined,
+
+-               playerToNextLine: undefined,
+
+-               stopMarkers: []
+
+-           };
+
+-       }
+
++       clearMapObjects(): void {}
+
+Tests ran:
+    NavigationStore initial state isActive is false
+    NavigationStore initial state mode is follow
+    NavigationStore initial state playerName is empty
+  and 59 more tests!
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:352:44
+-           if (this._mapObjects.playerMarker) {
+
+-               this._mapObjects.playerMarker.remove();
+
+-           }
+
++           if (this._mapObjects.playerMarker) {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:355:45
+-           if (this._mapObjects.routePolyline) {
+
+-               this._mapObjects.routePolyline.remove();
+
+-           }
+
++           if (this._mapObjects.routePolyline) {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:358:48
+-           if (this._mapObjects.playerToNextLine) {
+
+-               this._mapObjects.playerToNextLine.remove();
+
+-           }
+
++           if (this._mapObjects.playerToNextLine) {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:361:60
+-           for (const marker of this._mapObjects.stopMarkers) {
+
+-               marker.remove();
+
+-           }
+
++           for (const marker of this._mapObjects.stopMarkers) {}
+
+
+[Survived] ConditionalExpression
+src/stores/navigation-store.ts:409:13
+-           if (this._refreshInterval) {
+
++           if (true) {
+
+Tests ran:
+    NavigationStore initial state isActive is false
+    NavigationStore initial state mode is follow
+    NavigationStore initial state playerName is empty
+  and 59 more tests!
+
+
+[Survived] ObjectLiteral
+src/stores/navigation-store.ts:424:26
+-               const data = {
+
+-                   completedKeys: [...this._progress.completedKeys],
+
+-                   currentIndex: this._progress.currentIndex
+
+-               };
+
++               const data = {};
+
+Tests ran:
+    NavigationStore currentStop returns correct stop after advancing
+    NavigationStore remainingStops decreases after advancing
+    NavigationStore markStopComplete adds key to completedKeys
+  and 14 more tests!
+
+
+[Survived] ArrayDeclaration
+src/stores/navigation-store.ts:425:32
+-                   completedKeys: [...this._progress.completedKeys],
+
++                   completedKeys: [],
+
+Tests ran:
+    NavigationStore currentStop returns correct stop after advancing
+    NavigationStore remainingStops decreases after advancing
+    NavigationStore markStopComplete adds key to completedKeys
+  and 14 more tests!
+
+
+[NoCoverage] StringLiteral
+src/stores/navigation-store.ts:470:20
+-               return '';
+
++               return "Stryker was here!";
+
+
+[Survived] ConditionalExpression
+src/stores/navigation-store.ts:491:17
+-               if (stored === 'follow' || stored === 'manual') {
+
++               if (false || stored === 'manual') {
+
+Tests ran:
+    NavigationStore loadMode loads follow mode from localStorage
+    NavigationStore loadMode loads manual mode from localStorage
+    NavigationStore loadMode returns default mode when localStorage is empty
+  and 1 more test!
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:503:27
+-       saveViewWorld(): void {
+
+-           try {
+
+-               localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD, this._viewWorld);
+
+-           } catch {
+
+-               // Storage unavailable
+
+-           }
+
+-       }
+
++       saveViewWorld(): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:504:13
+-           try {
+
+-               localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD, this._viewWorld);
+
+-           } catch {
+
++           try {} catch {
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:515:13
+-           try {
+
+-               const stored = localStorage.getItem(STORAGE_KEYS.NAV_VIEW_WORLD);
+
+-               if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {
+
+-                   this._viewWorld = stored;
+
+-               }
+
+-           } catch {
+
++           try {} catch {
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:517:17
+-               if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {
+
++               if (false || stored === WORLDS.NETHER) {
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:517:48
+-               if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {
+
++               if (stored === WORLDS.OVERWORLD || false) {
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:517:74
+-               if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {
+
+-                   this._viewWorld = stored;
+
+-               }
+
++               if (stored === WORLDS.OVERWORLD || stored === WORLDS.NETHER) {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:529:31
+-       saveViewWorldMode(): void {
+
+-           try {
+
+-               localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD_MODE, this._viewWorldMode);
+
+-           } catch {
+
+-               // Storage unavailable
+
+-           }
+
+-       }
+
++       saveViewWorldMode(): void {}
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:530:13
+-           try {
+
+-               localStorage.setItem(STORAGE_KEYS.NAV_VIEW_WORLD_MODE, this._viewWorldMode);
+
+-           } catch {
+
++           try {} catch {
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:541:13
+-           try {
+
+-               const stored = localStorage.getItem(STORAGE_KEYS.NAV_VIEW_WORLD_MODE);
+
+-               if (stored === 'auto' || stored === 'manual') {
+
+-                   this._viewWorldMode = stored;
+
+-               }
+
+-           } catch {
+
++           try {} catch {
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:543:17
+-               if (stored === 'auto' || stored === 'manual') {
+
++               if (false || stored === 'manual') {
+
+
+[NoCoverage] ConditionalExpression
+src/stores/navigation-store.ts:543:38
+-               if (stored === 'auto' || stored === 'manual') {
+
++               if (stored === 'auto' || false) {
+
+
+[NoCoverage] BlockStatement
+src/stores/navigation-store.ts:543:59
+-               if (stored === 'auto' || stored === 'manual') {
+
+-                   this._viewWorldMode = stored;
+
+-               }
+
++               if (stored === 'auto' || stored === 'manual') {}
+
+
+[Survived] BlockStatement
+src/library.ts:108:31
+-       if (cached !== undefined) { return cached; }
++       if (cached !== undefined) {}
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery properties empty query matches everything
+    matchesQuery properties text always matches itself
+  and 12 more tests!
+
+
+[Survived] StringLiteral
+src/library.ts:109:33
+-       const result = s.replaceAll('_', ' ').replaceAll(' ', '');
++       const result = s.replaceAll("", ' ').replaceAll(' ', '');
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery properties empty query matches everything
+    matchesQuery properties text always matches itself
+  and 11 more tests!
+
+
+[Survived] StringLiteral
+src/library.ts:109:38
+-       const result = s.replaceAll('_', ' ').replaceAll(' ', '');
++       const result = s.replaceAll('_', "").replaceAll(' ', '');
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery properties empty query matches everything
+    matchesQuery properties text always matches itself
+  and 11 more tests!
+
+
+[Survived] MethodExpression
+src/library.ts:133:19
+-       const words = query.replaceAll('_', ' ').split(/\s+/).filter(Boolean);
++       const words = query.replaceAll('_', ' ').split(/\s+/);
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery words in any order
+    matchesQuery no match returns false
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+src/library.ts:133:36
+-       const words = query.replaceAll('_', ' ').split(/\s+/).filter(Boolean);
++       const words = query.replaceAll("", ' ').split(/\s+/).filter(Boolean);
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery words in any order
+    matchesQuery no match returns false
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+src/library.ts:133:41
+-       const words = query.replaceAll('_', ' ').split(/\s+/).filter(Boolean);
++       const words = query.replaceAll('_', "").split(/\s+/).filter(Boolean);
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery words in any order
+    matchesQuery no match returns false
+  and 2 more tests!
+
+
+[Survived] Regex
+src/library.ts:133:52
+-       const words = query.replaceAll('_', ' ').split(/\s+/).filter(Boolean);
++       const words = query.replaceAll('_', ' ').split(/\s/).filter(Boolean);
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery words in any order
+    matchesQuery no match returns false
+  and 2 more tests!
+
+
+[Survived] MethodExpression
+src/library.ts:134:12
+-       return words.every(word => textLower.includes(word.toLowerCase()));
++       return words.some(word => textLower.includes(word.toLowerCase()));
+Tests ran:
+    matchesQuery properties never throws on arbitrary unicode input
+    matchesQuery words in any order
+    matchesQuery no match returns false
+  and 2 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:177:9
+-       if (!text) { return ''; }
++       if (false) { return ''; }
+Tests ran:
+    formatName properties output starts with uppercase letter
+    formatName properties underscores are converted to spaces
+    formatName uses item name if present
+  and 10 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:177:16
+-       if (!text) { return ''; }
++       if (!text) {}
+Tests ran:
+    formatName handles empty name and type
+
+
+[Survived] ConditionalExpression
+src/library.ts:200:13
+-           if (rule.item !== type) { continue; }
++           if (false) { continue; }
+Tests ran:
+    applyMapping maps vote diamond correctly
+    applyMapping does not map without matching enchant
+    applyMapping does not map without matching name
+  and 2 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:200:33
+-           if (rule.item !== type) { continue; }
++           if (rule.item !== type) {}
+Tests ran:
+    processTrade applies mapping rules
+
+
+[Survived] EqualityOperator
+src/library.ts:241:12
+-       while (index < string_.length) {
++       while (index <= string_.length) {
+Tests ran:
+    getRegex properties never throws on any string input
+    getRegex properties returned regex matches the original query
+    getRegex properties wildcard * matches any characters
+  and 9 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:242:40
+-           if (string_[index] === '\\' && index + 1 < string_.length) {
++           if (string_[index] === '\\' && true) {
+Tests ran:
+    getRegex properties never throws on any string input
+    getRegex handles regex special chars without throwing
+    getRegex matches text containing special regex chars
+  and 2 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:242:40
+-           if (string_[index] === '\\' && index + 1 < string_.length) {
++           if (string_[index] === '\\' && index + 1 <= string_.length) {
+Tests ran:
+    getRegex properties never throws on any string input
+    getRegex handles regex special chars without throwing
+    getRegex matches text containing special regex chars
+  and 2 more tests!
+
+
+[Survived] ArithmeticOperator
+src/library.ts:242:40
+-           if (string_[index] === '\\' && index + 1 < string_.length) {
++           if (string_[index] === '\\' && index - 1 < string_.length) {
+Tests ran:
+    getRegex properties never throws on any string input
+    getRegex handles regex special chars without throwing
+    getRegex matches text containing special regex chars
+  and 2 more tests!
+
+
+[Survived] Regex
+src/library.ts:270:26
+-       const shulkerRegex = /-\s*(\d+)x\s+(.+)/i;
++       const shulkerRegex = /-\s(\d+)x\s+(.+)/i;
+Tests ran:
+    parseShulkerContents parses single item type
+    parseShulkerContents parses mixed items and returns most common
+    parseShulkerContents includes minority items for search
+  and 3 more tests!
+
+
+[Survived] Regex
+src/library.ts:270:26
+-       const shulkerRegex = /-\s*(\d+)x\s+(.+)/i;
++       const shulkerRegex = /-\s*(\d+)x\s(.+)/i;
+Tests ran:
+    parseShulkerContents parses single item type
+    parseShulkerContents parses mixed items and returns most common
+    parseShulkerContents includes minority items for search
+  and 3 more tests!
+
+
+[Survived] MethodExpression
+src/library.ts:275:26
+-               const item = match[2].trim();
++               const item = match[2];
+Tests ran:
+    parseShulkerContents parses single item type
+    parseShulkerContents parses mixed items and returns most common
+    parseShulkerContents includes minority items for search
+  and 2 more tests!
+
+
+[Survived] MethodExpression
+src/library.ts:289:5
+-       items.sort((a, b) => b.total - a.total);
++       items;
+Tests ran:
+    parseShulkerContents parses single item type
+    parseShulkerContents parses mixed items and returns most common
+    parseShulkerContents includes minority items for search
+  and 3 more tests!
+
+
+[Survived] ArithmeticOperator
+src/library.ts:289:26
+-       items.sort((a, b) => b.total - a.total);
++       items.sort((a, b) => b.total + a.total);
+Tests ran:
+    parseShulkerContents parses mixed items and returns most common
+    parseShulkerContents includes minority items for search
+
+
+[NoCoverage] StringLiteral
+src/library.ts:356:43
+-           x: Number.parseFloat(coords[0] ?? '0') || 0,
++           x: Number.parseFloat(coords[0] ?? "") || 0,
+
+[Survived] StringLiteral
+src/library.ts:357:43
+-           y: Number.parseFloat(coords[1] ?? '0') || 0,
++           y: Number.parseFloat(coords[1] ?? "") || 0,
+Tests ran:
+    parseLocation properties never throws on malformed input
+    parseLocation handles missing values
+
+
+[Survived] StringLiteral
+src/library.ts:358:43
+-           z: Number.parseFloat(coords[2] ?? '0') || 0
++           z: Number.parseFloat(coords[2] ?? "") || 0
+Tests ran:
+    parseLocation properties never throws on malformed input
+    parseLocation handles missing values
+
+
+[Survived] StringLiteral
+src/library.ts:381:38
+-       const world = shop.world.replace('minecraft:', '');
++       const world = shop.world.replace("", '');
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] StringLiteral
+src/library.ts:381:52
+-       const world = shop.world.replace('minecraft:', '');
++       const world = shop.world.replace('minecraft:', "Stryker was here!");
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] ConditionalExpression
+src/library.ts:385:9
+-       if (recipe.item2) { applyMapping(recipe.item2, mappingRules); }
++       if (true) { applyMapping(recipe.item2, mappingRules); }
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] ConditionalExpression
+src/library.ts:385:9
+-       if (recipe.item2) { applyMapping(recipe.item2, mappingRules); }
++       if (false) { applyMapping(recipe.item2, mappingRules); }
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[NoCoverage] BlockStatement
+src/library.ts:385:23
+-       if (recipe.item2) { applyMapping(recipe.item2, mappingRules); }
++       if (recipe.item2) {}
+
+[Survived] ArrayDeclaration
+src/library.ts:387:44
+-       const lore = recipe.resultItem.lore || [];
++       const lore = recipe.resultItem.lore || ["Stryker was here"];
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+
+
+[Survived] StringLiteral
+src/library.ts:390:20
+-       let loreText = '';
++       let loreText = "Stryker was here!";
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] BooleanLiteral
+src/library.ts:391:21
+-       let isShulker = false;
++       let isShulker = true;
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] LogicalOperator
+src/library.ts:394:9
+-       if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
++       if (lore.length > 0 || recipe.resultItem.type.includes('SHULKER')) {
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] ConditionalExpression
+src/library.ts:394:9
+-       if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
++       if (true && recipe.resultItem.type.includes('SHULKER')) {
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] EqualityOperator
+src/library.ts:394:9
+-       if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
++       if (lore.length >= 0 && recipe.resultItem.type.includes('SHULKER')) {
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] StringLiteral
+src/library.ts:394:60
+-       if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
++       if (lore.length > 0 && recipe.resultItem.type.includes("")) {
+Tests ran:
+    processTrade processes shulker trade
+
+
+[Survived] MethodExpression
+src/library.ts:399:20
+-           loreText = lore.join(' ').toLowerCase();
++           loreText = lore.join(' ').toUpperCase();
+Tests ran:
+    processTrade processes shulker trade
+
+
+[Survived] StringLiteral
+src/library.ts:399:30
+-           loreText = lore.join(' ').toLowerCase();
++           loreText = lore.join("").toLowerCase();
+Tests ran:
+    processTrade processes shulker trade
+
+
+[NoCoverage] StringLiteral
+src/library.ts:406:65
+-       const costName = formatName(recipe.item1) + (recipe.item2 ? ' ' + formatName(recipe.item2) : '');
++       const costName = formatName(recipe.item1) + (recipe.item2 ? "" + formatName(recipe.item2) : '');
+
+[Survived] MethodExpression
+src/library.ts:416:21
+-           resultText: resultName.toLowerCase(),
++           resultText: resultName.toUpperCase(),
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] MethodExpression
+src/library.ts:417:19
+-           costText: costName.toLowerCase(),
++           costText: costName.toUpperCase(),
+Tests ran:
+    processTrade processes basic trade
+    processTrade applies mapping rules
+    processTrade processes shulker trade
+
+
+[Survived] ConditionalExpression
+src/library.ts:442:9
+-           matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
++           true
+Tests ran:
+    filterTrade matches shulker contents
+
+
+[Survived] LogicalOperator
+src/library.ts:442:9
+-           matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
++           matchesQuery(item.key, query) && matchesQuery(item.name.toLowerCase(), query)
+Tests ran:
+    filterTrade matches shulker contents
+
+
+[NoCoverage] MethodExpression
+src/library.ts:442:55
+-           matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
++           matchesQuery(item.key, query) || matchesQuery(item.name.toUpperCase(), query)
+
+[Survived] BooleanLiteral
+src/library.ts:445:27
+-           return { matched: true, name: matched.name, amount: matched.total };
++           return { matched: false, name: matched.name, amount: matched.total };
+Tests ran:
+    filterTrade matches shulker contents
+
+
+[Survived] ConditionalExpression
+src/library.ts:454:9
+-       if (!wantQuery) {
++       if (false) {
+Tests ran:
+    filterTrade properties empty queries match all non-zero stock trades
+    filterTrade properties exact case match returns defined result
+    filterTrade matches by result text
+  and 4 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:454:21
+-       if (!wantQuery) {
+-           return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
+-       }
++       if (!wantQuery) {}
+Tests ran:
+    filterTrade properties empty queries match all non-zero stock trades
+    filterTrade matches by cost text
+    filterTrade returns match when no queries provided
+
+
+[Survived] BooleanLiteral
+src/library.ts:455:31
+-           return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
++           return { matchResult: false, displayName: trade.resultName, displayAmount: trade.resultAmount };
+Tests ran:
+    filterTrade properties empty queries match all non-zero stock trades
+    filterTrade matches by cost text
+    filterTrade returns match when no queries provided
+
+
+[Survived] BooleanLiteral
+src/library.ts:484:77
+-       const matchCost = giveQuery ? matchesQuery(trade.costText, giveQuery) : true;
++       const matchCost = giveQuery ? matchesQuery(trade.costText, giveQuery) : false;
+Tests ran:
+    filterTrade properties empty queries match all non-zero stock trades
+    filterTrade properties exact case match returns defined result
+    filterTrade matches by result text
+  and 3 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:487:9
+-       if (giveQuery && !matchCost) { return undefined; }
++       if (false) { return undefined; }
+Tests ran:
+    filterTrade properties empty queries match all non-zero stock trades
+    filterTrade properties exact case match returns defined result
+    filterTrade matches by result text
+  and 3 more tests!
+
+
+[NoCoverage] BlockStatement
+src/library.ts:487:34
+-       if (giveQuery && !matchCost) { return undefined; }
++       if (giveQuery && !matchCost) {}
+
+[Survived] ConditionalExpression
+src/library.ts:528:13
+-               case 'cost-amt': {
+-                   valueA = tradeA.item1.amount + (tradeA.item2?.amount || 0);
+-                   valueB = tradeB.item1.amount + (tradeB.item2?.amount || 0);
+-                   break;
+-               }
++               case 'cost-amt':
+Tests ran:
+    sortResults properties length is preserved after sort
+    sortResults properties same elements after sort
+
+
+[Survived] ArithmeticOperator
+src/library.ts:529:26
+-                   valueA = tradeA.item1.amount + (tradeA.item2?.amount || 0);
++                   valueA = tradeA.item1.amount - (tradeA.item2?.amount || 0);
+Tests ran:
+    sortResults properties length is preserved after sort
+    sortResults properties same elements after sort
+
+
+[Survived] ArithmeticOperator
+src/library.ts:530:26
+-                   valueB = tradeB.item1.amount + (tradeB.item2?.amount || 0);
++                   valueB = tradeB.item1.amount - (tradeB.item2?.amount || 0);
+Tests ran:
+    sortResults properties length is preserved after sort
+    sortResults properties same elements after sort
+
+
+[NoCoverage] ConditionalExpression
+src/library.ts:533:13
+-               case 'cost-name': {
+-                   return sortDirection * tradeA.costName.localeCompare(tradeB.costName);
+-               }
++               case 'cost-name':
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:534:24
+-                   return sortDirection * tradeA.costName.localeCompare(tradeB.costName);
++                   return sortDirection / tradeA.costName.localeCompare(tradeB.costName);
+
+[Survived] ArithmeticOperator
+src/library.ts:542:24
+-                   return sortDirection * tradeA.resultName.localeCompare(tradeB.resultName);
++                   return sortDirection / tradeA.resultName.localeCompare(tradeB.resultName);
+Tests ran:
+    sortResults sorts by result-name ascending
+
+
+[Survived] ConditionalExpression
+src/library.ts:544:13
+-               case 'stock': {
+-                   valueA = tradeA.displayStock;
+-                   valueB = tradeB.displayStock;
+-                   break;
+-               }
++               case 'stock':
+Tests ran:
+    sortResults properties length is preserved after sort
+    sortResults properties same elements after sort
+
+
+[Survived] ArithmeticOperator
+src/library.ts:550:24
+-                   return sortDirection * tradeA.world.localeCompare(tradeB.world);
++                   return sortDirection / tradeA.world.localeCompare(tradeB.world);
+Tests ran:
+    sortResults sorts by world ascending
+
+
+[Survived] ArithmeticOperator
+src/library.ts:561:16
+-           return sortDirection * (valueA - valueB);
++           return sortDirection / (valueA - valueB);
+Tests ran:
+    sortResults properties length is preserved after sort
+    sortResults properties same elements after sort
+    sortResults sorts by result-amt descending
+  and 3 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:572:9
+-       if (!Number.isFinite(ratio) || ratio <= 0) { return; }
++       if (false) { return; }
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] LogicalOperator
+src/library.ts:572:9
+-       if (!Number.isFinite(ratio) || ratio <= 0) { return; }
++       if (!Number.isFinite(ratio) && ratio <= 0) { return; }
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] ConditionalExpression
+src/library.ts:572:36
+-       if (!Number.isFinite(ratio) || ratio <= 0) { return; }
++       if (!Number.isFinite(ratio) || false) { return; }
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] EqualityOperator
+src/library.ts:572:36
+-       if (!Number.isFinite(ratio) || ratio <= 0) { return; }
++       if (!Number.isFinite(ratio) || ratio < 0) { return; }
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[NoCoverage] BlockStatement
+src/library.ts:572:48
+-       if (!Number.isFinite(ratio) || ratio <= 0) { return; }
++       if (!Number.isFinite(ratio) || ratio <= 0) {}
+
+[Survived] MethodExpression
+src/library.ts:573:20
+-       const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
++       const key = `${from.toUpperCase()}->${to.toLowerCase()}`;
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] MethodExpression
+src/library.ts:573:43
+-       const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
++       const key = `${from.toLowerCase()}->${to.toUpperCase()}`;
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] StringLiteral
+src/library.ts:574:24
+-       const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
++       const reverseKey = ``;
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] MethodExpression
+src/library.ts:574:27
+-       const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
++       const reverseKey = `${to.toUpperCase()}->${from.toLowerCase()}`;
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] MethodExpression
+src/library.ts:574:48
+-       const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
++       const reverseKey = `${to.toLowerCase()}->${from.toUpperCase()}`;
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] ConditionalExpression
+src/library.ts:576:9
+-       if (!graph.has(key)) {
++       if (true) {
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[Survived] ArithmeticOperator
+src/library.ts:578:31
+-           graph.set(reverseKey, 1 / ratio);
++           graph.set(reverseKey, 1 * ratio);
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:589:15
+-               ? (medianBuy + medianSell) / 2
++               ? (medianBuy + medianSell) * 2
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:589:16
+-               ? (medianBuy + medianSell) / 2
++               ? (medianBuy - medianSell) / 2
+
+[Survived] StringLiteral
+src/library.ts:596:23
+-       emeraldValues.set('emerald', 1);
++       emeraldValues.set("", 1);
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+    buildRatioGraph and getRatio returns null for unknown ratio
+
+
+[Survived] ArithmeticOperator
+src/library.ts:607:56
+-               emeraldValues.set(blockName.toLowerCase(), baseValue * multiplier);
++               emeraldValues.set(blockName.toLowerCase(), baseValue / multiplier);
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+    buildRatioGraph and getRatio returns null for unknown ratio
+
+
+[Survived] ConditionalExpression
+src/library.ts:622:17
+-               if (blockA === blockB) { continue; }
++               if (false) { continue; }
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+    buildRatioGraph and getRatio returns null for unknown ratio
+
+
+[Survived] BlockStatement
+src/library.ts:622:36
+-               if (blockA === blockB) { continue; }
++               if (blockA === blockB) {}
+Tests ran:
+    buildRatioGraph and getRatio builds ratio graph from item values
+    buildRatioGraph and getRatio returns null for unknown ratio
+
+
+[Survived] ConditionalExpression
+src/library.ts:678:22
+-       if (blockInfo && blockInfo.base.toLowerCase() === baseNorm) {
++       if (blockInfo && true) {
+Tests ran:
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] ConditionalExpression
+src/library.ts:684:26
+-       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {
++       if (baseBlockInfo && true) {
+
+[NoCoverage] EqualityOperator
+src/library.ts:684:26
+-       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {
++       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() !== itemNorm) {
+
+[NoCoverage] MethodExpression
+src/library.ts:684:26
+-       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {
++       if (baseBlockInfo && baseBlockInfo.base.toUpperCase() === itemNorm) {
+
+[NoCoverage] BlockStatement
+src/library.ts:684:73
+-       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {
+-           return { matches: true, amount: amount / baseBlockInfo.multiplier };
+-       }
++       if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {}
+
+[NoCoverage] BooleanLiteral
+src/library.ts:685:27
+-           return { matches: true, amount: amount / baseBlockInfo.multiplier };
++           return { matches: false, amount: amount / baseBlockInfo.multiplier };
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:685:41
+-           return { matches: true, amount: amount / baseBlockInfo.multiplier };
++           return { matches: true, amount: amount * baseBlockInfo.multiplier };
+
+[Survived] ConditionalExpression
+src/library.ts:702:9
+-       if (!values.has(key)) {
++       if (true) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:720:9
+-       if (trade.item2) {
++       if (false) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] BlockStatement
+src/library.ts:720:22
+-       if (trade.item2) {
+-           return processDirectTradeWithItem2(trade, baseCurrency, values);
+-       }
++       if (trade.item2) {}
+
+[Survived] LogicalOperator
+src/library.ts:724:23
+-       const item1Name = trade.item1Name ?? trade.costName;
++       const item1Name = trade.item1Name && trade.costName;
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:728:9
+-       if (costAsBase.matches === resultAsBase.matches) { return; }
++       if (false) { return; }
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] BlockStatement
+src/library.ts:728:54
+-       if (costAsBase.matches === resultAsBase.matches) { return; }
++       if (costAsBase.matches === resultAsBase.matches) {}
+
+[Survived] ConditionalExpression
+src/library.ts:733:16
+-       } else if (resultAsBase.matches) {
++       } else if (true) {
+Tests ran:
+    calculateItemValues calculates sell prices
+
+
+[NoCoverage] BlockStatement
+src/library.ts:743:9
+-   ): void {
+-       if (!trade.item2) { return; }
+-       const item1Name = trade.item1Name ?? trade.costName;
+-       const item2Name = formatName(trade.item2);
+-       
+-       const item1AsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
+-       const item2AsBase = normalizeToBaseCurrency(item2Name, trade.item2.amount, baseCurrency);
+-       const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
+-       // Both inputs are base currency -> derive result value
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
+-           const totalCost = item1AsBase.amount + item2AsBase.amount;
+-           const pricePerItem = totalCost / trade.resultAmount;
+-           addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+-       }
+-       // Result is base currency, both inputs are not -> can't derive individual values
+-   }
++   ): void {}
+
+[NoCoverage] LogicalOperator
+src/library.ts:746:23
+-       const item1Name = trade.item1Name ?? trade.costName;
++       const item1Name = trade.item1Name && trade.costName;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:754:9
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+src/library.ts:754:9
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (false) {
+
+[NoCoverage] LogicalOperator
+src/library.ts:754:9
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (item1AsBase.matches && item2AsBase.matches || !resultAsBase.matches) {
+
+[NoCoverage] ConditionalExpression
+src/library.ts:754:9
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (true && !resultAsBase.matches) {
+
+[NoCoverage] LogicalOperator
+src/library.ts:754:9
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (item1AsBase.matches || item2AsBase.matches && !resultAsBase.matches) {
+
+[NoCoverage] BooleanLiteral
+src/library.ts:754:55
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
++       if (item1AsBase.matches && item2AsBase.matches && resultAsBase.matches) {
+
+[NoCoverage] BlockStatement
+src/library.ts:754:78
+-       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
+-           const totalCost = item1AsBase.amount + item2AsBase.amount;
+-           const pricePerItem = totalCost / trade.resultAmount;
+-           addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+-       }
++       if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:755:27
+-           const totalCost = item1AsBase.amount + item2AsBase.amount;
++           const totalCost = item1AsBase.amount - item2AsBase.amount;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:756:30
+-           const pricePerItem = totalCost / trade.resultAmount;
++           const pricePerItem = totalCost * trade.resultAmount;
+
+[Survived] ConditionalExpression
+src/library.ts:768:9
+-       if (trade.item2) {
++       if (false) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] BlockStatement
+src/library.ts:768:22
+-       if (trade.item2) {
+-           return deriveTransitiveValueWithItem2(trade, baseCurrency, values);
+-       }
++       if (trade.item2) {}
+
+[Survived] LogicalOperator
+src/library.ts:772:23
+-       const item1Name = trade.item1Name ?? trade.costName;
++       const item1Name = trade.item1Name && trade.costName;
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] MethodExpression
+src/library.ts:773:21
+-       const costKey = item1Name.toLowerCase();
++       const costKey = item1Name.toUpperCase();
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] MethodExpression
+src/library.ts:774:23
+-       const resultKey = trade.resultName.toLowerCase();
++       const resultKey = trade.resultName.toUpperCase();
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:778:9
+-       if (costIsBase || resultIsBase) { return false; }
++       if (false) { return false; }
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] LogicalOperator
+src/library.ts:778:9
+-       if (costIsBase || resultIsBase) { return false; }
++       if (costIsBase && resultIsBase) { return false; }
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] BlockStatement
+src/library.ts:778:37
+-       if (costIsBase || resultIsBase) { return false; }
++       if (costIsBase || resultIsBase) {}
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] BooleanLiteral
+src/library.ts:778:46
+-       if (costIsBase || resultIsBase) { return false; }
++       if (costIsBase || resultIsBase) { return true; }
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] BooleanLiteral
+src/library.ts:782:19
+-       let changed = false;
++       let changed = true;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:784:9
+-       if (costEntry && !resultEntry) {
++       if (true) {
+
+[NoCoverage] LogicalOperator
+src/library.ts:784:9
+-       if (costEntry && !resultEntry) {
++       if (costEntry || !resultEntry) {
+
+[NoCoverage] BooleanLiteral
+src/library.ts:784:22
+-       if (costEntry && !resultEntry) {
++       if (costEntry && resultEntry) {
+
+[NoCoverage] BlockStatement
+src/library.ts:784:36
+-       if (costEntry && !resultEntry) {
+-           const costValue = getTrustedItemValue(item1Name, values);
+-           if (costValue !== undefined) {
+-               const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
+-               addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+-               changed = true;
+-           }
+-       }
++       if (costEntry && !resultEntry) {}
+
+[NoCoverage] BlockStatement
+src/library.ts:786:38
+-           if (costValue !== undefined) {
+-               const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
+-               addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+-               changed = true;
+-           }
++           if (costValue !== undefined) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:787:36
+-               const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
++               const pricePerResult = trade.costAmount * costValue * trade.resultAmount;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:787:37
+-               const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
++               const pricePerResult = (trade.costAmount / costValue) / trade.resultAmount;
+
+[NoCoverage] BooleanLiteral
+src/library.ts:789:23
+-               changed = true;
++               changed = false;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:793:9
+-       if (resultEntry && !costEntry) {
++       if (true) {
+
+[NoCoverage] LogicalOperator
+src/library.ts:793:9
+-       if (resultEntry && !costEntry) {
++       if (resultEntry || !costEntry) {
+
+[NoCoverage] BooleanLiteral
+src/library.ts:793:24
+-       if (resultEntry && !costEntry) {
++       if (resultEntry && costEntry) {
+
+[NoCoverage] BlockStatement
+src/library.ts:793:36
+-       if (resultEntry && !costEntry) {
+-           const resultValue = getTrustedItemValue(trade.resultName, values);
+-           if (resultValue !== undefined) {
+-               const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
+-               addValue(values, item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+-               changed = true;
+-           }
+-       }
++       if (resultEntry && !costEntry) {}
+
+[NoCoverage] BlockStatement
+src/library.ts:795:40
+-           if (resultValue !== undefined) {
+-               const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
+-               addValue(values, item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+-               changed = true;
+-           }
++           if (resultValue !== undefined) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:796:34
+-               const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
++               const pricePerCost = trade.resultAmount * resultValue * trade.costAmount;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:796:35
+-               const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
++               const pricePerCost = (trade.resultAmount / resultValue) / trade.costAmount;
+
+[NoCoverage] BooleanLiteral
+src/library.ts:798:23
+-               changed = true;
++               changed = false;
+
+[NoCoverage] BooleanLiteral
+src/library.ts:810:32
+-       if (!trade.item2) { return false; }
++       if (!trade.item2) { return true; }
+
+[NoCoverage] LogicalOperator
+src/library.ts:812:23
+-       const item1Name = trade.item1Name ?? trade.costName;
++       const item1Name = trade.item1Name && trade.costName;
+
+[NoCoverage] MethodExpression
+src/library.ts:814:23
+-       const resultKey = trade.resultName.toLowerCase();
++       const resultKey = trade.resultName.toUpperCase();
+
+[NoCoverage] ConditionalExpression
+src/library.ts:821:9
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if (false) { return false; }
+
+[NoCoverage] LogicalOperator
+src/library.ts:821:9
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if (item1IsBase && item2IsBase && resultIsBase) { return false; }
+
+[NoCoverage] ConditionalExpression
+src/library.ts:821:10
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if ((false) || resultIsBase) { return false; }
+
+[NoCoverage] LogicalOperator
+src/library.ts:821:10
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if ((item1IsBase || item2IsBase) || resultIsBase) { return false; }
+
+[NoCoverage] BlockStatement
+src/library.ts:821:55
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if ((item1IsBase && item2IsBase) || resultIsBase) {}
+
+[NoCoverage] BooleanLiteral
+src/library.ts:821:64
+-       if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
++       if ((item1IsBase && item2IsBase) || resultIsBase) { return true; }
+
+[NoCoverage] BooleanLiteral
+src/library.ts:828:65
+-       if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {
++       if (item1Value !== undefined && item2Value !== undefined && resultEntry) {
+
+[NoCoverage] BlockStatement
+src/library.ts:828:79
+-       if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {
+-           const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
+-           const pricePerResult = totalCostValue / trade.resultAmount;
+-           addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+-           return true;
+-       }
++       if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:829:32
+-           const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
++           const totalCostValue = trade.costAmount * item1Value - trade.item2.amount * item2Value;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:829:33
+-           const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
++           const totalCostValue = (trade.costAmount / item1Value) + (trade.item2.amount * item2Value);
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:829:67
+-           const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
++           const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount / item2Value);
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:830:32
+-           const pricePerResult = totalCostValue / trade.resultAmount;
++           const pricePerResult = totalCostValue * trade.resultAmount;
+
+[NoCoverage] BooleanLiteral
+src/library.ts:832:16
+-           return true;
++           return false;
+
+[NoCoverage] BooleanLiteral
+src/library.ts:835:12
+-       return false;
++       return true;
+
+[Survived] BooleanLiteral
+src/library.ts:860:19
+-       let changed = true;
++       let changed = false;
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:863:12
+-       while (changed && iterations < config.analysis.maxTransitiveIterations) {
++       while (false) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] LogicalOperator
+src/library.ts:863:12
+-       while (changed && iterations < config.analysis.maxTransitiveIterations) {
++       while (changed || iterations < config.analysis.maxTransitiveIterations) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:863:23
+-       while (changed && iterations < config.analysis.maxTransitiveIterations) {
++       while (changed && true) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] EqualityOperator
+src/library.ts:863:23
+-       while (changed && iterations < config.analysis.maxTransitiveIterations) {
++       while (changed && iterations <= config.analysis.maxTransitiveIterations) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] EqualityOperator
+src/library.ts:863:23
+-       while (changed && iterations < config.analysis.maxTransitiveIterations) {
++       while (changed && iterations >= config.analysis.maxTransitiveIterations) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] BooleanLiteral
+src/library.ts:864:19
+-           changed = false;
++           changed = true;
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] UpdateOperator
+src/library.ts:865:9
+-           iterations++;
++           iterations--;
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] BlockStatement
+src/library.ts:867:37
+-           for (const trade of trades) {
+-               if (deriveTransitiveValue(trade, baseCurrency, values)) {
+-                   changed = true;
+-               }
+-           }
++           for (const trade of trades) {}
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:868:17
+-               if (deriveTransitiveValue(trade, baseCurrency, values)) {
++               if (true) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[Survived] ConditionalExpression
+src/library.ts:868:17
+-               if (deriveTransitiveValue(trade, baseCurrency, values)) {
++               if (false) {
+Tests ran:
+    calculateItemValues calculates buy prices from emerald trades
+    calculateItemValues calculates sell prices
+    calculateItemValues handles emerald block as 9 emeralds
+
+
+[NoCoverage] BlockStatement
+src/library.ts:868:69
+-               if (deriveTransitiveValue(trade, baseCurrency, values)) {
+-                   changed = true;
+-               }
++               if (deriveTransitiveValue(trade, baseCurrency, values)) {}
+
+[NoCoverage] BooleanLiteral
+src/library.ts:869:27
+-                   changed = true;
++                   changed = false;
+
+[Survived] ConditionalExpression
+src/library.ts:917:9
+-       if (priceArray.length === 0) { return 0; }
++       if (false) { return 0; }
+Tests ran:
+    countIndependentShops counts distant shops as independent
+    countIndependentShops clusters nearby shops
+    countIndependentShops returns 0 for empty array
+  and 4 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:917:34
+-       if (priceArray.length === 0) { return 0; }
++       if (priceArray.length === 0) {}
+Tests ran:
+    countIndependentShops returns 0 for empty array
+    hasEnoughIndependentData returns true when enough independent shops
+    hasEnoughIndependentData returns false when not enough independent shops
+  and 1 more test!
+
+
+[Survived] ConditionalExpression
+src/library.ts:921:9
+-       if (locations.length === 0) { return priceArray.length; }
++       if (false) { return priceArray.length; }
+Tests ran:
+    countIndependentShops counts distant shops as independent
+    countIndependentShops clusters nearby shops
+    hasEnoughIndependentData returns true when enough independent shops
+  and 3 more tests!
+
+
+[NoCoverage] BlockStatement
+src/library.ts:921:33
+-       if (locations.length === 0) { return priceArray.length; }
++       if (locations.length === 0) {}
+
+[Survived] ArithmeticOperator
+src/library.ts:927:45
+-               const distribution = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z - cluster.z);
++               const distribution = Math.hypot(loc.x + cluster.x, loc.y - cluster.y, loc.z - cluster.z);
+Tests ran:
+    countIndependentShops counts distant shops as independent
+    countIndependentShops clusters nearby shops
+    hasEnoughIndependentData returns true when enough independent shops
+  and 3 more tests!
+
+
+[Survived] ArithmeticOperator
+src/library.ts:927:83
+-               const distribution = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z - cluster.z);
++               const distribution = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z + cluster.z);
+Tests ran:
+    countIndependentShops counts distant shops as independent
+    countIndependentShops clusters nearby shops
+    hasEnoughIndependentData returns true when enough independent shops
+  and 3 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:928:17
+-               if (distribution <= config.analysis.shopClusterDistance) {
++               if (distribution < config.analysis.shopClusterDistance) {
+Tests ran:
+    countIndependentShops counts distant shops as independent
+    countIndependentShops clusters nearby shops
+    hasEnoughIndependentData returns true when enough independent shops
+  and 3 more tests!
+
+
+[Survived] LogicalOperator
+src/library.ts:979:9
+-       if (isCoreBlock && !hasEnoughIndependentData(entry, minShops)) { return undefined; }
++       if (isCoreBlock || !hasEnoughIndependentData(entry, minShops)) { return undefined; }
+Tests ran:
+    getTrustedItemValue returns median for trusted item
+    getTrustedItemValue - advanced cases uses average of buy and sell when both available
+    getTrustedItemValue - advanced cases uses sell price when buy unavailable
+  and 1 more test!
+
+
+[Survived] MethodExpression
+src/library.ts:993:38
+-       const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
++       const baseEntry = itemValues.get(blockInfo.base.toUpperCase());
+Tests ran:
+    getTrustedItemValue - advanced cases core block requires min independent shops
+
+
+[NoCoverage] ConditionalExpression
+src/library.ts:995:9
+-       if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
++       if (false) { return undefined; }
+
+[NoCoverage] LogicalOperator
+src/library.ts:995:9
+-       if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
++       if (isCoreBlock || !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
+
+[NoCoverage] BooleanLiteral
+src/library.ts:995:24
+-       if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
++       if (isCoreBlock && hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
+
+[NoCoverage] BlockStatement
+src/library.ts:995:72
+-       if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
++       if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:999:12
+-       return baseValue * blockInfo.multiplier;
++       return baseValue / blockInfo.multiplier;
+
+[Survived] ConditionalExpression
+src/library.ts:1010:13
+-           if (conversion.base.toLowerCase() !== itemKey) { continue; }
++           if (false) { continue; }
+Tests ran:
+    getTrustedItemValue - advanced cases returns null for unknown item
+    getTrustedItemValue - advanced cases falls back to block conversion for core block ingot
+    getTrustedItemValue - advanced cases core block requires min independent shops
+
+
+[Survived] BlockStatement
+src/library.ts:1010:56
+-           if (conversion.base.toLowerCase() !== itemKey) { continue; }
++           if (conversion.base.toLowerCase() !== itemKey) {}
+Tests ran:
+    getTrustedItemValue - advanced cases returns null for unknown item
+    getTrustedItemValue - advanced cases falls back to block conversion for core block ingot
+    getTrustedItemValue - advanced cases core block requires min independent shops
+
+
+[Survived] ConditionalExpression
+src/library.ts:1014:13
+-           if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
++           if (false) { continue; }
+Tests ran:
+    getTrustedItemValue - advanced cases falls back to block conversion for core block ingot
+
+
+[Survived] LogicalOperator
+src/library.ts:1014:13
+-           if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
++           if (isCoreBlock || !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
+Tests ran:
+    getTrustedItemValue - advanced cases falls back to block conversion for core block ingot
+
+
+[NoCoverage] BooleanLiteral
+src/library.ts:1014:28
+-           if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
++           if (isCoreBlock && hasEnoughIndependentData(blockEntry, minShops)) { continue; }
+
+[NoCoverage] BlockStatement
+src/library.ts:1014:77
+-           if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
++           if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) {}
+
+[Survived] ConditionalExpression
+src/library.ts:1061:9
+-       if (conversionValue !== undefined) { return conversionValue; }
++       if (false) { return conversionValue; }
+Tests ran:
+    getTrustedItemValue - advanced cases returns null for unknown item
+    getTrustedItemValue - advanced cases falls back to block conversion for core block ingot
+    getTrustedItemValue - advanced cases core block requires min independent shops
+
+
+[NoCoverage] BlockStatement
+src/library.ts:1061:40
+-       if (conversionValue !== undefined) { return conversionValue; }
++       if (conversionValue !== undefined) {}
+
+[Survived] ConditionalExpression
+src/library.ts:1144:9
+-       if (previousWorld === currentWorld) {
++       if (false) {
+Tests ran:
+    shouldSwitchMapWorld returns false when player stayed in same world
+    shouldSwitchMapWorld returns false when map already shows player world
+    shouldSwitchMapWorld returns false when no shops in player new world
+  and 6 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1144:41
+-       if (previousWorld === currentWorld) {
+-           return false;
+-       }
++       if (previousWorld === currentWorld) {}
+Tests ran:
+    shouldSwitchMapWorld returns false when player stayed in same world
+
+
+[NoCoverage] MethodExpression
+src/library.ts:1356:26
+-       const isStopNether = stopWorld.toLowerCase().includes('nether');
++       const isStopNether = stopWorld.toUpperCase().includes('nether');
+
+[NoCoverage] StringLiteral
+src/library.ts:1356:59
+-       const isStopNether = stopWorld.toLowerCase().includes('nether');
++       const isStopNether = stopWorld.toLowerCase().includes("");
+
+[NoCoverage] MethodExpression
+src/library.ts:1357:26
+-       const isViewNether = viewWorld.toLowerCase().includes('nether');
++       const isViewNether = viewWorld.toUpperCase().includes('nether');
+
+[NoCoverage] StringLiteral
+src/library.ts:1357:59
+-       const isViewNether = viewWorld.toLowerCase().includes('nether');
++       const isViewNether = viewWorld.toLowerCase().includes("");
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1359:9
+-       if (isStopNether === isViewNether) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1359:9
+-       if (isStopNether === isViewNether) {
++       if (false) {
+
+[NoCoverage] EqualityOperator
+src/library.ts:1359:9
+-       if (isStopNether === isViewNether) {
++       if (isStopNether !== isViewNether) {
+
+[NoCoverage] BlockStatement
+src/library.ts:1359:40
+-       if (isStopNether === isViewNether) {
+-           // Same world type: no conversion needed
+-           return { x, z };
+-       }
++       if (isStopNether === isViewNether) {}
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1364:9
+-       if (isStopNether && !isViewNether) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1364:9
+-       if (isStopNether && !isViewNether) {
++       if (false) {
+
+[NoCoverage] LogicalOperator
+src/library.ts:1364:9
+-       if (isStopNether && !isViewNether) {
++       if (isStopNether || !isViewNether) {
+
+[NoCoverage] BooleanLiteral
+src/library.ts:1364:25
+-       if (isStopNether && !isViewNether) {
++       if (isStopNether && isViewNether) {
+
+[NoCoverage] BlockStatement
+src/library.ts:1364:40
+-       if (isStopNether && !isViewNether) {
+-           // Nether stop, viewing overworld: scale up ├ù8
+-           return { x: x * 8, z: z * 8 };
+-       }
++       if (isStopNether && !isViewNether) {}
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1366:21
+-           return { x: x * 8, z: z * 8 };
++           return { x: x / 8, z: z * 8 };
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1366:31
+-           return { x: x * 8, z: z * 8 };
++           return { x: x * 8, z: z / 8 };
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1370:17
+-       return { x: x / 8, z: z / 8 };
++       return { x: x * 8, z: z / 8 };
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1370:27
+-       return { x: x / 8, z: z / 8 };
++       return { x: x / 8, z: z * 8 };
+
+[Survived] StringLiteral
+src/library.ts:1421:42
+-       const originWorld = origin?.world ?? 'overworld';
++       const originWorld = origin?.world ?? "";
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    nearestNeighborOrder properties empty input returns empty output
+    nearestNeighborOrder properties single point returns [0]
+  and 31 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1432:25
+-       for (let index = 0; index < points.length; index++) {
++       for (let index = 0; index <= points.length; index++) {
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    nearestNeighborOrder properties empty input returns empty output
+    nearestNeighborOrder properties single point returns [0]
+  and 36 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1458:9
+-       if (points.length === 0) {return [];}
++       if (false) {return [];}
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    nearestNeighborOrder properties empty input returns empty output
+    nearestNeighborOrder properties single point returns [0]
+  and 17 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1458:30
+-       if (points.length === 0) {return [];}
++       if (points.length === 0) {}
+Tests ran:
+    nearestNeighborOrder properties empty input returns empty output
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+    nearestNeighborOrder returns empty array for empty points
+
+
+[Survived] ConditionalExpression
+src/library.ts:1459:9
+-       if (points.length === 1) {return [0];}
++       if (false) {return [0];}
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    nearestNeighborOrder properties single point returns [0]
+    twoOptOptimize properties output distance is less than or equal to input distance
+  and 15 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1459:30
+-       if (points.length === 1) {return [0];}
++       if (points.length === 1) {}
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    nearestNeighborOrder properties single point returns [0]
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+  and 2 more tests!
+
+
+[Survived] UnaryOperator
+src/library.ts:1466:28
+-           let nearestIndex = -1;
++           let nearestIndex = +1;
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+  and 13 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1469:29
+-           for (let index = 0; index < points.length; index++) {
++           for (let index = 0; index <= points.length; index++) {
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+  and 13 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1472:17
+-               if (distribution < nearestDistribution) {
++               if (distribution <= nearestDistribution) {
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+  and 13 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1478:13
+-           if (nearestIndex !== -1) {
++           if (true) {
+Tests ran:
+    nearestNeighborOrder properties output is a valid permutation of indices
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+  and 13 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1523:20
+-           previousI: startIndex === 0 ? 0 : result[startIndex - 1]! + 1,
++           previousI: true ? 0 : result[startIndex - 1]! + 1,
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1526:16
+-           nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
++           nextJ: true ? -1 : result[endIndex + 1]! + 1
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1526:16
+-           nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
++           nextJ: false ? -1 : result[endIndex + 1]! + 1
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1526:16
+-           nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
++           nextJ: endIndex !== result.length - 1 ? -1 : result[endIndex + 1]! + 1
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ArithmeticOperator
+src/library.ts:1526:29
+-           nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
++           nextJ: endIndex === result.length + 1 ? -1 : result[endIndex + 1]! + 1
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1538:9
+-       if (nextJ !== -1) {
++       if (true) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1538:9
+-       if (nextJ !== -1) {
++       if (false) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1538:9
+-       if (nextJ !== -1) {
++       if (nextJ === -1) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] UnaryOperator
+src/library.ts:1538:19
+-       if (nextJ !== -1) {
++       if (nextJ !== +1) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1538:23
+-       if (nextJ !== -1) {
+-           currentCost += distributionMatrix[currentJ]![nextJ]!;
+-       }
++       if (nextJ !== -1) {}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 2 more tests!
+
+
+[Survived] AssignmentOperator
+src/library.ts:1539:9
+-           currentCost += distributionMatrix[currentJ]![nextJ]!;
++           currentCost -= distributionMatrix[currentJ]![nextJ]!;
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 2 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1544:9
+-       if (nextJ !== -1) {
++       if (true) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1548:12
+-       return newCost < currentCost - 0.001;
++       return false;
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1548:12
+-       return newCost < currentCost - 0.001;
++       return newCost <= currentCost - 0.001;
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1575:9
+-       if (order.length < 3) {return [...order];}
++       if (true) {return [...order];}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+  and 12 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1575:9
+-       if (order.length < 3) {return [...order];}
++       if (false) {return [...order];}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+  and 12 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1575:9
+-       if (order.length < 3) {return [...order];}
++       if (order.length <= 3) {return [...order];}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+  and 12 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1575:9
+-       if (order.length < 3) {return [...order];}
++       if (order.length >= 3) {return [...order];}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+  and 12 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1575:27
+-       if (order.length < 3) {return [...order];}
++       if (order.length < 3) {}
+Tests ran:
+    twoOptOptimize properties small inputs returned unchanged (< 3 elements)
+    twoOptOptimize returns copy for orders with less than 3 points
+    computeOptimalOrder handles mixed overworld and nether points
+  and 2 more tests!
+
+
+[Survived] BooleanLiteral
+src/library.ts:1578:20
+-       let improved = true;
++       let improved = false;
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1580:12
+-       while (improved) {
++       while (false) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1583:34
+-           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
++           for (let startIndex = 0; false; startIndex++) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1583:34
+-           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
++           for (let startIndex = 0; startIndex <= result.length - 1; startIndex++) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1583:34
+-           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
++           for (let startIndex = 0; startIndex >= result.length - 1; startIndex++) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ArithmeticOperator
+src/library.ts:1583:47
+-           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
++           for (let startIndex = 0; startIndex < result.length + 1; startIndex++) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1583:80
+-           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
+-               for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
+-                   const indices = calculateEdgeIndices(result, startIndex, endIndex);
+-                   
+-                   if (shouldSwapEdges(distributionMatrix, indices)) {
+-                       applyTwoOptSwap(result, startIndex, endIndex);
+-                       improved = true;
+-                   }
+-               }
+-           }
++           for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1584:49
+-               for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
++               for (let endIndex = startIndex + 2; false; endIndex++) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1584:87
+-               for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
+-                   const indices = calculateEdgeIndices(result, startIndex, endIndex);
+-                   
+-                   if (shouldSwapEdges(distributionMatrix, indices)) {
+-                       applyTwoOptSwap(result, startIndex, endIndex);
+-                       improved = true;
+-                   }
+-               }
++               for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] ConditionalExpression
+src/library.ts:1587:21
+-                   if (shouldSwapEdges(distributionMatrix, indices)) {
++                   if (false) {
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize properties optimization is idempotent
+  and 7 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1587:67
+-                   if (shouldSwapEdges(distributionMatrix, indices)) {
+-                       applyTwoOptSwap(result, startIndex, endIndex);
+-                       improved = true;
+-                   }
++                   if (shouldSwapEdges(distributionMatrix, indices)) {}
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize improves crossed path
+
+
+[Survived] BooleanLiteral
+src/library.ts:1589:32
+-                       improved = true;
++                       improved = false;
+Tests ran:
+    twoOptOptimize properties output distance is less than or equal to input distance
+    twoOptOptimize properties output is a valid permutation of input
+    twoOptOptimize improves crossed path
+
+
+[Survived] ConditionalExpression
+src/library.ts:1612:9
+-       if (points.length === 0) {return [];}
++       if (false) {return [];}
+Tests ran:
+    computeOptimalOrder returns empty array for empty points
+    computeOptimalOrder returns [0] for single point
+    computeOptimalOrder returns optimal order for simple case
+  and 6 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1612:30
+-       if (points.length === 0) {return [];}
++       if (points.length === 0) {}
+Tests ran:
+    computeOptimalOrder returns empty array for empty points
+
+
+[Survived] ConditionalExpression
+src/library.ts:1613:9
+-       if (points.length === 1) {return [0];}
++       if (false) {return [0];}
+Tests ran:
+    computeOptimalOrder returns [0] for single point
+    computeOptimalOrder returns optimal order for simple case
+    computeOptimalOrder optimizes crossed path
+  and 5 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1613:30
+-       if (points.length === 1) {return [0];}
++       if (points.length === 1) {}
+Tests ran:
+    computeOptimalOrder returns [0] for single point
+
+
+[Survived] StringLiteral
+src/library.ts:1685:18
+-       startWorld = 'overworld'
++       startWorld = ""
+Tests ran:
+    calculateTotalRouteDistance returns 0 for empty route
+    calculateTotalRouteDistance calculates distance from origin to single stop
+    calculateTotalRouteDistance calculates distance through multiple stops
+
+
+[Survived] ConditionalExpression
+src/library.ts:1687:9
+-       if (route.length === 0) { return 0; }
++       if (false) { return 0; }
+Tests ran:
+    calculateTotalRouteDistance returns 0 for empty route
+    calculateTotalRouteDistance calculates distance from origin to single stop
+    calculateTotalRouteDistance calculates distance through multiple stops
+  and 2 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1687:29
+-       if (route.length === 0) { return 0; }
++       if (route.length === 0) {}
+Tests ran:
+    calculateTotalRouteDistance returns 0 for empty route
+
+
+[NoCoverage] BooleanLiteral
+src/library.ts:1806:29
+-       if (!previous) { return true; }
++       if (!previous) { return false; }
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return true;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return false;
+
+[NoCoverage] LogicalOperator
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) > threshold && Math.abs(previous.z - current.z) > threshold;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return false || Math.abs(previous.z - current.z) > threshold;
+
+[NoCoverage] EqualityOperator
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) >= threshold || Math.abs(previous.z - current.z) > threshold;
+
+[NoCoverage] EqualityOperator
+src/library.ts:1807:12
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) <= threshold || Math.abs(previous.z - current.z) > threshold;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1807:21
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x + current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
+
+[NoCoverage] ConditionalExpression
+src/library.ts:1807:60
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) > threshold || false;
+
+[NoCoverage] EqualityOperator
+src/library.ts:1807:60
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) >= threshold;
+
+[NoCoverage] EqualityOperator
+src/library.ts:1807:60
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) <= threshold;
+
+[NoCoverage] ArithmeticOperator
+src/library.ts:1807:69
+-       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z - current.z) > threshold;
++       return Math.abs(previous.x - current.x) > threshold || Math.abs(previous.z + current.z) > threshold;
+
+[Survived] ConditionalExpression
+src/library.ts:1854:9
+-       if (dtMs <= 0) { return { vx: 0, vz: 0 }; }
++       if (false) { return { vx: 0, vz: 0 }; }
+Tests ran:
+    estimateVelocity calculates velocity from two positions
+    estimateVelocity calculates diagonal velocity
+    estimateVelocity returns zero velocity for zero time delta
+  and 20 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1854:9
+-       if (dtMs <= 0) { return { vx: 0, vz: 0 }; }
++       if (dtMs < 0) { return { vx: 0, vz: 0 }; }
+Tests ran:
+    estimateVelocity calculates velocity from two positions
+    estimateVelocity calculates diagonal velocity
+    estimateVelocity returns zero velocity for zero time delta
+  and 20 more tests!
+
+
+[Survived] BlockStatement
+src/library.ts:1854:20
+-       if (dtMs <= 0) { return { vx: 0, vz: 0 }; }
++       if (dtMs <= 0) {}
+Tests ran:
+    estimateVelocity returns zero velocity for zero time delta
+    estimateVelocity returns zero velocity for negative time delta
+
+
+[Survived] EqualityOperator
+src/library.ts:1861:9
+-       if (speed > MAX_SPEED_BLOCKS_PER_MS) {
++       if (speed >= MAX_SPEED_BLOCKS_PER_MS) {
+Tests ran:
+    estimateVelocity calculates velocity from two positions
+    estimateVelocity calculates diagonal velocity
+    estimateVelocity rejects implausible speed (teleport)
+  and 18 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:1956:12
+-       return speed >= speedThreshold;
++       return speed > speedThreshold;
+Tests ran:
+    shouldExtrapolate returns false for zero velocity
+    shouldExtrapolate returns false for very low speed
+    shouldExtrapolate returns true when velocity matches heading (east)
+  and 20 more tests!
+
+
+[Survived] EqualityOperator
+src/library.ts:2029:9
+-       if (improvement < dropThreshold) {
++       if (improvement <= dropThreshold) {
+Tests ran:
+    computeDashboardData does not flag existing trades as new
+    computeDashboardData detects price drops meeting threshold
+    computeDashboardData ignores price changes below threshold
+  and 1 more test!
+
+
+[Survived] EqualityOperator
+src/library.ts:2051:12
+-           || deviation.percent <= favorite.maxDeviation;
++           || deviation.percent < favorite.maxDeviation;
+Tests ran:
+    computeDashboardData detects watchlist hits for favorited items
+    computeDashboardData excludes watchlist items exceeding maxDeviation
+
+
+[Survived] MethodExpression
+src/library.ts:2054:28
+-       const normalizedName = trade.resultName.toLowerCase();
++       const normalizedName = trade.resultName.toUpperCase();
+Tests ran:
+    computeDashboardData detects watchlist hits for favorited items
+    computeDashboardData keeps best deal per favorite item
+
+
+[Survived] ConditionalExpression
+src/library.ts:2056:9
+-       if (existing && deviation.percent >= existing.currentDeviation) { return; }
++       if (false) { return; }
+Tests ran:
+    computeDashboardData detects watchlist hits for favorited items
+    computeDashboardData keeps best deal per favorite item
+
+
+[Survived] EqualityOperator
+src/library.ts:2056:21
+-       if (existing && deviation.percent >= existing.currentDeviation) { return; }
++       if (existing && deviation.percent > existing.currentDeviation) { return; }
+Tests ran:
+    computeDashboardData keeps best deal per favorite item
+
+
+[NoCoverage] BlockStatement
+src/library.ts:2056:69
+-       if (existing && deviation.percent >= existing.currentDeviation) { return; }
++       if (existing && deviation.percent >= existing.currentDeviation) {}
+
+[Survived] ArithmeticOperator
+src/library.ts:2116:31
+-       priceDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
++       priceDrops.sort((a, b) => a.newDeviation - a.oldDeviation + (b.newDeviation - b.oldDeviation));
+Tests ran:
+    computeDashboardData sorts price drops by improvement magnitude
+
+
+[Survived] ArithmeticOperator
+src/library.ts:2116:68
+-       priceDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
++       priceDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation + b.oldDeviation));
+Tests ran:
+    computeDashboardData sorts price drops by improvement magnitude
+
+
+Ran 2.24 tests per mutant on average.
+----------------------|------------------|----------|-----------|------------|----------|----------|
+                      | % Mutation score |          |           |            |          |          |
+File                  |  total | covered | # killed | # timeout | # survived | # no cov | # errors |
+----------------------|--------|---------|----------|-----------|------------|----------|----------|
+All files             |  68.87 |   79.25 |      659 |        40 |        183 |      133 |      460 |
+ stores               |  73.13 |   88.64 |      117 |         0 |         15 |       28 |      101 |
+  cart-store.ts       |  87.01 |   88.16 |       67 |         0 |          9 |        1 |       25 |
+  navigation-store.ts |  60.24 |   89.29 |       50 |         0 |          6 |       27 |       76 |
+ library.ts           |  68.07 |   77.60 |      542 |        40 |        168 |      105 |      359 |
+----------------------|--------|---------|----------|-----------|------------|----------|----------|
+[32m09:53:22 (33536) INFO MutationTestReportHelper[39m Final mutation score of 68.87 is greater than or equal to break threshold 50
+[32m09:53:22 (33536) INFO HtmlReporter[39m Your report can be found at: file:///D:/_projects/pvc-trades/reports/mutation/index.html
+[32m09:53:22 (33536) INFO MutationTestExecutor[39m Done in 15 seconds.

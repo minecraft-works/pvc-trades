@@ -638,7 +638,7 @@ function triggerSearch(): void {
 /**
  * Show the daily deals dashboard banner.
  * Loads previous snapshot, computes diff against current data, renders banner.
- * The snapshot is NOT auto-saved — user must explicitly "Mark as seen".
+ * Always saves a fresh snapshot after computing, so the next visit compares against now.
  */
 function showDashboard(): void {
     const previousSnapshot = snapshotStore.load();
@@ -652,24 +652,19 @@ function showDashboard(): void {
         DASHBOARD.PRICE_DROP_THRESHOLD
     );
 
+    // Always save a fresh snapshot for next visit
+    snapshotStore.save(allTrades, getDeviation);
+
     // Only show banner if there's something to report
     const hasContent = dashboardData.watchlistHits.length > 0
         || dashboardData.newTradeKeys.length > 0
         || dashboardData.priceDrops.length > 0;
 
     if (!hasContent || !previousSnapshot) {
-        // First visit: save an initial snapshot silently (no dashboard to show)
-        if (!previousSnapshot) {
-            snapshotStore.save(allTrades, getDeviation);
-        }
         return;
     }
 
     renderDashboard(dashboardData);
-
-    // Show the toggle button in the header
-    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
-    toggleButton?.classList.remove('hidden');
 }
 
 // Dashboard CSS class for delta spans
@@ -678,7 +673,6 @@ const SECTION_CLASS = 'dashboard-section';
 
 // Dashboard element selectors
 const DASHBOARD_SELECTOR = '#deals-dashboard';
-const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 
 /**
  * Format a deviation value as a signed percentage string.
@@ -797,60 +791,8 @@ function renderDashboard(data: DashboardData): void {
         sectionsElement.append(buildPriceDropsSection(data.priceDrops));
     }
 
-    renderDashboardActions(data);
-
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
-    document.querySelector('#mark-as-seen')?.addEventListener('click', markDashboardAsSeen);
-    document.querySelector(DASHBOARD_TOGGLE_SELECTOR)?.addEventListener('click', toggleDashboard);
     dashboard.classList.remove('hidden');
-}
-
-/**
- * Render action buttons in the dashboard.
- */
-function renderDashboardActions(data: DashboardData): void {
-    const actionsElement = document.querySelector('#dashboard-actions');
-    if (!actionsElement) { return; }
-    actionsElement.innerHTML = '';
-
-    if (data.watchlistHits.length > 0) {
-        const button = createDashboardButton('Show Watchlist Deals', true, () => {
-            activateFavoritesFilter();
-            dismissDashboard();
-        });
-        actionsElement.append(button);
-    }
-
-    if (data.newTradeKeys.length > 0) {
-        for (const key of data.newTradeKeys) {
-            newTradeKeys.add(key);
-        }
-        const button = createDashboardButton('Show New Trades', false, () => {
-            activateNewFilter();
-            dismissDashboard();
-        });
-        actionsElement.append(button);
-    }
-
-    if (data.priceDrops.length > 0) {
-        const button = createDashboardButton('Show Price Drops', false, () => {
-            activeSorts.clear();
-            activeSorts.set('dev', SORT.ASC);
-            search();
-            dismissDashboard();
-        });
-        actionsElement.append(button);
-    }
-}
-
-/** Create a styled action button for the dashboard */
-function createDashboardButton(text: string, primary: boolean, onClick: () => void): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `dashboard-action-btn${primary ? ' primary' : ''}`;
-    button.textContent = text;
-    button.addEventListener('click', onClick);
-    return button;
 }
 
 /** Dismiss the dashboard banner */
@@ -859,46 +801,6 @@ function dismissDashboard(): void {
     if (dashboard) {
         dashboard.classList.add('hidden');
     }
-}
-
-/** Toggle the dashboard banner visibility */
-function toggleDashboard(): void {
-    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
-    if (dashboard) {
-        dashboard.classList.toggle('hidden');
-    }
-}
-
-/**
- * Mark the current data as "seen" — saves a new snapshot and hides the dashboard.
- * Future visits will compare against this point in time.
- */
-function markDashboardAsSeen(): void {
-    snapshotStore.save(allTrades, getDeviation);
-    dismissDashboard();
-
-    // Hide the toggle button since there's nothing to show anymore
-    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
-    toggleButton?.classList.add('hidden');
-}
-
-/** Activate the favorites filter from the dashboard */
-function activateFavoritesFilter(): void {
-    const favHeader = document.querySelector('.fav-col-header');
-    if (favHeader && !favHeader.classList.contains('active')) {
-        favHeader.classList.add('active');
-        search();
-    }
-}
-
-/** Activate the new trades filter from the dashboard */
-function activateNewFilter(): void {
-    filterNewOnly = true;
-    const newHeader = document.querySelector('.new-col-header');
-    if (newHeader) {
-        newHeader.classList.add('active');
-    }
-    search();
 }
 
 function sortByColumn(column: SortColumn): void {

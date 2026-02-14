@@ -467,17 +467,6 @@ mark {
     opacity: 1;
 }
 
-/* Dashboard toggle button */
-#open-dashboard {
-    filter: grayscale(100%);
-    opacity: 0.6;
-}
-
-#open-dashboard:hover {
-    filter: none;
-    opacity: 1;
-}
-
 .cart-badge {
     position: absolute;
     top: -4px;
@@ -2066,55 +2055,6 @@ mark {
     color: var(--color-text-muted);
 }
 
-.dashboard-actions {
-    display: flex;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
-    flex-wrap: wrap;
-}
-
-.dashboard-action-btn {
-    background: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
-    padding: 6px 12px;
-    border-radius: var(--border-radius);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.dashboard-action-btn:hover {
-    background: var(--color-bg-secondary);
-    border-color: var(--color-accent);
-}
-
-.dashboard-action-btn.primary {
-    background: rgb(76 175 80 / 20%);
-    border-color: var(--color-good-deal);
-}
-
-.dashboard-action-btn.primary:hover {
-    background: rgb(76 175 80 / 35%);
-}
-
-.dashboard-baseline {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid rgb(255 255 255 / 8%);
-}
-
-.mark-seen-btn {
-    font-size: 0.8rem;
-    opacity: 0.7;
-}
-
-.mark-seen-btn:hover {
-    opacity: 1;
-}
-
 /* Mobile: show all columns in compressed form */
 @media (width <= 600px) {
     body {
@@ -2131,15 +2071,6 @@ mark {
     .deals-dashboard {
         margin: 0 0 var(--spacing-sm);
         padding: var(--spacing-sm);
-    }
-
-    .dashboard-actions {
-        flex-direction: column;
-    }
-
-    .dashboard-action-btn {
-        width: 100%;
-        text-align: center;
     }
 
     .search-box {

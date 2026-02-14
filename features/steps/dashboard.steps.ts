@@ -22,11 +22,7 @@ const DASHBOARD_SELECTOR = '#deals-dashboard';
 const DASHBOARD_VISIBLE_SELECTOR = '#deals-dashboard:not(.hidden)';
 const DISMISS_BUTTON_SELECTOR = '#dismiss-dashboard';
 const DASHBOARD_SECTIONS_SELECTOR = '#dashboard-sections';
-const DASHBOARD_ACTIONS_SELECTOR = '#dashboard-actions';
 const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
-const ACTION_BUTTON_SELECTOR = '.dashboard-action-btn';
-const TOGGLE_BUTTON_SELECTOR = '#open-dashboard';
-const FAV_FILTER_ACTIVE_SELECTOR = '.fav-col-header.active';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
 const STORAGE_KEY_SNAPSHOT = 'pvc-trades-snapshot';
@@ -312,15 +308,6 @@ When('I dismiss the dashboard', async ({ page }) => {
     await page.locator(DISMISS_BUTTON_SELECTOR).click();
 });
 
-When('I click the dashboard toggle button', async ({ page }) => {
-    await page.locator(TOGGLE_BUTTON_SELECTOR).click();
-});
-
-When('I click the {string} dashboard action', async ({ page }, buttonText: string) => {
-    const button = page.locator(ACTION_BUTTON_SELECTOR).filter({ hasText: buttonText });
-    await button.click();
-});
-
 // ============================================================================
 // THEN Steps — Dashboard Visibility
 // ============================================================================
@@ -345,23 +332,6 @@ Then('the dashboard should show the time since last visit', async ({ page }) => 
     const text = await timeAgo.textContent();
     // Should contain a relative time like "1h ago" or "2d ago"
     expect(text).toMatch(/^\d+[hmd] ago$/);
-});
-
-// ============================================================================
-// THEN Steps — Toggle Button
-// ============================================================================
-
-Then('the dashboard toggle button should be visible', async ({ page }) => {
-    const toggle = page.locator(TOGGLE_BUTTON_SELECTOR);
-    await expect(toggle).toBeVisible({ timeout: 3000 });
-});
-
-Then('the dashboard toggle button should not be visible', async ({ page }) => {
-    const toggle = page.locator(TOGGLE_BUTTON_SELECTOR);
-    const isHidden = await toggle.evaluate(
-        (element) => element.classList.contains('hidden')
-    );
-    expect(isHidden).toBe(true);
 });
 
 // ============================================================================
@@ -394,14 +364,6 @@ Then('the dashboard should not show a watchlist section', async ({ page }) => {
         await expect(sections).not.toContainText('Watchlist Deals');
     }
     // If dashboard is hidden entirely, there's no watchlist section — passes
-});
-
-// ============================================================================
-// THEN Steps — Action Button Results
-// ============================================================================
-
-Then('the favorites filter should be active', async ({ page }) => {
-    await expect(page.locator(FAV_FILTER_ACTIVE_SELECTOR)).toBeVisible();
 });
 
 // ============================================================================
