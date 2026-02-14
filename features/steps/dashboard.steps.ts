@@ -344,7 +344,7 @@ Then('the dashboard should show the time since last visit', async ({ page }) => 
     await expect(timeAgo).not.toBeEmpty();
     const text = await timeAgo.textContent();
     // Should contain a relative time like "1h ago" or "2d ago"
-    expect(text).toMatch(/\d+[hmd] ago/);
+    expect(text).toMatch(/^\d+[hmd] ago$/);
 });
 
 // ============================================================================

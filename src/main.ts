@@ -666,13 +666,17 @@ function showDashboard(): void {
     renderDashboard(dashboardData);
 
     // Show the toggle button in the header
-    const toggleButton = document.querySelector('#open-dashboard');
+    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
     toggleButton?.classList.remove('hidden');
 }
 
 // Dashboard CSS class for delta spans
 const DELTA_CLASS = 'dashboard-item-delta';
 const SECTION_CLASS = 'dashboard-section';
+
+// Dashboard element selectors
+const DASHBOARD_SELECTOR = '#deals-dashboard';
+const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 
 /**
  * Format a deviation value as a signed percentage string.
@@ -769,7 +773,7 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
  * Render the dashboard banner with sections for watchlist hits, new trades, and price drops.
  */
 function renderDashboard(data: DashboardData): void {
-    const dashboard = document.querySelector('#deals-dashboard');
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
     if (!dashboard) { return; }
 
     const timeAgoElement = document.querySelector('#dashboard-time-ago');
@@ -795,7 +799,7 @@ function renderDashboard(data: DashboardData): void {
 
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
     document.querySelector('#mark-as-seen')?.addEventListener('click', markDashboardAsSeen);
-    document.querySelector('#open-dashboard')?.addEventListener('click', toggleDashboard);
+    document.querySelector(DASHBOARD_TOGGLE_SELECTOR)?.addEventListener('click', toggleDashboard);
     dashboard.classList.remove('hidden');
 }
 
@@ -849,7 +853,7 @@ function createDashboardButton(text: string, primary: boolean, onClick: () => vo
 
 /** Dismiss the dashboard banner */
 function dismissDashboard(): void {
-    const dashboard = document.querySelector('#deals-dashboard');
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
     if (dashboard) {
         dashboard.classList.add('hidden');
     }
@@ -857,7 +861,7 @@ function dismissDashboard(): void {
 
 /** Toggle the dashboard banner visibility */
 function toggleDashboard(): void {
-    const dashboard = document.querySelector('#deals-dashboard');
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
     if (dashboard) {
         dashboard.classList.toggle('hidden');
     }
@@ -872,7 +876,7 @@ function markDashboardAsSeen(): void {
     dismissDashboard();
 
     // Hide the toggle button since there's nothing to show anymore
-    const toggleButton = document.querySelector('#open-dashboard');
+    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
     toggleButton?.classList.add('hidden');
 }
 
