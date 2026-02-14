@@ -684,11 +684,12 @@ function showDashboard(): void {
         return;
     }
 
-    // Show the toggle button so user can re-open after dismiss
+    // Show the toggle button so user can open the dashboard
     const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
     toggleButton?.classList.remove('hidden');
 
-    renderDashboard(dashboardData);
+    // Pre-render content but don't auto-open — user clicks the toggle
+    renderDashboard(dashboardData, { autoOpen: false });
 }
 
 // Dashboard CSS class for delta spans
@@ -754,17 +755,6 @@ function buildWatchlistSection(hits: WatchlistHit[]): HTMLDivElement {
         <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>
         <div class="dashboard-section-items dashboard-items-grid">${items}</div>
     `;
-    // Wire up clickable item names to search
-    for (const link of section.querySelectorAll('.dashboard-item-link')) {
-        link.addEventListener('click', () => {
-            const searchTerm = (link as HTMLElement).dataset.search ?? '';
-            const wantInput = getElement<HTMLInputElement>('searchWant');
-            wantInput.value = searchTerm;
-            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
-            search();
-            wantInput.focus();
-        });
-    }
     return section;
 }
 
@@ -794,14 +784,14 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined 
         const deviationText = formatDeviationText(drop.newDeviation);
         const oldText = formatDeviationText(drop.oldDeviation);
         return `<div class="dashboard-item">
-            <span class="dashboard-item-name">${escapeHtml(drop.itemName)}</span>
+            <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(drop.itemName)}" title="Search for ${escapeHtml(drop.itemName)}">${escapeHtml(drop.itemName)}</span>
             <span class="dashboard-item-dev good">${deviationText}</span>
             <span class="${DELTA_CLASS} improved">(was ${oldText})</span>
         </div>`;
     }).join('');
     section.innerHTML = `
         <div class="dashboard-section-title">📉 Price Drops (${belowMedian.length})</div>
-        <div class="dashboard-section-items">${dropItems}</div>
+        <div class="dashboard-section-items dashboard-items-grid">${dropItems}</div>
     `;
     return section;
 }
@@ -809,7 +799,8 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined 
 /**
  * Render the dashboard banner with sections for watchlist hits, new trades, and price drops.
  */
-function renderDashboard(data: DashboardData): void {
+function renderDashboard(data: DashboardData, options?: { autoOpen: boolean }): void {
+    const { autoOpen = true } = options ?? {};
     const dashboard = document.querySelector(DASHBOARD_SELECTOR);
     if (!dashboard) { return; }
 
@@ -835,8 +826,24 @@ function renderDashboard(data: DashboardData): void {
         }
     }
 
+    // Wire up clickable item links in all sections (watchlist + price drops)
+    for (const link of sectionsElement.querySelectorAll('.dashboard-item-link')) {
+        if ((link as HTMLElement).dataset.clickWired) { continue; }
+        (link as HTMLElement).dataset.clickWired = '1';
+        link.addEventListener('click', () => {
+            const searchTerm = (link as HTMLElement).dataset.search ?? '';
+            const wantInput = getElement<HTMLInputElement>('searchWant');
+            wantInput.value = searchTerm;
+            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+            search();
+            wantInput.focus();
+        });
+    }
+
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
-    dashboard.classList.remove('hidden');
+    if (autoOpen) {
+        dashboard.classList.remove('hidden');
+    }
 }
 
 /** Dismiss the dashboard banner */

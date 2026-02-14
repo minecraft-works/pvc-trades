@@ -68,9 +68,19 @@ Place test files adjacent to the source:
 ```
 src/
 ├── library.ts
-├── library.test.ts  ← Tests here
-├── types.ts
-└── main.ts
+├── library.test.ts           ← Unit tests
+├── library.property.test.ts  ← Property-based tests
+├── tile-coords.test.ts
+├── interpolation.test.ts
+├── stores/
+│   ├── cart-store.test.ts
+│   ├── favorites-store.test.ts
+│   ├── navigation-store.test.ts
+│   └── snapshot-store.test.ts
+├── map/
+│   └── players.test.ts
+scripts/
+└── tile-utils.test.ts
 ```
 
 ### Writing Unit Tests

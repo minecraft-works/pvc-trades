@@ -511,3 +511,41 @@ Then('no error should appear in the console', async ({ page }) => {
     );
     expect(criticalErrors).toHaveLength(0);
 });
+
+// ============================================================================
+// THEN Steps — Watchlist Interaction
+// ============================================================================
+
+Then('the first watchlist item should have the lowest deviation', async ({ page }) => {
+    const items = page.locator('.dashboard-item-dev');
+    const count = await items.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+
+    // Extract all deviation values from the watchlist
+    const deviations: number[] = [];
+    for (let index = 0; index < count; index++) {
+        const text = await items.nth(index).textContent();
+        const match = /(-?\d+)%/.exec(text ?? ''); // eslint-disable-line sonarjs/slow-regex
+        if (match) {
+            deviations.push(Number(match[1]));
+        }
+    }
+
+    // Verify sorted ascending (most decreased first)
+    for (let index = 1; index < deviations.length; index++) {
+        expect(deviations[index]).toBeGreaterThanOrEqual(deviations[index - 1]!);
+    }
+});
+
+When('I click a watchlist item name', async ({ page }) => {
+    const link = page.locator('.dashboard-item-link').first();
+    await expect(link).toBeVisible();
+    await link.click();
+});
+
+Then('the want field should contain the clicked item name', async ({ page }) => {
+    const wantValue = await page.locator('#searchWant').inputValue();
+    // The watchlist items are "diamond" in our mock data
+    expect(wantValue.length).toBeGreaterThan(0);
+    expect(wantValue.toLowerCase()).toContain('diamond');
+});

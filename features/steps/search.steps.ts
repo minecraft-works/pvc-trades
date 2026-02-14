@@ -287,3 +287,37 @@ Then('results should appear within {int}ms', async ({ page }, maxMs: number) => 
     const elapsed = Date.now() - startTime;
     expect(elapsed).toBeLessThan(maxMs);
 });
+
+// ============================================================================
+// Clear Button Steps
+// ============================================================================
+
+When('I click the want field clear button', async ({ page }) => {
+    await page.locator('#clear-search-want').click();
+});
+
+When('I click the give field clear button', async ({ page }) => {
+    await page.locator('#clear-search-give').click();
+});
+
+Then('the want field clear button should be visible', async ({ page }) => {
+    const clearButton = page.locator('#clear-search-want');
+    await expect(clearButton).toBeVisible();
+    await expect(clearButton).not.toHaveClass(/hidden/);
+});
+
+Then('the want field clear button should not be visible', async ({ page }) => {
+    const clearButton = page.locator('#clear-search-want');
+    await expect(clearButton).toHaveClass(/hidden/);
+});
+
+Then('the give field clear button should be visible', async ({ page }) => {
+    const clearButton = page.locator('#clear-search-give');
+    await expect(clearButton).toBeVisible();
+    await expect(clearButton).not.toHaveClass(/hidden/);
+});
+
+Then('the give field clear button should not be visible', async ({ page }) => {
+    const clearButton = page.locator('#clear-search-give');
+    await expect(clearButton).toHaveClass(/hidden/);
+});

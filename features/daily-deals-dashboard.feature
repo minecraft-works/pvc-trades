@@ -15,9 +15,17 @@ Feature: Daily Deals Dashboard
     Then the deals dashboard should not be visible
 
   @dashboard @visibility
-  Scenario: Dashboard appears when previous snapshot exists with changes
+  Scenario: Dashboard is not shown automatically but toggle button appears
     Given I have a previous snapshot with different prices
     When I reload the app
+    Then the deals dashboard should not be visible
+    And the dashboard toggle button should be visible
+
+  @dashboard @visibility
+  Scenario: Clicking toggle opens the dashboard with time label
+    Given I have a previous snapshot with different prices
+    When I reload the app
+    And I click the dashboard toggle button
     Then the deals dashboard should be visible
     And the dashboard should show the time since last visit
 
@@ -35,15 +43,17 @@ Feature: Daily Deals Dashboard
   Scenario: Dismiss button hides the dashboard
     Given I have a previous snapshot with different prices
     When I reload the app
+    And I click the dashboard toggle button
     And I dismiss the dashboard
     Then the deals dashboard should not be visible
 
   @dashboard @dismiss
-  Scenario: Dismissed dashboard reappears on reload when snapshot is less than 24h old
+  Scenario: Dismissed dashboard reappears when toggle is clicked again
     Given I have a previous snapshot with different prices
     When I reload the app
+    And I click the dashboard toggle button
     And I dismiss the dashboard
-    And I reload the app
+    And I click the dashboard toggle button
     Then the deals dashboard should be visible
 
   # ============================================================================
@@ -54,6 +64,7 @@ Feature: Daily Deals Dashboard
   Scenario: Dashboard shows new trade count
     Given I have a previous snapshot missing some trades
     When I reload the app
+    And I click the dashboard toggle button
     Then the deals dashboard should be visible
     And the dashboard should show a new trades section
 
@@ -65,6 +76,7 @@ Feature: Daily Deals Dashboard
   Scenario: Dashboard shows price drops
     Given I have a previous snapshot with higher deviations
     When I reload the app
+    And I click the dashboard toggle button
     Then the deals dashboard should be visible
     And the dashboard should show a price drops section
 
@@ -77,8 +89,28 @@ Feature: Daily Deals Dashboard
     Given I have a previous snapshot with different prices
     And I have a favorite item matching a current trade
     When I reload the app
+    And I click the dashboard toggle button
     Then the deals dashboard should be visible
     And the dashboard should show a watchlist section
+
+  @dashboard @watchlist
+  Scenario: Watchlist items are sorted by most decreased deviation first
+    Given I have a previous snapshot with higher deviations
+    And I have a favorite item matching a current trade
+    When I reload the app
+    And I click the dashboard toggle button
+    Then the dashboard should show a watchlist section
+    And the first watchlist item should have the lowest deviation
+
+  @dashboard @watchlist
+  Scenario: Clicking a watchlist item name searches for that item
+    Given I have a previous snapshot with different prices
+    And I have a favorite item matching a current trade
+    When I reload the app
+    And I click the dashboard toggle button
+    And I click a watchlist item name
+    Then the want field should contain the clicked item name
+    And the want field clear button should be visible
 
   # ============================================================================
   # Toggle Button
@@ -91,10 +123,12 @@ Feature: Daily Deals Dashboard
     Then the dashboard toggle button should be visible
 
   @dashboard @toggle
-  Scenario: Toggle button re-shows dismissed dashboard
+  Scenario: Toggle button opens and re-shows dismissed dashboard
     Given I have a previous snapshot with different prices
     When I reload the app
-    And I dismiss the dashboard
+    And I click the dashboard toggle button
+    Then the deals dashboard should be visible
+    When I dismiss the dashboard
     And I click the dashboard toggle button
     Then the deals dashboard should be visible
 

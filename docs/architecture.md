@@ -22,6 +22,8 @@
 │  │  • pvc-trades-player (string)                               │  │
 │  │  • pvc-trades-nav-tab (string)                              │  │
 │  │  • pvc-trades-nav-mode (NavigationMode)                     │  │
+│  │  • pvc-trades-snapshot (CompactSnapshotHistory)              │  │
+│  │  • pvc-trades-favorites (FavoriteItem[])                    │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -50,43 +52,88 @@
 │                        main.ts                          │
 │  (entry point, event binding, initialization)           │
 └─────────────────────────────────────────────────────────┘
-         │              │              │
-         ▼              ▼              ▼
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│   stores/   │ │  constants  │ │    map/     │
-│ cart-store  │ │ CSS_CLASSES │ │ tile-loader │
-│ nav-store   │ │ STORAGE_KEYS│ │ tile-types  │
-└─────────────┘ └─────────────┘ └─────────────┘
-         │              │              │
-         └──────────────┼──────────────┘
-                        ▼
-              ┌─────────────────┐
-              │   library.ts    │
-              │ (pure functions)│
-              └─────────────────┘
-                        │
-                        ▼
-              ┌─────────────────┐
-              │    types.ts     │
-              │  (Zod schemas)  │
-              └─────────────────┘
+         │         │         │         │         │
+         ▼         ▼         ▼         ▼         ▼
+┌──────────┐ ┌──────────┐ ┌─────────┐ ┌─────────┐ ┌───────────┐
+│  stores/ │ │ dialogs/ │ │  map/   │ │search/  │ │navigation/│
+│cart-store│ │ matrix   │ │tile-load│ │deviation│ │ tooltip   │
+│nav-store │ │ details  │ │players  │ └─────────┘ └───────────┘
+│fav-store │ │ helpers  │ │shop-map │
+│snap-store│ └──────────┘ └─────────┘
+│cfg-store │       │
+│blocks    │       ▼
+│cores     │ ┌──────────┐
+│interpol. │ │favorites/│
+└──────────┘ │  fav-ui  │
+         │   └──────────┘
+         └──────────┼──────────────┐
+                    ▼              ▼
+          ┌─────────────────┐ ┌───────────┐
+          │   library.ts    │ │tile-coords│
+          │ (pure functions)│ │ (shared)  │
+          └─────────────────┘ └───────────┘
+                    │
+                    ▼
+          ┌─────────────────┐
+          │    types.ts     │
+          │  (Zod schemas)  │
+          └─────────────────┘
 ```
 
 ### `src/stores/` (New)
 **Role**: Encapsulated state management with persistence
 
-| Store | Lines | Responsibility |
-|-------|-------|----------------|
-| `cart-store.ts` | 268 | Cart items, quantities, localStorage sync |
-| `navigation-store.ts` | 480 | Nav state, progress, player position, mode |
+| Store | Responsibility |
+|-------|----------------|
+| `cart-store.ts` | Cart items, quantities, localStorage sync |
+| `navigation-store.ts` | Nav state, progress, player position, mode |
+| `favorites-store.ts` | Watchlist items with optional deviation thresholds |
+| `snapshot-store.ts` | Rolling snapshot baseline with compact storage format |
+| `config-store.ts` | App configuration cache (from config.json) |
+| `block-conversions-store.ts` | Block↔ingot conversion rates |
+| `core-blocks-store.ts` | Core currency definitions |
+| `player-interpolator.ts` | Smooth player position interpolation between polls |
 
 ### `src/map/` (New)
 **Role**: Map tile loading and caching
 
-| Module | Lines | Responsibility |
-|--------|-------|----------------|
-| `tile-loader.ts` | 220 | Tile manifest, blob caching, Leaflet integration |
-| `tile-types.ts` | 100 | TileConfig, LoadTileOptions, TileRange interfaces |
+| Module | Responsibility |
+|--------|----------------|
+| `tile-loader.ts` | Tile manifest, blob caching, Leaflet integration |
+| `tile-types.ts` | TileConfig, LoadTileOptions, TileRange interfaces |
+| `players.ts` | Player position fetching from Dynmap |
+| `shop-map-dialog.ts` | Shop map dialog rendering |
+
+### `src/dialogs/`
+**Role**: Dialog rendering and helper utilities
+
+| Module | Responsibility |
+|--------|----------------|
+| `dialog-utilities.ts` | Backdrop close, openDialog helper |
+| `matrix-dialog.ts` | Exchange rate matrix UI |
+| `shop-map-helpers.ts` | Map marker utilities |
+| `trade-details.ts` | Trade details popover |
+
+### `src/favorites/`
+**Role**: Favorites/watchlist UI
+
+| Module | Responsibility |
+|--------|----------------|
+| `favorites-ui.ts` | Favorites dialog rendering and inline editing |
+
+### `src/navigation/`
+**Role**: Live navigation modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `shop-tooltip.ts` | Proximity-based shop info tooltip |
+
+### `src/search/`
+**Role**: Search and deviation calculation
+
+| Module | Responsibility |
+|--------|----------------|
+| `deviation.ts` | Deviation calculation helpers |
 
 ### `src/constants.ts` (New)
 **Role**: Centralized configuration constants
@@ -258,6 +305,8 @@ let navStopMarkers: L.Marker[] = [];
 | `pvc-trades-player` | `string` | Saved player name |
 | `pvc-trades-nav-tab` | `string` | Active cart dialog tab |
 | `pvc-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
+| `pvc-trades-snapshot` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
+| `pvc-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
 
 ## External Dependencies
 
@@ -313,12 +362,12 @@ export default defineConfig({
 │                                                                   │
 │                    ┌───────────────┐                             │
 │                    │  E2E (BDD)    │  features/*.feature          │
-│                    │  78 scenarios │  Playwright + playwright-bdd │
+│                    │ ~280 scenarios│  Playwright + playwright-bdd │
 │                    └───────────────┘                             │
 │                                                                   │
 │            ┌─────────────────────────────┐                       │
 │            │      Unit Tests             │  src/*.test.ts         │
-│            │      244 tests              │  Vitest                │
+│            │      607 tests              │  Vitest                │
 │            └─────────────────────────────┘                       │
 │                                                                   │
 │    ┌─────────────────────────────────────────────┐               │
