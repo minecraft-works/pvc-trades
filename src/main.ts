@@ -104,7 +104,8 @@ import {
     DIALOG_IDS,
     WORLDS,
     COLUMNS,
-    STORAGE_KEYS
+    STORAGE_KEYS,
+    DASHBOARD
 } from './constants.js';
 
 import { cartStore, navigationStore, favoritesStore, snapshotStore, getInterpolator, removeInterpolator } from './stores/index.js';
@@ -647,7 +648,8 @@ function showDashboard(): void {
         allTrades,
         getDeviation,
         previousSnapshot,
-        favorites
+        favorites,
+        DASHBOARD.PRICE_DROP_THRESHOLD
     );
 
     // Only show banner if there's something to report
