@@ -48,11 +48,10 @@ function getItemIcon(name: string): string {
 /**
  * Format a price value for display
  */
-function formatPrice(value: number | undefined, tradeCount: number): string {
+function formatPrice(value: number | undefined): string {
     if (value === undefined) { return '<span class="price-na">—</span>'; }
     const rounded = Math.round(value * 100) / 100;
-    const display = Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
-    return `${display}<span class="price-table-hint"> (${tradeCount})</span>`;
+    return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
 }
 
 /**
@@ -77,25 +76,14 @@ function formatSpread(spread: number | undefined): string {
  * Build a single table row for a price table entry
  */
 function buildPriceTableRow(entry: PriceTableEntry): string {
-    let buyTitle = `${entry.buyTradeCount} trade(s)`;
-    if (entry.buyPrice !== undefined) {
-        buyTitle = `${entry.buyPrice.toFixed(4)} emeralds — ${buyTitle}`;
-    }
-
-    let sellTitle = `${entry.sellTradeCount} trade(s)`;
-    if (entry.sellPrice !== undefined) {
-        sellTitle = `${entry.sellPrice.toFixed(4)} emeralds — ${sellTitle}`;
-    }
-
     const derivedClass = entry.derived ? ' class="price-derived"' : '';
     const derivedMark = entry.derived ? ' <span class="price-derived-mark" title="Derived from base item">*</span>' : '';
 
     return `<tr${derivedClass}>
         <td>${getItemIcon(entry.name)}${derivedMark}</td>
-        <td title="${buyTitle}">${formatPrice(entry.buyPrice, entry.buyTradeCount)}</td>
-        <td title="${sellTitle}">${formatPrice(entry.sellPrice, entry.sellTradeCount)}</td>
+        <td>${formatPrice(entry.buyPrice)}</td>
+        <td>${formatPrice(entry.sellPrice)}</td>
         <td>${formatSpread(entry.spread)}</td>
-        <td>${entry.independentShopCount}</td>
     </tr>`;
 }
 
@@ -127,7 +115,7 @@ export function renderPriceTable(
 
     let html = TABLE_HEADER_HTML;
     html += '<div class="price-table-wrapper"><table class="price-table"><thead><tr>';
-    html += '<th>Currency</th><th>Buy</th><th>Sell</th><th>Spread</th><th>Shops</th>';
+    html += '<th>Currency</th><th>Buy</th><th>Sell</th><th>Spread</th>';
     html += '</tr></thead><tbody>';
 
     for (const entry of entries) {
@@ -135,7 +123,7 @@ export function renderPriceTable(
     }
 
     html += '</tbody></table>';
-    html += '<p class="price-table-hint">Prices in emeralds. Trade counts in parentheses. Spread = (buy\u2212sell)/buy.<br><span class="price-derived-mark">*</span> Derived from base item (e.g. diamond \u00D7 9).</p>';
+    html += '<p class="price-table-hint">Prices in emeralds. Spread = (buy\u2212sell)/buy.<br><span class="price-derived-mark">*</span> Derived from base item (e.g. diamond \u00D7 9).</p>';
     html += '</div>';
     container.innerHTML = html;
 

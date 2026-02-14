@@ -683,9 +683,6 @@ function buildDirectEntry(block: string, entry: ItemValueEntry): PriceTableEntry
         name: block,
         buyPrice,
         sellPrice,
-        buyTradeCount: entry.buyPrices.length,
-        sellTradeCount: entry.sellPrices.length,
-        independentShopCount: countIndependentShops([...entry.buyPrices, ...entry.sellPrices]),
         spread: calculateSpread(buyPrice, sellPrice),
         derived: false,
     };
@@ -707,9 +704,6 @@ function buildDerivedEntry(
         name: block,
         buyPrice,
         sellPrice,
-        buyTradeCount: baseBuy === undefined ? 0 : baseEntry.buyPrices.length,
-        sellTradeCount: baseSell === undefined ? 0 : baseEntry.sellPrices.length,
-        independentShopCount: countIndependentShops([...baseEntry.buyPrices, ...baseEntry.sellPrices]),
         spread: calculateSpread(buyPrice, sellPrice),
         derived: true,
     };

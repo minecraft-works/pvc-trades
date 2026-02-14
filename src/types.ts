@@ -278,9 +278,6 @@ export interface PriceTableEntry {
     name: string;
     buyPrice: number | undefined;
     sellPrice: number | undefined;
-    buyTradeCount: number;
-    sellTradeCount: number;
-    independentShopCount: number;
     spread: number | undefined;
     /** True when prices are derived from base item × multiplier (e.g. diamond × 9) */
     derived: boolean;
