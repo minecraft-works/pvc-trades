@@ -39,12 +39,12 @@ Feature: Daily Deals Dashboard
     Then the deals dashboard should not be visible
 
   @dashboard @dismiss
-  Scenario: Dashboard does not reappear after reload because snapshot auto-saves
+  Scenario: Dismissed dashboard reappears on reload when snapshot is less than 24h old
     Given I have a previous snapshot with different prices
     When I reload the app
     And I dismiss the dashboard
     And I reload the app
-    Then the deals dashboard should not be visible
+    Then the deals dashboard should be visible
 
   # ============================================================================
   # New Trades Section
@@ -79,6 +79,40 @@ Feature: Daily Deals Dashboard
     When I reload the app
     Then the deals dashboard should be visible
     And the dashboard should show a watchlist section
+
+  # ============================================================================
+  # Toggle Button
+  # ============================================================================
+
+  @dashboard @toggle
+  Scenario: Toggle button appears when dashboard has content
+    Given I have a previous snapshot with different prices
+    When I reload the app
+    Then the dashboard toggle button should be visible
+
+  @dashboard @toggle
+  Scenario: Toggle button re-shows dismissed dashboard
+    Given I have a previous snapshot with different prices
+    When I reload the app
+    And I dismiss the dashboard
+    And I click the dashboard toggle button
+    Then the deals dashboard should be visible
+
+  # ============================================================================
+  # Snapshot Age Gating
+  # ============================================================================
+
+  @dashboard @snapshot
+  Scenario: Snapshot is not overwritten when less than 24 hours old
+    Given I have a previous snapshot with different prices
+    When I reload the app
+    Then the snapshot timestamp should not have changed
+
+  @dashboard @snapshot
+  Scenario: Snapshot is overwritten when more than 24 hours old
+    Given I have an old snapshot from 25 hours ago
+    When I reload the app
+    Then the snapshot timestamp should be recent
 
   # ============================================================================
   # Snapshot Persistence

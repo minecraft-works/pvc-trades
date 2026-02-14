@@ -80,6 +80,8 @@ export const STORAGE_KEYS = {
 export const DASHBOARD = {
     /** Minimum deviation improvement (percentage points) to count as a price drop */
     PRICE_DROP_THRESHOLD: 5,
+    /** Minimum age (ms) before a snapshot can be overwritten (24 hours) */
+    SNAPSHOT_MIN_AGE_MS: 24 * 60 * 60 * 1000,
 } as const;
 
 // ============================================================================

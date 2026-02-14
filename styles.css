@@ -467,6 +467,17 @@ mark {
     opacity: 1;
 }
 
+/* Dashboard toggle button */
+#open-dashboard {
+    filter: grayscale(100%);
+    opacity: 0.6;
+}
+
+#open-dashboard:hover {
+    filter: none;
+    opacity: 1;
+}
+
 .cart-badge {
     position: absolute;
     top: -4px;

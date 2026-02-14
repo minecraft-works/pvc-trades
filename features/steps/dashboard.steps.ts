@@ -23,6 +23,7 @@ const DASHBOARD_VISIBLE_SELECTOR = '#deals-dashboard:not(.hidden)';
 const DISMISS_BUTTON_SELECTOR = '#dismiss-dashboard';
 const DASHBOARD_SECTIONS_SELECTOR = '#dashboard-sections';
 const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
+const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
 const STORAGE_KEY_SNAPSHOT = 'pvc-trades-snapshot';
@@ -296,6 +297,17 @@ Given('localStorage contains an empty snapshot', async ({ page }) => {
     }, STORAGE_KEY_SNAPSHOT);
 });
 
+Given('I have an old snapshot from {int} hours ago', async ({ page }, hours: number) => {
+    const snapshot = buildFullSnapshot({
+        [MOCK_TRADE_KEYS.cheapDiamonds]:  { deviationPercent: 10, stock: 10 },
+        [MOCK_TRADE_KEYS.priceyDiamonds]: { deviationPercent: 50, stock: 15 },
+    });
+    (snapshot as { timestamp: number }).timestamp = Date.now() - hours * 60 * 60 * 1000;
+    await page.evaluate((data) => {
+        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(data));
+    }, snapshot);
+});
+
 // ============================================================================
 // WHEN Steps
 // ============================================================================
@@ -308,6 +320,10 @@ When('I dismiss the dashboard', async ({ page }) => {
     await page.locator(DISMISS_BUTTON_SELECTOR).click();
 });
 
+When('I click the dashboard toggle button', async ({ page }) => {
+    await page.locator(DASHBOARD_TOGGLE_SELECTOR).click();
+});
+
 // ============================================================================
 // THEN Steps — Dashboard Visibility
 // ============================================================================
@@ -315,6 +331,11 @@ When('I dismiss the dashboard', async ({ page }) => {
 Then('the deals dashboard should be visible', async ({ page }) => {
     const dashboard = page.locator(DASHBOARD_VISIBLE_SELECTOR);
     await expect(dashboard).toBeVisible({ timeout: 5000 });
+});
+
+Then('the dashboard toggle button should be visible', async ({ page }) => {
+    const toggle = page.locator(DASHBOARD_TOGGLE_SELECTOR);
+    await expect(toggle).toBeVisible({ timeout: 5000 });
 });
 
 Then('the deals dashboard should not be visible', async ({ page }) => {
@@ -393,6 +414,17 @@ Then('the snapshot timestamp should be recent', async ({ page }) => {
     const now = Date.now();
     // Timestamp should be within last 30 seconds
     expect(now - parsed.timestamp).toBeLessThan(30_000);
+});
+
+Then('the snapshot timestamp should not have changed', async ({ page }) => {
+    const snapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(snapshot).not.toBeNull();
+    const parsed = JSON.parse(snapshot!);
+    const age = Date.now() - parsed.timestamp;
+    // The snapshot was set 1 hour ago by buildFullSnapshot() — it should NOT have been overwritten
+    // since it's less than 24 hours old. Allow ±30s tolerance.
+    expect(age).toBeGreaterThan(3_500_000);
+    expect(age).toBeLessThan(3_700_000);
 });
 
 Then('every visible trade should have a snapshot entry', async ({ page }) => {
