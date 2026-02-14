@@ -862,11 +862,12 @@ function processDirectTradeWithItem2(
 function deriveTransitiveValue(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: ItemValues,
+    knownKeys: Set<string>
 ): boolean {
     // For trades with item2, we need different handling
     if (trade.item2) {
-        return deriveTransitiveValueWithItem2(trade, baseCurrency, values);
+        return deriveTransitiveValueWithItem2(trade, baseCurrency, values, knownKeys);
     }
 
     const item1Name = trade.item1Name ?? trade.costName;
@@ -877,11 +878,14 @@ function deriveTransitiveValue(
     const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
     if (costIsBase || resultIsBase) { return false; }
 
-    const costEntry = values.get(costKey);
-    const resultEntry = values.get(resultKey);
+    // Use the snapshot to decide which direction to derive. This ensures all
+    // trades in one iteration contribute values for newly-discovered items,
+    // so core blocks can accumulate enough independent shops to pass trust filters.
+    const costKnown = knownKeys.has(costKey);
+    const resultKnown = knownKeys.has(resultKey);
     let changed = false;
 
-    if (costEntry && !resultEntry) {
+    if (costKnown && !resultKnown) {
         const costValue = getTrustedItemValue(item1Name, values);
         if (costValue !== undefined) {
             const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
@@ -890,7 +894,7 @@ function deriveTransitiveValue(
         }
     }
 
-    if (resultEntry && !costEntry) {
+    if (resultKnown && !costKnown) {
         const resultValue = getTrustedItemValue(trade.resultName, values);
         if (resultValue !== undefined) {
             const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
@@ -905,7 +909,8 @@ function deriveTransitiveValue(
 function deriveTransitiveValueWithItem2(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: ItemValues,
+    knownKeys: Set<string>
 ): boolean {
     if (!trade.item2) { return false; }
 
@@ -922,10 +927,10 @@ function deriveTransitiveValueWithItem2(
 
     const item1Value = getTrustedItemValue(item1Name, values);
     const item2Value = getTrustedItemValue(item2Name, values);
-    const resultEntry = values.get(resultKey);
+    const resultKnown = knownKeys.has(resultKey);
 
-    // If we know both input values but not result -> derive result value
-    if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {
+    // If we know both input values but result was unknown at start of iteration
+    if (item1Value !== undefined && item2Value !== undefined && !resultKnown) {
         const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
         const pricePerResult = totalCostValue / trade.resultAmount;
         addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
@@ -964,8 +969,14 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
         changed = false;
         iterations++;
 
+        // Snapshot which items have entries BEFORE this iteration so all trades
+        // in one pass see consistent state. Without this, the first trade adding
+        // a value for an item prevents subsequent trades from contributing more
+        // data points, which starves core-block trust filters.
+        const knownKeys = new Set(values.keys());
+
         for (const trade of trades) {
-            if (deriveTransitiveValue(trade, baseCurrency, values)) {
+            if (deriveTransitiveValue(trade, baseCurrency, values, knownKeys)) {
                 changed = true;
             }
         }
