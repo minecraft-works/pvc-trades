@@ -614,11 +614,22 @@ function addBlockConversionValues(
 ): void {
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
         const blockKey = blockName.toLowerCase();
-        // Preserve direct trade values — only fill in missing blocks
-        if (emeraldValues.has(blockKey)) { continue; }
-        const baseValue = emeraldValues.get(base.toLowerCase());
-        if (baseValue !== undefined) {
-            emeraldValues.set(blockKey, baseValue * multiplier);
+        const baseKey = base.toLowerCase();
+
+        // Derive block from base item (e.g. diamond × 9 = diamond block)
+        if (!emeraldValues.has(blockKey)) {
+            const baseValue = emeraldValues.get(baseKey);
+            if (baseValue !== undefined) {
+                emeraldValues.set(blockKey, baseValue * multiplier);
+            }
+        }
+
+        // Derive base item from block (e.g. netherite block / 9 = netherite ingot)
+        if (!emeraldValues.has(baseKey)) {
+            const blockValue = emeraldValues.get(blockKey);
+            if (blockValue !== undefined) {
+                emeraldValues.set(baseKey, blockValue / multiplier);
+            }
         }
     }
 }

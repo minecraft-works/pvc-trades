@@ -129,8 +129,9 @@ const TEST_BLOCK_CONVERSIONS: BlockConversions = {
 };
 
 const TEST_CORE_BLOCKS = [
-    'Netherite Block',
+    'Netherite Ingot',
     DIAMOND_BLOCK_TITLE,
+    'Diamond',
     'Emerald Block',
     GOLD_BLOCK_TITLE,
     'Iron Block'
@@ -940,6 +941,39 @@ describe('buildExchangeMatrix', () => {
         const ironBlockIndex = matrix.labels.indexOf('Iron Block');
         // 1 Diamond Block (90) = 10 Iron Blocks (9)
         expect(matrix.ratios[diamondBlockIndex]![ironBlockIndex]).toBe(10);
+    });
+
+    test('derives ingot values from block via reverse block conversions', () => {
+        // Only "netherite block" has data, "netherite ingot" should be derived (block / 9)
+        const values: ItemValues = new Map([
+            ['netherite block', {
+                name: 'Netherite Block',
+                buyPrices: [
+                    { price: 900, x: 0, y: 0, z: 0 },
+                    { price: 900, x: 100, y: 0, z: 0 },
+                    { price: 900, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 90, x: 0, y: 0, z: 0 },
+                    { price: 90, x: 100, y: 0, z: 0 },
+                    { price: 90, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const matrix = buildExchangeMatrix(values, 'buy');
+        // Netherite Ingot should be derived as netherite block / 9 = 100
+        expect(matrix.labels).toContain('Netherite Ingot');
+
+        const netheriteIngotIndex = matrix.labels.indexOf('Netherite Ingot');
+        const diamondBlockIndex = matrix.labels.indexOf('Diamond Block');
+        // 1 Netherite Ingot (100) = 100/90 Diamond Blocks
+        expect(matrix.ratios[netheriteIngotIndex]![diamondBlockIndex]).toBeCloseTo(100 / 90);
     });
 });
 
