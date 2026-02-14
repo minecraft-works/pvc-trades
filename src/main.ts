@@ -631,6 +631,26 @@ function triggerSearch(): void {
     search();
 }
 
+/**
+ * Show or hide a clear button based on whether the associated input has content.
+ */
+function updateClearButtonVisibility(input: HTMLInputElement, clearButtonId: string): void {
+    const button = document.querySelector(`#${clearButtonId}`);
+    if (!button) { return; }
+    button.classList.toggle('hidden', input.value.length === 0);
+}
+
+/**
+ * Clear an input field and trigger a search refresh.
+ */
+function clearSearchInput(inputId: string, clearButtonId: string): void {
+    const input = getElement<HTMLInputElement>(inputId);
+    input.value = '';
+    updateClearButtonVisibility(input, clearButtonId);
+    search();
+    input.focus();
+}
+
 // ============================================================================
 // Daily Deals Dashboard
 // ============================================================================
@@ -674,6 +694,8 @@ function showDashboard(): void {
 // Dashboard CSS class for delta spans
 const DELTA_CLASS = 'dashboard-item-delta';
 const SECTION_CLASS = 'dashboard-section';
+const CLEAR_SEARCH_WANT_ID = 'clear-search-want';
+const CLEAR_SEARCH_GIVE_ID = 'clear-search-give';
 
 // Dashboard element selectors
 const DASHBOARD_SELECTOR = '#deals-dashboard';
@@ -697,7 +719,7 @@ function renderWatchlistItem(hit: WatchlistHit): string {
     const deviationText = formatDeviationText(hit.currentDeviation);
     const deltaHtml = buildWatchlistDelta(hit);
     return `<div class="dashboard-item">
-        <span class="dashboard-item-name">${escapeHtml(hit.itemName)}</span>
+        <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(hit.itemName)}" title="Search for ${escapeHtml(hit.itemName)}">${escapeHtml(hit.itemName)}</span>
         <span class="dashboard-item-dev ${deviationClass}">${deviationText}</span>
         ${deltaHtml}
     </div>`;
@@ -725,11 +747,24 @@ function buildWatchlistDelta(hit: WatchlistHit): string {
 function buildWatchlistSection(hits: WatchlistHit[]): HTMLDivElement {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
-    const items = hits.map(hit => renderWatchlistItem(hit)).join('');
+    // Sort by most decrease first (lowest currentDeviation first)
+    const sorted = [...hits].toSorted((a, b) => a.currentDeviation - b.currentDeviation);
+    const items = sorted.map(hit => renderWatchlistItem(hit)).join('');
     section.innerHTML = `
         <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>
-        <div class="dashboard-section-items">${items}</div>
+        <div class="dashboard-section-items dashboard-items-grid">${items}</div>
     `;
+    // Wire up clickable item names to search
+    for (const link of section.querySelectorAll('.dashboard-item-link')) {
+        link.addEventListener('click', () => {
+            const searchTerm = (link as HTMLElement).dataset.search ?? '';
+            const wantInput = getElement<HTMLInputElement>('searchWant');
+            wantInput.value = searchTerm;
+            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+            search();
+            wantInput.focus();
+        });
+    }
     return section;
 }
 
@@ -2886,10 +2921,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     getElement('searchWant').addEventListener('input', () => {
+        updateClearButtonVisibility(getElement<HTMLInputElement>('searchWant'), CLEAR_SEARCH_WANT_ID);
         debouncedSearch();
     });
     getElement('searchGive').addEventListener('input', () => {
+        updateClearButtonVisibility(getElement<HTMLInputElement>('searchGive'), CLEAR_SEARCH_GIVE_ID);
         debouncedSearch();
+    });
+    getElement(CLEAR_SEARCH_WANT_ID).addEventListener('click', () => {
+        clearSearchInput('searchWant', CLEAR_SEARCH_WANT_ID);
+    });
+    getElement(CLEAR_SEARCH_GIVE_ID).addEventListener('click', () => {
+        clearSearchInput('searchGive', CLEAR_SEARCH_GIVE_ID);
     });
     getElement('swap-search').addEventListener('click', () => {
         const wantInput = getElement<HTMLInputElement>('searchWant');
@@ -2897,6 +2940,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const wantValue = wantInput.value;
         wantInput.value = giveInput.value;
         giveInput.value = wantValue;
+        updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+        updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
         search();
     });
 
@@ -2914,6 +2959,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const wantValue = wantInput.value;
             wantInput.value = giveInput.value;
             giveInput.value = wantValue;
+            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+            updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
             search();
         }
     });

@@ -16,11 +16,15 @@
             <div class="search-input-wrapper">
                 <label for="searchWant" class="visually-hidden">Search for items to buy</label>
                 <input type="text" id="searchWant" placeholder="Buying..." autofocus>
+                <button id="clear-search-want" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear buying search">✕</button>
                 <button id="add-to-watchlist" type="button" title="Add search to watchlist" aria-label="Add to watchlist">☆</button>
             </div>
             <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
-            <label for="searchGive" class="visually-hidden">Search by cost item</label>
-            <input type="text" id="searchGive" placeholder="Paying...">
+            <div class="search-input-wrapper">
+                <label for="searchGive" class="visually-hidden">Search by cost item</label>
+                <input type="text" id="searchGive" placeholder="Paying...">
+                <button id="clear-search-give" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear paying search">✕</button>
+            </div>
             <button id="open-dashboard" type="button" title="Daily deals" aria-label="Toggle daily deals dashboard" class="hidden">📊</button>
             <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">💱</button>
             <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">

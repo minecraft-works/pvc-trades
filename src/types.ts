@@ -344,16 +344,47 @@ export const TradeSnapshotSchema = z.object({
 });
 
 /**
- * Rolling history of trade snapshots for baseline comparison.
- * Stores multiple snapshots so the baseline is always ~24h old.
+ * Zod schema for v2 history format (used for migration only).
+ * The SnapshotHistory interface was removed — only the schema is needed.
  */
-export interface SnapshotHistory {
-    /** Ordered list of snapshots (oldest first) */
-    snapshots: TradeSnapshot[];
-}
-
 export const SnapshotHistorySchema = z.object({
     snapshots: z.array(TradeSnapshotSchema)
+});
+
+// ============================================================================
+// Compact Snapshot Storage (localStorage-optimized)
+// ============================================================================
+
+/**
+ * A single snapshot in compact storage form.
+ * Values array is parallel to the shared keys array.
+ */
+export interface CompactSnapshot {
+    /** Timestamp (ms since epoch) */
+    t: number;
+    /** Values parallel to keys: [deviationPercent | null, stock] */
+    v: [number | null, number][];
+}
+
+/**
+ * Compact localStorage format: keys stored once, snapshots as parallel arrays.
+ * Reduces storage from ~280 KB/snapshot to ~27 KB/snapshot for ~3400 trades.
+ */
+export interface CompactSnapshotHistory {
+    /** Trade keys, stored once (shared across all snapshots) */
+    keys: string[];
+    /** Compact snapshots with values parallel to keys */
+    snapshots: CompactSnapshot[];
+}
+
+const CompactSnapshotSchema = z.object({
+    t: z.number().positive(),
+    v: z.array(z.tuple([z.number().nullable(), z.number().int().nonnegative()]))
+});
+
+export const CompactSnapshotHistorySchema = z.object({
+    keys: z.array(z.string()),
+    snapshots: z.array(CompactSnapshotSchema)
 });
 
 /**

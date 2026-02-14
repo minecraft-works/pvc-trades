@@ -139,13 +139,34 @@ body {
     transform: scale(1.1);
 }
 
-#searchGive {
-    border: 2px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background: var(--color-input-bg);
+.clear-search-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    padding: 0 6px;
+    height: 100%;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.clear-search-btn:hover {
+    opacity: 1;
     color: var(--color-text);
-    outline: none;
-    box-sizing: border-box;
+}
+
+.clear-search-btn.hidden {
+    display: none;
+}
+
+#searchGive {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius);
+    color: var(--color-text);
 }
 
 .search-input-wrapper #searchWant {
@@ -2029,10 +2050,15 @@ mark {
     color: var(--color-text-muted);
 }
 
+.dashboard-items-grid {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 1px 8px;
+    align-items: baseline;
+}
+
 .dashboard-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: contents;
 }
 
 .dashboard-item-name {
@@ -2040,8 +2066,20 @@ mark {
     font-weight: 500;
 }
 
+.dashboard-item-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+.dashboard-item-link:hover {
+    color: var(--color-accent);
+}
+
 .dashboard-item-dev {
     font-weight: 600;
+    text-align: right;
 }
 
 .dashboard-item-dev.good {

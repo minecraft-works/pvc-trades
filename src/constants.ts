@@ -82,8 +82,8 @@ export const DASHBOARD = {
     PRICE_DROP_THRESHOLD: 5,
     /** Target baseline age: compare against a snapshot ~24h old */
     BASELINE_TARGET_AGE_MS: 24 * 60 * 60 * 1000,
-    /** Minimum interval between saving new snapshots (6 hours) */
-    SNAPSHOT_INTERVAL_MS: 6 * 60 * 60 * 1000,
+    /** Minimum interval between saving new snapshots (1 hour) */
+    SNAPSHOT_INTERVAL_MS: 1 * 60 * 60 * 1000,
     /** Maximum snapshot age before pruning (30 hours) */
     SNAPSHOT_MAX_AGE_MS: 30 * 60 * 60 * 1000,
 } as const;
