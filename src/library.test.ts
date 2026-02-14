@@ -25,7 +25,7 @@ import {
     getTrustedItemValue,
     buildRatioGraph,
     getRatio,
-    buildPriceTable,
+    buildExchangeMatrix,
     loadFixedRatios,
     loadBaseItems,
     loadConfig,
@@ -129,8 +129,9 @@ const TEST_BLOCK_CONVERSIONS: BlockConversions = {
 };
 
 const TEST_CORE_BLOCKS = [
-    'Netherite Block',
+    'Netherite Ingot',
     DIAMOND_BLOCK_TITLE,
+    'Diamond',
     'Emerald Block',
     GOLD_BLOCK_TITLE,
     'Iron Block'
@@ -680,6 +681,37 @@ describe('calculateItemValues', () => {
         const diamond = values.get(DIAMOND_LOWER);
         expect(diamond!.buyPrices[0]!.price).toBe(1); // 9 emeralds / 9 diamonds = 1
     });
+
+    test('collects multiple transitive prices for core blocks', () => {
+        // Regression: transitive derivation must collect all trades in one iteration
+        // so core blocks can accumulate enough independent shops to pass trust filters.
+        // Diamond Block is valued via direct emerald trades at 3 independent shops.
+        // Netherite Ingot is ONLY priced in Diamond Block (no direct emerald trades).
+        // All 4 Netherite trades should contribute values, not just the first one.
+        const trades: TradeInput[] = [
+            // Phase 1: Diamond Block gets emerald value (3 independent shops)
+            { costName: EMERALD_TITLE, costAmount: 90, item1Name: EMERALD_TITLE, resultName: DIAMOND_BLOCK_TITLE, resultAmount: 1, x: 0, y: 0, z: 0 },
+            { costName: EMERALD_TITLE, costAmount: 90, item1Name: EMERALD_TITLE, resultName: DIAMOND_BLOCK_TITLE, resultAmount: 1, x: 100, y: 0, z: 0 },
+            { costName: EMERALD_TITLE, costAmount: 90, item1Name: EMERALD_TITLE, resultName: DIAMOND_BLOCK_TITLE, resultAmount: 1, x: 200, y: 0, z: 0 },
+            // Phase 2: Netherite Ingot priced in Diamond Block at 4 independent shops
+            { costName: DIAMOND_BLOCK_TITLE, costAmount: 10, item1Name: DIAMOND_BLOCK_TITLE, resultName: 'Netherite Ingot', resultAmount: 1, x: 300, y: 0, z: 0 },
+            { costName: DIAMOND_BLOCK_TITLE, costAmount: 10, item1Name: DIAMOND_BLOCK_TITLE, resultName: 'Netherite Ingot', resultAmount: 1, x: 400, y: 0, z: 0 },
+            { costName: DIAMOND_BLOCK_TITLE, costAmount: 10, item1Name: DIAMOND_BLOCK_TITLE, resultName: 'Netherite Ingot', resultAmount: 1, x: 500, y: 0, z: 0 },
+            { costName: DIAMOND_BLOCK_TITLE, costAmount: 10, item1Name: DIAMOND_BLOCK_TITLE, resultName: 'Netherite Ingot', resultAmount: 1, x: 600, y: 0, z: 0 },
+        ];
+        const values = calculateItemValues(trades, EMERALD_LOWER);
+        const netherite = values.get('netherite ingot');
+        expect(netherite).toBeDefined();
+        // All 4 trades should contribute, not just the first one
+        expect(netherite!.buyPrices).toHaveLength(4);
+        // Each: 10 Diamond Blocks × 90 emeralds / 1 = 900 emeralds
+        for (const price of netherite!.buyPrices) {
+            expect(price.price).toBe(900);
+        }
+        // Trusted value should be available since 4 shops > 3 minimum
+        const trusted = getTrustedItemValue('Netherite Ingot', values);
+        expect(trusted).toBe(900);
+    });
 });
 
 describe('buildRatioGraph and getRatio', () => {
@@ -794,32 +826,61 @@ describe('buildRatioGraph and getRatio', () => {
     });
 });
 
-describe('buildPriceTable', () => {
-    test('returns buy and sell median prices for core blocks', () => {
+describe('buildExchangeMatrix', () => {
+    test('returns ratios between core blocks using buy prices', () => {
         const values: ItemValues = new Map([
             ['diamond block', {
                 name: 'Diamond Block',
                 buyPrices: [
-                    { price: 10, x: 0, y: 0, z: 0 },
-                    { price: 12, x: 100, y: 0, z: 0 },
-                    { price: 14, x: 200, y: 0, z: 0 }
+                    { price: 90, x: 0, y: 0, z: 0 },
+                    { price: 90, x: 100, y: 0, z: 0 },
+                    { price: 90, x: 200, y: 0, z: 0 }
                 ],
-                sellPrices: [
-                    { price: 8, x: 0, y: 0, z: 0 },
-                    { price: 8, x: 100, y: 0, z: 0 },
-                    { price: 8, x: 200, y: 0, z: 0 }
-                ]
+                sellPrices: []
+            }],
+            ['iron block', {
+                name: 'Iron Block',
+                buyPrices: [
+                    { price: 9, x: 0, y: 0, z: 0 },
+                    { price: 9, x: 100, y: 0, z: 0 },
+                    { price: 9, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
             }]
         ]);
 
-        const table = buildPriceTable(values);
-        const diamond = table.find(entry => entry.name === 'Diamond Block');
-        expect(diamond).toBeDefined();
-        expect(diamond!.buyPrice).toBe(12); // median of [10,12,14]
-        expect(diamond!.sellPrice).toBe(8);
+        const matrix = buildExchangeMatrix(values, 'buy');
+        expect(matrix.labels).toContain('Diamond Block');
+        expect(matrix.labels).toContain('Iron Block');
+
+        const diamondIndex = matrix.labels.indexOf('Diamond Block');
+        const ironIndex = matrix.labels.indexOf('Iron Block');
+        // 1 Diamond Block = 10 Iron Blocks (90/9)
+        expect(matrix.ratios[diamondIndex]![ironIndex]).toBe(10);
+        // 1 Iron Block = 0.1 Diamond Blocks (9/90)
+        expect(matrix.ratios[ironIndex]![diamondIndex]).toBe(0.1);
     });
 
-    test('returns empty array when no core blocks have data', () => {
+    test('diagonal is always 1', () => {
+        const values: ItemValues = new Map([
+            ['gold block', {
+                name: 'Gold Block',
+                buyPrices: [
+                    { price: 36, x: 0, y: 0, z: 0 },
+                    { price: 36, x: 100, y: 0, z: 0 },
+                    { price: 36, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const matrix = buildExchangeMatrix(values, 'buy');
+        for (const [index, row] of matrix.ratios.entries()) {
+            expect(row[index]).toBe(1);
+        }
+    });
+
+    test('returns empty matrix when no core blocks have data', () => {
         const values: ItemValues = new Map([
             ['wheat', {
                 name: 'Wheat',
@@ -828,113 +889,15 @@ describe('buildPriceTable', () => {
             }]
         ]);
 
-        const table = buildPriceTable(values);
-        expect(table).toHaveLength(0);
+        const matrix = buildExchangeMatrix(values, 'buy');
+        // Only emerald (always value 1) and blocks derivable from it should appear
+        const nonDerived = matrix.labels.filter(
+            label => label !== 'Emerald' && label !== 'Emerald Block'
+        );
+        expect(nonDerived).toHaveLength(0);
     });
 
-    test('includes buy-only items with undefined sell', () => {
-        const values: ItemValues = new Map([
-            ['iron block', {
-                name: 'Iron Block',
-                buyPrices: [
-                    { price: 1, x: 0, y: 0, z: 0 },
-                    { price: 1, x: 100, y: 0, z: 0 },
-                    { price: 1, x: 200, y: 0, z: 0 }
-                ],
-                sellPrices: []
-            }]
-        ]);
-
-        const table = buildPriceTable(values);
-        const iron = table.find(entry => entry.name === 'Iron Block');
-        expect(iron).toBeDefined();
-        expect(iron!.buyPrice).toBe(1);
-        expect(iron!.sellPrice).toBeUndefined();
-        expect(iron!.spread).toBeUndefined();
-    });
-
-    test('calculates spread as (buy-sell)/buy percentage', () => {
-        const values: ItemValues = new Map([
-            ['gold block', {
-                name: 'Gold Block',
-                buyPrices: [
-                    { price: 4, x: 0, y: 0, z: 0 },
-                    { price: 4, x: 100, y: 0, z: 0 },
-                    { price: 4, x: 200, y: 0, z: 0 }
-                ],
-                sellPrices: [
-                    { price: 3, x: 0, y: 0, z: 0 },
-                    { price: 3, x: 100, y: 0, z: 0 },
-                    { price: 3, x: 200, y: 0, z: 0 }
-                ]
-            }]
-        ]);
-
-        const table = buildPriceTable(values);
-        const gold = table.find(entry => entry.name === 'Gold Block');
-        expect(gold).toBeDefined();
-        expect(gold!.spread).toBe(25); // (4-3)/4 = 0.25 = 25%
-    });
-
-    test('sorts entries by buy price descending', () => {
-        const values: ItemValues = new Map([
-            ['iron block', {
-                name: 'Iron Block',
-                buyPrices: [
-                    { price: 1, x: 0, y: 0, z: 0 },
-                    { price: 1, x: 100, y: 0, z: 0 },
-                    { price: 1, x: 200, y: 0, z: 0 }
-                ],
-                sellPrices: []
-            }],
-            ['diamond block', {
-                name: 'Diamond Block',
-                buyPrices: [
-                    { price: 10, x: 0, y: 0, z: 0 },
-                    { price: 10, x: 100, y: 0, z: 0 },
-                    { price: 10, x: 200, y: 0, z: 0 }
-                ],
-                sellPrices: []
-            }]
-        ]);
-
-        const table = buildPriceTable(values);
-        expect(table.length).toBeGreaterThanOrEqual(2);
-        expect(table[0]!.name).toBe('Diamond Block');
-        expect(table[1]!.name).toBe('Iron Block');
-    });
-
-    test('derives block price from base item when no direct trades', () => {
-        // Only "diamond" has trades, not "diamond block"
-        // Should derive Diamond Block = diamond × 9
-        const values: ItemValues = new Map([
-            ['diamond', {
-                name: 'Diamond',
-                buyPrices: [
-                    { price: 10, x: 0, y: 0, z: 0 },
-                    { price: 10, x: 100, y: 0, z: 0 },
-                    { price: 10, x: 200, y: 0, z: 0 }
-                ],
-                sellPrices: [
-                    { price: 8, x: 0, y: 0, z: 0 },
-                    { price: 8, x: 100, y: 0, z: 0 },
-                    { price: 8, x: 200, y: 0, z: 0 }
-                ]
-            }]
-        ]);
-
-        const table = buildPriceTable(values);
-        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
-        expect(diamondBlock).toBeDefined();
-        expect(diamondBlock!.buyPrice).toBe(90);  // 10 × 9
-        expect(diamondBlock!.sellPrice).toBe(72);  // 8 × 9
-        expect(diamondBlock!.derived).toBe(true);
-        expect(diamondBlock!.spread).toBeCloseTo(20); // (90-72)/90 = 20%
-    });
-
-    test('prefers direct trades over derived values', () => {
-        // Both "diamond" and "diamond block" have trades
-        // Diamond Block should use its own data, not diamond × 9
+    test('uses sell prices when side is sell', () => {
         const values: ItemValues = new Map([
             ['diamond block', {
                 name: 'Diamond Block',
@@ -943,8 +906,44 @@ describe('buildPriceTable', () => {
                     { price: 100, x: 100, y: 0, z: 0 },
                     { price: 100, x: 200, y: 0, z: 0 }
                 ],
-                sellPrices: []
+                sellPrices: [
+                    { price: 80, x: 0, y: 0, z: 0 },
+                    { price: 80, x: 100, y: 0, z: 0 },
+                    { price: 80, x: 200, y: 0, z: 0 }
+                ]
             }],
+            ['gold block', {
+                name: 'Gold Block',
+                buyPrices: [
+                    { price: 40, x: 0, y: 0, z: 0 },
+                    { price: 40, x: 100, y: 0, z: 0 },
+                    { price: 40, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 20, x: 0, y: 0, z: 0 },
+                    { price: 20, x: 100, y: 0, z: 0 },
+                    { price: 20, x: 200, y: 0, z: 0 }
+                ]
+            }]
+        ]);
+
+        const buyMatrix = buildExchangeMatrix(values, 'buy');
+        const sellMatrix = buildExchangeMatrix(values, 'sell');
+
+        const diamondBuyIndex = buyMatrix.labels.indexOf('Diamond Block');
+        const goldBuyIndex = buyMatrix.labels.indexOf('Gold Block');
+        // Buy: 1 Diamond Block = 100/40 = 2.5 Gold Blocks
+        expect(buyMatrix.ratios[diamondBuyIndex]![goldBuyIndex]).toBe(2.5);
+
+        const diamondSellIndex = sellMatrix.labels.indexOf('Diamond Block');
+        const goldSellIndex = sellMatrix.labels.indexOf('Gold Block');
+        // Sell: 1 Diamond Block = 80/20 = 4 Gold Blocks
+        expect(sellMatrix.ratios[diamondSellIndex]![goldSellIndex]).toBe(4);
+    });
+
+    test('derives block values from base item via block conversions', () => {
+        // Only "diamond" has data, "diamond block" should be derived (diamond × 9)
+        const values: ItemValues = new Map([
             ['diamond', {
                 name: 'Diamond',
                 buyPrices: [
@@ -953,14 +952,59 @@ describe('buildPriceTable', () => {
                     { price: 10, x: 200, y: 0, z: 0 }
                 ],
                 sellPrices: []
+            }],
+            ['iron block', {
+                name: 'Iron Block',
+                buyPrices: [
+                    { price: 9, x: 0, y: 0, z: 0 },
+                    { price: 9, x: 100, y: 0, z: 0 },
+                    { price: 9, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
             }]
         ]);
 
-        const table = buildPriceTable(values);
-        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
-        expect(diamondBlock).toBeDefined();
-        expect(diamondBlock!.buyPrice).toBe(100); // direct, not 10×9=90
-        expect(diamondBlock!.derived).toBe(false);
+        const matrix = buildExchangeMatrix(values, 'buy');
+        // Diamond Block should be derived as diamond × 9 = 90
+        expect(matrix.labels).toContain('Diamond Block');
+
+        const diamondBlockIndex = matrix.labels.indexOf('Diamond Block');
+        const ironBlockIndex = matrix.labels.indexOf('Iron Block');
+        // 1 Diamond Block (90) = 10 Iron Blocks (9)
+        expect(matrix.ratios[diamondBlockIndex]![ironBlockIndex]).toBe(10);
+    });
+
+    test('derives ingot values from block via reverse block conversions', () => {
+        // Only "netherite block" has data, "netherite ingot" should be derived (block / 9)
+        const values: ItemValues = new Map([
+            ['netherite block', {
+                name: 'Netherite Block',
+                buyPrices: [
+                    { price: 900, x: 0, y: 0, z: 0 },
+                    { price: 900, x: 100, y: 0, z: 0 },
+                    { price: 900, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 90, x: 0, y: 0, z: 0 },
+                    { price: 90, x: 100, y: 0, z: 0 },
+                    { price: 90, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const matrix = buildExchangeMatrix(values, 'buy');
+        // Netherite Ingot should be derived as netherite block / 9 = 100
+        expect(matrix.labels).toContain('Netherite Ingot');
+
+        const netheriteIngotIndex = matrix.labels.indexOf('Netherite Ingot');
+        const diamondBlockIndex = matrix.labels.indexOf('Diamond Block');
+        // 1 Netherite Ingot (100) = 100/90 Diamond Blocks
+        expect(matrix.ratios[netheriteIngotIndex]![diamondBlockIndex]).toBeCloseTo(100 / 90);
     });
 });
 

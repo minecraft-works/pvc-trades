@@ -1,14 +1,15 @@
 /**
- * Price Table Dialog Module
+ * Exchange Rate Matrix Dialog Module
  *
- * Renders a buy/sell price table for core currencies in emeralds.
+ * Renders a tabbed NxN exchange rate matrix for core currencies.
+ * Two tabs: Buy (ask prices) and Sell (bid prices).
  *
  * @module dialogs/matrix-dialog
  */
 
-import { escapeHtml, buildPriceTable } from '../library.js';
+import { escapeHtml, buildExchangeMatrix } from '../library.js';
 import { SELECTORS, DIALOG_IDS } from '../constants.js';
-import type { ItemValues, PriceTableEntry } from '../types.js';
+import type { ItemValues, ExchangeMatrix } from '../types.js';
 
 // ============================================================================
 // Constants
@@ -28,7 +29,7 @@ const ITEM_ICONS: Record<string, string> = {
     'Iron Ingot': 'icons/iron_ingot.png',
 };
 
-const TABLE_HEADER_HTML = '<header><h2>Price Table</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
+const DIALOG_HEADER_HTML = '<header><h2>Exchange Rates</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
 
 // ============================================================================
 // Helper Functions
@@ -40,51 +41,46 @@ const TABLE_HEADER_HTML = '<header><h2>Price Table</h2><button id="close-matrix"
 function getItemIcon(name: string): string {
     const url = ITEM_ICONS[name];
     if (url) {
-        return `<img src="${url}" alt="${escapeHtml(name)}" class="price-table-icon" title="${escapeHtml(name)}">`;
+        return `<img src="${url}" alt="${escapeHtml(name)}" class="matrix-icon" title="${escapeHtml(name)}">`;
     }
     return escapeHtml(name);
 }
 
 /**
- * Format a price value for display
+ * Format a ratio value for display
+ * @param isDiagonal - True if this is a diagonal cell (same currency)
  */
-function formatPrice(value: number | undefined): string {
-    if (value === undefined) { return '<span class="price-na">—</span>'; }
+function formatRatio(value: number | undefined, isDiagonal: boolean): string {
+    if (value === undefined) { return '<span class="price-na">\u2014</span>'; }
+    if (value === 1 && isDiagonal) { return '<span class="matrix-diagonal">\u2014</span>'; }
     const rounded = Math.round(value * 100) / 100;
     return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
 }
 
 /**
- * Get the CSS class for a spread value
+ * Build the HTML table for an exchange matrix
  */
-function getSpreadClass(spread: number): string {
-    if (spread <= 15) { return 'spread-low'; }
-    if (spread <= 30) { return 'spread-medium'; }
-    return 'spread-high';
-}
+function buildMatrixTable(matrix: ExchangeMatrix): string {
+    let html = '<table class="exchange-matrix"><thead><tr><th></th>';
 
-/**
- * Format spread percentage for display
- */
-function formatSpread(spread: number | undefined): string {
-    if (spread === undefined) { return '<span class="price-na">—</span>'; }
-    const cls = getSpreadClass(spread);
-    return `<span class="${cls}">${Math.round(spread)}%</span>`;
-}
+    for (const label of matrix.labels) {
+        html += `<th>${getItemIcon(label)}</th>`;
+    }
+    html += '</tr></thead><tbody>';
 
-/**
- * Build a single table row for a price table entry
- */
-function buildPriceTableRow(entry: PriceTableEntry): string {
-    const derivedClass = entry.derived ? ' class="price-derived"' : '';
-    const derivedMark = entry.derived ? ' <span class="price-derived-mark" title="Derived from base item">*</span>' : '';
+    for (const [rowIndex, label] of matrix.labels.entries()) {
+        html += `<tr><th>${getItemIcon(label)}</th>`;
+        const row = matrix.ratios[rowIndex];
+        if (row) {
+            for (const [colIndex, cell] of row.entries()) {
+                html += `<td>${formatRatio(cell, rowIndex === colIndex)}</td>`;
+            }
+        }
+        html += '</tr>';
+    }
 
-    return `<tr${derivedClass}>
-        <td>${getItemIcon(entry.name)}${derivedMark}</td>
-        <td>${formatPrice(entry.buyPrice)}</td>
-        <td>${formatPrice(entry.sellPrice)}</td>
-        <td>${formatSpread(entry.spread)}</td>
-    </tr>`;
+    html += '</tbody></table>';
+    return html;
 }
 
 // ============================================================================
@@ -92,40 +88,51 @@ function buildPriceTableRow(entry: PriceTableEntry): string {
 // ============================================================================
 
 /**
- * Render the price table dialog
+ * Render the exchange rate matrix dialog with Buy/Sell tabs
  *
- * @param container - Container element for the table
+ * @param container - Container element for the dialog content
  * @param itemValues - The computed item values, or undefined if not available
  * @param getElement - Helper function to get elements by ID
  */
-export function renderPriceTable(
+export function renderExchangeMatrix(
     container: HTMLElement,
     itemValues: ItemValues | undefined,
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T
 ): void {
     if (!itemValues || itemValues.size === 0) {
-        container.innerHTML = `${TABLE_HEADER_HTML}<p class="muted">No price data available</p>`;
+        container.innerHTML = `${DIALOG_HEADER_HTML}<p class="muted">No price data available</p>`;
         container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
             getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
         });
         return;
     }
 
-    const entries = buildPriceTable(itemValues);
+    const buyMatrix = buildExchangeMatrix(itemValues, 'buy');
+    const sellMatrix = buildExchangeMatrix(itemValues, 'sell');
 
-    let html = TABLE_HEADER_HTML;
-    html += '<div class="price-table-wrapper"><table class="price-table"><thead><tr>';
-    html += '<th>Currency</th><th>Buy</th><th>Sell</th><th>Spread</th>';
-    html += '</tr></thead><tbody>';
-
-    for (const entry of entries) {
-        html += buildPriceTableRow(entry);
-    }
-
-    html += '</tbody></table>';
-    html += '<p class="price-table-hint">Prices in emeralds. Spread = (buy\u2212sell)/buy.<br><span class="price-derived-mark">*</span> Derived from base item (e.g. diamond \u00D7 9).</p>';
+    let html = DIALOG_HEADER_HTML;
+    html += '<div class="matrix-tabs">';
+    html += '<button class="matrix-tab matrix-tab--active" data-tab="buy">Buy</button>';
+    html += '<button class="matrix-tab" data-tab="sell">Sell</button>';
     html += '</div>';
+    html += `<div class="matrix-panel" data-panel="buy">${buildMatrixTable(buyMatrix)}</div>`;
+    html += `<div class="matrix-panel matrix-panel--hidden" data-panel="sell">${buildMatrixTable(sellMatrix)}</div>`;
+    html += '<p class="matrix-hint">Read as: 1 row = X columns. Derived from median trade prices.</p>';
     container.innerHTML = html;
+
+    // Tab switching
+    for (const tab of container.querySelectorAll<HTMLButtonElement>('.matrix-tab')) {
+        tab.addEventListener('click', () => {
+            for (const element of container.querySelectorAll('.matrix-tab')) {
+                element.classList.remove('matrix-tab--active');
+            }
+            tab.classList.add('matrix-tab--active');
+            const target = tab.dataset['tab'];
+            for (const panel of container.querySelectorAll<HTMLElement>('.matrix-panel')) {
+                panel.classList.toggle('matrix-panel--hidden', panel.dataset['panel'] !== target);
+            }
+        });
+    }
 
     container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
         getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();

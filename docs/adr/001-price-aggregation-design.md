@@ -44,7 +44,7 @@ The shop trade viewer needs to calculate fair market prices and detect deals. Th
 
 ### 3. Core Block Trust Threshold
 
-**Decision**: Core blocks (Netherite Block, Diamond Block, Emerald Block, Gold Block, Iron Block) require **≥3 independent shops** for their market data to be trusted.
+**Decision**: Core blocks (Netherite Ingot, Diamond Block, Emerald Block, Gold Block, Iron Block) require **≥3 independent shops** for their market data to be trusted.
 
 **Rationale**:
 - Core blocks are used as base items for ratio calculations (denominators)
@@ -69,9 +69,10 @@ The shop trade viewer needs to calculate fair market prices and detect deals. Th
 - Market may value items differently due to convenience, rarity, or speculation
 
 **Priority Order**:
-1. Market median (if ≥3 independent shops for core blocks)
-2. Crafted value from ingot × 9 (fallback for core blocks)
-3. Fixed ratio of 1 (ultimate fallback)
+1. Market median from direct emerald trades (if ≥3 independent shops for core blocks)
+2. Transitive derivation through known intermediaries (iterative)
+3. Block conversion value from ingot × 9 or block ÷ 9 (bidirectional fallback)
+4. Fixed ratio of 1 (ultimate fallback)
 
 ---
 
@@ -93,6 +94,34 @@ interface PriceData {
   z: number;        // Shop Z coordinate
 }
 ```
+
+---
+
+### 6. Transitive Derivation with Snapshot-per-Iteration
+
+**Decision**: `calculateItemValues()` uses iterative transitive expansion. Each iteration snapshots known keys before processing trades, so all trades in one pass see consistent state.
+
+**Rationale**:
+- Many items (e.g., Netherite Ingot) have no direct emerald trades — they're only priced via intermediaries like Diamond Block
+- Without snapshotting, the first trade adding a value for an item would prevent subsequent trades from contributing, starving the trust filter for core blocks
+- The snapshot ensures every trade in an iteration contributes data points, so core currencies accumulate enough independent shops (≥3) to pass the trust threshold
+
+**Algorithm**:
+```
+Phase 1: Process all direct emerald trades
+Phase 2: While changed and iterations < max:
+  1. Snapshot knownKeys = set of items with entries
+  2. For each trade:
+     - If cost is known (in snapshot) and result is unknown → derive result value
+     - If result is known and cost is unknown → derive cost value
+  3. Set changed = true if any new values added
+```
+
+**Example**: Netherite Ingot priced via Diamond Block
+1. Phase 1: Diamond Block gets emerald value from 3+ direct trades
+2. Phase 2, Iteration 1: snapshot knows "diamond block" but not "netherite ingot"
+   - All 15 "Diamond Block → Netherite Ingot" trades contribute buy values
+   - Netherite Ingot now has 15 independent data points → passes trust filter
 
 ## Configuration Files
 

@@ -47,6 +47,15 @@ class ConfigStore {
             const parsed = AppConfigSchema.safeParse(data);
             if (parsed.success) {
                 this.config = parsed.data;
+                
+                // Use local data.json when running on localhost
+                if (globalThis.location?.hostname === 'localhost') {
+                    this.config = {
+                        ...this.config,
+                        dataUrl: `${globalThis.location.origin}${globalThis.location.pathname}data.json`
+                    };
+                    console.info('Running on localhost - using local data.json');
+                }
             } else {
                 console.warn('Invalid config format, using defaults:', parsed.error);
             }

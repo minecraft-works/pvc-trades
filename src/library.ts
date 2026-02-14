@@ -66,7 +66,7 @@ import {
     type DashboardData,
     type PriceDrop,
     type WatchlistHit,
-    type PriceTableEntry,
+    type ExchangeMatrix,
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
@@ -614,11 +614,22 @@ function addBlockConversionValues(
 ): void {
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
         const blockKey = blockName.toLowerCase();
-        // Preserve direct trade values — only fill in missing blocks
-        if (emeraldValues.has(blockKey)) { continue; }
-        const baseValue = emeraldValues.get(base.toLowerCase());
-        if (baseValue !== undefined) {
-            emeraldValues.set(blockKey, baseValue * multiplier);
+        const baseKey = base.toLowerCase();
+
+        // Derive block from base item (e.g. diamond × 9 = diamond block)
+        if (!emeraldValues.has(blockKey)) {
+            const baseValue = emeraldValues.get(baseKey);
+            if (baseValue !== undefined) {
+                emeraldValues.set(blockKey, baseValue * multiplier);
+            }
+        }
+
+        // Derive base item from block (e.g. netherite block / 9 = netherite ingot)
+        if (!emeraldValues.has(baseKey)) {
+            const blockValue = emeraldValues.get(blockKey);
+            if (blockValue !== undefined) {
+                emeraldValues.set(baseKey, blockValue / multiplier);
+            }
         }
     }
 }
@@ -669,77 +680,79 @@ export function getRatio(graph: RatioGraph, from: string, to: string): number | 
     return graph.get(key);
 }
 
-function calculateSpread(buyPrice: number | undefined, sellPrice: number | undefined): number | undefined {
-    if (buyPrice === undefined || sellPrice === undefined) { return undefined; }
-    return ((buyPrice - sellPrice) / buyPrice) * 100;
-}
+/**
+ * Build emerald values using only buy or sell medians.
+ * Used to create separate buy/sell exchange matrices.
+ */
+function buildDirectionalEmeraldValues(
+    itemValues: ItemValues,
+    side: 'buy' | 'sell'
+): Map<string, number> {
+    const emeraldValues = new Map<string, number>();
+    const config = configStore.get();
+    const coreBlocks = coreBlocksStore.get();
+    const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
 
-function buildDirectEntry(block: string, entry: ItemValueEntry): PriceTableEntry | undefined {
-    const buyPrice = median(entry.buyPrices);
-    const sellPrice = median(entry.sellPrices);
-    if (buyPrice === undefined && sellPrice === undefined) { return undefined; }
+    for (const [key, entry] of itemValues.entries()) {
+        if (coreBlocksLower.has(key) && !hasEnoughIndependentData(entry, config.analysis.minIndependentShops)) {
+            continue;
+        }
 
-    return {
-        name: block,
-        buyPrice,
-        sellPrice,
-        spread: calculateSpread(buyPrice, sellPrice),
-        derived: false,
-    };
-}
+        const prices = side === 'buy' ? entry.buyPrices : entry.sellPrices;
+        const value = median(prices);
+        if (value !== undefined) {
+            emeraldValues.set(key, value);
+        }
+    }
 
-function buildDerivedEntry(
-    block: string,
-    baseEntry: ItemValueEntry,
-    multiplier: number
-): PriceTableEntry | undefined {
-    const baseBuy = median(baseEntry.buyPrices);
-    const baseSell = median(baseEntry.sellPrices);
-    if (baseBuy === undefined && baseSell === undefined) { return undefined; }
-
-    const buyPrice = baseBuy === undefined ? undefined : baseBuy * multiplier;
-    const sellPrice = baseSell === undefined ? undefined : baseSell * multiplier;
-
-    return {
-        name: block,
-        buyPrice,
-        sellPrice,
-        spread: calculateSpread(buyPrice, sellPrice),
-        derived: true,
-    };
+    emeraldValues.set('emerald', 1);
+    const blockConversions = blockConversionsStore.get();
+    addBlockConversionValues(emeraldValues, blockConversions);
+    return emeraldValues;
 }
 
 /**
- * Build a price table showing buy/sell prices for core blocks in emeralds.
- * Each entry includes median buy/sell price, trade counts, independent shop count, and spread.
- * Falls back to base item × multiplier when no direct trades exist.
- * Sorted by buy price descending (most expensive first).
+ * Build an NxN exchange matrix for core currencies.
+ * Each cell shows how many of column-currency you get for 1 of row-currency.
+ *
+ * @param itemValues - The computed item values from trades
+ * @param side - Whether to use buy (ask) or sell (bid) prices
+ * @returns Matrix with labels and ratio grid
+ *
+ * @example
+ * const matrix = buildExchangeMatrix(itemValues, 'buy');
+ * // matrix.ratios[0][1] = how many of labels[1] for 1 of labels[0]
  */
-export function buildPriceTable(itemValues: ItemValues): PriceTableEntry[] {
+export function buildExchangeMatrix(itemValues: ItemValues, side: 'buy' | 'sell'): ExchangeMatrix {
     const coreBlocks = coreBlocksStore.get();
-    const blockConversions = blockConversionsStore.get();
-    const entries: PriceTableEntry[] = [];
+    const emeraldValues = buildDirectionalEmeraldValues(itemValues, side);
+
+    const labels: string[] = [];
+    const values: number[] = [];
 
     for (const block of coreBlocks) {
-        const key = block.toLowerCase();
-        const entry = itemValues.get(key);
-
-        if (entry) {
-            const direct = buildDirectEntry(block, entry);
-            if (direct) { entries.push(direct); continue; }
+        const value = emeraldValues.get(block.toLowerCase());
+        if (value !== undefined) {
+            labels.push(block);
+            values.push(value);
         }
-
-        // Fall back to base item × multiplier (e.g. diamond × 9 = diamond block)
-        const conversion = blockConversions[key];
-        if (!conversion) { continue; }
-        const baseEntry = itemValues.get(conversion.base.toLowerCase());
-        if (!baseEntry) { continue; }
-
-        const derived = buildDerivedEntry(block, baseEntry, conversion.multiplier);
-        if (derived) { entries.push(derived); }
     }
 
-    return entries.toSorted((a, b) => (b.buyPrice ?? 0) - (a.buyPrice ?? 0));
+    const ratios: (number | undefined)[][] = [];
+    for (const [rowIndex, rowValue] of values.entries()) {
+        const row: (number | undefined)[] = [];
+        for (const [colIndex, colValue] of values.entries()) {
+            if (rowIndex === colIndex) {
+                row.push(1);
+            } else {
+                const ratio = rowValue / colValue;
+                row.push(Number.isFinite(ratio) && ratio > 0 ? ratio : undefined);
+            }
+        }
+        ratios.push(row);
+    }
+
+    return { labels, ratios };
 }
 
 // ============================================================================
@@ -849,11 +862,12 @@ function processDirectTradeWithItem2(
 function deriveTransitiveValue(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: ItemValues,
+    knownKeys: Set<string>
 ): boolean {
     // For trades with item2, we need different handling
     if (trade.item2) {
-        return deriveTransitiveValueWithItem2(trade, baseCurrency, values);
+        return deriveTransitiveValueWithItem2(trade, baseCurrency, values, knownKeys);
     }
 
     const item1Name = trade.item1Name ?? trade.costName;
@@ -864,11 +878,14 @@ function deriveTransitiveValue(
     const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
     if (costIsBase || resultIsBase) { return false; }
 
-    const costEntry = values.get(costKey);
-    const resultEntry = values.get(resultKey);
+    // Use the snapshot to decide which direction to derive. This ensures all
+    // trades in one iteration contribute values for newly-discovered items,
+    // so core blocks can accumulate enough independent shops to pass trust filters.
+    const costKnown = knownKeys.has(costKey);
+    const resultKnown = knownKeys.has(resultKey);
     let changed = false;
 
-    if (costEntry && !resultEntry) {
+    if (costKnown && !resultKnown) {
         const costValue = getTrustedItemValue(item1Name, values);
         if (costValue !== undefined) {
             const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
@@ -877,7 +894,7 @@ function deriveTransitiveValue(
         }
     }
 
-    if (resultEntry && !costEntry) {
+    if (resultKnown && !costKnown) {
         const resultValue = getTrustedItemValue(trade.resultName, values);
         if (resultValue !== undefined) {
             const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
@@ -892,7 +909,8 @@ function deriveTransitiveValue(
 function deriveTransitiveValueWithItem2(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: ItemValues,
+    knownKeys: Set<string>
 ): boolean {
     if (!trade.item2) { return false; }
 
@@ -909,10 +927,10 @@ function deriveTransitiveValueWithItem2(
 
     const item1Value = getTrustedItemValue(item1Name, values);
     const item2Value = getTrustedItemValue(item2Name, values);
-    const resultEntry = values.get(resultKey);
+    const resultKnown = knownKeys.has(resultKey);
 
-    // If we know both input values but not result -> derive result value
-    if (item1Value !== undefined && item2Value !== undefined && !resultEntry) {
+    // If we know both input values but result was unknown at start of iteration
+    if (item1Value !== undefined && item2Value !== undefined && !resultKnown) {
         const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
         const pricePerResult = totalCostValue / trade.resultAmount;
         addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
@@ -951,8 +969,14 @@ export function calculateItemValues(trades: TradeInput[], baseCurrency: string):
         changed = false;
         iterations++;
 
+        // Snapshot which items have entries BEFORE this iteration so all trades
+        // in one pass see consistent state. Without this, the first trade adding
+        // a value for an item prevents subsequent trades from contributing more
+        // data points, which starves core-block trust filters.
+        const knownKeys = new Set(values.keys());
+
         for (const trade of trades) {
-            if (deriveTransitiveValue(trade, baseCurrency, values)) {
+            if (deriveTransitiveValue(trade, baseCurrency, values, knownKeys)) {
                 changed = true;
             }
         }
