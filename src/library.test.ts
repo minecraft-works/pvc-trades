@@ -2094,6 +2094,11 @@ function noDeviationResult(): undefined {
     return undefined;
 }
 
+/** Returns deviation based on trade x-coord: x=100 gets first percent, others get second */
+function deviationByCoord(atX100: number, other: number) {
+    return (t: Trade) => t.x === 100 ? { percent: atX100 } : { percent: other };
+}
+
 describe('computeDashboardData', () => {
     const BASE_SNAPSHOT: TradeSnapshot = {
         timestamp: Date.now() - 3_600_000,
@@ -2217,5 +2222,47 @@ describe('computeDashboardData', () => {
         // trade2 improved more: 50→10 (40pp) vs trade1: 30→20 (10pp)
         expect(result.priceDrops[0].itemName).toBe('Iron ingot');
         expect(result.priceDrops[1].itemName).toBe('Diamond');
+    });
+
+    test('excludes price drops when a better deal already exists for the same item', () => {
+        // Two trades for the same item at different shops
+        const tradeA = makeDashboardTrade({ resultName: 'Potato', x: 100 });
+        const tradeB = makeDashboardTrade({ resultName: 'Potato', x: 200, shopName: 'OtherShop' });
+        const keyA = getTradeKey(tradeA);
+        const keyB = getTradeKey(tradeB);
+        const snapshot: TradeSnapshot = {
+            ...BASE_SNAPSHOT,
+            trades: {
+                [keyA]: { deviationPercent: -40, stock: 10 },  // Already -40%
+                [keyB]: { deviationPercent: 0, stock: 10 },    // Was 0%
+            },
+        };
+
+        // tradeA stays at -40%, tradeB drops to -20%
+        const result = computeDashboardData([tradeA, tradeB], deviationByCoord(-40, -20), snapshot, []);
+
+        // tradeB improved by 20pp, but tradeA at -40% is still the better deal
+        // so tradeB's drop should NOT appear — it's not the global best
+        expect(result.priceDrops).toHaveLength(0);
+    });
+
+    test('includes price drop when it becomes the new global best for the item', () => {
+        const tradeA = makeDashboardTrade({ resultName: 'Potato', x: 100 });
+        const tradeB = makeDashboardTrade({ resultName: 'Potato', x: 200, shopName: 'OtherShop' });
+        const keyA = getTradeKey(tradeA);
+        const keyB = getTradeKey(tradeB);
+        const snapshot: TradeSnapshot = {
+            ...BASE_SNAPSHOT,
+            trades: {
+                [keyA]: { deviationPercent: -30, stock: 10 },
+                [keyB]: { deviationPercent: 0, stock: 10 },
+            },
+        };
+        // tradeA stays at -30%, tradeB drops to -50% (new global best)
+        const result = computeDashboardData([tradeA, tradeB], deviationByCoord(-30, -50), snapshot, []);
+
+        expect(result.priceDrops).toHaveLength(1);
+        expect(result.priceDrops[0].newDeviation).toBe(-50);
+        expect(result.priceDrops[0].oldDeviation).toBe(0);
     });
 });

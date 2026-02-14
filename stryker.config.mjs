@@ -14,7 +14,11 @@ export default {
     mutate: [
         'src/library.ts',
         'src/stores/cart-store.ts',
-        'src/stores/navigation-store.ts'
+        'src/stores/navigation-store.ts',
+        'src/stores/snapshot-store.ts',
+        'src/stores/favorites-store.ts',
+        'src/tile-coords.ts',
+        'src/stores/player-interpolator.ts'
     ],
     // Mutation score thresholds
     thresholds: {

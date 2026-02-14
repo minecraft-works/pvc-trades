@@ -21,6 +21,7 @@ export default defineConfig({
     reporter: [
         ['list'],
         ['html', { open: 'never' }],
+        ['json', { outputFile: 'reports/playwright-results.json' }],
         cucumberReporter('html', { 
             outputFile: 'reports/cucumber-report.html',
             externalAttachments: true,
@@ -33,6 +34,9 @@ export default defineConfig({
         video: 'retain-on-failure',
         screenshot: 'only-on-failure',
     },
+
+    // Store visual regression baselines in a tracked directory (not .features-gen which is gitignored)
+    snapshotPathTemplate: 'features/__snapshots__/{arg}-{projectName}-{platform}{ext}',
 
     projects: [
         {
