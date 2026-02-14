@@ -80,6 +80,23 @@ Feature: Daily Deals Dashboard
     Then the deals dashboard should be visible
     And the dashboard should show a watchlist section
 
+  @dashboard @watchlist
+  Scenario: Watchlist items are sorted by most decreased deviation first
+    Given I have a previous snapshot with higher deviations
+    And I have a favorite item matching a current trade
+    When I reload the app
+    Then the dashboard should show a watchlist section
+    And the first watchlist item should have the lowest deviation
+
+  @dashboard @watchlist
+  Scenario: Clicking a watchlist item name searches for that item
+    Given I have a previous snapshot with different prices
+    And I have a favorite item matching a current trade
+    When I reload the app
+    And I click a watchlist item name
+    Then the want field should contain the clicked item name
+    And the want field clear button should be visible
+
   # ============================================================================
   # Toggle Button
   # ============================================================================

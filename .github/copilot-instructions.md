@@ -8,10 +8,37 @@ A Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, and
 
 ```
 src/
-├── main.ts          # DOM/UI code, event handlers, rendering
-├── library.ts       # Pure functions - no DOM dependencies
-├── types.ts         # TypeScript types and Zod schemas
-└── debug.ts         # Debug utilities
+├── main.ts              # DOM/UI code, event handlers, rendering
+├── library.ts           # Pure functions - no DOM dependencies
+├── types.ts             # TypeScript types and Zod schemas
+├── constants.ts         # Centralized constants (storage keys, CSS classes)
+├── debug.ts             # Debug utilities
+├── tile-coords.ts       # Shared tile coordinate utilities
+├── dialogs/             # Dialog rendering and helpers
+│   ├── dialog-utilities.ts  # Backdrop close, openDialog helper
+│   ├── matrix-dialog.ts     # Exchange rate matrix UI
+│   ├── shop-map-helpers.ts  # Map marker utilities
+│   └── trade-details.ts     # Trade details popover
+├── favorites/           # Favorites/watchlist UI
+│   └── favorites-ui.ts     # Favorites dialog rendering
+├── map/                 # Map tile loading and rendering
+│   ├── tile-loader.ts       # Tile manifest, blob caching, Leaflet
+│   ├── tile-types.ts        # TileConfig, TileRange interfaces
+│   ├── players.ts           # Player position fetching
+│   └── shop-map-dialog.ts   # Shop map dialog
+├── navigation/          # Live navigation modules
+│   └── shop-tooltip.ts     # Proximity-based shop info
+├── search/              # Search and deviation modules
+│   └── deviation.ts         # Deviation calculation helpers
+└── stores/              # Class-based state stores
+    ├── cart-store.ts         # Cart items, quantities, persistence
+    ├── navigation-store.ts   # Nav state, progress, player position
+    ├── favorites-store.ts    # Watchlist items with thresholds
+    ├── snapshot-store.ts     # Rolling snapshot baseline (compact format)
+    ├── config-store.ts       # App configuration cache
+    ├── block-conversions-store.ts # Block↔ingot conversion rates
+    ├── core-blocks-store.ts  # Core currency definitions
+    └── player-interpolator.ts # Smooth player position interpolation
 
 features/
 ├── *.feature        # Gherkin BDD scenarios
@@ -28,6 +55,13 @@ features/
 | TypeScript interfaces | `types.ts` | `Trade`, `CartItem`, `FilterResult` |
 | DOM manipulation | `main.ts` | `renderCart()`, `openDialog()` |
 | Event handlers | `main.ts` | `handleAddToCart()`, `handleSearch()` |
+| State stores | `src/stores/` | `CartStore`, `FavoritesStore`, `SnapshotStore` |
+| Dialog rendering | `src/dialogs/` | `openMatrixDialog()`, `createTradeDetailsHandler()` |
+| Favorites UI | `src/favorites/` | `renderFavoritesDialog()` |
+| Map/tile logic | `src/map/` | `TileLoader`, `fetchPlayers()` |
+| Navigation modules | `src/navigation/` | `createShopTooltipHandler()` |
+| Search/deviation | `src/search/` | `calculateDeviation()` |
+| Shared coordinates | `tile-coords.ts` | `blockToTile()`, `tileToBlock()` |
 | BDD scenarios | `features/*.feature` | Browser integration tests |
 | Unit tests | `src/*.test.ts` | Pure function tests |
 
@@ -255,6 +289,12 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 | **Core Blocks** | Base currencies: Emerald, Diamond, Gold, Iron, Netherite blocks |
 | **Route** | Optimized order to visit shops in cart |
 | **Independent Shops** | Shops >16 blocks apart (prevents price manipulation) |
+| **Favorites / Watchlist** | User-curated list of watched items with optional threshold filters |
+| **Threshold** | Per-favorite deviation filter (e.g., ≤−25%) — only show deals at or below |
+| **Dashboard** | Banner showing new trades, price drops, and watchlist hits since last visit |
+| **Snapshot** | localStorage record of trade deviations at a point in time |
+| **Rolling Snapshot** | Compact history of snapshots with key deduplication for baseline comparison |
+| **Player Interpolation** | Smooth marker movement between polled positions using velocity extrapolation |
 
 ## Tile System Workflow
 
@@ -395,6 +435,7 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-008](docs/adr/008-nether-coordinate-system.md) - Nether coordinate normalization
 - [ADR-009](docs/adr/009-tile-caching-strategy.md) - Tile caching with blob URLs
 - [ADR-010](docs/adr/010-tile-loading-minimization.md) - Minimizing external tile requests
+- [ADR-011](docs/adr/011-player-position-interpolation.md) - Smooth player position interpolation
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code

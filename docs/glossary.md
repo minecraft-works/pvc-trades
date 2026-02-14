@@ -137,6 +137,27 @@ A square map image at a specific zoom level and coordinate. Format: `tiles/{worl
 ### Virtual Scroller
 Performance optimization that only renders visible rows in long lists, recycling DOM elements as the user scrolls.
 
+### Favorites / Watchlist
+A user-curated list of items they want to track. Each favorite can have an optional **threshold** filter. When the dashboard detects trades for favorited items, they appear in the **Watchlist Deals** section.
+
+### Threshold
+A per-favorite deviation filter (e.g., ≤−25%). Only trades at or below this deviation level trigger a watchlist hit in the dashboard. Items with no threshold show all matching trades.
+
+### Dashboard / Daily Deals
+A collapsible banner at the top of the page that shows changes since the user's last visit:
+- **New Trades**: Trades not present in the previous snapshot
+- **Price Drops**: Trades whose deviation improved by ≥5 percentage points
+- **Watchlist Deals**: Favorited items with matching trades, sorted by most decreased deviation
+
+### Snapshot
+A localStorage record of all trade deviations at a point in time. Used as a baseline for dashboard comparison.
+
+### Rolling Snapshot
+A compact history of snapshots stored with key deduplication. Format: `{ keys: string[], snapshots: [{ t: number, v: [dev|null, stock][] }] }`. Snapshots are appended at intervals (minimum 1h) and pruned to keep the most useful baselines.
+
+### Player Interpolation
+Smooth marker movement between polled player positions using velocity extrapolation. Avoids jerky jumps by blending corrections over a correction phase before switching to pure extrapolation.
+
 ## Technical Concepts
 
 ### Filter Result

@@ -47,3 +47,42 @@ Feature: Search and Filter
     When I click the swap search button
     Then the want field should contain "diamond"
     And the give field should contain "emerald"
+
+  # ============================================================================
+  # Clear Search Buttons
+  # ============================================================================
+
+  @search @clear-button
+  Scenario: Clear button is hidden when want field is empty
+    Then the want field clear button should not be visible
+
+  @search @clear-button
+  Scenario: Clear button appears when typing in want field
+    When I search for "emerald" in the want field
+    Then the want field clear button should be visible
+
+  @search @clear-button
+  Scenario: Clear button appears when typing in give field
+    When I search for "diamond" in the give field
+    Then the give field clear button should be visible
+
+  @search @clear-button
+  Scenario: Clicking clear button on want field clears text and re-searches
+    Given I search for "emerald" in the want field
+    When I click the want field clear button
+    Then the want field should contain ""
+    And the want field clear button should not be visible
+
+  @search @clear-button
+  Scenario: Clicking clear button on give field clears text and re-searches
+    Given I search for "diamond" in the give field
+    When I click the give field clear button
+    Then the give field should contain ""
+    And the give field clear button should not be visible
+
+  @search @clear-button
+  Scenario: Swap updates clear button visibility
+    Given I search for "emerald" in the want field
+    When I click the swap search button
+    Then the want field clear button should not be visible
+    And the give field clear button should be visible
