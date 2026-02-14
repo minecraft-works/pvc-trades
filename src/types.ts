@@ -344,6 +344,19 @@ export const TradeSnapshotSchema = z.object({
 });
 
 /**
+ * Rolling history of trade snapshots for baseline comparison.
+ * Stores multiple snapshots so the baseline is always ~24h old.
+ */
+export interface SnapshotHistory {
+    /** Ordered list of snapshots (oldest first) */
+    snapshots: TradeSnapshot[];
+}
+
+export const SnapshotHistorySchema = z.object({
+    snapshots: z.array(TradeSnapshotSchema)
+});
+
+/**
  * A price drop detected between two snapshots.
  */
 export interface PriceDrop {

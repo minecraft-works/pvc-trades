@@ -23,6 +23,7 @@ const DASHBOARD_VISIBLE_SELECTOR = '#deals-dashboard:not(.hidden)';
 const DISMISS_BUTTON_SELECTOR = '#dismiss-dashboard';
 const DASHBOARD_SECTIONS_SELECTOR = '#dashboard-sections';
 const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
+const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
 const STORAGE_KEY_SNAPSHOT = 'pvc-trades-snapshot';
@@ -154,7 +155,7 @@ async function setupDashboardMock(page: import('@playwright/test').Page): Promis
  * Create a complete snapshot matching all trades in the dashboard mock data.
  * Default deviations are arbitrary; use overrides for specific test scenarios.
  */
-function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number; stock?: number }> = {}): object {
+function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number; stock?: number }> = {}, timestampOverride?: number): object {
     const baseTrades: Record<string, { deviationPercent?: number; stock: number }> = {
         [MOCK_TRADE_KEYS.cheapDiamonds]:  { deviationPercent: -43, stock: 10 },
         [MOCK_TRADE_KEYS.fairDiamonds]:   { deviationPercent: -14, stock: 20 },
@@ -168,9 +169,25 @@ function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number
     }
 
     return {
-        timestamp: Date.now() - 3_600_000, // 1 hour ago
+        timestamp: timestampOverride ?? Date.now() - 25 * 3_600_000, // 25 hours ago (baseline-worthy)
         trades: baseTrades,
     };
+}
+
+/**
+ * Wrap a snapshot in the rolling history format for localStorage.
+ */
+function wrapAsHistory(snapshot: object): object {
+    return { snapshots: [snapshot] };
+}
+
+/**
+ * Store a snapshot in localStorage using the rolling history format.
+ */
+async function storeSnapshotHistory(page: import('@playwright/test').Page, snapshot: object): Promise<void> {
+    await page.evaluate((data) => {
+        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(data));
+    }, wrapAsHistory(snapshot));
 }
 
 /**
@@ -208,9 +225,7 @@ Given('I have a previous snapshot with different prices', async ({ page }) => {
         [MOCK_TRADE_KEYS.cheapDiamonds]:  { deviationPercent: 10, stock: 10 },
         [MOCK_TRADE_KEYS.priceyDiamonds]: { deviationPercent: 50, stock: 15 },
     });
-    await page.evaluate((data) => {
-        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(data));
-    }, snapshot);
+    await storeSnapshotHistory(page, snapshot);
 });
 
 Given('I have a previous snapshot with identical prices', async ({ page }) => {
@@ -219,12 +234,13 @@ Given('I have a previous snapshot with identical prices', async ({ page }) => {
 
     const currentSnapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     if (currentSnapshot) {
-        // Set timestamp to 1 hour ago so dashboard treats it as a previous visit
+        // Extract the latest snapshot, set timestamp to 25h ago (baseline-worthy)
         const parsed = JSON.parse(currentSnapshot);
-        parsed.timestamp = Date.now() - 3_600_000;
+        const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+        snapshot.timestamp = Date.now() - 25 * 3_600_000;
         await page.evaluate(({ key, data }) => {
             localStorage.setItem(key, JSON.stringify(data));
-        }, { key: STORAGE_KEY_SNAPSHOT, data: parsed });
+        }, { key: STORAGE_KEY_SNAPSHOT, data: { snapshots: [snapshot] } });
     }
 });
 
@@ -235,7 +251,7 @@ Given('I have a previous snapshot missing some trades', async ({ page }) => {
         const parsed = data as { trades: Record<string, unknown> };
         delete parsed.trades[key1];
         delete parsed.trades[key2];
-        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(parsed));
+        localStorage.setItem('pvc-trades-snapshot', JSON.stringify({ snapshots: [parsed] }));
     }, {
         data: snapshot,
         key1: MOCK_TRADE_KEYS.cheapDiamonds,
@@ -252,9 +268,7 @@ Given('I have a previous snapshot with higher deviations', async ({ page }) => {
         [MOCK_TRADE_KEYS.priceyDiamonds]: { deviationPercent: 50,  stock: 15 },
         [MOCK_TRADE_KEYS.overpriced]:     { deviationPercent: 160, stock: 5 },
     });
-    await page.evaluate((data) => {
-        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(data));
-    }, snapshot);
+    await storeSnapshotHistory(page, snapshot);
 });
 
 Given('I have a previous snapshot with slightly better deviations', async ({ page }) => {
@@ -264,15 +278,17 @@ Given('I have a previous snapshot with slightly better deviations', async ({ pag
     const currentSnapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     if (currentSnapshot) {
         const parsed = JSON.parse(currentSnapshot);
-        for (const key of Object.keys(parsed.trades)) {
-            if (parsed.trades[key].deviationPercent !== undefined) {
-                parsed.trades[key].deviationPercent += 2;
+        // Extract the latest snapshot from history or legacy format
+        const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+        for (const key of Object.keys(snapshot.trades)) {
+            if (snapshot.trades[key].deviationPercent !== undefined) {
+                snapshot.trades[key].deviationPercent += 2;
             }
         }
-        parsed.timestamp = Date.now() - 3_600_000;
+        snapshot.timestamp = Date.now() - 25 * 3_600_000;
         await page.evaluate(({ key, data }) => {
             localStorage.setItem(key, JSON.stringify(data));
-        }, { key: STORAGE_KEY_SNAPSHOT, data: parsed });
+        }, { key: STORAGE_KEY_SNAPSHOT, data: { snapshots: [snapshot] } });
     }
 });
 
@@ -296,6 +312,14 @@ Given('localStorage contains an empty snapshot', async ({ page }) => {
     }, STORAGE_KEY_SNAPSHOT);
 });
 
+Given('I have an old snapshot from {int} hours ago', async ({ page }, hours: number) => {
+    const snapshot = buildFullSnapshot({
+        [MOCK_TRADE_KEYS.cheapDiamonds]:  { deviationPercent: 10, stock: 10 },
+        [MOCK_TRADE_KEYS.priceyDiamonds]: { deviationPercent: 50, stock: 15 },
+    }, Date.now() - hours * 60 * 60 * 1000);
+    await storeSnapshotHistory(page, snapshot);
+});
+
 // ============================================================================
 // WHEN Steps
 // ============================================================================
@@ -308,6 +332,10 @@ When('I dismiss the dashboard', async ({ page }) => {
     await page.locator(DISMISS_BUTTON_SELECTOR).click();
 });
 
+When('I click the dashboard toggle button', async ({ page }) => {
+    await page.locator(DASHBOARD_TOGGLE_SELECTOR).click();
+});
+
 // ============================================================================
 // THEN Steps — Dashboard Visibility
 // ============================================================================
@@ -315,6 +343,11 @@ When('I dismiss the dashboard', async ({ page }) => {
 Then('the deals dashboard should be visible', async ({ page }) => {
     const dashboard = page.locator(DASHBOARD_VISIBLE_SELECTOR);
     await expect(dashboard).toBeVisible({ timeout: 5000 });
+});
+
+Then('the dashboard toggle button should be visible', async ({ page }) => {
+    const toggle = page.locator(DASHBOARD_TOGGLE_SELECTOR);
+    await expect(toggle).toBeVisible({ timeout: 5000 });
 });
 
 Then('the deals dashboard should not be visible', async ({ page }) => {
@@ -371,35 +404,55 @@ Then('the dashboard should not show a watchlist section', async ({ page }) => {
 // ============================================================================
 
 Then('a trade snapshot should be saved in localStorage', async ({ page }) => {
-    const snapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
-    expect(snapshot).not.toBeNull();
-    const parsed = JSON.parse(snapshot!);
-    expect(parsed).toHaveProperty('timestamp');
-    expect(parsed).toHaveProperty('trades');
+    const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    // Accept both history format and legacy single snapshot
+    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    expect(snapshot).toHaveProperty('timestamp');
+    expect(snapshot).toHaveProperty('trades');
 });
 
 Then('the snapshot should contain trade entries', async ({ page }) => {
-    const snapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
-    expect(snapshot).not.toBeNull();
-    const parsed = JSON.parse(snapshot!);
-    const tradeCount = Object.keys(parsed.trades).length;
+    const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const tradeCount = Object.keys(snapshot.trades).length;
     expect(tradeCount).toBeGreaterThan(0);
 });
 
 Then('the snapshot timestamp should be recent', async ({ page }) => {
-    const snapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
-    expect(snapshot).not.toBeNull();
-    const parsed = JSON.parse(snapshot!);
+    const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
     const now = Date.now();
     // Timestamp should be within last 30 seconds
-    expect(now - parsed.timestamp).toBeLessThan(30_000);
+    expect(now - snapshot.timestamp).toBeLessThan(30_000);
+});
+
+Then('the snapshot timestamp should not have changed', async ({ page }) => {
+    const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    // The baseline snapshot was set 25h ago by buildFullSnapshot()
+    // loadBaseline picks it as the ~24h-old baseline. appendIfDue may add a new
+    // snapshot, but the original 25h-old entry should still be in the history.
+    const snapshots = parsed.snapshots ?? [parsed];
+    const oldest = snapshots[0];
+    const age = Date.now() - oldest.timestamp;
+    // Original was 25h ago → age should be ~25h ± 30s
+    expect(age).toBeGreaterThan(24 * 3_600_000);
+    expect(age).toBeLessThan(26 * 3_600_000);
 });
 
 Then('every visible trade should have a snapshot entry', async ({ page }) => {
-    const snapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
-    expect(snapshot).not.toBeNull();
-    const parsed = JSON.parse(snapshot!);
-    const tradeKeys = Object.keys(parsed.trades);
+    const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const tradeKeys = Object.keys(snapshot.trades);
 
     // The mock data has 7 trades (5 shops, one has 2 recipes)
     expect(tradeKeys.length).toBeGreaterThanOrEqual(5);

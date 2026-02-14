@@ -10,42 +10,37 @@ Feature: Zoom Behavior
 
   # ============================================================================
   # Height-Based Zoom (Y coordinate)
-  # Thresholds:
-  #   - Y ≤ 80:  zoom 2 (ground level — maximum detail)
-  #   - Y ≤ 120: zoom 1 (rooftops / low hills)
-  #   - Y ≤ 160: zoom 0 (medium altitude)
-  #   - Y ≤ 200: zoom -1 (high altitude)
-  #   - Y ≤ 256: zoom -2 (very high)
-  #   - Y > 256: zoom -3 (maximum out — elytra / extreme height)
+  # Linear interpolation: Y=63 → zoom 2, Y=300 → zoom -3
+  # Clamped outside this range. Step assertions use ±1 tolerance.
   # ============================================================================
 
   @zoom @height @wip
-  Scenario: Maximum zoom at ground level (Y ≤ 80)
+  Scenario: Maximum zoom at ground level (Y ≤ 63)
     When player is at position (100, 64, 200)
     Then the map should be at zoom level 2 (maximum)
 
   @zoom @height @wip
-  Scenario: Zoom out slightly at rooftop height (Y 80-120)
+  Scenario: High zoom at low altitude (Y ~100)
     When player is at position (100, 100, 200)
     Then the map should be at zoom level 1
 
   @zoom @height @wip
-  Scenario: Medium zoom at moderate altitude (Y 120-160)
+  Scenario: Medium zoom at moderate altitude (Y ~140)
     When player is at position (100, 140, 200)
     Then the map should be at zoom level 0
 
   @zoom @height @wip
-  Scenario: Zoom out at high altitude (Y 160-200)
-    When player is at position (100, 180, 200)
+  Scenario: Low zoom at high altitude (Y ~200)
+    When player is at position (100, 200, 200)
     Then the map should be at zoom level -1
 
   @zoom @height @wip
-  Scenario: Further zoom out at very high altitude (Y 200-256)
-    When player is at position (100, 230, 200)
+  Scenario: Very low zoom at high altitude (Y ~250)
+    When player is at position (100, 250, 200)
     Then the map should be at zoom level -2
 
   @zoom @height @wip
-  Scenario: Maximum zoom out at extreme height (Y > 256)
+  Scenario: Minimum zoom at extreme height (Y ≥ 300)
     When player is at position (100, 300, 200)
     Then the map should be at zoom level -3
 

@@ -637,32 +637,36 @@ function triggerSearch(): void {
 
 /**
  * Show the daily deals dashboard banner.
- * Loads previous snapshot, computes diff against current data, renders banner.
- * Always saves a fresh snapshot after computing, so the next visit compares against now.
+ * Loads baseline snapshot (~24h old), computes diff against current data, renders banner.
+ * Appends a new snapshot to the rolling history if the save interval has elapsed.
  */
 function showDashboard(): void {
-    const previousSnapshot = snapshotStore.load();
+    const baseline = snapshotStore.loadBaseline();
     const favorites = favoritesStore.getAll();
 
     const dashboardData = computeDashboardData(
         allTrades,
         getDeviation,
-        previousSnapshot,
+        baseline,
         favorites,
         DASHBOARD.PRICE_DROP_THRESHOLD
     );
 
-    // Always save a fresh snapshot for next visit
-    snapshotStore.save(allTrades, getDeviation);
+    // Append a new snapshot to the rolling history (respects 6h interval)
+    snapshotStore.appendIfDue(allTrades, getDeviation);
 
     // Only show banner if there's something to report
     const hasContent = dashboardData.watchlistHits.length > 0
         || dashboardData.newTradeKeys.length > 0
         || dashboardData.priceDrops.length > 0;
 
-    if (!hasContent || !previousSnapshot) {
+    if (!hasContent || !baseline) {
         return;
     }
+
+    // Show the toggle button so user can re-open after dismiss
+    const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
+    toggleButton?.classList.remove('hidden');
 
     renderDashboard(dashboardData);
 }
@@ -673,6 +677,7 @@ const SECTION_CLASS = 'dashboard-section';
 
 // Dashboard element selectors
 const DASHBOARD_SELECTOR = '#deals-dashboard';
+const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 
 /**
  * Format a deviation value as a signed percentage string.
@@ -744,10 +749,13 @@ function buildNewTradesSection(count: number): HTMLDivElement {
 /**
  * Build the price drops section HTML.
  */
-function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
+function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
-    const dropItems = drops.map(drop => {
+    // Only show drops that fell below median (negative deviation)
+    const belowMedian = drops.filter(drop => drop.newDeviation < 0);
+    if (belowMedian.length === 0) { return undefined; }
+    const dropItems = belowMedian.map(drop => {
         const deviationText = formatDeviationText(drop.newDeviation);
         const oldText = formatDeviationText(drop.oldDeviation);
         return `<div class="dashboard-item">
@@ -757,7 +765,7 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement {
         </div>`;
     }).join('');
     section.innerHTML = `
-        <div class="dashboard-section-title">📉 Price Drops (${drops.length})</div>
+        <div class="dashboard-section-title">📉 Price Drops (${belowMedian.length})</div>
         <div class="dashboard-section-items">${dropItems}</div>
     `;
     return section;
@@ -786,7 +794,10 @@ function renderDashboard(data: DashboardData): void {
         sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
     }
     if (data.priceDrops.length > 0) {
-        sectionsElement.append(buildPriceDropsSection(data.priceDrops));
+        const priceDropsSection = buildPriceDropsSection(data.priceDrops);
+        if (priceDropsSection) {
+            sectionsElement.append(priceDropsSection);
+        }
     }
 
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
@@ -798,6 +809,14 @@ function dismissDashboard(): void {
     const dashboard = document.querySelector(DASHBOARD_SELECTOR);
     if (dashboard) {
         dashboard.classList.add('hidden');
+    }
+}
+
+/** Toggle the dashboard banner visibility */
+function toggleDashboard(): void {
+    const dashboard = document.querySelector(DASHBOARD_SELECTOR);
+    if (dashboard) {
+        dashboard.classList.toggle('hidden');
     }
 }
 
@@ -2905,6 +2924,9 @@ document.addEventListener('DOMContentLoaded', () => {
     getElement('open-matrix').addEventListener('click', () => {
         openDialog(DIALOG_IDS.MATRIX, renderMatrixDialog);
     });
+
+    // Dashboard toggle
+    document.querySelector(DASHBOARD_TOGGLE_SELECTOR)?.addEventListener('click', toggleDashboard);
 
     // Map dialog
     const mapDialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);

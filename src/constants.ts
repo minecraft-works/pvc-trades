@@ -23,6 +23,18 @@ export const NAVIGATION = {
     RECALCULATION_THRESHOLD: 10,
 } as const;
 
+/** Height-based zoom configuration for navigation map */
+export const ZOOM_HEIGHT = {
+    /** Player Y coordinate at which zoom is at maximum (ground level) */
+    MIN_HEIGHT: 63,
+    /** Player Y coordinate at which zoom is at minimum (high altitude) */
+    MAX_HEIGHT: 300,
+    /** Zoom level at MIN_HEIGHT (closest / most detail) */
+    MAX_ZOOM: 2,
+    /** Zoom level at MAX_HEIGHT (furthest / most overview) */
+    MIN_ZOOM: -3,
+} as const;
+
 // ============================================================================
 // Deviation Constants
 // ============================================================================
@@ -68,6 +80,12 @@ export const STORAGE_KEYS = {
 export const DASHBOARD = {
     /** Minimum deviation improvement (percentage points) to count as a price drop */
     PRICE_DROP_THRESHOLD: 5,
+    /** Target baseline age: compare against a snapshot ~24h old */
+    BASELINE_TARGET_AGE_MS: 24 * 60 * 60 * 1000,
+    /** Minimum interval between saving new snapshots (6 hours) */
+    SNAPSHOT_INTERVAL_MS: 6 * 60 * 60 * 1000,
+    /** Maximum snapshot age before pruning (30 hours) */
+    SNAPSHOT_MAX_AGE_MS: 30 * 60 * 60 * 1000,
 } as const;
 
 // ============================================================================
