@@ -1983,58 +1983,47 @@ describe('buildStopTooltip', () => {
 // ============================================================================
 
 describe('getZoomForHeight', () => {
-    test('returns zoom 2 at ground level (Y ≤ 80)', () => {
+    // Linear interpolation: Y=63 → zoom 2, Y=300 → zoom -3
+    // slope = (−3 − 2) / (300 − 63) = −5 / 237
+
+    test('returns max zoom at or below ground level (Y ≤ 63)', () => {
+        expect(getZoomForHeight(-64)).toBe(2);
         expect(getZoomForHeight(0)).toBe(2);
-        expect(getZoomForHeight(64)).toBe(2);
-        expect(getZoomForHeight(80)).toBe(2);
+        expect(getZoomForHeight(63)).toBe(2);
     });
 
-    test('returns zoom 1 at rooftop height (Y 81-120)', () => {
-        expect(getZoomForHeight(81)).toBe(1);
-        expect(getZoomForHeight(100)).toBe(1);
-        expect(getZoomForHeight(120)).toBe(1);
-    });
-
-    test('returns zoom 0 at medium altitude (Y 121-160)', () => {
-        expect(getZoomForHeight(121)).toBe(0);
-        expect(getZoomForHeight(140)).toBe(0);
-        expect(getZoomForHeight(160)).toBe(0);
-    });
-
-    test('returns zoom -1 at high altitude (Y 161-200)', () => {
-        expect(getZoomForHeight(161)).toBe(-1);
-        expect(getZoomForHeight(180)).toBe(-1);
-        expect(getZoomForHeight(200)).toBe(-1);
-    });
-
-    test('returns zoom -2 at very high altitude (Y 201-256)', () => {
-        expect(getZoomForHeight(201)).toBe(-2);
-        expect(getZoomForHeight(230)).toBe(-2);
-        expect(getZoomForHeight(256)).toBe(-2);
-    });
-
-    test('returns zoom -3 at extreme height (Y > 256)', () => {
-        expect(getZoomForHeight(257)).toBe(-3);
+    test('returns min zoom at or above max height (Y ≥ 300)', () => {
         expect(getZoomForHeight(300)).toBe(-3);
         expect(getZoomForHeight(320)).toBe(-3);
+        expect(getZoomForHeight(500)).toBe(-3);
+    });
+
+    test('returns exact midpoint zoom at midpoint height', () => {
+        const midY = (63 + 300) / 2; // 181.5
+        const midZoom = (2 + -3) / 2; // -0.5
+        expect(getZoomForHeight(midY)).toBeCloseTo(midZoom, 5);
+    });
+
+    test('interpolates linearly between boundaries', () => {
+        // At Y=63: zoom = 2, at Y=300: zoom = -3
+        // Quarter: Y = 63 + 0.25 * 237 = 122.25, zoom = 2 + 0.25 * (-5) = 0.75
+        expect(getZoomForHeight(122.25)).toBeCloseTo(0.75, 5);
+        // Three-quarters: Y = 63 + 0.75 * 237 = 240.75, zoom = 2 + 0.75 * (-5) = -1.75
+        expect(getZoomForHeight(240.75)).toBeCloseTo(-1.75, 5);
+    });
+
+    test('is monotonically decreasing within range', () => {
+        const heights = [63, 80, 100, 120, 150, 200, 250, 300];
+        for (let index = 1; index < heights.length; index++) {
+            const previousZoom = getZoomForHeight(heights[index - 1] ?? 0);
+            const currentZoom = getZoomForHeight(heights[index] ?? 0);
+            expect(currentZoom).toBeLessThanOrEqual(previousZoom);
+        }
     });
 
     test('handles negative Y values (below bedrock)', () => {
         expect(getZoomForHeight(-64)).toBe(2);
         expect(getZoomForHeight(-1)).toBe(2);
-    });
-
-    test('returns correct zoom at exact boundary values', () => {
-        expect(getZoomForHeight(80)).toBe(2);
-        expect(getZoomForHeight(81)).toBe(1);
-        expect(getZoomForHeight(120)).toBe(1);
-        expect(getZoomForHeight(121)).toBe(0);
-        expect(getZoomForHeight(160)).toBe(0);
-        expect(getZoomForHeight(161)).toBe(-1);
-        expect(getZoomForHeight(200)).toBe(-1);
-        expect(getZoomForHeight(201)).toBe(-2);
-        expect(getZoomForHeight(256)).toBe(-2);
-        expect(getZoomForHeight(257)).toBe(-3);
     });
 });
 

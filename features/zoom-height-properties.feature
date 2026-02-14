@@ -1,99 +1,73 @@
 @zoom @property
 Feature: Zoom Height Properties
-  Property-based tests for zoom level height thresholds
+  Property-based tests for linear zoom interpolation based on player Y height
   
   Verifies that:
-  - Correct zoom levels are selected based on player Y height
-  - Threshold boundaries behave correctly
-  - Zoom works identically in overworld and nether
+  - Zoom is clamped at ground level (Y ≤ 63) and max altitude (Y ≥ 300)
+  - Zoom interpolates linearly between Y=63 (zoom 2) and Y=300 (zoom -3)
+  - Zoom is monotonically decreasing with height
 
   Background:
     Given the navigation test app is configured
 
   # ===========================================================================
-  # Zoom Level Height Thresholds
+  # Clamped Values (below and above range)
   # ===========================================================================
-  # Thresholds: Y ≤ 80, ≤ 120, ≤ 160, ≤ 200, ≤ 256, > 256
 
-  @zoom @property @thresholds
-  Scenario Outline: Correct zoom level for height ranges
+  @zoom @property @clamped
+  Scenario Outline: Zoom clamped at boundary heights
     Given the player height is <y>
     When I calculate the zoom level for that height
-    Then the zoom level should be <expected_zoom>
+    Then the zoom level should be approximately <expected_zoom>
 
-    Examples: Ground level (Y ≤ 80) → Zoom 2
+    Examples: Below ground (Y ≤ 63) → Zoom 2
       | y   | expected_zoom |
       | -64 | 2             |
       | 0   | 2             |
-      | 64  | 2             |
-      | 80  | 2             |
+      | 63  | 2             |
 
-    Examples: Rooftops (Y 81-120) → Zoom 1
+    Examples: Above max height (Y ≥ 300) → Zoom -3
       | y   | expected_zoom |
-      | 81  | 1             |
-      | 100 | 1             |
-      | 120 | 1             |
-
-    Examples: Medium altitude (Y 121-160) → Zoom 0
-      | y   | expected_zoom |
-      | 121 | 0             |
-      | 140 | 0             |
-      | 160 | 0             |
-
-    Examples: High altitude (Y 161-200) → Zoom -1
-      | y   | expected_zoom |
-      | 161 | -1            |
-      | 180 | -1            |
-      | 200 | -1            |
-
-    Examples: Very high (Y 201-256) → Zoom -2
-      | y   | expected_zoom |
-      | 201 | -2            |
-      | 230 | -2            |
-      | 256 | -2            |
-
-    Examples: Extreme height (Y > 256) → Zoom -3
-      | y   | expected_zoom |
-      | 257 | -3            |
       | 300 | -3            |
       | 320 | -3            |
       | 500 | -3            |
 
   # ===========================================================================
-  # Boundary Value Tests (Exact Thresholds)
+  # Linear Interpolation Samples
   # ===========================================================================
 
-  @zoom @property @boundaries
-  Scenario Outline: Zoom level at exact threshold boundaries
+  @zoom @property @interpolation
+  Scenario Outline: Zoom interpolates linearly between ground and max height
     Given the player height is <y>
-    When I calculate the zoom level
-    Then the zoom level should be <expected_zoom>
+    When I calculate the zoom level for that height
+    Then the zoom level should be approximately <expected_zoom>
 
-    Examples: Exact boundaries
-      | y   | expected_zoom |
-      | 79  | 2             |
-      | 80  | 2             |
-      | 81  | 1             |
-      | 119 | 1             |
-      | 120 | 1             |
-      | 121 | 0             |
-      | 159 | 0             |
-      | 160 | 0             |
-      | 161 | -1            |
-      | 199 | -1            |
-      | 200 | -1            |
-      | 201 | -2            |
-      | 255 | -2            |
-      | 256 | -2            |
-      | 257 | -3            |
+    Examples: Sample heights across the range
+      | y     | expected_zoom |
+      | 63    | 2             |
+      | 110.4 | 1             |
+      | 157.8 | 0             |
+      | 205.2 | -1            |
+      | 252.6 | -2            |
+      | 300   | -3            |
+
+  # ===========================================================================
+  # Monotonicity
+  # ===========================================================================
+
+  @zoom @property @monotonic
+  Scenario: Zoom decreases monotonically with increasing height
+    Given these player heights: 0, 63, 80, 100, 130, 181, 250, 300, 400
+    When I calculate the zoom levels for all heights
+    Then each zoom level should be less than or equal to the previous
 
   # ===========================================================================
   # Zoom Level Stability
   # ===========================================================================
 
   @zoom @property @stability
-  Scenario: Zoom level doesn't oscillate at boundaries
-    Given the player is bobbing between height 79 and 81
-    When the player crosses the 80 block boundary multiple times
+  Scenario: Zoom level changes smoothly at boundaries
+    Given the player is bobbing between height 62 and 64
+    When the player crosses the 63 block boundary multiple times
     Then the zoom level should not rapidly change
     And there should be at most 4 zoom changes

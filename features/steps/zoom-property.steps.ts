@@ -1,6 +1,6 @@
 /**
  * Step definitions for zoom height property tests
- * Tests zoom level calculation based on player Y height thresholds
+ * Tests linear zoom interpolation based on player Y height
  */
 import { expect } from '@playwright/test';
 import { Given, When, Then, type BasePageTracking } from './fixtures';
@@ -8,25 +8,20 @@ import type { Page } from '@playwright/test';
 import { setupColoredTileMocks, setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
 
 // ============================================================================
-// Zoom level thresholds (from the app — matches getZoomForHeight in library.ts)
+// Linear zoom interpolation (matches getZoomForHeight in library.ts)
 // ============================================================================
 
-const HEIGHT_THRESHOLDS = [
-    { maxHeight: 80, zoom: 2 },
-    { maxHeight: 120, zoom: 1 },
-    { maxHeight: 160, zoom: 0 },
-    { maxHeight: 200, zoom: -1 },
-    { maxHeight: 256, zoom: -2 },
-    { maxHeight: Infinity, zoom: -3 },
-];
+const MIN_HEIGHT = 63;
+const MAX_HEIGHT = 300;
+const MAX_ZOOM = 2;
+const MIN_ZOOM = -3;
 
 function getZoomLevelForHeight(y: number): number {
-    for (const threshold of HEIGHT_THRESHOLDS) {
-        if (y <= threshold.maxHeight) {
-            return threshold.zoom;
-        }
-    }
-    return -3;
+    if (y <= MIN_HEIGHT) { return MAX_ZOOM; }
+    if (y >= MAX_HEIGHT) { return MIN_ZOOM; }
+
+    const t = (y - MIN_HEIGHT) / (MAX_HEIGHT - MIN_HEIGHT);
+    return MAX_ZOOM + t * (MIN_ZOOM - MAX_ZOOM);
 }
 
 // ============================================================================
@@ -37,6 +32,7 @@ interface PageWithZoomTracking extends Page, BasePageTracking {
     __playerY?: number;
     __calculatedZoom?: number;
     __zoomChanges?: number[];
+    __calculatedZooms?: number[];
 }
 
 // ============================================================================
@@ -51,7 +47,7 @@ Given('the navigation test app is configured', async ({ page }) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
-Given('the player height is {int}', async ({ page }, y: number) => {
+Given('the player height is {float}', async ({ page }, y: number) => {
     const p = page as PageWithZoomTracking;
     p.__playerY = y;
 });
@@ -63,6 +59,13 @@ Given('the player is bobbing between height {int} and {int}', async ({ page }, l
     (p as unknown as { __bobbingHigh: number }).__bobbingHigh = high;
     p.__zoomChanges = [];
 });
+
+Given('these player heights: {int}, {int}, {int}, {int}, {int}, {int}, {int}, {int}, {int}',
+    async ({ page }, ...heights: number[]) => {
+        const p = page as PageWithZoomTracking;
+        (p as unknown as { __heightList: number[] }).__heightList = heights;
+    }
+);
 
 // ============================================================================
 // WHEN Steps
@@ -103,6 +106,12 @@ When('the player crosses the {int} block boundary multiple times', async ({ page
     }
 });
 
+When('I calculate the zoom levels for all heights', async ({ page }) => {
+    const p = page as PageWithZoomTracking;
+    const heights = (p as unknown as { __heightList: number[] }).__heightList ?? [];
+    p.__calculatedZooms = heights.map(y => getZoomLevelForHeight(y));
+});
+
 // ============================================================================
 // THEN Steps
 // ============================================================================
@@ -110,6 +119,11 @@ When('the player crosses the {int} block boundary multiple times', async ({ page
 Then('the zoom level should be {int}', async ({ page }, expectedZoom: number) => {
     const p = page as PageWithZoomTracking;
     expect(p.__calculatedZoom).toBe(expectedZoom);
+});
+
+Then('the zoom level should be approximately {int}', async ({ page }, expectedZoom: number) => {
+    const p = page as PageWithZoomTracking;
+    expect(p.__calculatedZoom).toBeCloseTo(expectedZoom, 1);
 });
 
 Then('the zoom level should not rapidly change', async ({ page }) => {
@@ -120,4 +134,12 @@ Then('the zoom level should not rapidly change', async ({ page }) => {
 Then('there should be at most {int} zoom changes', async ({ page }, maxChanges: number) => {
     const p = page as PageWithZoomTracking;
     expect((p.__zoomChanges?.length ?? 0)).toBeLessThanOrEqual(maxChanges);
+});
+
+Then('each zoom level should be less than or equal to the previous', async ({ page }) => {
+    const p = page as PageWithZoomTracking;
+    const zooms = p.__calculatedZooms ?? [];
+    for (let index = 1; index < zooms.length; index++) {
+        expect(zooms[index]).toBeLessThanOrEqual(zooms[index - 1]!);
+    }
 });

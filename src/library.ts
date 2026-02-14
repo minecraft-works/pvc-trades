@@ -72,6 +72,8 @@ import {
 // Import for internal use AND re-export for consumers
 import { getTileCoords,    } from './tile-coords.js';
 
+import { ZOOM_HEIGHT } from './constants.js';
+
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
 // ============================================================================
@@ -1744,38 +1746,28 @@ export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string 
 
 /**
  * Calculate zoom level based on player Y coordinate (height).
- * Used for dynamic zoom in navigation view — higher altitude = more zoomed out.
- * 
- * Height thresholds (Minecraft Y coordinate):
- *   - Y ≤ 80:  zoom 2 (ground level — maximum detail)
- *   - Y ≤ 120: zoom 1 (rooftops / low hills)
- *   - Y ≤ 160: zoom 0 (medium altitude)
- *   - Y ≤ 200: zoom -1 (high altitude)
- *   - Y ≤ 256: zoom -2 (very high)
- *   - Y > 256: zoom -3 (maximum out — elytra / extreme height)
- * 
+ * Uses linear interpolation between ground level and high altitude.
+ * At or below MIN_HEIGHT → MAX_ZOOM (closest).
+ * At or above MAX_HEIGHT → MIN_ZOOM (furthest).
+ * Between them → linearly interpolated.
+ *
  * @param y - Player Y coordinate (height in Minecraft blocks)
- * @returns Zoom level from -3 to 2
- * 
+ * @returns Zoom level (continuous) from MIN_ZOOM to MAX_ZOOM
+ *
  * @example
- * getZoomForHeight(64);  // 2 (ground level)
- * getZoomForHeight(150); // 0 (medium altitude)
- * getZoomForHeight(300); // -3 (extreme height)
+ * getZoomForHeight(63);  // 2 (ground level — max zoom)
+ * getZoomForHeight(300); // -3 (high altitude — min zoom)
+ * getZoomForHeight(181.5); // ~-0.5 (midpoint)
  */
 export function getZoomForHeight(y: number): number {
-    if (y <= 80) {
-        return 2;  // Ground level — maximum detail
-    } else if (y <= 120) {
-        return 1;  // Rooftops / low hills
-    } else if (y <= 160) {
-        return 0;  // Medium altitude
-    } else if (y <= 200) {
-        return -1; // High altitude
-    } else if (y <= 256) {
-        return -2; // Very high
-    } else {
-        return -3; // Maximum out
-    }
+    const { MIN_HEIGHT, MAX_HEIGHT, MAX_ZOOM, MIN_ZOOM } = ZOOM_HEIGHT;
+
+    if (y <= MIN_HEIGHT) { return MAX_ZOOM; }
+    if (y >= MAX_HEIGHT) { return MIN_ZOOM; }
+
+    // Linear interpolation: t goes from 0 (ground) to 1 (max altitude)
+    const t = (y - MIN_HEIGHT) / (MAX_HEIGHT - MIN_HEIGHT);
+    return MAX_ZOOM + t * (MIN_ZOOM - MAX_ZOOM);
 }
 
 /** Simple position for movement comparison */

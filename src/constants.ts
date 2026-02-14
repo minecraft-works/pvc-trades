@@ -23,6 +23,18 @@ export const NAVIGATION = {
     RECALCULATION_THRESHOLD: 10,
 } as const;
 
+/** Height-based zoom configuration for navigation map */
+export const ZOOM_HEIGHT = {
+    /** Player Y coordinate at which zoom is at maximum (ground level) */
+    MIN_HEIGHT: 63,
+    /** Player Y coordinate at which zoom is at minimum (high altitude) */
+    MAX_HEIGHT: 300,
+    /** Zoom level at MIN_HEIGHT (closest / most detail) */
+    MAX_ZOOM: 2,
+    /** Zoom level at MAX_HEIGHT (furthest / most overview) */
+    MIN_ZOOM: -3,
+} as const;
+
 // ============================================================================
 // Deviation Constants
 // ============================================================================
