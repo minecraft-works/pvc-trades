@@ -18,9 +18,9 @@ export default {
     ],
     // Mutation score thresholds
     thresholds: {
-        high: 80,
-        low: 60,
-        break: 50
+        high: 85,
+        low: 70,
+        break: 65
     },
     // Performance settings
     concurrency: 4,
