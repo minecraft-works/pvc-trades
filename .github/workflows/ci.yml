@@ -41,7 +41,7 @@ jobs:
         run: npm test
 
       - name: Run E2E and BDD tests
-        run: npx bddgen && playwright test --project=chromium --grep-invert "@visual|@wip" && playwright test --project=chromium-spec
+        run: npx bddgen && npx playwright test --project=chromium --grep-invert "@visual|@wip" && npx playwright test --project=chromium-spec
 
       - name: Upload test reports
         if: always()
