@@ -975,17 +975,17 @@ function updateSortArrows(): void {
 function renderHeader(): void {
     const header = getElement('table-header');
     header.innerHTML = `
-        <span class="col fav-col-header" title="Filter by favorites">★<span id="favorites-badge" class="favorites-badge hidden"></span></span>
-        <span class="col header amt" data-col="result-amt" data-label="#">#</span>
-        <span class="col header" data-col="result-name" data-label="Item">Item</span>
-        <span class="col header amt" data-col="cost-amt" data-label="#">#</span>
-        <span class="col header" data-col="cost-name" data-label="Cost">Cost</span>
-        <span class="col header dev-header" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
-        <span class="col header stock-header" data-col="stock" data-label="Stock">Stock</span>
-        <span class="col header distance-header" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
-        <span class="col header world-header" data-col="world" data-label="W" title="World">W</span>
-        <span class="col new-col-header" title="Filter new items">🆕</span>
-        <span class="col cart-col-header" title="Add to cart">🛒</span>
+        <span class="col fav-col-header" role="columnheader" title="Filter by favorites">★<span id="favorites-badge" class="favorites-badge hidden"></span></span>
+        <span class="col header amt" role="columnheader" data-col="result-amt" data-label="#">#</span>
+        <span class="col header" role="columnheader" data-col="result-name" data-label="Item">Item</span>
+        <span class="col header amt" role="columnheader" data-col="cost-amt" data-label="#">#</span>
+        <span class="col header" role="columnheader" data-col="cost-name" data-label="Cost">Cost</span>
+        <span class="col header dev-header" role="columnheader" data-col="dev" data-label="Deal" title="Deal quality vs expected price">Deal</span>
+        <span class="col header stock-header" role="columnheader" data-col="stock" data-label="Stock">Stock</span>
+        <span class="col header distance-header" role="columnheader" data-col="distance" data-label="Dist" title="Distance from origin (X, Z)">Dist</span>
+        <span class="col header world-header" role="columnheader" data-col="world" data-label="W" title="World">W</span>
+        <span class="col new-col-header" role="columnheader" title="Filter new items">🆕</span>
+        <span class="col cart-col-header" role="columnheader" title="Add to cart">🛒</span>
     `;
 
     for (const element of header.querySelectorAll<HTMLElement>('.header')) {
@@ -1122,6 +1122,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
 
     const row = document.createElement('div');
     row.className = CSS_CLASSES.TRADE_ROW;
+    row.setAttribute('role', 'row');
     row.dataset['x'] = String(t.x);
     row.dataset['y'] = String(t.y);
     row.dataset['z'] = String(t.z);
@@ -1154,17 +1155,17 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
     const costInfoIcon = costHasDetails ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
     
     row.innerHTML = `
-        <button class="col ${starClass}" data-item="${escapeHtml(t.resultName)}" title="${isFavorite ? 'Edit favorite' : 'Add to favorites'}">★</button>
-        <span class="col result-amt">${showAmount}</span>
-        <span class="col result-name">${resultDisplay}${resultInfoIcon}</span>
-        <span class="col cost-amt">${costAmt}</span>
-        <span class="col cost-name">${costDisplay}${costInfoIcon}</span>
-        <span class="col dev ${devClass}">${devText}</span>
-        <span class="col stock ${stockClass}">${t.displayStock}</span>
-        <span class="col coord distance" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
-        <span class="col coord world" title="${worldTitle}">${worldAbbrev}</span>
-        <span class="col new-col"></span>
-        <button class="col add-to-cart-btn${inCartClass}" data-trade-key="${tradeKey}" title="Add to cart">+</button>
+        <button class="col ${starClass}" role="gridcell" data-item="${escapeHtml(t.resultName)}" title="${isFavorite ? 'Edit favorite' : 'Add to favorites'}">★</button>
+        <span class="col result-amt" role="gridcell">${showAmount}</span>
+        <span class="col result-name" role="gridcell">${resultDisplay}${resultInfoIcon}</span>
+        <span class="col cost-amt" role="gridcell">${costAmt}</span>
+        <span class="col cost-name" role="gridcell">${costDisplay}${costInfoIcon}</span>
+        <span class="col dev ${devClass}" role="gridcell">${devText}</span>
+        <span class="col stock ${stockClass}" role="gridcell">${t.displayStock}</span>
+        <span class="col coord distance" role="gridcell" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
+        <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
+        <span class="col new-col" role="gridcell"></span>
+        <button class="col add-to-cart-btn${inCartClass}" role="gridcell" data-trade-key="${tradeKey}" title="Add to cart">+</button>
     `;
     
     // Star button click handler (opens favorites dialog)
