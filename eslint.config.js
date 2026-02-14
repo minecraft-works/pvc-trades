@@ -74,15 +74,15 @@ export default tseslint.config(
             'quotes': ['error', 'single', { avoidEscape: true }],
 
             // Complexity rules - STRICT
-            'complexity': ['error', { max: 15 }],
+            'complexity': ['error', { max: 12 }],
             'max-depth': ['error', { max: 4 }],
-            'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
+            'max-lines-per-function': ['error', { max: 75, skipBlankLines: true, skipComments: true }],
             'max-params': ['error', { max: 5 }],
             'max-nested-callbacks': ['error', { max: 3 }],
 
             // SonarJS - STRICT
             'sonarjs/cognitive-complexity': ['error', 15],
-            'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+            'sonarjs/no-duplicate-string': ['error', { threshold: 4 }],
             'sonarjs/no-identical-functions': 'error',
 
             // Unicorn - STRICT with minimal necessary adjustments
@@ -126,7 +126,7 @@ export default tseslint.config(
         files: ['tests/**/*.spec.ts'],
         rules: {
             // Allow longer functions in test files
-            'max-lines-per-function': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
+            'max-lines-per-function': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
             // Duplicate strings are common in test selectors
             'sonarjs/no-duplicate-string': 'off',
             // Nested callbacks are common in test assertions

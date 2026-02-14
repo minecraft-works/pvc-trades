@@ -407,62 +407,60 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         triggerSearch();
     }
 
-    function setupFavoritesDialog(): void {
-        // Close favorites dialog
-        document.querySelector('#close-favorites')?.addEventListener('click', () => {
-            (document.querySelector('#favorites-dialog') as HTMLDialogElement)?.close();
-        });
+    /** Handle click delegation on favorites list items */
+    function handleFavoritesListClick(event: Event): void {
+        const target = event.target as HTMLElement;
+        const itemRow = target.closest('.favorites-item') as HTMLElement;
+        const itemName = target.dataset['item'];
 
-        // Favorites list delegation
-        document.querySelector('.favorites-content')?.addEventListener('click', (event) => {
-            const target = event.target as HTMLElement;
-            const itemRow = target.closest('.favorites-item') as HTMLElement;
-            const itemName = target.dataset['item'];
+        if (target.classList.contains('remove-favorite') && itemName) {
+            favoritesStore.remove(itemName);
+            renderFavoritesDialog();
+            updateFavoritesBadge();
+            triggerSearch();
+        }
 
-            // Delete button
-            if (target.classList.contains('remove-favorite') && itemName) {
-                favoritesStore.remove(itemName);
-                renderFavoritesDialog();
-                updateFavoritesBadge();
-                triggerSearch();
-            }
+        if (target.classList.contains('edit-favorite') && itemName && itemRow) {
+            enterEditMode(itemRow);
+        }
 
-            // Edit button - switch to inline edit mode
-            if (target.classList.contains('edit-favorite') && itemName && itemRow) {
-                enterEditMode(itemRow);
-            }
+        if (target.classList.contains('save-favorite') && itemRow) {
+            saveInlineEdit(itemRow);
+        }
 
-            // Save button - save inline edits
-            if (target.classList.contains('save-favorite') && itemRow) {
-                saveInlineEdit(itemRow);
-            }
+        if (target.classList.contains('add-favorite-btn') && itemRow) {
+            addNewFromInlineRow(itemRow);
+        }
+    }
 
-            // Add button - add new item
-            if (target.classList.contains('add-favorite-btn') && itemRow) {
-                addNewFromInlineRow(itemRow);
-            }
-        });
-
-        // Popover button handlers
+    /** Wire popover button handlers */
+    function setupPopoverHandlers(): void {
         const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
         popover?.querySelector('.btn-primary')?.addEventListener('click', saveFavoriteFromPopover);
         popover?.querySelector('.btn-secondary')?.addEventListener('click', hideFavoritePopover);
         popover?.querySelector('.btn-remove')?.addEventListener('click', removeFavoriteFromPopover);
         popover?.querySelector('.popover-close')?.addEventListener('click', hideFavoritePopover);
+    }
 
-        // Add to watchlist button (in search input) - opens dialog with search query
+    function setupFavoritesDialog(): void {
+        document.querySelector('#close-favorites')?.addEventListener('click', () => {
+            (document.querySelector('#favorites-dialog') as HTMLDialogElement)?.close();
+        });
+
+        document.querySelector('.favorites-content')?.addEventListener('click', handleFavoritesListClick);
+
+        setupPopoverHandlers();
+
         document.querySelector('#add-to-watchlist')?.addEventListener('click', () => {
             const searchInput = document.querySelector('#searchWant') as HTMLInputElement;
             const query = searchInput?.value.trim() ?? '';
             openDialogForItem(query);
         });
 
-        // Add new item from inline form
         document.querySelector('#favorites-add-confirm')?.addEventListener('click', () => {
             addNewItemFromInlineForm();
         });
 
-        // Also allow Enter key in the input field
         document.querySelector('#favorites-item-input')?.addEventListener('keydown', (event) => {
             if ((event as KeyboardEvent).key === 'Enter') {
                 addNewItemFromInlineForm();

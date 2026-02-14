@@ -57,6 +57,16 @@ jobs:
       - name: Build for production
         run: npm run build
 
+      - name: Check bundle size (warning at 100kB)
+        run: |
+          SIZE_JSON=$(npx size-limit --json 2>/dev/null || true)
+          SIZE_BYTES=$(echo "$SIZE_JSON" | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');const j=JSON.parse(d);console.log(j[0].size)")
+          SIZE_KB=$((SIZE_BYTES / 1024))
+          echo "Bundle size: ${SIZE_KB} kB"
+          if [ "$SIZE_KB" -gt 100 ]; then
+            echo "::warning::Bundle size is ${SIZE_KB} kB (warning threshold: 100 kB)"
+          fi
+
       - name: Check bundle size
         run: npx size-limit
 
