@@ -2104,6 +2104,41 @@ function filterToGlobalBestDrops(
     return [...bestPerItem.values()];
 }
 
+/** Context for processing a single trade within dashboard computation */
+interface DashboardTradeContext {
+    readonly getDeviation: (trade: Trade) => { percent: number } | undefined;
+    readonly previousSnapshot: TradeSnapshot | undefined;
+    readonly previousTrades: Record<string, TradeSnapshotEntry>;
+    readonly favoritesByName: Map<string, FavoriteItem>;
+    readonly dropThreshold: number;
+    readonly newTradeKeysList: string[];
+    readonly priceDrops: PriceDrop[];
+    readonly watchlistHitMap: Map<string, WatchlistHit>;
+}
+
+/** Process a single trade for dashboard: detect new trades, price drops, and watchlist hits */
+function processDashboardTrade(trade: Trade, context: DashboardTradeContext): void {
+    const key = getTradeKey(trade);
+    const currentDeviation = context.getDeviation(trade);
+    const previous = context.previousTrades[key];
+
+    if (isNewTrade(key, context.previousSnapshot, context.previousTrades)) {
+        context.newTradeKeysList.push(key);
+    }
+
+    const drop = detectPriceDrop(trade, key, currentDeviation, previous, context.dropThreshold);
+    if (drop) {
+        context.priceDrops.push(drop);
+    }
+
+    const normalizedName = trade.resultName.toLowerCase();
+    const favorite = context.favoritesByName.get(normalizedName);
+    if (favorite && currentDeviation) {
+        const previousDeviation = context.previousSnapshot ? previous?.deviationPercent : undefined;
+        updateWatchlistHit(trade, currentDeviation, previousDeviation, favorite, context.watchlistHitMap);
+    }
+}
+
 /**
  * Compute dashboard data by comparing current trades against a previous snapshot.
  * Pure function: no side effects.
@@ -2134,30 +2169,16 @@ export function computeDashboardData(
     const previousTrades = previousSnapshot?.trades ?? {};
     const bestDeviationByItem = buildBestDeviationMap(currentTrades, getDeviation);
 
+    const tradeContext: DashboardTradeContext = {
+        getDeviation, previousSnapshot, previousTrades,
+        favoritesByName, dropThreshold,
+        newTradeKeysList, priceDrops, watchlistHitMap
+    };
+
     for (const trade of currentTrades) {
-        const key = getTradeKey(trade);
-        const currentDeviation = getDeviation(trade);
-        const previous = previousTrades[key];
-
-        if (isNewTrade(key, previousSnapshot, previousTrades)) {
-            newTradeKeysList.push(key);
-        }
-
-        const drop = detectPriceDrop(trade, key, currentDeviation, previous, dropThreshold);
-        if (drop) {
-            priceDrops.push(drop);
-        }
-
-        const normalizedName = trade.resultName.toLowerCase();
-        const favorite = favoritesByName.get(normalizedName);
-        if (favorite && currentDeviation) {
-            const previousDeviation = previousSnapshot ? previous?.deviationPercent : undefined;
-            updateWatchlistHit(trade, currentDeviation, previousDeviation, favorite, watchlistHitMap);
-        }
+        processDashboardTrade(trade, tradeContext);
     }
 
-    // Only keep price drops that resulted in the new global best price for that item.
-    // If potato drops to -20% but another trade already has -40%, the -20% drop is not interesting.
     const filteredDrops = filterToGlobalBestDrops(priceDrops, bestDeviationByItem);
     filteredDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
 

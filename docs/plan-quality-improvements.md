@@ -71,6 +71,22 @@
 
 **Conclusion**: No new pre-commit hooks needed. All new checks run via existing CI jobs or as code changes validated by existing pre-commit hooks (typecheck, lint, unit tests).
 
+## Quality Thresholds (Current)
+
+Tightened in a separate effort — see [plan-tighten-thresholds.md](plan-tighten-thresholds.md) for details.
+
+| Area | Value | File |
+|------|-------|------|
+| Cyclomatic complexity | 12 | `eslint.config.js` |
+| Cognitive complexity | 15 | `eslint.config.js` |
+| Max lines/function | 75 | `eslint.config.js` |
+| Max lines (spec tests) | 200 | `eslint.config.js` (tests override) |
+| Max lines (unit tests) | off | `eslint.config.js` (test override) |
+| Duplicate string threshold | 4 | `eslint.config.js` |
+| Bundle size (fail) | 120 kB | `package.json` size-limit |
+| Bundle size (warn) | 100 kB | `.github/workflows/ci.yml` |
+| Lighthouse performance | 0.70 warn | `lighthouserc.json` |
+
 ## Implementation Order
 
 1. Cart store Zod validation (tiny, fixes consistency gap)

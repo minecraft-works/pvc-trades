@@ -796,6 +796,40 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined 
     return section;
 }
 
+/** Append dashboard sections (watchlist hits, new trades, price drops) */
+function appendDashboardSections(sectionsElement: Element, data: DashboardData): void {
+    sectionsElement.innerHTML = '';
+
+    if (data.watchlistHits.length > 0) {
+        sectionsElement.append(buildWatchlistSection(data.watchlistHits));
+    }
+    if (data.newTradeKeys.length > 0) {
+        sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
+    }
+    if (data.priceDrops.length > 0) {
+        const priceDropsSection = buildPriceDropsSection(data.priceDrops);
+        if (priceDropsSection) {
+            sectionsElement.append(priceDropsSection);
+        }
+    }
+}
+
+/** Wire click handlers on dashboard item links to populate search */
+function wireDashboardItemLinks(container: Element): void {
+    for (const link of container.querySelectorAll('.dashboard-item-link')) {
+        if ((link as HTMLElement).dataset.clickWired) { continue; }
+        (link as HTMLElement).dataset.clickWired = '1';
+        link.addEventListener('click', () => {
+            const searchTerm = (link as HTMLElement).dataset.search ?? '';
+            const wantInput = getElement<HTMLInputElement>('searchWant');
+            wantInput.value = searchTerm;
+            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+            search();
+            wantInput.focus();
+        });
+    }
+}
+
 /**
  * Render the dashboard banner with sections for watchlist hits, new trades, and price drops.
  */
@@ -811,34 +845,9 @@ function renderDashboard(data: DashboardData, options?: { autoOpen: boolean }): 
 
     const sectionsElement = document.querySelector('#dashboard-sections');
     if (!sectionsElement) { return; }
-    sectionsElement.innerHTML = '';
 
-    if (data.watchlistHits.length > 0) {
-        sectionsElement.append(buildWatchlistSection(data.watchlistHits));
-    }
-    if (data.newTradeKeys.length > 0) {
-        sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
-    }
-    if (data.priceDrops.length > 0) {
-        const priceDropsSection = buildPriceDropsSection(data.priceDrops);
-        if (priceDropsSection) {
-            sectionsElement.append(priceDropsSection);
-        }
-    }
-
-    // Wire up clickable item links in all sections (watchlist + price drops)
-    for (const link of sectionsElement.querySelectorAll('.dashboard-item-link')) {
-        if ((link as HTMLElement).dataset.clickWired) { continue; }
-        (link as HTMLElement).dataset.clickWired = '1';
-        link.addEventListener('click', () => {
-            const searchTerm = (link as HTMLElement).dataset.search ?? '';
-            const wantInput = getElement<HTMLInputElement>('searchWant');
-            wantInput.value = searchTerm;
-            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
-            search();
-            wantInput.focus();
-        });
-    }
+    appendDashboardSections(sectionsElement, data);
+    wireDashboardItemLinks(sectionsElement);
 
     document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboard);
     if (autoOpen) {
@@ -1100,63 +1109,38 @@ function getFavoriteInfo(t: Trade): { isFavorite: boolean; isDealAlert: boolean;
     return { isFavorite, isDealAlert, starClass };
 }
 
-/**
- * Create a trade row DOM element for a single result
- */
-function createTradeRowElement(result: FilterResult): HTMLElement {
-    const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
-    const showName = displayName;
-    const showAmount = displayAmount;
-    const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
-
-    const { costAmt, costName } = getCostDisplayInfo(t);
-    const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
-    const resultDisplay = matchResult && currentWantRegex ? highlight(showName, currentWantRegex) : escapeHtml(showName);
-
-    const { devClass, devText } = getDeviationDisplayInfo(t);
-    const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
-
-    // Check if items have additional details (lore/enchants)
-    const resultHasDetails = itemHasDetails(t.resultItem);
-    const costHasDetails = itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2));
-
-    const row = document.createElement('div');
-    row.className = CSS_CLASSES.TRADE_ROW;
-    row.setAttribute('role', 'row');
-    row.dataset['x'] = String(t.x);
-    row.dataset['y'] = String(t.y);
-    row.dataset['z'] = String(t.z);
-    row.dataset['world'] = t.world;
-    
-    const tradeKey = getTradeKey(t);
-    row.dataset['tradeKey'] = tradeKey;
-    const isInCart = cartStore.has(t);
-    const inCartClass = isInCart ? ' in-cart' : '';
-    
-    // Check favorite status (what you're buying)
+/** Apply status classes (favorite, deal-alert, new-item) to a trade row */
+function applyTradeRowClasses(row: HTMLElement, tradeKey: string, t: Trade): { isFavorite: boolean; starClass: string; inCartClass: string } {
     const { isFavorite, isDealAlert, starClass } = getFavoriteInfo(t);
-    
-    if (isFavorite) {
-        row.classList.add('favorite');
-    }
-    if (isDealAlert) {
-        row.classList.add('deal-alert');
-    }
-    
-    // Check if this is a new trade that should be highlighted
-    // Highlights persist until page refresh so users don't miss new items
-    const isNewTrade = newTradeKeys.has(tradeKey);
-    if (isNewTrade) {
+    const inCartClass = cartStore.has(t) ? ' in-cart' : '';
+
+    if (isFavorite) { row.classList.add('favorite'); }
+    if (isDealAlert) { row.classList.add('deal-alert'); }
+
+    if (newTradeKeys.has(tradeKey)) {
         row.classList.add('new-item');
         row.dataset['new'] = 'true';
     }
-    
-    const resultInfoIcon = resultHasDetails ? '<button class="info-icon" data-info="result" title="View details">ℹ</button>' : '';
-    const costInfoIcon = costHasDetails ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
-    
-    row.innerHTML = `
-        <button class="col ${starClass}" role="gridcell" data-item="${escapeHtml(t.resultName)}" title="${isFavorite ? 'Edit favorite' : 'Add to favorites'}">★</button>
-        <span class="col result-amt" role="gridcell">${showAmount}</span>
+
+    return { isFavorite, starClass, inCartClass };
+}
+
+/** Build the inner HTML for a trade row */
+function buildTradeRowHTML(result: FilterResult, info: { isFavorite: boolean; starClass: string; inCartClass: string; tradeKey: string }): string {
+    const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
+    const { costAmt, costName } = getCostDisplayInfo(t);
+    const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
+    const resultDisplay = matchResult && currentWantRegex ? highlight(displayName, currentWantRegex) : escapeHtml(displayName);
+    const { devClass, devText } = getDeviationDisplayInfo(t);
+    const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
+    const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
+    const resultInfoIcon = itemHasDetails(t.resultItem) ? '<button class="info-icon" data-info="result" title="View details">ℹ</button>' : '';
+    const costInfoIcon = (itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2))) ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
+    const starTitle = info.isFavorite ? 'Edit favorite' : 'Add to favorites';
+
+    return `
+        <button class="col ${info.starClass}" role="gridcell" data-item="${escapeHtml(t.resultName)}" title="${starTitle}">★</button>
+        <span class="col result-amt" role="gridcell">${displayAmount}</span>
         <span class="col result-name" role="gridcell">${resultDisplay}${resultInfoIcon}</span>
         <span class="col cost-amt" role="gridcell">${costAmt}</span>
         <span class="col cost-name" role="gridcell">${costDisplay}${costInfoIcon}</span>
@@ -1165,16 +1149,37 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         <span class="col coord distance" role="gridcell" title="X: ${t.x}, Y: ${t.y}, Z: ${t.z}">${Math.round(Math.hypot(t.x, t.z))}</span>
         <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
         <span class="col new-col" role="gridcell"></span>
-        <button class="col add-to-cart-btn${inCartClass}" role="gridcell" data-trade-key="${tradeKey}" title="Add to cart">+</button>
+        <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${info.tradeKey}" title="Add to cart">+</button>
     `;
-    
+}
+
+/**
+ * Create a trade row DOM element for a single result
+ */
+function createTradeRowElement(result: FilterResult): HTMLElement {
+    const { trade: t } = result;
+
+    const row = document.createElement('div');
+    row.className = CSS_CLASSES.TRADE_ROW;
+    row.setAttribute('role', 'row');
+    row.dataset['x'] = String(t.x);
+    row.dataset['y'] = String(t.y);
+    row.dataset['z'] = String(t.z);
+    row.dataset['world'] = t.world;
+
+    const tradeKey = getTradeKey(t);
+    row.dataset['tradeKey'] = tradeKey;
+
+    const info = applyTradeRowClasses(row, tradeKey, t);
+    row.innerHTML = buildTradeRowHTML(result, { ...info, tradeKey });
+
     // Star button click handler (opens favorites dialog)
     const starButton = row.querySelector('.favorite-star') as HTMLButtonElement;
     starButton.addEventListener('click', (event) => {
         event.stopPropagation();
         favoritesUI.openDialogForItem(t.resultName);
     });
-    
+
     const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
     cartButton.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1182,7 +1187,7 @@ function createTradeRowElement(result: FilterResult): HTMLElement {
         cartButton.classList.add('in-cart', 'added');
         setTimeout(() => cartButton.classList.remove('added'), 200);
     });
-    
+
     return row;
 }
 
@@ -1463,32 +1468,34 @@ function setupCartTabs(): void {
     tabNavigate?.addEventListener('click', () => switchTab('navigate'));
 }
 
+/** Toggle CSS class on an element if it exists */
+function setActive(selector: string, active: boolean): void {
+    const element = document.querySelector(selector);
+    if (!element) { return; }
+    element.classList.toggle('active', active);
+}
+
+/** Toggle CSS class 'hidden' on an element if it exists */
+function setHidden(selector: string, hidden: boolean): void {
+    const element = document.querySelector(selector);
+    if (!element) { return; }
+    element.classList.toggle('hidden', hidden);
+}
+
 function switchTab(tab: 'cart' | 'navigate'): void {
-    const tabCart = document.querySelector('#tab-cart');
-    const tabNavigate = document.querySelector('#tab-navigate');
-    const contentCart = document.querySelector('#tab-content-cart');
-    const contentNavigate = document.querySelector('#tab-content-navigate');
-    const clearCartButton = document.querySelector('#clear-cart');
-    const startNavButton = document.querySelector('#start-navigation');
-    
-    if (tab === 'cart') {
-        tabCart?.classList.add('active');
-        tabNavigate?.classList.remove('active');
-        contentCart?.classList.add('active');
-        contentNavigate?.classList.remove('active');
-        clearCartButton?.classList.remove('hidden');
-        startNavButton?.classList.add('hidden');
-    } else {
-        tabCart?.classList.remove('active');
-        tabNavigate?.classList.add('active');
-        contentCart?.classList.remove('active');
-        contentNavigate?.classList.add('active');
-        clearCartButton?.classList.add('hidden');
-        startNavButton?.classList.remove('hidden');
-        // Render navigate tab content when switching to it
+    const isCart = tab === 'cart';
+
+    setActive('#tab-cart', isCart);
+    setActive('#tab-navigate', !isCart);
+    setActive('#tab-content-cart', isCart);
+    setActive('#tab-content-navigate', !isCart);
+    setHidden('#clear-cart', !isCart);
+    setHidden('#start-navigation', isCart);
+
+    if (!isCart) {
         renderNavigateTab();
     }
-    
+
     localStorage.setItem(STORAGE_KEYS.NAV_TAB, tab);
 }
 
@@ -1723,6 +1730,38 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     }
 }
 
+/** Handle portal crossing: reset interpolator, switch view world, reinit map */
+function handlePortalCrossing(player: Player, playerWorld: string, previousWorld: string): boolean {
+    debugNavigation('Player crossed portal from %s to %s, auto-switching view', previousWorld, playerWorld);
+    navigationStore.setViewWorld(playerWorld);
+
+    const interpolator = getInterpolator(player.name);
+    interpolator.reset();
+    pushInterpolatorSample(interpolator, player);
+
+    const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
+    if (worldToggleButton) {
+        worldToggleButton.dataset.world = playerWorld;
+    }
+
+    if (navMap && navCurrentRoute.length > 0) {
+        initNavigationMapDialog(navCurrentRoute);
+        return true; // Map reinitialization handles all updates
+    }
+    return false;
+}
+
+/** Push a position sample from a player to an interpolator */
+function pushInterpolatorSample(interpolator: ReturnType<typeof getInterpolator>, player: Player): void {
+    interpolator.pushSample({
+        x: player.position.x,
+        y: player.position.y,
+        z: player.position.z,
+        yaw: player.rotation?.yaw,
+        timestamp: performance.now()
+    });
+}
+
 function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | undefined): void {
     const playerWorld = getPlayerWorld(player);
     const position = {
@@ -1733,74 +1772,37 @@ function handleFoundPlayer(player: Player, previousPosition: PlayerPosition | un
         yaw: player.rotation?.yaw
     };
     navigationStore.setPlayerPosition(position);
-    
-    // Expose for E2E testing
+
     // @ts-expect-error - exposed for testing
     globalThis.__currentPlayerPosition = position;
-    
+
     // Auto-switch view world when player crosses portals (in auto mode)
     const previousWorld = previousPosition?.world;
-    const playerCrossedPortal = previousWorld && previousWorld !== playerWorld;
-    const shouldAutoSwitch = navigationStore.viewWorldMode === 'auto' && playerCrossedPortal;
-    
-    if (shouldAutoSwitch) {
-        debugNavigation('Player crossed portal from %s to %s, auto-switching view', previousWorld, playerWorld);
-        navigationStore.setViewWorld(playerWorld);
-        
-        // Reset interpolator on portal crossing — can't extrapolate across dimensions
-        const interpolator = getInterpolator(player.name);
-        interpolator.reset();
-        interpolator.pushSample({
-            x: player.position.x,
-            y: player.position.y,
-            z: player.position.z,
-            yaw: player.rotation?.yaw,
-            timestamp: performance.now()
-        });
-        
-        // Update world toggle button state
-        const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
-        if (worldToggleButton) {
-            worldToggleButton.dataset.world = playerWorld;
-        }
-        
-        // Reinitialize map with new view world
-        if (navMap && navCurrentRoute.length > 0) {
-            initNavigationMapDialog(navCurrentRoute);
-            return; // Map reinitialization handles all updates
-        }
+    const playerCrossedPortal = previousWorld !== undefined && previousWorld !== playerWorld;
+    if (navigationStore.viewWorldMode === 'auto' && playerCrossedPortal && handlePortalCrossing(player, playerWorld, previousWorld)) {
+        return;
     }
-    
+
     // Feed sample to interpolator (marker position is updated by the rAF loop)
     const interpolator = getInterpolator(player.name);
-    interpolator.pushSample({
-        x: player.position.x,
-        y: player.position.y,
-        z: player.position.z,
-        yaw: player.rotation?.yaw,
-        timestamp: performance.now()
-    });
+    pushInterpolatorSample(interpolator, player);
     debugInterpolation('sample pushed player=%s phase=%s vx=%.4f vz=%.4f',
         player.name, interpolator.phase, interpolator.velocity.vx, interpolator.velocity.vz);
-    
-    // Update marker icon (nether styling, yaw arrow) — position is handled by rAF loop
+
     updatePlayerMarker();
-    
-    // Authoritative updates use real (non-interpolated) position
     updateLiveDistance();
     checkAutoAdvance();
     updateNearbyShopTooltip();
-    
+
     const currentPos = navigationStore.playerPosition!;
     const positionMoved = hasPositionMoved(previousPosition, currentPos, 1);
-    const shouldRecalcRoute = hasPositionMoved(previousPosition, currentPos, 10);
-    
-    if (shouldRecalcRoute) {
+
+    if (hasPositionMoved(previousPosition, currentPos, 10)) {
         recalculateRouteFromPlayer();
     }
-    
+
     updatePlayerToNextLine();
-    
+
     if (navigationStore.mode === 'follow' && positionMoved) {
         centerMapOnPlayer();
     }
@@ -2594,27 +2596,25 @@ function calculateTileRangeFromView(centerTileX: number, centerTileZ: number): T
     return { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX: viewCenterTileX, centerTileZ: viewCenterTileZ };
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Nested loops for tile loading across zoom levels
-function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
-    const { manifest, worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
-    if (!navMap) {return;}
-    const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
-    // Use map center for positioning (relative to Leaflet origin), fall back to tileRange center
-    const positionCenterX = mapCenterTileX ?? centerTileX;
-    const positionCenterZ = mapCenterTileZ ?? centerTileZ;
+interface TileLoadContext {
+    map: L.Map;
+    manifest: Set<string>;
+    worldId: string;
+    minTileX: number;
+    maxTileX: number;
+    minTileZ: number;
+    maxTileZ: number;
+    positionCenterX: number;
+    positionCenterZ: number;
+    addedToMap: Set<string>;
+}
+
+/** Load zoom 4 base layer tiles for navigation map */
+function loadZoom4Tiles(context: TileLoadContext): { loaded: number; skipped: number } {
+    const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
+    let loaded = 0;
+    let skipped = 0;
     const zoom4TileSize = TILE_CONFIG.tileSize * 16;
-    const currentZoom = navMap.getZoom();
-    
-    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d] zoom=%d', 
-        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ, currentZoom);
-    debugTiles('loadNavMapTiles: manifest size=%d, checking zoom4 (8192) and zoom8 (512) tiles', manifest.size);
-    
-    let zoom4Loaded = 0;
-    let zoom4Skipped = 0;
-    let zoom8Loaded = 0;
-    let zoom8Skipped = 0;
-    
-    // Load zoom 4 tiles as base layer
     const zoom4Tiles = new Set<string>();
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
@@ -2623,7 +2623,7 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
             if (!zoom4Tiles.has(key)) {
                 zoom4Tiles.add(key);
                 if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
-                    zoom4Loaded++;
+                    loaded++;
                     const startZ8X = z4.x * 16;
                     const startZ8Z = z4.z * 16;
                     const dx = startZ8X - positionCenterX;
@@ -2632,40 +2632,65 @@ function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
                         [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
                         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize]
                     ];
-                    loadTileToMap({ map: navMap, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap, pane: 'tilesZoom4' });
+                    loadTileToMap({ map, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap, pane: 'tilesZoom4' });
                 } else {
-                    zoom4Skipped++;
+                    skipped++;
                 }
             }
         }
     }
-    
-    debugTiles('loadNavMapTiles: zoom4 loaded=%d skipped=%d (not in manifest)', zoom4Loaded, zoom4Skipped);
-    
-    // Load zoom 8 tiles on top only when zoomed in enough to see detail
-    if (currentZoom > -2) {
-        for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
-            for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-                if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
-                    zoom8Loaded++;
-                    const relativeX = tx - positionCenterX;
-                    const relativeZ = tz - positionCenterZ;
-                    const bounds: L.LatLngBoundsExpression = [
-                        [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
-                        [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
-                    ];
-                    loadTileToMap({ map: navMap, worldId, zoom: 8, tx, tz, bounds, addedToMap, pane: 'tilesZoom8' });
-                } else {
-                    zoom8Skipped++;
-                }
+    return { loaded, skipped };
+}
+
+/** Load zoom 8 detail tiles for navigation map */
+function loadZoom8Tiles(context: TileLoadContext): { loaded: number; skipped: number } {
+    const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
+    let loaded = 0;
+    let skipped = 0;
+    for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
+        for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
+            if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
+                loaded++;
+                const relativeX = tx - positionCenterX;
+                const relativeZ = tz - positionCenterZ;
+                const bounds: L.LatLngBoundsExpression = [
+                    [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
+                    [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
+                ];
+                loadTileToMap({ map, worldId, zoom: 8, tx, tz, bounds, addedToMap, pane: 'tilesZoom8' });
+            } else {
+                skipped++;
             }
         }
+    }
+    return { loaded, skipped };
+}
+
+function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
+    const { manifest, worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
+    if (!navMap) {return;}
+    const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
+    const positionCenterX = mapCenterTileX ?? centerTileX;
+    const positionCenterZ = mapCenterTileZ ?? centerTileZ;
+    const currentZoom = navMap.getZoom();
+    
+    debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d] zoom=%d', 
+        worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ, currentZoom);
+
+    const tileContext: TileLoadContext = { map: navMap, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap };
+
+    const z4 = loadZoom4Tiles(tileContext);
+    debugTiles('loadNavMapTiles: zoom4 loaded=%d skipped=%d (not in manifest)', z4.loaded, z4.skipped);
+
+    let z8 = { loaded: 0, skipped: 0 };
+    if (currentZoom > -2) {
+        z8 = loadZoom8Tiles(tileContext);
     } else {
         debugTiles('loadNavMapTiles: skipping zoom8 tiles (currentZoom=%d <= -2)', currentZoom);
     }
     
-    debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', zoom8Loaded, zoom8Skipped);
-    debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', zoom4Loaded + zoom8Loaded, zoom4Loaded, zoom8Loaded);
+    debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', z8.loaded, z8.skipped);
+    debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', z4.loaded + z8.loaded, z4.loaded, z8.loaded);
 }
 
 /**
@@ -2723,58 +2748,16 @@ function createRouteMarkersUnified(
     return routePoints;
 }
 
-async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string): Promise<void> {
-    const container = document.querySelector('#nav-dialog-map-container');
-    if (!container) {
-        debugMap('Map container not found');
-        return;
-    }
-    
-    cleanupNavMap();
-    navCurrentRoute = route;
-    globalThis.__navCurrentRoute = navCurrentRoute;
-    
-    // Get ALL cart stops for display (including completed ones)
-    const allStops = getAllCartStops();
-    
-    if (allStops.length === 0) {
-        container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
-        navCurrentWorldRoute = [];
-        debugMap('Empty route, no map displayed');
-        return;
-    }
-    
-    container.innerHTML = '';
-    
-    // Use the current view world from navigation store (defaults to overworld)
-    const worldToShow = navigationStore.viewWorld;
-    navMapWorld = worldToShow;
-    
-    // All stops are shown on map (with coordinates transformed to view world)
-    navCurrentWorldRoute = allStops;
-    globalThis.__navCurrentWorldRoute = allStops;
-    
-    debugMap('Navigation map: viewWorld=%s stops=%d overworldStops=%d netherStops=%d completedStops=%d', 
-        worldToShow,
-        allStops.length, 
-        allStops.filter(s => !s.isNether).length,
-        allStops.filter(s => s.isNether).length,
-        [...navigationStore.progress.completedKeys].length);
-    
-    // Calculate tile range using ALL stops (including completed) for proper map bounds
-    const tileRange = calculateTileRangeForView(allStops);
-    navMapCenterTileX = tileRange.centerTileX;
-    navMapCenterTileZ = tileRange.centerTileZ;
-    
-    // Disable animations when testing for faster, more stable tests
+/** Create and configure the Leaflet map for navigation */
+function createNavLeafletMap(container: HTMLElement): L.Map {
     const animationOptions = shouldDisableAnimations() ? {
         fadeAnimation: false,
         zoomAnimation: false,
         markerZoomAnimation: false
     } : {};
-    
+
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- This is Leaflet's L.map(), not Array.map()
-    navMap = L.map(container as HTMLElement, {
+    const map = L.map(container, {
         crs: L.CRS.Simple,
         minZoom: -5,
         maxZoom: 2,
@@ -2783,73 +2766,95 @@ async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string
         maxBoundsViscosity: 1,
         ...animationOptions
     });
-    
-    // Create custom panes for proper z-ordering: zoom 4 below zoom 8
-    // This prevents race conditions where zoom 4 tiles load after zoom 8 and obscure detail
-    navMap.createPane('tilesZoom4').style.zIndex = '350';
-    navMap.createPane('tilesZoom8').style.zIndex = '360';
-    
-    // Add zoom control at bottom-left to avoid overlap with nav controls at top-left
-    L.control.zoom({ position: 'bottomleft' }).addTo(navMap);
-    
-    globalThis.__navMap = navMap;
-    globalThis.__navMapWorld = navMapWorld;
-    globalThis.__navMapCenterTileX = tileRange.centerTileX;
-    globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
-    
-    // Expose map for E2E testing (used by tile-loading steps)
-    (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = navMap;
-    
-    navMap.on('dragstart', () => {
+
+    map.createPane('tilesZoom4').style.zIndex = '350';
+    map.createPane('tilesZoom8').style.zIndex = '360';
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    map.on('dragstart', () => {
         if (navigationStore.isActive) {
             switchToManualMode();
         }
     });
-    
-    // Create markers using display coordinates (unified view)
-    // Create markers with coordinates transformed to current view world
-    // Pass completedKeys so completed shops show checkmarks instead of numbers
-    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
-    
-    navRoutePolyline = L.polyline(routePoints, {
-        color: '#3b82f6',
-        weight: 3,
-        opacity: 0.8,
-        dashArray: '10, 5'
-    }).addTo(navMap);
-    
-    // Set the view FIRST so that the zoom level is known before loading tiles
-    // This ensures loadNavMapTiles can correctly check currentZoom > -2
-    if (routePoints.length > 0) {
-        const bounds = L.latLngBounds(routePoints);
-        navMap.fitBounds(bounds, { padding: [50, 50] });
-    }
-    
-    const manifest = await loadTileManifest();
-    const addedToNavMap = new Set<string>();
-    
-    // Load tiles for the current view world
-    // Now the zoom level is properly set from fitBounds
-    loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
-    
-    // Dynamic tile loading when map moves
+
+    return map;
+}
+
+/** Expose navigation state on globalThis for E2E testing */
+function exposeNavTestGlobals(tileRange: TileRange): void {
+    globalThis.__navMap = navMap;
+    globalThis.__navMapWorld = navMapWorld;
+    globalThis.__navMapCenterTileX = tileRange.centerTileX;
+    globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
+    (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = navMap;
+}
+
+/** Set up dynamic tile loading on map pan/zoom */
+function bindDynamicTileLoading(manifest: Set<string>, addedToNavMap: Set<string>): void {
+    if (!navMap) { return; }
     const loadVisibleNavMapTiles = () => {
         const viewTileRange = calculateTileRangeFromView(navMapCenterTileX, navMapCenterTileZ);
         if (viewTileRange) {
-            debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]', 
+            debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]',
                 viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
-            loadNavMapTiles({ 
-                manifest, 
-                worldId: navigationStore.viewWorld,  // Use current view world for dynamic loading
-                tileRange: viewTileRange, 
-                addedToMap: addedToNavMap, 
-                mapCenterTileX: navMapCenterTileX, 
-                mapCenterTileZ: navMapCenterTileZ 
+            loadNavMapTiles({
+                manifest,
+                worldId: navigationStore.viewWorld,
+                tileRange: viewTileRange,
+                addedToMap: addedToNavMap,
+                mapCenterTileX: navMapCenterTileX,
+                mapCenterTileZ: navMapCenterTileZ
             });
         }
     };
     navMap.on('moveend', loadVisibleNavMapTiles);
     navMap.on('zoomend', loadVisibleNavMapTiles);
+}
+
+async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string): Promise<void> {
+    const container = document.querySelector('#nav-dialog-map-container');
+    if (!container) {
+        debugMap('Map container not found');
+        return;
+    }
+
+    cleanupNavMap();
+    navCurrentRoute = route;
+    globalThis.__navCurrentRoute = navCurrentRoute;
+
+    const allStops = getAllCartStops();
+
+    if (allStops.length === 0) {
+        container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
+        navCurrentWorldRoute = [];
+        debugMap('Empty route, no map displayed');
+        return;
+    }
+
+    container.innerHTML = '';
+    const worldToShow = navigationStore.viewWorld;
+    navMapWorld = worldToShow;
+    navCurrentWorldRoute = allStops;
+    globalThis.__navCurrentWorldRoute = allStops;
+
+    const tileRange = calculateTileRangeForView(allStops);
+    navMapCenterTileX = tileRange.centerTileX;
+    navMapCenterTileZ = tileRange.centerTileZ;
+
+    navMap = createNavLeafletMap(container as HTMLElement);
+    exposeNavTestGlobals(tileRange);
+
+    const routePoints = createRouteMarkersUnified(allStops, tileRange.centerTileX, tileRange.centerTileZ, navigationStore.progress.completedKeys);
+    navRoutePolyline = L.polyline(routePoints, { color: '#3b82f6', weight: 3, opacity: 0.8, dashArray: '10, 5' }).addTo(navMap);
+
+    if (routePoints.length > 0) {
+        navMap.fitBounds(L.latLngBounds(routePoints), { padding: [50, 50] });
+    }
+
+    const manifest = await loadTileManifest();
+    const addedToNavMap = new Set<string>();
+    loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
+    bindDynamicTileLoading(manifest, addedToNavMap);
 }
 
 /**
@@ -2904,35 +2909,8 @@ globalThis.addEventListener('unhandledrejection', (event) => {
     debugNavigation('Unhandled promise rejection: %O', event.reason);
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    void loadShops();
-    
-    // Register cart change listener before loading
-    cartStore.onChange(updateCartBadge);
-    cartStore.load();
-    navigationStore.loadProgress();
-    navigationStore.loadMode();
-    
-    // Initialize favorites
-    favoritesStore.load();
-    favoritesUI = createFavoritesUIHandler({
-        favoritesStore,
-        triggerSearch
-    });
-    favoritesUI.setupFavoritesDialog();
-    favoritesUI.updateFavoritesBadge();
-
-    // Initialize shop map dialog
-    shopMapDialog = createShopMapDialogHandler({
-        onCloseFromCart: () => {
-            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
-            renderCartDialog();
-            cartDialog.showModal();
-        },
-        isOpenedFromCart: () => mapOpenedFromCart,
-        clearOpenedFromCart: () => { mapOpenedFromCart = false; }
-    });
-
+/** Wire up search input fields, clear buttons, and swap button */
+function setupSearchInputHandlers(): void {
     getElement('searchWant').addEventListener('input', () => {
         updateClearButtonVisibility(getElement<HTMLInputElement>('searchWant'), CLEAR_SEARCH_WANT_ID);
         debouncedSearch();
@@ -2957,7 +2935,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
         search();
     });
+}
 
+/** Register global keyboard shortcuts (Ctrl+F search focus, Ctrl+Shift+X swap) */
+function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
         // Ctrl+F / Cmd+F: Focus search
         if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
@@ -2977,7 +2958,10 @@ document.addEventListener('DOMContentLoaded', () => {
             search();
         }
     });
+}
 
+/** Set up all dialog handlers: matrix, dashboard, map, and cart */
+function setupAllDialogs(): void {
     // Matrix dialog
     const matrixDialog = getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX);
     setupDialogBackdropClose(matrixDialog);
@@ -2993,16 +2977,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mapDialog) {
         setupDialogBackdropClose(mapDialog);
     }
-    
+
     // Cart dialog
     const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
     setupDialogBackdropClose(cartDialog);
-    
+
     // Clean up zero-quantity items when cart dialog closes
     cartDialog.addEventListener('close', () => {
         cleanupZeroQuantityItems();
     });
-    
+
     getElement('open-cart').addEventListener('click', () => {
         renderCartDialog();
         restoreActiveTab();
@@ -3020,17 +3004,43 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshCartButtonStates();
         cartDialog.close();
     });
-    
-    // Tab switching
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    void loadShops();
+
+    // Register cart change listener before loading
+    cartStore.onChange(updateCartBadge);
+    cartStore.load();
+    navigationStore.loadProgress();
+    navigationStore.loadMode();
+
+    // Initialize favorites
+    favoritesStore.load();
+    favoritesUI = createFavoritesUIHandler({
+        favoritesStore,
+        triggerSearch
+    });
+    favoritesUI.setupFavoritesDialog();
+    favoritesUI.updateFavoritesBadge();
+
+    // Initialize shop map dialog
+    shopMapDialog = createShopMapDialogHandler({
+        onCloseFromCart: () => {
+            const cartDialog = getElement<HTMLDialogElement>(DIALOG_IDS.CART);
+            renderCartDialog();
+            cartDialog.showModal();
+        },
+        isOpenedFromCart: () => mapOpenedFromCart,
+        clearOpenedFromCart: () => { mapOpenedFromCart = false; }
+    });
+
+    setupSearchInputHandlers();
+    setupKeyboardShortcuts();
+    setupAllDialogs();
     setupCartTabs();
-    
-    // Player name input persistence
     setupPlayerNameInput();
-    
-    // Navigation controls
     setupNavigationControls();
-    
-    // Event delegation for trade row clicks (prevents memory leaks)
     setupTradeRowClickHandler();
 });
 
