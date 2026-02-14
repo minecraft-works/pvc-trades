@@ -52,7 +52,6 @@ import {
     loadBaseItems,
     loadConfig,
     getConfig,
-    buildRatioGraph,
     getWorldId,
     getTileCoords,
     toLeafletCoordsRelative,
@@ -80,7 +79,6 @@ import type {
     Trade,
     FilterResult,
     ItemValues,
-    RatioGraph,
     MappingRule,
     ShopData,
     SortColumn,
@@ -123,7 +121,7 @@ import {
 import type { LoadNavMapTilesOptions, TileRange, ShopMapDialogHandler } from './map/index.js';
 
 import {
-    renderMatrix,
+    renderPriceTable,
     setupDialogBackdropClose,
     openDialog,
     createTradeDetailsHandler
@@ -146,7 +144,6 @@ let allTrades: Trade[] = [];
 const tradesByKey = new Map<string, Trade>();
 let mappingRules: MappingRule[] = [];
 let itemValues: ItemValues | undefined;
-let ratioGraph: RatioGraph | undefined;
 
 // Column order for sort priority (left to right)
 const COLUMN_ORDER: SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
@@ -458,8 +455,6 @@ async function refreshShopData(): Promise<number> {
         })), 'emerald');
         getDeviation = createDeviationCalculator(itemValues);
         
-        ratioGraph = buildRatioGraph(itemValues);
-        
         // Refresh the search results
         search();
         
@@ -509,9 +504,6 @@ async function loadShops(): Promise<void> {
             x: t.x, y: t.y, z: t.z
         })), 'emerald');
         getDeviation = createDeviationCalculator(itemValues);
-
-        // Build ratio graph for matrix
-        ratioGraph = buildRatioGraph(itemValues);
 
         renderHeader();
         search(); // Show all trades on load
@@ -1230,11 +1222,11 @@ function renderResults(results: FilterResult[], wantRegex: RegExp | undefined, g
 // ============================================================================
 
 /**
- * Render the matrix dialog using the extracted module
+ * Render the price table dialog using the extracted module
  */
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-    renderMatrix(container, ratioGraph, getElement);
+    renderPriceTable(container, itemValues, getElement);
 }
 
 // ============================================================================

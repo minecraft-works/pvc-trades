@@ -66,6 +66,7 @@ import {
     type DashboardData,
     type PriceDrop,
     type WatchlistHit,
+    type PriceTableEntry,
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
@@ -583,8 +584,16 @@ function addRatioToGraph(graph: RatioGraph, from: string, to: string, ratio: num
 
 function buildEmeraldValuesFromTrades(itemValues: ItemValues): Map<string, number> {
     const emeraldValues = new Map<string, number>();
+    const config = configStore.get();
+    const coreBlocks = coreBlocksStore.get();
+    const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
 
     for (const [key, entry] of itemValues.entries()) {
+        // For core blocks, require minimum independent shops for trust
+        if (coreBlocksLower.has(key) && !hasEnoughIndependentData(entry, config.analysis.minIndependentShops)) {
+            continue;
+        }
+
         const medianBuy = median(entry.buyPrices);
         const medianSell = median(entry.sellPrices);
         const value = medianBuy !== undefined && medianSell !== undefined
@@ -604,9 +613,12 @@ function addBlockConversionValues(
     blockConversions: BlockConversions
 ): void {
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
+        const blockKey = blockName.toLowerCase();
+        // Preserve direct trade values — only fill in missing blocks
+        if (emeraldValues.has(blockKey)) { continue; }
         const baseValue = emeraldValues.get(base.toLowerCase());
         if (baseValue !== undefined) {
-            emeraldValues.set(blockName.toLowerCase(), baseValue * multiplier);
+            emeraldValues.set(blockKey, baseValue * multiplier);
         }
     }
 }
@@ -655,6 +667,42 @@ export function buildRatioGraph(itemValues: ItemValues): RatioGraph {
 export function getRatio(graph: RatioGraph, from: string, to: string): number | undefined {
     const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
     return graph.get(key);
+}
+
+/**
+ * Build a price table showing buy/sell prices for core blocks in emeralds.
+ * Each entry includes median buy/sell price, trade counts, independent shop count, and spread.
+ * Sorted by buy price descending (most expensive first).
+ */
+export function buildPriceTable(itemValues: ItemValues): PriceTableEntry[] {
+    const coreBlocks = coreBlocksStore.get();
+    const entries: PriceTableEntry[] = [];
+
+    for (const block of coreBlocks) {
+        const key = block.toLowerCase();
+        const entry = itemValues.get(key);
+        if (!entry) { continue; }
+
+        const buyPrice = median(entry.buyPrices);
+        const sellPrice = median(entry.sellPrices);
+        if (buyPrice === undefined && sellPrice === undefined) { continue; }
+
+        const spread = buyPrice !== undefined && sellPrice !== undefined
+            ? ((buyPrice - sellPrice) / buyPrice) * 100
+            : undefined;
+
+        entries.push({
+            name: block,
+            buyPrice,
+            sellPrice,
+            buyTradeCount: entry.buyPrices.length,
+            sellTradeCount: entry.sellPrices.length,
+            independentShopCount: countIndependentShops([...entry.buyPrices, ...entry.sellPrices]),
+            spread,
+        });
+    }
+
+    return entries.toSorted((a, b) => (b.buyPrice ?? 0) - (a.buyPrice ?? 0));
 }
 
 // ============================================================================
