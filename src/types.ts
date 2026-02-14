@@ -194,6 +194,30 @@ export interface CartItem {
     quantity: number;
 }
 
+/** Schema for validating CartItem from localStorage */
+const ItemSchema = z.object({
+    type: z.string(),
+    name: z.string(),
+    amount: z.number()
+}).loose();
+
+const CartItemSchema = z.object({
+    trade: z.object({
+        x: z.number(),
+        y: z.number(),
+        z: z.number(),
+        world: z.string(),
+        item1: ItemSchema,
+        resultItem: ItemSchema,
+        stock: z.number(),
+        resultName: z.string(),
+        costName: z.string()
+    }).loose(),
+    quantity: z.number().int().nonnegative()
+});
+
+export const CartItemArraySchema = z.array(CartItemSchema);
+
 export interface RouteStop {
     type: 'shop' | 'portal';
     x: number;

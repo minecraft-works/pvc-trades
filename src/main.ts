@@ -2898,6 +2898,11 @@ function renderNavigateTab(): void {
 // Initialization
 // ============================================================================
 
+// Global error boundary — routes uncaught async errors to debug logger
+globalThis.addEventListener('unhandledrejection', (event) => {
+    debugNavigation('Unhandled promise rejection: %O', event.reason);
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     void loadShops();
     

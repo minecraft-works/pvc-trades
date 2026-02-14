@@ -342,6 +342,16 @@ describe('CartStore', () => {
             expect(cartStore.items).toHaveLength(0);
         });
 
+        test('handles structurally invalid cart items gracefully', () => {
+            // Data that is valid JSON and an array, but not valid CartItems
+            const corruptData = [{ notATrade: true, quantity: 'abc' }];
+            localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(corruptData));
+            
+            cartStore.load();
+            
+            expect(cartStore.items).toHaveLength(0);
+        });
+
         test('handles missing localStorage data', () => {
             localStorageMock.getItem.mockReturnValueOnce(null);
             

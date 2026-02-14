@@ -8,6 +8,7 @@
  */
 
 import type { CartItem, Trade } from '../types.js';
+import { CartItemArraySchema } from '../types.js';
 import { STORAGE_KEYS } from '../constants.js';
 import { getTradeKey } from '../library.js';
 
@@ -180,8 +181,9 @@ class CartStore {
             const stored = localStorage.getItem(STORAGE_KEYS.CART);
             if (stored) {
                 const parsed: unknown = JSON.parse(stored);
-                if (Array.isArray(parsed)) {
-                    this._items = parsed as CartItem[];
+                const result = CartItemArraySchema.safeParse(parsed);
+                if (result.success) {
+                    this._items = result.data as unknown as CartItem[];
                 }
             }
         } catch {

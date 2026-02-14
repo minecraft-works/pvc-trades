@@ -2055,6 +2055,56 @@ function updateWatchlistHit(
 }
 
 /**
+ * Build a map of the best (lowest) current deviation per item across all trades.
+ */
+function buildBestDeviationMap(
+    trades: Trade[],
+    getDeviation: (trade: Trade) => { percent: number } | undefined
+): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const trade of trades) {
+        const deviation = getDeviation(trade);
+        if (!deviation) { continue; }
+        const name = trade.resultName.toLowerCase();
+        const existing = map.get(name);
+        if (existing === undefined || deviation.percent < existing) {
+            map.set(name, deviation.percent);
+        }
+    }
+    return map;
+}
+
+/**
+ * Filter price drops to only those that resulted in the global best price for their item.
+ * If an item has a better deal from another trade, the drop isn't interesting to the user.
+ * When multiple drops for the same item tie for best, keep only the one with the largest improvement.
+ */
+function filterToGlobalBestDrops(
+    drops: PriceDrop[],
+    bestDeviationByItem: Map<string, number>
+): PriceDrop[] {
+    // First pass: only keep drops where the new deviation matches the global best
+    const globalBestDrops = drops.filter(drop => {
+        const best = bestDeviationByItem.get(drop.itemName.toLowerCase());
+        return best !== undefined && drop.newDeviation <= best;
+    });
+
+    // Second pass: deduplicate per item, keeping the largest improvement
+    const bestPerItem = new Map<string, PriceDrop>();
+    for (const drop of globalBestDrops) {
+        const normalizedName = drop.itemName.toLowerCase();
+        const existing = bestPerItem.get(normalizedName);
+        const improvement = drop.oldDeviation - drop.newDeviation;
+        const existingImprovement = existing ? existing.oldDeviation - existing.newDeviation : -1;
+        if (improvement > existingImprovement) {
+            bestPerItem.set(normalizedName, drop);
+        }
+    }
+
+    return [...bestPerItem.values()];
+}
+
+/**
  * Compute dashboard data by comparing current trades against a previous snapshot.
  * Pure function: no side effects.
  *
@@ -2082,6 +2132,7 @@ export function computeDashboardData(
     }
 
     const previousTrades = previousSnapshot?.trades ?? {};
+    const bestDeviationByItem = buildBestDeviationMap(currentTrades, getDeviation);
 
     for (const trade of currentTrades) {
         const key = getTradeKey(trade);
@@ -2105,11 +2156,14 @@ export function computeDashboardData(
         }
     }
 
-    priceDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
+    // Only keep price drops that resulted in the new global best price for that item.
+    // If potato drops to -20% but another trade already has -40%, the -20% drop is not interesting.
+    const filteredDrops = filterToGlobalBestDrops(priceDrops, bestDeviationByItem);
+    filteredDrops.sort((a, b) => (a.newDeviation - a.oldDeviation) - (b.newDeviation - b.oldDeviation));
 
     return {
         newTradeKeys: newTradeKeysList,
-        priceDrops,
+        priceDrops: filteredDrops,
         watchlistHits: [...watchlistHitMap.values()],
         lastVisit: previousSnapshot?.timestamp
     };
