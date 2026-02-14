@@ -448,7 +448,8 @@ When('I hover over the nether shop marker', async ({ page }) => {
     }
     
     await expect(netherMarker).toBeVisible({ timeout: 3000 });
-    await netherMarker.hover({ force: true });
+    await netherMarker.scrollIntoViewIfNeeded();
+    await netherMarker.hover({ force: true, timeout: 5000 });
     
     // Wait for tooltip to appear
     await page.waitForSelector('.leaflet-tooltip', { state: 'visible', timeout: 2000 });
