@@ -1,6 +1,6 @@
 # PVC Trades Development Skill
 
-Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, and Dynmap integration.
+Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, daily deals dashboard, and Dynmap integration.
 
 ---
 
@@ -53,6 +53,9 @@ SELECTORS.RECENTER_MAP       // '#recenter-map'
 
 // Common elements
 '#cart-button'               // Open cart dialog
+'#open-dashboard'            // Toggle daily deals dashboard
+'#deals-dashboard'           // Dashboard banner container
+'#mark-as-seen'              // Save snapshot + dismiss dashboard
 '.trade-row'                 // Trade list items
 '.add-to-cart-btn'           // Add to cart buttons
 '.cart-dialog'               // Cart dialog container
@@ -165,20 +168,30 @@ Common fixes:
 ```
 src/
 ├── main.ts          # DOM, events, rendering - NO pure logic here
-├── library.ts       # Pure functions + config stores (ConfigStore, CoreBlocksStore)
+├── library.ts       # Pure functions (computeDashboardData, route calc, etc.)
 ├── types.ts         # Zod schemas + TypeScript types (z.infer<>)
 ├── constants.ts     # Magic numbers, thresholds, CSS selectors
 ├── debug.ts         # Debug utilities (import debug from 'debug')
 ├── stores/          # Stateful stores with localStorage persistence
 │   ├── cart-store.ts
 │   ├── navigation-store.ts
+│   ├── favorites-store.ts
+│   ├── snapshot-store.ts   # Trade snapshot for daily deals dashboard
+│   ├── player-interpolator.ts
 │   └── index.ts     # Barrel exports
+├── search/          # Search & deviation calculation
+│   └── deviation.ts
+├── navigation/      # Shop tooltip & navigation helpers
+│   └── shop-tooltip.ts
+├── favorites/       # Favorites UI rendering
+│   └── favorites-ui.ts
 ├── map/             # Leaflet map tile loading
 │   ├── tile-loader.ts
 │   ├── tile-types.ts
 │   └── index.ts
 ├── dialogs/         # Modal dialog modules
 │   ├── matrix-dialog.ts
+│   ├── trade-details.ts
 │   └── index.ts
 └── *.test.ts        # Unit tests adjacent to source
 
@@ -324,7 +337,11 @@ NAVIGATION.NEARBY_THRESHOLD   // 100 blocks - show tooltip
 
 // localStorage keys (prevents typos)
 STORAGE_KEYS.CART             // 'pvc-trades-cart'
+STORAGE_KEYS.SNAPSHOT         // 'pvc-trades-snapshot'
 STORAGE_KEYS.NAV_PROGRESS     // 'pvc-trades-nav-progress'
+
+// Dashboard thresholds
+DASHBOARD.PRICE_DROP_THRESHOLD // 5 percentage points
 
 // DOM selectors
 SELECTORS.NAV_DIALOG          // '#nav-dialog'
@@ -420,12 +437,15 @@ This project uses [playwright-bdd](https://github.com/vitalets/playwright-bdd) -
 
 ```
 features/
-├── cart-management.feature      # Regular scenario tests
-├── cart-quantity-properties.feature  # Property-based tests
+├── cart-management.feature              # Regular scenario tests
+├── cart-quantity-properties.feature      # Property-based tests
+├── daily-deals-dashboard.feature        # Dashboard scenarios (18 scenarios)
+├── daily-deals-dashboard-properties.feature  # Dashboard edge cases (6 scenarios)
 ├── steps/
 │   ├── fixtures.ts              # IMPORT STEPS FROM HERE
 │   ├── cart.steps.ts            # Cart step definitions
 │   ├── cart-property.steps.ts   # Property test steps
+│   ├── dashboard.steps.ts       # Dashboard steps (self-contained mock data)
 │   └── live-navigation.steps.ts
 └── support/
 ```
@@ -467,6 +487,10 @@ Feature: Cart Management
 | `@zoom` | Zoom/map behavior tests |
 | `@route` | Route display/optimization |
 | `@shop-map` | Shop map player markers |
+| `@dashboard` | Daily deals dashboard |
+| `@toggle` | Dashboard toggle button |
+| `@mark-seen` | Explicit snapshot save |
+| `@dismiss` | Dashboard dismiss behavior |
 
 Run specific tags: `npx bddgen && npx playwright test --grep @cart`
 
@@ -651,6 +675,75 @@ npx playwright show-report
 | 007 | Virtual scroll at 100+ items |
 | 008 | Normalize nether coords to overworld for distance |
 | 009 | Tile caching with blob URLs (no service worker) |
+
+---
+
+## Daily Deals Dashboard
+
+Compares current trade state against a saved snapshot to show what changed since the user's last visit.
+
+### Architecture
+
+```
+Page Load → snapshotStore.load() → computeDashboardData() → renderDashboard()
+                  ↓                         ↓
+          Previous snapshot         Current trades + deviations
+          (localStorage)            compared to find:
+                                    - New trade keys
+                                    - Price drops (≥5pp improvement)
+                                    - Watchlist hits (favorited items with deals)
+```
+
+### Snapshot Lifecycle
+
+| Event | Action | Effect |
+|-------|--------|--------|
+| First visit (no snapshot) | Auto-save silently | Baseline established, no dashboard shown |
+| Return visit | Compare current vs stored | Dashboard banner appears if changes found |
+| Dismiss (✕) | Hide dashboard | Toggle button (📊) remains visible to re-show |
+| Toggle (📊) | Show/hide dashboard | No snapshot update |
+| Mark as seen (✓) | Save new snapshot | Dashboard hidden, toggle hidden, baseline updated |
+| Page reload | Re-compare against last "Mark as seen" | Dashboard reappears if still different |
+
+**Key design**: Snapshots are **never auto-saved** on page load. The baseline only updates when the user explicitly clicks "Mark as seen". This lets users revisit changes across multiple sessions.
+
+### Key Functions
+
+| Function | Location | Purpose |
+|----------|----------|---------|
+| `computeDashboardData()` | `library.ts` | Pure: compares trades against snapshot |
+| `showDashboard()` | `main.ts` | Orchestrates load → compute → render |
+| `renderDashboard()` | `main.ts` | DOM: builds dashboard HTML |
+| `toggleDashboard()` | `main.ts` | DOM: shows/hides the banner |
+| `markDashboardAsSeen()` | `main.ts` | Saves snapshot + dismisses + hides toggle |
+| `snapshotStore.save()` | `stores/snapshot-store.ts` | Persists trade state to localStorage |
+| `snapshotStore.load()` | `stores/snapshot-store.ts` | Loads previous snapshot |
+
+### Types (types.ts)
+
+```typescript
+TradeSnapshot          // { timestamp, trades: Record<key, TradeSnapshotEntry> }
+TradeSnapshotEntry     // { deviationPercent?, stock }
+DashboardData          // { newTradeKeys, priceDrops, watchlistHits, lastVisit }
+PriceDrop              // { tradeKey, itemName, oldDeviation, newDeviation }
+WatchlistHit           // { itemName, currentDeviation, previousDeviation }
+```
+
+### Testing Dashboard BDD Steps
+
+Dashboard steps use **self-contained mock data** with 5 shops providing enough independent sources for trusted deviation calculation (`minIndependentShops: 3`):
+
+```typescript
+// features/steps/dashboard.steps.ts
+Given('the app is loaded with dashboard test data', async ({ page }) => {
+    // Intercepts config.json + data.json with calibrated mock data
+    // 4 Diamond shops at prices [1, 1.5, 2, 4] → median = 1.75
+    // Deviations: -43%, -14%, +14%, +129%
+    await setupDashboardMock(page);
+    // Injects previous snapshot via localStorage with different deviations
+    // so dashboard detects price drops between sessions
+});
+```
 
 ---
 
@@ -855,3 +948,7 @@ const dist = calculateRouteDistance(x1, z1, world1, x2, z2, world2);
 - **Core Blocks**: Emerald, Diamond, Gold, Iron, Netherite blocks
 - **Independent Shops**: Shops >16 blocks apart (for fair price aggregation)
 - **Route**: Optimized visiting order using nearest-neighbor + 2-opt
+- **Snapshot**: Saved trade state (deviations + stock) for session-to-session comparison
+- **Dashboard**: Banner showing price drops, new trades, and watchlist hits since last visit
+- **Mark as seen**: Explicit user action to update the comparison baseline (no auto-save)
+- **Watchlist Hit**: A favorited item whose deviation improved since last snapshot
