@@ -115,7 +115,8 @@ body {
     border-color: var(--color-accent);
 }
 
-.search-input-wrapper #searchWant:focus {
+.search-input-wrapper #searchWant:focus,
+.search-input-wrapper #searchGive:focus {
     outline: none;
     box-shadow: none;
 }
