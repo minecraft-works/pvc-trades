@@ -149,7 +149,9 @@ class SnapshotStore {
         if (snapshots.length === 0) { return undefined; }
 
         const now = Date.now();
-        let bestSnapshot = snapshots[0]!;
+        const firstSnapshot = snapshots[0];
+        if (!firstSnapshot) { return undefined; }
+        let bestSnapshot = firstSnapshot;
         let bestDelta = Math.abs(now - bestSnapshot.timestamp - targetAgeMs);
 
         for (const snapshot of snapshots) {

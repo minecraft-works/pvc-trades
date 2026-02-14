@@ -241,19 +241,22 @@ export class PlayerInterpolator {
 
         // Move the correction target forward with velocity so the lerp
         // converges smoothly to the extrapolated path (no jump at t=1).
-        const timeSinceSample = now - this._lastSample!.timestamp;
+        if (!this._lastSample || !this._correctionTarget || !this._correctionStart) {
+            return { x: 0, z: 0, y: 0 };
+        }
+        const timeSinceSample = now - this._lastSample.timestamp;
         const movingTarget = extrapolatePosition(
-            this._correctionTarget!,
+            this._correctionTarget,
             this._velocity,
             timeSinceSample
         );
 
         // Lerp from wrong prediction to moving target (x, z)
-        const pos2d = lerpPosition(this._correctionStart!, movingTarget, t);
+        const pos2d = lerpPosition(this._correctionStart, movingTarget, t);
 
         // Lerp Y linearly
-        const fromY = this._correctionStartY ?? this._lastSample!.y;
-        const toY = this._lastSample!.y;
+        const fromY = this._correctionStartY ?? this._lastSample.y;
+        const toY = this._lastSample.y;
         const y = fromY + (toY - fromY) * Math.max(0, Math.min(1, t));
 
         // Lerp yaw via shortest path

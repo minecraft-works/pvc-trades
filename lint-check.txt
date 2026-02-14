@@ -1,0 +1,169 @@
+
+> shops@1.0.0 lint
+> eslint src/**/*.ts
+
+
+D:\_projects\pvc-trades\src\favorites\favorites-ui.ts
+  238:1   error    Function 'updatePopoverUI' has a complexity of 13. Maximum allowed is 12           complexity
+  428:71  warning  Unnecessary conditional, value is always truthy                                    @typescript-eslint/no-unnecessary-condition
+  432:59  warning  Unnecessary conditional, value is always truthy                                    @typescript-eslint/no-unnecessary-condition
+  436:62  warning  Unnecessary conditional, value is always truthy                                    @typescript-eslint/no-unnecessary-condition
+  482:5   error    Function 'addNewItemFromInlineForm' has a complexity of 14. Maximum allowed is 12  complexity
+
+D:\_projects\pvc-trades\src\interpolation.test.ts
+  241:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  242:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  267:29  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  267:44  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  268:29  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  268:44  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  285:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  298:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  299:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  319:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  320:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  331:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  351:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  352:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  353:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  377:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  387:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  388:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  398:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  400:21  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  400:21  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  411:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\_projects\pvc-trades\src\library.test.ts
+   493:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   494:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   495:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   505:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   506:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   507:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   517:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   518:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   519:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   529:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   530:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   531:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   541:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   542:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   543:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   557:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   558:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   559:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   661:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   661:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   671:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   671:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   680:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   680:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1330:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1331:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1332:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1333:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1345:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1345:36  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1346:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1346:36  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1347:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1347:36  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1355:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1364:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1374:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1389:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1390:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  1391:16  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\_projects\pvc-trades\src\library.ts
+   297:23  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+   707:19  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+   726:23  warning  Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined  @typescript-eslint/no-unnecessary-condition
+   748:23  warning  Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined  @typescript-eslint/no-unnecessary-condition
+   774:23  warning  Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined  @typescript-eslint/no-unnecessary-condition
+   814:23  warning  Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined  @typescript-eslint/no-unnecessary-condition
+   901:16  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+   903:13  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+   903:32  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1429:9   warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1430:9   warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1436:23  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1437:23  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1439:13  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1440:13  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1473:34  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1473:34  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1503:17  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1503:17  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1503:40  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1506:18  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1506:18  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1506:37  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1506:57  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1525:43  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1526:19  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1527:19  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1528:54  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1539:23  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1539:23  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1541:24  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1541:24  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1545:19  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1545:19  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1547:20  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+  1547:20  warning  Forbidden non-null assertion                                                                        @typescript-eslint/no-non-null-assertion
+
+D:\_projects\pvc-trades\src\main.ts
+   230:38  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+   359:22  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+   905:31  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1103:32  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1281:25  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1282:24  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1283:26  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1317:9   warning  Unnecessary conditional, comparison is always true, since `"shop" === "shop"` is true                                                                               @typescript-eslint/no-unnecessary-condition
+  1374:18  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  1748:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1797:24  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  2150:29  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+  2881:30  warning  Forbidden non-null assertion                                                                                                                                        @typescript-eslint/no-non-null-assertion
+
+D:\_projects\pvc-trades\src\map\players.ts
+  56:20  warning  Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined  @typescript-eslint/no-unnecessary-condition
+
+D:\_projects\pvc-trades\src\map\shop-map-dialog.ts
+  284:22  warning  Forbidden non-null assertion                                            @typescript-eslint/no-non-null-assertion
+  319:1   error    Function 'setupShopMap' has too many lines (76). Maximum allowed is 75  max-lines-per-function
+
+D:\_projects\pvc-trades\src\map\tile-loader.ts
+   73:13  warning  Unnecessary conditional, value is always falsy                                            @typescript-eslint/no-unnecessary-condition
+   76:16  warning  Unnecessary conditional, left-hand side of `??` operator is always `null` or `undefined`  @typescript-eslint/no-unnecessary-condition
+  108:12  warning  Unnecessary conditional, left-hand side of `??` operator is always `null` or `undefined`  @typescript-eslint/no-unnecessary-condition
+  180:39  warning  Unnecessary optional chain on a non-nullish value                                         @typescript-eslint/no-unnecessary-condition
+  188:17  warning  Prefer the safe `: unknown` for a `catch` callback variable                               @typescript-eslint/use-unknown-in-catch-callback-variable
+
+D:\_projects\pvc-trades\src\stores\cart-store.test.ts
+   73:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   74:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+   84:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  126:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  137:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  146:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  157:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  166:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  178:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  217:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  334:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\_projects\pvc-trades\src\stores\snapshot-store.test.ts
+   53:67  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  278:43  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  287:43  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  304:43  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  357:20  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  358:32  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  390:74  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+Γ£û 142 problems (3 errors, 139 warnings)
+

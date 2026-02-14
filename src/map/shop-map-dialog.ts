@@ -316,17 +316,15 @@ function stopShopMapAnimLoop(): void {
     clearAllInterpolators();
 }
 
-function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
-    
+/** Create Leaflet map configuration with optional animation disabling */
+function createMapConfig(): L.MapOptions {
     const animationOptions = shouldDisableAnimations() ? {
         fadeAnimation: false,
         zoomAnimation: false,
         markerZoomAnimation: false
     } : {};
     
-    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
-    leafletMap = L.map(container, {
+    return {
         crs: L.CRS.Simple,
         minZoom: -5,
         maxZoom: 2,
@@ -335,7 +333,14 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         zoomSnap: 0,
         zoomDelta: 0.5,
         ...animationOptions
-    });
+    };
+}
+
+function setupShopMap(parameters: ShopMapSetupParameters): void {
+    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
+    
+    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
+    leafletMap = L.map(container, createMapConfig());
     
     // Create custom panes for proper z-ordering: zoom 4 below zoom 8
     // Default overlayPane z-index is 400, we put zoom4 below and zoom8 above
@@ -376,7 +381,9 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
     
     const updateZoomClass = () => {
-        container.classList.toggle('zoomed-out', leafletMap!.getZoom() < 0.5);
+        if (leafletMap) {
+            container.classList.toggle('zoomed-out', leafletMap.getZoom() < 0.5);
+        }
     };
     
     void fetchPlayersAndUpdateCache().then(() => {
