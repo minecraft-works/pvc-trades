@@ -37,9 +37,11 @@ function enterEditMode(itemRow: HTMLElement): void {
     itemRow.querySelector('.remove-favorite')?.classList.add(HIDDEN_CLASS);
 
     // Focus the input
-    const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
-    input?.focus();
-    input?.select();
+    const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR);
+    if (input && input instanceof HTMLInputElement) {
+        input.focus();
+        input.select();
+    }
 }
 
 /**
@@ -88,7 +90,7 @@ interface FavoritesUIState {
 
 /** Update the favorites badge count (number of watched items) */
 function updateBadge(favoritesStore: FavoritesStore): void {
-    const badge = document.querySelector('.favorites-badge') as HTMLElement;
+    const badge = document.querySelector('.favorites-badge');
     if (!badge) {
         return;
     }
@@ -102,7 +104,7 @@ function updateBadge(favoritesStore: FavoritesStore): void {
 
 /** Update the deals badge with count of trades meeting thresholds */
 function updateDealsBadgeElement(dealsCount: number): void {
-    const badge = document.querySelector('.favorites-badge') as HTMLElement;
+    const badge = document.querySelector('.favorites-badge');
     if (!badge) {
         return;
     }
@@ -179,8 +181,8 @@ function createAddRow(): HTMLDivElement {
 
 /** Render the favorites dialog content */
 function renderDialog(favoritesStore: FavoritesStore): void {
-    const list = document.querySelector('.favorites-list') as HTMLElement;
-    const empty = document.querySelector('.favorites-empty') as HTMLElement;
+    const list = document.querySelector('.favorites-list');
+    const empty = document.querySelector('.favorites-empty');
 
     if (!list || !empty) {
         return;
@@ -206,7 +208,7 @@ function renderDialog(favoritesStore: FavoritesStore): void {
 
 /** Hide the favorite popover and clean up */
 function hidePopover(state: FavoritesUIState): void {
-    const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR) as HTMLElement;
+    const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
     if (popover) {
         popover.classList.add('hidden');
     }
@@ -233,9 +235,31 @@ function positionAndShowPopover(popover: HTMLElement, button: HTMLElement): void
 }
 
 /** Update popover UI elements based on favorite settings */
+/** Update threshold radio buttons and input in popover */
+function updatePopoverThresholdControls(
+    popover: HTMLElement,
+    hasThreshold: boolean,
+    thresholdValue: number
+): void {
+    const anyPriceRadio = popover.querySelector('input[name="threshold-type"][value="any"]');
+    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]');
+    const thresholdInput = popover.querySelector('#popover-threshold');
+
+    const isValidRadioGroup = 
+        anyPriceRadio instanceof HTMLInputElement &&
+        thresholdRadio instanceof HTMLInputElement &&
+        thresholdInput instanceof HTMLInputElement;
+
+    if (isValidRadioGroup) {
+        anyPriceRadio.checked = !hasThreshold;
+        thresholdRadio.checked = hasThreshold;
+        thresholdInput.value = String(thresholdValue);
+    }
+}
+
 function updatePopoverUI(popover: HTMLElement, itemName: string, favoritesStore: FavoritesStore): void {
     // Update popover header
-    const header = popover.querySelector('#popover-item-name') as HTMLElement;
+    const header = popover.querySelector('#popover-item-name');
     if (header) {
         header.textContent = itemName;
     }
@@ -247,19 +271,11 @@ function updatePopoverUI(popover: HTMLElement, itemName: string, favoritesStore:
     const thresholdValue = favorite?.maxDeviation === undefined ? 20 : Math.abs(favorite.maxDeviation);
 
     // Update radio buttons
-    const anyPriceRadio = popover.querySelector('input[name="threshold-type"][value="any"]') as HTMLInputElement;
-    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
-    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
-
-    if (anyPriceRadio && thresholdRadio && thresholdInput) {
-        anyPriceRadio.checked = !hasThreshold;
-        thresholdRadio.checked = hasThreshold;
-        thresholdInput.value = String(thresholdValue);
-    }
+    updatePopoverThresholdControls(popover, hasThreshold, thresholdValue);
 
     // Show/hide buttons based on whether it's already a favorite
-    const removeButton = popover.querySelector('#popover-remove') as HTMLElement;
-    const saveButton = popover.querySelector('#popover-save') as HTMLElement;
+    const removeButton = popover.querySelector('#popover-remove');
+    const saveButton = popover.querySelector('#popover-save');
     if (removeButton && saveButton) {
         removeButton.classList.toggle('hidden', !isFavorite);
         saveButton.classList.toggle('hidden', isFavorite);
@@ -268,14 +284,44 @@ function updatePopoverUI(popover: HTMLElement, itemName: string, favoritesStore:
 
 /** Read threshold value from popover form */
 function readThresholdFromPopover(popover: HTMLElement): number | undefined {
-    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]') as HTMLInputElement;
-    const thresholdInput = popover.querySelector('#popover-threshold') as HTMLInputElement;
+    const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]');
+    const thresholdInput = popover.querySelector('#popover-threshold');
 
-    if (thresholdRadio?.checked && thresholdInput) {
+    if (thresholdRadio && thresholdRadio instanceof HTMLInputElement && thresholdRadio.checked &&
+        thresholdInput && thresholdInput instanceof HTMLInputElement) {
         const value = Number.parseInt(thresholdInput.value, 10);
         return Number.isNaN(value) ? -20 : -Math.abs(value);
     }
     return undefined;
+}
+
+/** Read threshold from the inline add form */
+function readThresholdFromAddForm(): number | undefined {
+    const thresholdRadio = document.querySelector('input[name="new-threshold-type"][value="threshold"]');
+    const thresholdInput = document.querySelector('#favorites-new-threshold');
+
+    const isValidThresholdForm =
+        thresholdRadio instanceof HTMLInputElement &&
+        thresholdRadio.checked &&
+        thresholdInput instanceof HTMLInputElement;
+
+    if (isValidThresholdForm) {
+        const value = Number.parseInt(thresholdInput.value, 10);
+        return Number.isNaN(value) ? -20 : -Math.abs(value);
+    }
+
+    return undefined;
+}
+
+/** Clear and reset the inline add form */
+function clearAddForm(input: Element | null): void {
+    if (input instanceof HTMLInputElement) {
+        input.value = '';
+    }
+    const anyPriceRadio = document.querySelector('input[name="new-threshold-type"][value="any"]');
+    if (anyPriceRadio instanceof HTMLInputElement) {
+        anyPriceRadio.checked = true;
+    }
 }
 
 /**
@@ -308,8 +354,8 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     };
 
     function showFavoritePopover(button: HTMLElement, itemName: string): void {
-        const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR) as HTMLElement;
-        if (!popover) {
+        const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
+        if (!(popover instanceof HTMLElement)) {
             return;
         }
 
@@ -329,8 +375,8 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         if (!state.activePopoverItemName) {
             return;
         }
-        const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR) as HTMLElement;
-        if (!popover) {
+        const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
+        if (!(popover instanceof HTMLElement)) {
             return;
         }
 
@@ -366,16 +412,16 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
             return;
         }
 
-        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
-        const newName = input?.value.trim().toLowerCase();
+        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR);
+        const newName = input && input instanceof HTMLInputElement ? input.value.trim().toLowerCase() : '';
 
         if (!newName) {
             return;
         }
 
         // Read threshold from select dropdown
-        const select = itemRow.querySelector('.favorites-threshold-select') as HTMLSelectElement;
-        const maxDeviation = select?.value ? Number.parseInt(select.value, 10) : undefined;
+        const select = itemRow.querySelector('.favorites-threshold-select');
+        const maxDeviation = select && select instanceof HTMLSelectElement && select.value ? Number.parseInt(select.value, 10) : undefined;
 
         // Remove old and add new (handles rename)
         if (newName !== originalName) {
@@ -390,16 +436,16 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
 
     /** Add new item from the inline add row */
     function addNewFromInlineRow(itemRow: HTMLElement): void {
-        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR) as HTMLInputElement;
-        const itemName = input?.value.trim().toLowerCase();
+        const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR);
+        const itemName = input && input instanceof HTMLInputElement ? input.value.trim().toLowerCase() : '';
 
         if (!itemName) {
             return;
         }
 
         // Read threshold from select dropdown
-        const select = itemRow.querySelector('.favorites-threshold-select') as HTMLSelectElement;
-        const maxDeviation = select?.value ? Number.parseInt(select.value, 10) : undefined;
+        const select = itemRow.querySelector('.favorites-threshold-select');
+        const maxDeviation = select && select instanceof HTMLSelectElement && select.value ? Number.parseInt(select.value, 10) : undefined;
 
         favoritesStore.add(itemName, maxDeviation);
         renderFavoritesDialog();
@@ -410,7 +456,7 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     /** Handle click delegation on favorites list items */
     function handleFavoritesListClick(event: Event): void {
         const target = event.target as HTMLElement;
-        const itemRow = target.closest('.favorites-item') as HTMLElement;
+        const itemRow = target.closest('.favorites-item');
         const itemName = target.dataset['item'];
 
         if (target.classList.contains('remove-favorite') && itemName) {
@@ -420,15 +466,15 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
             triggerSearch();
         }
 
-        if (target.classList.contains('edit-favorite') && itemName && itemRow) {
+        if (target.classList.contains('edit-favorite') && itemName && itemRow instanceof HTMLElement) {
             enterEditMode(itemRow);
         }
 
-        if (target.classList.contains('save-favorite') && itemRow) {
+        if (target.classList.contains('save-favorite') && itemRow instanceof HTMLElement) {
             saveInlineEdit(itemRow);
         }
 
-        if (target.classList.contains('add-favorite-btn') && itemRow) {
+        if (target.classList.contains('add-favorite-btn') && itemRow instanceof HTMLElement) {
             addNewFromInlineRow(itemRow);
         }
     }
@@ -436,15 +482,21 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     /** Wire popover button handlers */
     function setupPopoverHandlers(): void {
         const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
-        popover?.querySelector('.btn-primary')?.addEventListener('click', saveFavoriteFromPopover);
-        popover?.querySelector('.btn-secondary')?.addEventListener('click', hideFavoritePopover);
-        popover?.querySelector('.btn-remove')?.addEventListener('click', removeFavoriteFromPopover);
-        popover?.querySelector('.popover-close')?.addEventListener('click', hideFavoritePopover);
+        if (!popover) {
+            return;
+        }
+        popover.querySelector('.btn-primary')?.addEventListener('click', saveFavoriteFromPopover);
+        popover.querySelector('.btn-secondary')?.addEventListener('click', hideFavoritePopover);
+        popover.querySelector('.btn-remove')?.addEventListener('click', removeFavoriteFromPopover);
+        popover.querySelector('.popover-close')?.addEventListener('click', hideFavoritePopover);
     }
 
     function setupFavoritesDialog(): void {
         document.querySelector('#close-favorites')?.addEventListener('click', () => {
-            (document.querySelector('#favorites-dialog') as HTMLDialogElement)?.close();
+            const dialog = document.querySelector('#favorites-dialog');
+            if (dialog && dialog instanceof HTMLDialogElement) {
+                dialog.close();
+            }
         });
 
         document.querySelector('.favorites-content')?.addEventListener('click', handleFavoritesListClick);
@@ -452,8 +504,8 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         setupPopoverHandlers();
 
         document.querySelector('#add-to-watchlist')?.addEventListener('click', () => {
-            const searchInput = document.querySelector('#searchWant') as HTMLInputElement;
-            const query = searchInput?.value.trim() ?? '';
+            const searchInput = document.querySelector('#searchWant');
+            const query = searchInput && searchInput instanceof HTMLInputElement ? searchInput.value.trim() : '';
             openDialogForItem(query);
         });
 
@@ -469,31 +521,17 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     }
 
     function addNewItemFromInlineForm(): void {
-        const input = document.querySelector('#favorites-item-input') as HTMLInputElement;
-        const itemName = input?.value.trim().toLowerCase();
+        const input = document.querySelector('#favorites-item-input');
+        const itemName = input && input instanceof HTMLInputElement ? input.value.trim().toLowerCase() : '';
 
         if (!itemName) {
             return;
         }
 
-        // Read threshold from inline form
-        const thresholdRadio = document.querySelector('input[name="new-threshold-type"][value="threshold"]') as HTMLInputElement;
-        const thresholdInput = document.querySelector('#favorites-new-threshold') as HTMLInputElement;
-        let maxDeviation: number | undefined;
-
-        if (thresholdRadio?.checked && thresholdInput) {
-            const value = Number.parseInt(thresholdInput.value, 10);
-            maxDeviation = Number.isNaN(value) ? -20 : -Math.abs(value);
-        }
-
+        const maxDeviation = readThresholdFromAddForm();
         favoritesStore.add(itemName, maxDeviation);
 
-        // Clear the input and reset form
-        input.value = '';
-        const anyPriceRadio = document.querySelector('input[name="new-threshold-type"][value="any"]') as HTMLInputElement;
-        if (anyPriceRadio) {
-            anyPriceRadio.checked = true;
-        }
+        clearAddForm(input);
 
         renderFavoritesDialog();
         updateFavoritesBadge();
@@ -506,7 +544,7 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         renderFavoritesDialog();
         openDialog('favorites-dialog');
 
-        const list = document.querySelector('.favorites-list') as HTMLElement;
+        const list = document.querySelector('.favorites-list');
         if (!list) {
             return;
         }
@@ -515,16 +553,16 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         const normalizedName = itemName.toLowerCase().trim();
 
         // Check if item already exists in favorites
-        const existingRow = list.querySelector(`[data-item="${CSS.escape(normalizedName)}"]`) as HTMLElement;
+        const existingRow = list.querySelector(`[data-item="${CSS.escape(normalizedName)}"]`);
         
-        if (existingRow) {
+        if (existingRow && existingRow instanceof HTMLElement) {
             // Item exists - scroll to it and enter edit mode
             existingRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
             enterEditMode(existingRow);
         } else {
             // Item doesn't exist - pre-fill the add form
-            const addInput = list.querySelector('#favorites-new-item-input') as HTMLInputElement;
-            if (addInput) {
+            const addInput = list.querySelector('#favorites-new-item-input');
+            if (addInput && addInput instanceof HTMLInputElement) {
                 addInput.value = itemName;
                 addInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 addInput.focus();

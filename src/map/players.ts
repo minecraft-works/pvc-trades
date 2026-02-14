@@ -53,7 +53,7 @@ export async function fetchPlayers(): Promise<Player[]> {
         });
         if (response.ok) {
             const data = (await response.json()) as PlayersData;
-            return data.players || [];
+            return data.players ?? [];
         }
     } catch (error) {
         console.warn('Failed to fetch players:', error);

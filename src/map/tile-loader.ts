@@ -70,8 +70,8 @@ export async function loadTileManifest(): Promise<Set<string>> {
     if (manifestLoadPromise !== undefined) {
         debugTiles('manifest: waiting for in-progress load');
         await manifestLoadPromise;
-        debugTiles('manifest: in-progress load complete size=%d', tileManifestCache!.size);
-        return tileManifestCache!;
+        debugTiles('manifest: in-progress load complete size=%d', (tileManifestCache as Set<string> | undefined)?.size ?? 0);
+        return tileManifestCache ?? new Set();
     }
     
     // Start loading - DON'T set tileManifestCache until fetch completes
@@ -103,7 +103,7 @@ export async function loadTileManifest(): Promise<Set<string>> {
     })();
     
     await manifestLoadPromise;
-    return tileManifestCache!;
+    return tileManifestCache ?? new Set();
 }
 
 /**
