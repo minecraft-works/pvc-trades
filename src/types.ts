@@ -274,6 +274,15 @@ export type ItemValues = Map<string, ItemValueEntry>;
 
 export type RatioGraph = Map<string, number>;
 
+export interface PriceTableEntry {
+    name: string;
+    buyPrice: number | undefined;
+    sellPrice: number | undefined;
+    spread: number | undefined;
+    /** True when prices are derived from base item × multiplier (e.g. diamond × 9) */
+    derived: boolean;
+}
+
 // ============================================================================
 // Dynmap Types
 // ============================================================================

@@ -1,14 +1,14 @@
 /**
- * Matrix Dialog Module
- * 
- * Renders the conversion matrix showing exchange rates between core currencies.
- * 
+ * Price Table Dialog Module
+ *
+ * Renders a buy/sell price table for core currencies in emeralds.
+ *
  * @module dialogs/matrix-dialog
  */
 
-import { escapeHtml, getRatio, getCoreBlocks } from '../library.js';
+import { escapeHtml, buildPriceTable } from '../library.js';
 import { SELECTORS, DIALOG_IDS } from '../constants.js';
-import type { RatioGraph } from '../types.js';
+import type { ItemValues, PriceTableEntry } from '../types.js';
 
 // ============================================================================
 // Constants
@@ -28,7 +28,7 @@ const ITEM_ICONS: Record<string, string> = {
     'Iron Ingot': 'icons/iron_ingot.png',
 };
 
-const MATRIX_HEADER_HTML = '<header><h2>Conversion Matrix</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
+const TABLE_HEADER_HTML = '<header><h2>Price Table</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
 
 // ============================================================================
 // Helper Functions
@@ -40,55 +40,51 @@ const MATRIX_HEADER_HTML = '<header><h2>Conversion Matrix</h2><button id="close-
 function getItemIcon(name: string): string {
     const url = ITEM_ICONS[name];
     if (url) {
-        return `<img src="${url}" alt="${escapeHtml(name)}" class="matrix-icon" title="${escapeHtml(name)}">`;
+        return `<img src="${url}" alt="${escapeHtml(name)}" class="price-table-icon" title="${escapeHtml(name)}">`;
     }
     return escapeHtml(name);
 }
 
 /**
- * Format a ratio value as "X:1" or "1:X"
+ * Format a price value for display
  */
-function formatMatrixValue(value: number): string {
-    // Always show as ratio X:1 or 1:X
-    if (value >= 1) {
-        // Value >= 1: show as "X:1"
-        const rounded = Math.round(value);
-        return `${rounded}:1`;
-    } else {
-        // Value < 1: show as "1:X"
-        const inverse = Math.round(1 / value);
-        return `1:${inverse}`;
-    }
+function formatPrice(value: number | undefined): string {
+    if (value === undefined) { return '<span class="price-na">—</span>'; }
+    const rounded = Math.round(value * 100) / 100;
+    return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
 }
 
 /**
- * Build the matrix cell HTML for a given row/column pair
+ * Get the CSS class for a spread value
  */
-function buildMatrixCell(ratioGraph: RatioGraph, row: string, col: string, colIndex: number, rowIndex: number): string {
-    if (colIndex >= rowIndex) {
-        // Diagonal and upper triangle - skip (redundant data)
-        return '<td class="skip"></td>';
-    }
-    
-    const ratio = getRatio(ratioGraph, row, col);
-    return ratio === undefined
-        ? '<td class="unknown" title="No conversion path found">?</td>'
-        : `<td title="1 ${escapeHtml(row)} = ${ratio.toFixed(4)} ${escapeHtml(col)}">${formatMatrixValue(ratio)}</td>`;
+function getSpreadClass(spread: number): string {
+    if (spread <= 15) { return 'spread-low'; }
+    if (spread <= 30) { return 'spread-medium'; }
+    return 'spread-high';
 }
 
 /**
- * Build the matrix row HTML for a given row item
+ * Format spread percentage for display
  */
-function buildMatrixRow(ratioGraph: RatioGraph, row: string, rowIndex: number, coreBlocks: string[]): string {
-    let html = `<tr><th>${getItemIcon(row)}</th>`;
-    
-    // Skip last column (not needed for lower triangle)
-    for (let colIndex = 0; colIndex < coreBlocks.length - 1; colIndex++) {
-        const col = coreBlocks[colIndex];
-        html += col ? buildMatrixCell(ratioGraph, row, col, colIndex, rowIndex) : '';
-    }
-    
-    return html + '</tr>';
+function formatSpread(spread: number | undefined): string {
+    if (spread === undefined) { return '<span class="price-na">—</span>'; }
+    const cls = getSpreadClass(spread);
+    return `<span class="${cls}">${Math.round(spread)}%</span>`;
+}
+
+/**
+ * Build a single table row for a price table entry
+ */
+function buildPriceTableRow(entry: PriceTableEntry): string {
+    const derivedClass = entry.derived ? ' class="price-derived"' : '';
+    const derivedMark = entry.derived ? ' <span class="price-derived-mark" title="Derived from base item">*</span>' : '';
+
+    return `<tr${derivedClass}>
+        <td>${getItemIcon(entry.name)}${derivedMark}</td>
+        <td>${formatPrice(entry.buyPrice)}</td>
+        <td>${formatPrice(entry.sellPrice)}</td>
+        <td>${formatSpread(entry.spread)}</td>
+    </tr>`;
 }
 
 // ============================================================================
@@ -96,48 +92,41 @@ function buildMatrixRow(ratioGraph: RatioGraph, row: string, rowIndex: number, c
 // ============================================================================
 
 /**
- * Render the conversion matrix dialog
- * 
- * @param container - Container element for the matrix
- * @param ratioGraph - The computed ratio graph, or undefined if not available
+ * Render the price table dialog
+ *
+ * @param container - Container element for the table
+ * @param itemValues - The computed item values, or undefined if not available
  * @param getElement - Helper function to get elements by ID
  */
-export function renderMatrix(
+export function renderPriceTable(
     container: HTMLElement,
-    ratioGraph: RatioGraph | undefined,
+    itemValues: ItemValues | undefined,
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T
 ): void {
-    if (!ratioGraph || ratioGraph.size === 0) {
-        container.innerHTML = `${MATRIX_HEADER_HTML}<p class="muted">No conversion data available</p>`;
+    if (!itemValues || itemValues.size === 0) {
+        container.innerHTML = `${TABLE_HEADER_HTML}<p class="muted">No price data available</p>`;
         container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
             getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
         });
         return;
     }
 
-    const coreBlocks = getCoreBlocks();
-    let html = MATRIX_HEADER_HTML;
-    html += '<div class="matrix-wrapper"><table class="matrix"><thead><tr><th></th>';
-    
-    // Skip last column header (not needed for lower triangle)
-    for (let index = 0; index < coreBlocks.length - 1; index++) {
-        const block = coreBlocks[index];
-        html += block ? `<th>${getItemIcon(block)}</th>` : '';
-    }
+    const entries = buildPriceTable(itemValues);
+
+    let html = TABLE_HEADER_HTML;
+    html += '<div class="price-table-wrapper"><table class="price-table"><thead><tr>';
+    html += '<th>Currency</th><th>Buy</th><th>Sell</th><th>Spread</th>';
     html += '</tr></thead><tbody>';
 
-    // Skip first row (rowIdx=0) since it would be all skip cells
-    for (let rowIndex = 1; rowIndex < coreBlocks.length; rowIndex++) {
-        const row = coreBlocks[rowIndex];
-        if (row) {
-            html += buildMatrixRow(ratioGraph, row, rowIndex, coreBlocks);
-        }
+    for (const entry of entries) {
+        html += buildPriceTableRow(entry);
     }
 
-    html += '</tbody></table></div>';
+    html += '</tbody></table>';
+    html += '<p class="price-table-hint">Prices in emeralds. Spread = (buy\u2212sell)/buy.<br><span class="price-derived-mark">*</span> Derived from base item (e.g. diamond \u00D7 9).</p>';
+    html += '</div>';
     container.innerHTML = html;
-    
-    // Add close button handler
+
     container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
         getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
     });

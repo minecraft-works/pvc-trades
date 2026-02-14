@@ -25,6 +25,7 @@ import {
     getTrustedItemValue,
     buildRatioGraph,
     getRatio,
+    buildPriceTable,
     loadFixedRatios,
     loadBaseItems,
     loadConfig,
@@ -713,6 +714,253 @@ describe('buildRatioGraph and getRatio', () => {
         const values: ItemValues = new Map();
         const graph = buildRatioGraph(values);
         expect(getRatio(graph, 'Unknown', 'Item')).toBeUndefined();
+    });
+
+    test('preserves direct block price over ingot-derived value', () => {
+        // Diamond Block has direct trades at 90 emeralds ((100+80)/2)
+        // Diamond ingot trades at 10 emeralds → derived block = 90 (coincidence)
+        // Gold Ingot at 2 emeralds → Gold Block derived = 18
+        // The key: Diamond Block uses its direct price (90), not ingot×9
+        const values: ItemValues = new Map([
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 100, x: 0, y: 0, z: 0 },
+                    { price: 100, x: 100, y: 0, z: 0 },
+                    { price: 100, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 80, x: 0, y: 0, z: 0 },
+                    { price: 80, x: 100, y: 0, z: 0 },
+                    { price: 80, x: 200, y: 0, z: 0 }
+                ]
+            }],
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 5, x: 0, y: 0, z: 0 },
+                    { price: 5, x: 100, y: 0, z: 0 },
+                    { price: 5, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['gold ingot', {
+                name: 'Gold Ingot',
+                buyPrices: [
+                    { price: 2, x: 0, y: 0, z: 0 },
+                    { price: 2, x: 100, y: 0, z: 0 },
+                    { price: 2, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const graph = buildRatioGraph(values);
+        // Diamond Block = 90 (direct), Gold Block = 9×2 = 18 (derived)
+        // Without the fix, Diamond Block would be 9×5 = 45, ratio = 45/18 = 2.5
+        // With the fix, Diamond Block = 90, ratio = 90/18 = 5
+        const ratio = getRatio(graph, DIAMOND_BLOCK_TITLE, GOLD_BLOCK_TITLE);
+        expect(ratio).toBeCloseTo(5); // 90/18 = 5
+    });
+
+    test('falls back to ingot-derived value when no direct block trades', () => {
+        // Only "diamond" has trades, not "diamond block"
+        // So diamond block value should come from ingot × 9
+        const values: ItemValues = new Map([
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['gold ingot', {
+                name: 'Gold Ingot',
+                buyPrices: [
+                    { price: 2, x: 0, y: 0, z: 0 },
+                    { price: 2, x: 100, y: 0, z: 0 },
+                    { price: 2, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const graph = buildRatioGraph(values);
+        // Diamond block = 9 × 10 = 90, Gold block = 9 × 2 = 18
+        const ratio = getRatio(graph, DIAMOND_BLOCK_TITLE, GOLD_BLOCK_TITLE);
+        expect(ratio).toBeCloseTo(5); // 90/18
+    });
+});
+
+describe('buildPriceTable', () => {
+    test('returns buy and sell median prices for core blocks', () => {
+        const values: ItemValues = new Map([
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 12, x: 100, y: 0, z: 0 },
+                    { price: 14, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 8, x: 0, y: 0, z: 0 },
+                    { price: 8, x: 100, y: 0, z: 0 },
+                    { price: 8, x: 200, y: 0, z: 0 }
+                ]
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const diamond = table.find(entry => entry.name === 'Diamond Block');
+        expect(diamond).toBeDefined();
+        expect(diamond!.buyPrice).toBe(12); // median of [10,12,14]
+        expect(diamond!.sellPrice).toBe(8);
+    });
+
+    test('returns empty array when no core blocks have data', () => {
+        const values: ItemValues = new Map([
+            ['wheat', {
+                name: 'Wheat',
+                buyPrices: [{ price: 1, x: 0, y: 0, z: 0 }],
+                sellPrices: []
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        expect(table).toHaveLength(0);
+    });
+
+    test('includes buy-only items with undefined sell', () => {
+        const values: ItemValues = new Map([
+            ['iron block', {
+                name: 'Iron Block',
+                buyPrices: [
+                    { price: 1, x: 0, y: 0, z: 0 },
+                    { price: 1, x: 100, y: 0, z: 0 },
+                    { price: 1, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const iron = table.find(entry => entry.name === 'Iron Block');
+        expect(iron).toBeDefined();
+        expect(iron!.buyPrice).toBe(1);
+        expect(iron!.sellPrice).toBeUndefined();
+        expect(iron!.spread).toBeUndefined();
+    });
+
+    test('calculates spread as (buy-sell)/buy percentage', () => {
+        const values: ItemValues = new Map([
+            ['gold block', {
+                name: 'Gold Block',
+                buyPrices: [
+                    { price: 4, x: 0, y: 0, z: 0 },
+                    { price: 4, x: 100, y: 0, z: 0 },
+                    { price: 4, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 3, x: 0, y: 0, z: 0 },
+                    { price: 3, x: 100, y: 0, z: 0 },
+                    { price: 3, x: 200, y: 0, z: 0 }
+                ]
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const gold = table.find(entry => entry.name === 'Gold Block');
+        expect(gold).toBeDefined();
+        expect(gold!.spread).toBe(25); // (4-3)/4 = 0.25 = 25%
+    });
+
+    test('sorts entries by buy price descending', () => {
+        const values: ItemValues = new Map([
+            ['iron block', {
+                name: 'Iron Block',
+                buyPrices: [
+                    { price: 1, x: 0, y: 0, z: 0 },
+                    { price: 1, x: 100, y: 0, z: 0 },
+                    { price: 1, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        expect(table.length).toBeGreaterThanOrEqual(2);
+        expect(table[0]!.name).toBe('Diamond Block');
+        expect(table[1]!.name).toBe('Iron Block');
+    });
+
+    test('derives block price from base item when no direct trades', () => {
+        // Only "diamond" has trades, not "diamond block"
+        // Should derive Diamond Block = diamond × 9
+        const values: ItemValues = new Map([
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: [
+                    { price: 8, x: 0, y: 0, z: 0 },
+                    { price: 8, x: 100, y: 0, z: 0 },
+                    { price: 8, x: 200, y: 0, z: 0 }
+                ]
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
+        expect(diamondBlock).toBeDefined();
+        expect(diamondBlock!.buyPrice).toBe(90);  // 10 × 9
+        expect(diamondBlock!.sellPrice).toBe(72);  // 8 × 9
+        expect(diamondBlock!.derived).toBe(true);
+        expect(diamondBlock!.spread).toBeCloseTo(20); // (90-72)/90 = 20%
+    });
+
+    test('prefers direct trades over derived values', () => {
+        // Both "diamond" and "diamond block" have trades
+        // Diamond Block should use its own data, not diamond × 9
+        const values: ItemValues = new Map([
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [
+                    { price: 100, x: 0, y: 0, z: 0 },
+                    { price: 100, x: 100, y: 0, z: 0 },
+                    { price: 100, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const table = buildPriceTable(values);
+        const diamondBlock = table.find(entry => entry.name === 'Diamond Block');
+        expect(diamondBlock).toBeDefined();
+        expect(diamondBlock!.buyPrice).toBe(100); // direct, not 10×9=90
+        expect(diamondBlock!.derived).toBe(false);
     });
 });
 

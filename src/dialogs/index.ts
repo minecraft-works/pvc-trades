@@ -12,8 +12,8 @@ export {
     openDialog
 } from './dialog-utilities.js';
 
-// Matrix dialog
-export { renderMatrix } from './matrix-dialog.js';
+// Price table dialog
+export { renderPriceTable } from './matrix-dialog.js';
 
 // Trade details dialog
 export { createTradeDetailsHandler } from './trade-details.js';

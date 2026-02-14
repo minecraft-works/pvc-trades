@@ -66,6 +66,7 @@ import {
     type DashboardData,
     type PriceDrop,
     type WatchlistHit,
+    type PriceTableEntry,
 } from './types.js';
 
 // Shared tile coordinate utilities (used by both runtime and build scripts)
@@ -583,8 +584,16 @@ function addRatioToGraph(graph: RatioGraph, from: string, to: string, ratio: num
 
 function buildEmeraldValuesFromTrades(itemValues: ItemValues): Map<string, number> {
     const emeraldValues = new Map<string, number>();
+    const config = configStore.get();
+    const coreBlocks = coreBlocksStore.get();
+    const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
 
     for (const [key, entry] of itemValues.entries()) {
+        // For core blocks, require minimum independent shops for trust
+        if (coreBlocksLower.has(key) && !hasEnoughIndependentData(entry, config.analysis.minIndependentShops)) {
+            continue;
+        }
+
         const medianBuy = median(entry.buyPrices);
         const medianSell = median(entry.sellPrices);
         const value = medianBuy !== undefined && medianSell !== undefined
@@ -604,9 +613,12 @@ function addBlockConversionValues(
     blockConversions: BlockConversions
 ): void {
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
+        const blockKey = blockName.toLowerCase();
+        // Preserve direct trade values — only fill in missing blocks
+        if (emeraldValues.has(blockKey)) { continue; }
         const baseValue = emeraldValues.get(base.toLowerCase());
         if (baseValue !== undefined) {
-            emeraldValues.set(blockName.toLowerCase(), baseValue * multiplier);
+            emeraldValues.set(blockKey, baseValue * multiplier);
         }
     }
 }
@@ -655,6 +667,79 @@ export function buildRatioGraph(itemValues: ItemValues): RatioGraph {
 export function getRatio(graph: RatioGraph, from: string, to: string): number | undefined {
     const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
     return graph.get(key);
+}
+
+function calculateSpread(buyPrice: number | undefined, sellPrice: number | undefined): number | undefined {
+    if (buyPrice === undefined || sellPrice === undefined) { return undefined; }
+    return ((buyPrice - sellPrice) / buyPrice) * 100;
+}
+
+function buildDirectEntry(block: string, entry: ItemValueEntry): PriceTableEntry | undefined {
+    const buyPrice = median(entry.buyPrices);
+    const sellPrice = median(entry.sellPrices);
+    if (buyPrice === undefined && sellPrice === undefined) { return undefined; }
+
+    return {
+        name: block,
+        buyPrice,
+        sellPrice,
+        spread: calculateSpread(buyPrice, sellPrice),
+        derived: false,
+    };
+}
+
+function buildDerivedEntry(
+    block: string,
+    baseEntry: ItemValueEntry,
+    multiplier: number
+): PriceTableEntry | undefined {
+    const baseBuy = median(baseEntry.buyPrices);
+    const baseSell = median(baseEntry.sellPrices);
+    if (baseBuy === undefined && baseSell === undefined) { return undefined; }
+
+    const buyPrice = baseBuy === undefined ? undefined : baseBuy * multiplier;
+    const sellPrice = baseSell === undefined ? undefined : baseSell * multiplier;
+
+    return {
+        name: block,
+        buyPrice,
+        sellPrice,
+        spread: calculateSpread(buyPrice, sellPrice),
+        derived: true,
+    };
+}
+
+/**
+ * Build a price table showing buy/sell prices for core blocks in emeralds.
+ * Each entry includes median buy/sell price, trade counts, independent shop count, and spread.
+ * Falls back to base item × multiplier when no direct trades exist.
+ * Sorted by buy price descending (most expensive first).
+ */
+export function buildPriceTable(itemValues: ItemValues): PriceTableEntry[] {
+    const coreBlocks = coreBlocksStore.get();
+    const blockConversions = blockConversionsStore.get();
+    const entries: PriceTableEntry[] = [];
+
+    for (const block of coreBlocks) {
+        const key = block.toLowerCase();
+        const entry = itemValues.get(key);
+
+        if (entry) {
+            const direct = buildDirectEntry(block, entry);
+            if (direct) { entries.push(direct); continue; }
+        }
+
+        // Fall back to base item × multiplier (e.g. diamond × 9 = diamond block)
+        const conversion = blockConversions[key];
+        if (!conversion) { continue; }
+        const baseEntry = itemValues.get(conversion.base.toLowerCase());
+        if (!baseEntry) { continue; }
+
+        const derived = buildDerivedEntry(block, baseEntry, conversion.multiplier);
+        if (derived) { entries.push(derived); }
+    }
+
+    return entries.toSorted((a, b) => (b.buyPrice ?? 0) - (a.buyPrice ?? 0));
 }
 
 // ============================================================================
