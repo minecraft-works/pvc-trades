@@ -182,6 +182,40 @@ function wrapAsHistory(snapshot: object): object {
 }
 
 /**
+ * Extract expanded snapshots from any stored format.
+ * Handles compact `{ keys, snapshots: [{ t, v }] }`,
+ * history `{ snapshots: [{ timestamp, trades }] }`,
+ * and legacy single `{ timestamp, trades }`.
+ */
+function extractSnapshots(parsed: Record<string, unknown>): Array<{ timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }> {
+    // Compact format: { keys: string[], snapshots: [{ t, v }] }
+    if (Array.isArray(parsed.keys) && Array.isArray(parsed.snapshots)) {
+        const keys = parsed.keys as string[];
+        return (parsed.snapshots as Array<{ t: number; v: Array<[number | null, number]> }>).map((cs) => {
+            const trades: Record<string, { deviationPercent?: number; stock: number }> = {};
+            for (const [index, key] of keys.entries()) {
+                const value = cs.v[index];
+                if (value) {
+                    trades[key] = {
+                        deviationPercent: value[0] ?? undefined,
+                        stock: value[1],
+                    };
+                }
+            }
+            return { timestamp: cs.t, trades };
+        });
+    }
+
+    // History format: { snapshots: [{ timestamp, trades }] }
+    if (Array.isArray(parsed.snapshots)) {
+        return parsed.snapshots as Array<{ timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }>;
+    }
+
+    // Legacy single: { timestamp, trades }
+    return [parsed as unknown as { timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }];
+}
+
+/**
  * Store a snapshot in localStorage using the rolling history format.
  */
 async function storeSnapshotHistory(page: import('@playwright/test').Page, snapshot: object): Promise<void> {
@@ -278,17 +312,18 @@ Given('I have a previous snapshot with slightly better deviations', async ({ pag
     const currentSnapshot = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     if (currentSnapshot) {
         const parsed = JSON.parse(currentSnapshot);
-        // Extract the latest snapshot from history or legacy format
-        const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+        const snapshots = extractSnapshots(parsed);
+        const snapshot = snapshots.at(-1)!;
         for (const key of Object.keys(snapshot.trades)) {
-            if (snapshot.trades[key].deviationPercent !== undefined) {
-                snapshot.trades[key].deviationPercent += 2;
+            const entry = snapshot.trades[key];
+            if (entry?.deviationPercent !== undefined) {
+                entry.deviationPercent += 2;
             }
         }
         snapshot.timestamp = Date.now() - 25 * 3_600_000;
         await page.evaluate(({ key, data }) => {
             localStorage.setItem(key, JSON.stringify(data));
-        }, { key: STORAGE_KEY_SNAPSHOT, data: { snapshots: [snapshot] } });
+        }, { key: STORAGE_KEY_SNAPSHOT, data: wrapAsHistory(snapshot) });
     }
 });
 
@@ -407,8 +442,8 @@ Then('a trade snapshot should be saved in localStorage', async ({ page }) => {
     const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    // Accept both history format and legacy single snapshot
-    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const snapshots = extractSnapshots(parsed);
+    const snapshot = snapshots.at(-1);
     expect(snapshot).toHaveProperty('timestamp');
     expect(snapshot).toHaveProperty('trades');
 });
@@ -417,7 +452,8 @@ Then('the snapshot should contain trade entries', async ({ page }) => {
     const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const snapshots = extractSnapshots(parsed);
+    const snapshot = snapshots.at(-1)!;
     const tradeCount = Object.keys(snapshot.trades).length;
     expect(tradeCount).toBeGreaterThan(0);
 });
@@ -426,7 +462,8 @@ Then('the snapshot timestamp should be recent', async ({ page }) => {
     const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const snapshots = extractSnapshots(parsed);
+    const snapshot = snapshots.at(-1)!;
     const now = Date.now();
     // Timestamp should be within last 30 seconds
     expect(now - snapshot.timestamp).toBeLessThan(30_000);
@@ -436,11 +473,8 @@ Then('the snapshot timestamp should not have changed', async ({ page }) => {
     const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    // The baseline snapshot was set 25h ago by buildFullSnapshot()
-    // loadBaseline picks it as the ~24h-old baseline. appendIfDue may add a new
-    // snapshot, but the original 25h-old entry should still be in the history.
-    const snapshots = parsed.snapshots ?? [parsed];
-    const oldest = snapshots[0];
+    const snapshots = extractSnapshots(parsed);
+    const oldest = snapshots[0]!;
     const age = Date.now() - oldest.timestamp;
     // Original was 25h ago → age should be ~25h ± 30s
     expect(age).toBeGreaterThan(24 * 3_600_000);
@@ -451,7 +485,8 @@ Then('every visible trade should have a snapshot entry', async ({ page }) => {
     const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY_SNAPSHOT);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    const snapshot = parsed.snapshots ? parsed.snapshots.at(-1) : parsed;
+    const snapshots = extractSnapshots(parsed);
+    const snapshot = snapshots.at(-1)!;
     const tradeKeys = Object.keys(snapshot.trades);
 
     // The mock data has 7 trades (5 shops, one has 2 recipes)

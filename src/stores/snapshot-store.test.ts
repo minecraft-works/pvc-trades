@@ -1,9 +1,9 @@
 /**
- * Unit tests for SnapshotStore (rolling history)
+ * Unit tests for SnapshotStore (compact rolling history)
  */
 import { describe, test, expect, beforeEach } from 'vitest';
 import { STORAGE_KEYS, DASHBOARD } from '../constants.js';
-import { SnapshotHistorySchema } from '../types.js';
+import { CompactSnapshotHistorySchema } from '../types.js';
 import type { Trade, TradeSnapshot } from '../types.js';
 import type { DeviationResult } from '../search/deviation.js';
 
@@ -21,7 +21,7 @@ const mockLocalStorage = (() => {
 Object.defineProperty(globalThis, 'localStorage', { value: mockLocalStorage });
 
 // Dynamic import to pick up mocked localStorage
-const { snapshotStore } = await import('./snapshot-store.js');
+const { snapshotStore, packSnapshots, unpackSnapshots } = await import('./snapshot-store.js');
 
 /** Minimal trade for testing */
 function makeTrade(overrides: Partial<Trade> = {}): Trade {
@@ -46,11 +46,12 @@ function makeDeviation(percent: number): DeviationResult {
     return { percent, direction: percent < 0 ? 'better' : 'worse' } as DeviationResult;
 }
 
-/** Parse stored history */
-function parseStoredHistory(): { snapshots: TradeSnapshot[] } {
+/** Parse stored compact history back to expanded snapshots */
+function parseStoredSnapshots(): TradeSnapshot[] {
     const raw = mockLocalStorage.getItem(STORAGE_KEYS.SNAPSHOT);
     expect(raw).toBeDefined();
-    return SnapshotHistorySchema.parse(JSON.parse(raw!));
+    const compact = CompactSnapshotHistorySchema.parse(JSON.parse(raw!));
+    return unpackSnapshots(compact);
 }
 
 /** Deviation calculator that always returns a fixed value */
@@ -63,9 +64,15 @@ function noDeviation(): DeviationResult | undefined {
     return undefined;
 }
 
-/** Store a raw history in localStorage */
+/** Store snapshots in v2 history format (for migration tests) */
 function storeHistory(snapshots: TradeSnapshot[]): void {
     mockLocalStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify({ snapshots }));
+}
+
+/** Store snapshots in compact format */
+function storeCompact(snapshots: TradeSnapshot[]): void {
+    const compact = packSnapshots(snapshots);
+    mockLocalStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify(compact));
 }
 
 /** Build a minimal snapshot at a given timestamp */
@@ -87,7 +94,20 @@ describe('SnapshotStore', () => {
             expect(snapshotStore.loadAll()).toEqual([]);
         });
 
-        test('returns snapshots from history format', () => {
+        test('returns snapshots from compact format', () => {
+            const snapshots = [
+                makeSnapshot(1000, { key1: { deviationPercent: 10, stock: 5 } }),
+                makeSnapshot(2000, { key1: { deviationPercent: 20, stock: 3 } }),
+            ];
+            storeCompact(snapshots);
+
+            const loaded = snapshotStore.loadAll();
+            expect(loaded).toHaveLength(2);
+            expect(loaded[0]?.timestamp).toBe(1000);
+            expect(loaded[1]?.timestamp).toBe(2000);
+        });
+
+        test('migrates v2 history format', () => {
             const snapshots = [
                 makeSnapshot(1000, { key1: { deviationPercent: 10, stock: 5 } }),
                 makeSnapshot(2000, { key1: { deviationPercent: 20, stock: 3 } }),
@@ -137,7 +157,7 @@ describe('SnapshotStore', () => {
                 makeSnapshot(now - 6 * 3_600_000,  { a: { stock: 3 } }),  // 6h ago
                 makeSnapshot(now - 1 * 3_600_000,  { a: { stock: 4 } }),  // 1h ago
             ];
-            storeHistory(snapshots);
+            storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline();
             expect(baseline?.trades['a']?.stock).toBe(2);
@@ -149,7 +169,7 @@ describe('SnapshotStore', () => {
                 makeSnapshot(now - 6 * 3_600_000, { a: { stock: 1 } }), // 6h ago  ← oldest
                 makeSnapshot(now - 1 * 3_600_000, { a: { stock: 2 } }), // 1h ago
             ];
-            storeHistory(snapshots);
+            storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline();
             expect(baseline?.trades['a']?.stock).toBe(1);
@@ -157,7 +177,7 @@ describe('SnapshotStore', () => {
 
         test('returns single snapshot when only one exists', () => {
             const now = Date.now();
-            storeHistory([makeSnapshot(now - 3_600_000, { a: { stock: 7 } })]);
+            storeCompact([makeSnapshot(now - 3_600_000, { a: { stock: 7 } })]);
 
             const baseline = snapshotStore.loadBaseline();
             expect(baseline?.trades['a']?.stock).toBe(7);
@@ -170,7 +190,7 @@ describe('SnapshotStore', () => {
                 makeSnapshot(now - 6 * 3_600_000,  { a: { stock: 2 } }),  // 6h ago ← exact match
                 makeSnapshot(now - 1 * 3_600_000,  { a: { stock: 3 } }),  // 1h ago
             ];
-            storeHistory(snapshots);
+            storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline(6 * 3_600_000);
             expect(baseline?.trades['a']?.stock).toBe(2);
@@ -188,7 +208,7 @@ describe('SnapshotStore', () => {
 
         test('returns most recent snapshot', () => {
             const now = Date.now();
-            storeHistory([
+            storeCompact([
                 makeSnapshot(now - 12 * 3_600_000, { a: { stock: 1 } }),
                 makeSnapshot(now - 6 * 3_600_000, { a: { stock: 2 } }),
             ]);
@@ -208,35 +228,35 @@ describe('SnapshotStore', () => {
             const result = snapshotStore.appendIfDue(trades, fixedDeviation(-15));
 
             expect(result).toBe(true);
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(1);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(1);
         });
 
         test('does not save when interval has not elapsed', () => {
             const now = Date.now();
-            storeHistory([makeSnapshot(now - 1000, { a: { stock: 1 } })]); // 1s ago
+            storeCompact([makeSnapshot(now - 1000, { a: { stock: 1 } })]); // 1s ago
 
             const result = snapshotStore.appendIfDue([makeTrade()], fixedDeviation(0));
             expect(result).toBe(false);
 
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(1);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(1);
         });
 
         test('saves when interval has elapsed', () => {
             const now = Date.now();
-            storeHistory([makeSnapshot(now - DASHBOARD.SNAPSHOT_INTERVAL_MS - 1000)]); // just past interval
+            storeCompact([makeSnapshot(now - DASHBOARD.SNAPSHOT_INTERVAL_MS - 1000)]); // just past interval
 
             const result = snapshotStore.appendIfDue([makeTrade()], fixedDeviation(10));
             expect(result).toBe(true);
 
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(2);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(2);
         });
 
         test('prunes snapshots older than max age', () => {
             const now = Date.now();
-            storeHistory([
+            storeCompact([
                 makeSnapshot(now - 40 * 3_600_000, { a: { stock: 1 } }), // 40h ago → pruned
                 makeSnapshot(now - 25 * 3_600_000, { a: { stock: 2 } }), // 25h ago → kept
                 makeSnapshot(now - DASHBOARD.SNAPSHOT_INTERVAL_MS - 1000, { a: { stock: 3 } }),
@@ -244,18 +264,18 @@ describe('SnapshotStore', () => {
 
             snapshotStore.appendIfDue([makeTrade()], fixedDeviation(0));
 
-            const history = parseStoredHistory();
+            const snapshots = parseStoredSnapshots();
             // 40h snapshot pruned, 25h + old latest + new = 3
-            expect(history.snapshots).toHaveLength(3);
-            expect(history.snapshots[0]?.trades['a']?.stock).toBe(2);
+            expect(snapshots).toHaveLength(3);
+            expect(snapshots[0]?.trades['a']?.stock).toBe(2);
         });
 
         test('stores correct trade data', () => {
             const trades = [makeTrade({ displayStock: 42 })];
             snapshotStore.appendIfDue(trades, fixedDeviation(-25));
 
-            const history = parseStoredHistory();
-            const entries = Object.values(history.snapshots[0]!.trades);
+            const snapshots = parseStoredSnapshots();
+            const entries = Object.values(snapshots[0]!.trades);
             expect(entries).toHaveLength(1);
             expect(entries[0]).toEqual({ deviationPercent: -25, stock: 42 });
         });
@@ -263,8 +283,8 @@ describe('SnapshotStore', () => {
         test('saves undefined deviation when calculator returns undefined', () => {
             snapshotStore.appendIfDue([makeTrade()], noDeviation);
 
-            const history = parseStoredHistory();
-            const entries = Object.values(history.snapshots[0]!.trades);
+            const snapshots = parseStoredSnapshots();
+            const entries = Object.values(snapshots[0]!.trades);
             expect(entries[0]?.deviationPercent).toBeUndefined();
         });
     });
@@ -279,9 +299,9 @@ describe('SnapshotStore', () => {
 
             snapshotStore.save(trades, fixedDeviation(-15));
 
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(1);
-            const entries = Object.values(history.snapshots[0]!.trades);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(1);
+            const entries = Object.values(snapshots[0]!.trades);
             expect(entries).toHaveLength(1);
             expect(entries[0]).toEqual({
                 deviationPercent: -15,
@@ -291,12 +311,12 @@ describe('SnapshotStore', () => {
 
         test('appends to existing history', () => {
             const now = Date.now();
-            storeHistory([makeSnapshot(now - 3_600_000, { a: { stock: 1 } })]);
+            storeCompact([makeSnapshot(now - 3_600_000, { a: { stock: 1 } })]);
 
             snapshotStore.save([makeTrade({ displayStock: 99 })], fixedDeviation(25));
 
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(2);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(2);
         });
     });
 
@@ -349,11 +369,130 @@ describe('SnapshotStore', () => {
             const baseline = snapshotStore.loadBaseline();
             expect(baseline?.trades['key1']?.stock).toBe(10);
 
-            // Appending converts to history format
+            // Appending converts to compact format
             snapshotStore.save([makeTrade()], fixedDeviation(0));
-            const history = parseStoredHistory();
-            expect(history.snapshots).toHaveLength(2);
-            expect(history.snapshots[0]?.trades['key1']?.stock).toBe(10);
+            const snapshots = parseStoredSnapshots();
+            expect(snapshots).toHaveLength(2);
+            expect(snapshots[0]?.trades['key1']?.stock).toBe(10);
+        });
+
+        test('v2 history format is migrated on re-save', () => {
+            const now = Date.now();
+            storeHistory([
+                makeSnapshot(now - 3_600_000, { a: { deviationPercent: 5, stock: 10 } }),
+            ]);
+
+            // Load reads v2 format, save writes compact
+            snapshotStore.save([makeTrade()], fixedDeviation(0));
+
+            // Verify it's now stored in compact format
+            const raw = mockLocalStorage.getItem(STORAGE_KEYS.SNAPSHOT);
+            const parsed = CompactSnapshotHistorySchema.parse(JSON.parse(raw!));
+            expect(parsed).toHaveProperty('keys');
+            expect(parsed).toHaveProperty('snapshots');
+            expect(parsed.snapshots[0]).toHaveProperty('t');
+            expect(parsed.snapshots[0]).toHaveProperty('v');
+        });
+    });
+
+    // ====================================================================
+    // packSnapshots / unpackSnapshots
+    // ====================================================================
+
+    describe('packSnapshots / unpackSnapshots', () => {
+        test('round-trips a single snapshot', () => {
+            const original: TradeSnapshot[] = [
+                makeSnapshot(1000, {
+                    key1: { deviationPercent: -15, stock: 42 },
+                    key2: { stock: 7 },
+                }),
+            ];
+
+            const packed = packSnapshots(original);
+            const unpacked = unpackSnapshots(packed);
+
+            expect(unpacked).toHaveLength(1);
+            expect(unpacked[0]?.timestamp).toBe(1000);
+            expect(unpacked[0]?.trades['key1']).toEqual({ deviationPercent: -15, stock: 42 });
+            expect(unpacked[0]?.trades['key2']).toEqual({ deviationPercent: undefined, stock: 7 });
+        });
+
+        test('deduplicates keys across snapshots', () => {
+            const original: TradeSnapshot[] = [
+                makeSnapshot(1000, { a: { stock: 1 }, b: { stock: 2 } }),
+                makeSnapshot(2000, { b: { stock: 3 }, c: { stock: 4 } }),
+            ];
+
+            const packed = packSnapshots(original);
+
+            // Union of keys: a, b, c
+            expect(packed.keys).toHaveLength(3);
+            expect(packed.keys).toContain('a');
+            expect(packed.keys).toContain('b');
+            expect(packed.keys).toContain('c');
+
+            // Each compact snapshot has values parallel to keys
+            expect(packed.snapshots).toHaveLength(2);
+            expect(packed.snapshots[0]?.v).toHaveLength(3);
+            expect(packed.snapshots[1]?.v).toHaveLength(3);
+        });
+
+        test('missing keys in a snapshot get [null, 0] placeholder', () => {
+            const original: TradeSnapshot[] = [
+                makeSnapshot(1000, { a: { stock: 1 } }),
+                makeSnapshot(2000, { b: { stock: 2 } }),
+            ];
+
+            const packed = packSnapshots(original);
+            const unpacked = unpackSnapshots(packed);
+
+            // First snapshot has 'a' but not 'b'
+            expect(unpacked[0]?.trades['a']?.stock).toBe(1);
+            expect(unpacked[0]?.trades['b']?.stock).toBe(0); // placeholder
+
+            // Second snapshot has 'b' but not 'a'
+            expect(unpacked[1]?.trades['b']?.stock).toBe(2);
+            expect(unpacked[1]?.trades['a']?.stock).toBe(0); // placeholder
+        });
+
+        test('preserves null deviation through compact format', () => {
+            const original: TradeSnapshot[] = [
+                makeSnapshot(1000, { a: { deviationPercent: undefined, stock: 5 } }),
+            ];
+
+            const packed = packSnapshots(original);
+            expect(packed.snapshots[0]?.v[0]?.[0]).toBeNull(); // stored as null
+
+            const unpacked = unpackSnapshots(packed);
+            expect(unpacked[0]?.trades['a']?.deviationPercent).toBeUndefined(); // restored as undefined
+        });
+
+        test('empty snapshot array packs and unpacks', () => {
+            const packed = packSnapshots([]);
+            expect(packed.keys).toEqual([]);
+            expect(packed.snapshots).toEqual([]);
+
+            const unpacked = unpackSnapshots(packed);
+            expect(unpacked).toEqual([]);
+        });
+
+        test('compact format is significantly smaller', () => {
+            // Build a realistic snapshot with many keys
+            const trades: Record<string, { deviationPercent: number; stock: number }> = {};
+            for (let index = 0; index < 100; index++) {
+                trades[`Shop_${index}_Diamond_1_Emerald_2`] = { deviationPercent: -index, stock: index * 10 };
+            }
+            const snapshots = [
+                makeSnapshot(1000, trades),
+                makeSnapshot(2000, trades),
+                makeSnapshot(3000, trades),
+            ];
+
+            const expandedSize = JSON.stringify({ snapshots }).length;
+            const compactSize = JSON.stringify(packSnapshots(snapshots)).length;
+
+            // Compact should be meaningfully smaller (keys stored once instead of 3x)
+            expect(compactSize).toBeLessThan(expandedSize);
         });
     });
 });

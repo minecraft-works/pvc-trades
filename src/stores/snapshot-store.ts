@@ -5,17 +5,73 @@
  * The dashboard compares current data against a baseline snapshot that is
  * approximately 24 hours old, providing a stable "since yesterday" comparison.
  * 
- * New snapshots are appended every ~6 hours, and entries older than ~30 hours
- * are pruned to keep localStorage usage bounded (~1.7 MB for ~6 snapshots).
+ * Uses a compact storage format: trade keys are stored once, and each snapshot
+ * contains only a timestamp + parallel value arrays. This reduces storage from
+ * ~280 KB/snapshot to ~27 KB/snapshot for ~3400 trades, enabling hourly saves.
  * 
  * @module stores/snapshot-store
  */
 
-import type { Trade, TradeSnapshot, TradeSnapshotEntry, SnapshotHistory } from '../types.js';
-import { TradeSnapshotSchema, SnapshotHistorySchema } from '../types.js';
+import type { Trade, TradeSnapshot, TradeSnapshotEntry, CompactSnapshotHistory } from '../types.js';
+import { TradeSnapshotSchema, SnapshotHistorySchema, CompactSnapshotHistorySchema } from '../types.js';
 import { STORAGE_KEYS, DASHBOARD } from '../constants.js';
 import { getTradeKey } from '../library.js';
 import type { DeviationResult } from '../search/deviation.js';
+
+// ============================================================================
+// Pack / Unpack (compact ↔ expanded)
+// ============================================================================
+
+/**
+ * Pack expanded snapshots into the compact storage format.
+ * Keys are deduplicated across all snapshots (union of all keys).
+ * Missing trades in a snapshot get [null, 0] as placeholder.
+ */
+export function packSnapshots(snapshots: TradeSnapshot[]): CompactSnapshotHistory {
+    // Collect the union of all trade keys across all snapshots
+    const keySet = new Set<string>();
+    for (const snapshot of snapshots) {
+        for (const key of Object.keys(snapshot.trades)) {
+            keySet.add(key);
+        }
+    }
+    const keys = [...keySet];
+
+    const compactSnapshots = snapshots.map((snapshot) => ({
+        t: snapshot.timestamp,
+        v: keys.map((key): [number | null, number] => {
+            const entry = snapshot.trades[key];
+            /* eslint-disable unicorn/no-null -- null required for JSON serialization (undefined not supported) */
+            return entry
+                ? [entry.deviationPercent ?? null, entry.stock]
+                : [null, 0];
+            /* eslint-enable unicorn/no-null */
+        }),
+    }));
+
+    return { keys, snapshots: compactSnapshots };
+}
+
+/**
+ * Unpack compact storage format back to expanded TradeSnapshot array.
+ */
+export function unpackSnapshots(compact: CompactSnapshotHistory): TradeSnapshot[] {
+    const { keys, snapshots: compactSnapshots } = compact;
+
+    return compactSnapshots.map((cs) => {
+        const trades: Record<string, TradeSnapshotEntry> = {};
+        for (const [index, key] of keys.entries()) {
+            const value = cs.v[index];
+            if (value) {
+                trades[key] = {
+                    deviationPercent: value[0] ?? undefined,
+                    stock: value[1],
+                };
+            }
+        }
+        return { timestamp: cs.t, trades };
+    });
+}
 
 // ============================================================================
 // Snapshot Store
@@ -24,9 +80,10 @@ import type { DeviationResult } from '../search/deviation.js';
 /**
  * Store for persisting a rolling history of trade state snapshots.
  * 
- * Maintains multiple snapshots in localStorage so the dashboard baseline
+ * Maintains multiple snapshots in localStorage using a compact format
+ * (keys stored once, values as parallel arrays). The dashboard baseline
  * is always approximately 24 hours old. Snapshots are saved at intervals
- * (default 6h) and pruned when they exceed the maximum age (default 30h).
+ * (default 1h) and pruned when they exceed the maximum age (default 30h).
  * 
  * @example
  * ```typescript
@@ -42,7 +99,10 @@ class SnapshotStore {
 
     /**
      * Load all snapshots from localStorage.
-     * Handles migration from legacy single-snapshot format.
+     * Handles migration from three legacy formats:
+     * 1. Compact format (current): `{ keys, snapshots: [{ t, v }] }`
+     * 2. History format (v2): `{ snapshots: [{ timestamp, trades }] }`
+     * 3. Single snapshot (v1): `{ timestamp, trades }`
      * Returns an empty array if nothing is stored or data is invalid.
      */
     loadAll(): TradeSnapshot[] {
@@ -52,13 +112,19 @@ class SnapshotStore {
 
             const parsed: unknown = JSON.parse(stored);
 
-            // Try new history format first
+            // Try compact format first (current)
+            const compactResult = CompactSnapshotHistorySchema.safeParse(parsed);
+            if (compactResult.success) {
+                return unpackSnapshots(compactResult.data);
+            }
+
+            // Try v2 history format
             const historyResult = SnapshotHistorySchema.safeParse(parsed);
             if (historyResult.success) {
                 return historyResult.data.snapshots;
             }
 
-            // Fall back to legacy single-snapshot format (migration)
+            // Fall back to v1 single-snapshot format
             const legacyResult = TradeSnapshotSchema.safeParse(parsed);
             if (legacyResult.success) {
                 return [legacyResult.data];
@@ -133,20 +199,7 @@ class SnapshotStore {
         }
 
         // Build the new snapshot
-        const entries: Record<string, TradeSnapshotEntry> = {};
-        for (const trade of trades) {
-            const key = getTradeKey(trade);
-            const deviation = getDeviation(trade);
-            entries[key] = {
-                deviationPercent: deviation?.percent,
-                stock: trade.displayStock
-            };
-        }
-
-        const newSnapshot: TradeSnapshot = {
-            timestamp: now,
-            trades: entries
-        };
+        const newSnapshot = this.buildSnapshot(trades, getDeviation, now);
 
         // Prune old snapshots and append new one
         const pruned = snapshots.filter(
@@ -169,21 +222,7 @@ class SnapshotStore {
         trades: Trade[],
         getDeviation: (trade: Trade) => DeviationResult | undefined
     ): void {
-        const entries: Record<string, TradeSnapshotEntry> = {};
-
-        for (const trade of trades) {
-            const key = getTradeKey(trade);
-            const deviation = getDeviation(trade);
-            entries[key] = {
-                deviationPercent: deviation?.percent,
-                stock: trade.displayStock
-            };
-        }
-
-        const snapshot: TradeSnapshot = {
-            timestamp: Date.now(),
-            trades: entries
-        };
+        const snapshot = this.buildSnapshot(trades, getDeviation);
 
         const snapshots = this.loadAll();
         const now = Date.now();
@@ -214,11 +253,31 @@ class SnapshotStore {
     // Private
     // ========================================================================
 
-    /** Persist snapshot array to localStorage */
+    /** Build an expanded TradeSnapshot from current trades */
+    private buildSnapshot(
+        trades: Trade[],
+        getDeviation: (trade: Trade) => DeviationResult | undefined,
+        timestamp: number = Date.now()
+    ): TradeSnapshot {
+        const entries: Record<string, TradeSnapshotEntry> = {};
+
+        for (const trade of trades) {
+            const key = getTradeKey(trade);
+            const deviation = getDeviation(trade);
+            entries[key] = {
+                deviationPercent: deviation?.percent,
+                stock: trade.displayStock
+            };
+        }
+
+        return { timestamp, trades: entries };
+    }
+
+    /** Persist snapshot array to localStorage in compact format */
     private persist(snapshots: TradeSnapshot[]): void {
-        const history: SnapshotHistory = { snapshots };
+        const compact = packSnapshots(snapshots);
         try {
-            localStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify(history));
+            localStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify(compact));
         } catch {
             // Storage full or unavailable - ignore
         }

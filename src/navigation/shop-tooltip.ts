@@ -16,7 +16,7 @@ import { calculateRouteDistance } from '../library.js';
 // ============================================================================
 
 /** Distance threshold to show shop tooltip (in blocks) */
-export const SHOP_NEARBY_THRESHOLD = 100;
+const SHOP_NEARBY_THRESHOLD = 100;
 
 /** Auto-hide delay for tooltip (in milliseconds) */
 const AUTO_HIDE_DELAY_MS = 4000;
@@ -182,14 +182,4 @@ export function createShopTooltipHandler(
             currentNearbyShopKey = undefined;
         }
     };
-}
-
-/**
- * Reset the tooltip handler state (useful for testing)
- * Creates a new handler with fresh state.
- */
-export function createFreshShopTooltipHandler(
-    dependencies: ShopTooltipDependencies
-): () => void {
-    return createShopTooltipHandler(dependencies);
 }
