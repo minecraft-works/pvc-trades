@@ -72,7 +72,7 @@ The shop trade viewer needs to calculate fair market prices and detect deals. Th
 1. Market median from direct emerald trades (if ≥3 independent shops for core blocks)
 2. Transitive derivation through known intermediaries (iterative)
 3. Block conversion value from ingot × 9 or block ÷ 9 (bidirectional fallback)
-4. Fixed ratio of 1 (ultimate fallback)
+4. No value (`undefined`) — item is omitted from matrix and deviation calculations
 
 ---
 
