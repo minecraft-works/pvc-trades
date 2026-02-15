@@ -76,6 +76,7 @@ export default tseslint.config(
             // Complexity rules - STRICT
             'complexity': ['error', { max: 12 }],
             'max-depth': ['error', { max: 4 }],
+            'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
             'max-lines-per-function': ['error', { max: 75, skipBlankLines: true, skipComments: true }],
             'max-params': ['error', { max: 5 }],
             'max-nested-callbacks': ['error', { max: 3 }],
@@ -125,7 +126,8 @@ export default tseslint.config(
     {
         files: ['tests/**/*.spec.ts'],
         rules: {
-            // Allow longer functions in test files
+            // Allow longer files and functions in test files
+            'max-lines': 'off',
             'max-lines-per-function': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
             // Duplicate strings are common in test selectors
             'sonarjs/no-duplicate-string': 'off',
@@ -140,7 +142,8 @@ export default tseslint.config(
     {
         files: ['src/**/*.test.ts'],
         rules: {
-            // Allow longer functions in test files (test suites can be large)
+            // Allow longer files and functions in test files
+            'max-lines': 'off',
             'max-lines-per-function': 'off',
             // Duplicate strings are common in test cases
             'sonarjs/no-duplicate-string': 'off',
@@ -158,6 +161,8 @@ export default tseslint.config(
     {
         files: ['src/**/*.property.test.ts'],
         rules: {
+            // Property tests can be large
+            'max-lines': 'off',
             // Property tests generate arbitrary data with fast-check
             '@typescript-eslint/no-unsafe-argument': 'off',
             '@typescript-eslint/no-unsafe-assignment': 'off',
@@ -174,6 +179,8 @@ export default tseslint.config(
     {
         files: ['features/**/*.ts'],
         rules: {
+            // Step definition files can be large
+            'max-lines': 'off',
             // Step definitions often have many parameters from Cucumber
             'max-params': 'off',
             // Duplicate strings are common in step definitions
@@ -212,6 +219,8 @@ export default tseslint.config(
     {
         files: ['scripts/*.ts'],
         rules: {
+            // CLI scripts can be large
+            'max-lines': 'off',
             // CLI scripts commonly use process.exit
             'unicorn/no-process-exit': 'off',
             // top-level await not always appropriate for CLI entry points
