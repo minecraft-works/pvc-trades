@@ -2172,6 +2172,7 @@ function buildBestDeviationMap(
 ): Map<string, number> {
     const map = new Map<string, number>();
     for (const trade of trades) {
+        if (trade.stock === 0) { continue; }
         const deviation = getDeviation(trade);
         if (!deviation) { continue; }
         const name = trade.resultName.toLowerCase();
@@ -2227,6 +2228,10 @@ interface DashboardTradeContext {
 
 /** Process a single trade for dashboard: detect new trades, price drops, and watchlist hits */
 function processDashboardTrade(trade: Trade, context: DashboardTradeContext): void {
+    // Skip out-of-stock trades — they are hidden from search results,
+    // so reporting them in the dashboard would confuse users (see filterTrade).
+    if (trade.stock === 0) { return; }
+
     const key = getTradeKey(trade);
     const currentDeviation = context.getDeviation(trade);
     const previous = context.previousTrades[key];
