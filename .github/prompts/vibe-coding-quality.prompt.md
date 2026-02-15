@@ -87,20 +87,19 @@ These are known quality risks. AI assistants should actively work to **reduce** 
 
 ### Concern 1: God Files
 
-| File | Lines | Risk |
-|------|-------|------|
-| `main.ts` | ~3,100 | Too large; should be decomposed into feature modules |
-| `library.ts` | ~2,100 | Functions could be grouped into focused modules |
+**Hard limit: 400 lines per `.ts` file** (enforced by ESLint `max-lines`, skip blanks + comments).
+Decomposition plan: [docs/plan-file-size-limits.md](../../docs/plan-file-size-limits.md).
 
-**When adding code**: Before adding a function to `main.ts` or `library.ts`, ask whether it belongs in an existing sub-module (`dialogs/`, `map/`, `navigation/`, `search/`, `favorites/`, `stores/`) or warrants a new one.
+| File | Lines | Status |
+|------|-------|--------|
+| `main.ts` | ~2,823 | Suppressed — split into 7+ modules planned |
+| `library.ts` | ~2,095 | Suppressed — split into 5+ modules planned |
+| `navigation-store.ts` | ~504 | Suppressed — extract persistence |
+| `favorites-ui.ts` | ~495 | Suppressed — extract popover |
+| `shop-map-dialog.ts` | ~467 | Suppressed — extract tile loading |
+| `types.ts` | ~433 | Suppressed — extract snapshot types or exempt |
 
-**Decomposition targets**:
-- `main.ts` rendering functions → consider `rendering/` module
-- `main.ts` tab/dialog management → already partially in `dialogs/`
-- `library.ts` route optimization → consider `routing/` module
-- `library.ts` value calculation → consider `valuation/` module
-
-**Rule**: A new function should go into `main.ts` or `library.ts` **only** if it doesn't fit any sub-module. Prefer growing the module tree over growing the monoliths.
+**When adding code**: Before adding a function to any file, check if it would push the file over 400 lines. If so, create a new sub-module instead. Never add to `main.ts` or `library.ts` — use or create sub-modules (`dialogs/`, `map/`, `navigation/`, `search/`, `favorites/`, `stores/`, `dashboard/`, `rendering/`, `routing/`, `valuation/`, `cart/`).
 
 ### Concern 2: Test Coverage Gaps
 
@@ -152,9 +151,10 @@ Before considering a change complete, verify:
 - [ ] Tests mock external APIs — no real network calls
 
 ### Style
-- [ ] Functions ≤100 lines (or justified `eslint-disable` with comment)
+- [ ] Files ≤400 lines (or justified `eslint-disable max-lines` with decomposition plan)
+- [ ] Functions ≤75 lines (or justified `eslint-disable` with comment)
 - [ ] ≤5 parameters (use options object for more)
-- [ ] Cyclomatic complexity ≤15
+- [ ] Cyclomatic complexity ≤12
 - [ ] `for...of` instead of `.forEach()`
 - [ ] `undefined` instead of `null`
 - [ ] Template literals instead of string concatenation
@@ -183,6 +183,7 @@ AI assistants should refuse to generate these patterns:
 | `null` returns | Inconsistent with codebase (unicorn rule) | `undefined` |
 | Test-only code in prod | Couples prod to test concerns (ADR-003) | Use test fixtures |
 | Adding to god files | Increases debt | Use or create sub-modules |
+| Files > 400 lines | Unmaintainable monoliths | Split into focused modules |
 
 ---
 
