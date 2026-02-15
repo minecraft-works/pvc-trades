@@ -2366,6 +2366,7 @@ function makeDashboardTrade(overrides: Partial<Trade> = {}): Trade {
         resultAmount: 1,
         costName: 'Emerald',
         costAmount: 2,
+        stock: 10,
         displayStock: 10,
         ...overrides,
     } as Trade;
@@ -2556,5 +2557,35 @@ describe('computeDashboardData', () => {
         expect(result.priceDrops).toHaveLength(1);
         expect(result.priceDrops[0].newDeviation).toBe(-50);
         expect(result.priceDrops[0].oldDeviation).toBe(0);
+    });
+
+    test('excludes out-of-stock trades from price drops', () => {
+        const trade = makeDashboardTrade({ stock: 0, displayStock: 0 });
+        const key = getTradeKey(trade);
+        const snapshot: TradeSnapshot = {
+            ...BASE_SNAPSHOT,
+            trades: { [key]: { deviationPercent: -50, stock: 10 } },
+        };
+        // Trade improved from -50% to -80%, but stock is 0 — should be excluded
+        const result = computeDashboardData([trade], fixedPercent(-80), snapshot, []);
+
+        expect(result.priceDrops).toHaveLength(0);
+    });
+
+    test('excludes out-of-stock trades from new trade detection', () => {
+        const trade = makeDashboardTrade({ stock: 0, displayStock: 0 });
+        const result = computeDashboardData([trade], fixedPercent(0), BASE_SNAPSHOT, []);
+
+        expect(result.newTradeKeys).toHaveLength(0);
+    });
+
+    test('excludes out-of-stock trades from watchlist hits', () => {
+        const trade = makeDashboardTrade({ resultName: 'Diamond', stock: 0, displayStock: 0 });
+        const favorites: FavoriteItem[] = [
+            { itemName: 'diamond', maxDeviation: 10 },
+        ];
+        const result = computeDashboardData([trade], fixedPercent(-5), BASE_SNAPSHOT, favorites);
+
+        expect(result.watchlistHits).toHaveLength(0);
     });
 });
