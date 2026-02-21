@@ -53,9 +53,8 @@ import type { SearchSortHandler } from './search/index.js';
 import { createDataLoaderHandler } from './data-loader/index.js';
 import type { DataLoaderHandler } from './data-loader/index.js';
 
-import { createShopTooltipHandler } from './navigation/index.js';
+import { createShopTooltipHandler, createNavState, createNavMapHandler, createNavUpdatesHandler, createLiveNavigationHandler } from './navigation/index.js';
 import type { NavMapHandler, NavUpdatesHandler, LiveNavigationHandler } from './navigation/index.js';
-import { createNavState, createNavMapHandler, createNavUpdatesHandler, createLiveNavigationHandler } from './navigation/index.js';
 
 import { createFavoritesUIHandler } from './favorites/index.js';
 import type { FavoritesUIHandler } from './favorites/index.js';
@@ -386,7 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
             cartDialog.showModal();
         },
         isOpenedFromCart: () => mapOpenedFromCart,
-        clearOpenedFromCart: () => { mapOpenedFromCart = false; }
+        clearOpenedFromCart: () => { mapOpenedFromCart = false; },
+        getConfig: () => getConfig(),
     });
 
     // Initialize trade renderer

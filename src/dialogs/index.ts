@@ -22,6 +22,8 @@ export type { TradeDetailsOptions } from './trade-details.js';
 // Shop map helpers
 export {
     createEdgeMarker,
-    getWorldDisplayName
+    getWorldDisplayName,
+    resolvePlayerLabelPositions,
+    positionToCssClass
 } from './shop-map-helpers.js';
-export type { EdgeMarkerParameters } from './shop-map-helpers.js';
+export type { EdgeMarkerParameters, LabelLayout, LabelPosition, LabelRect } from './shop-map-helpers.js';

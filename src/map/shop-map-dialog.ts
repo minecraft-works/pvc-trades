@@ -34,7 +34,7 @@ import {
     getTileCoords,
     getWorldId
 } from '../library.js';
-import { createEdgeMarker, getWorldDisplayName } from '../dialogs/index.js';
+import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } from '../dialogs/index.js';
 import { getInterpolator, clearAllInterpolators } from '../stores/player-interpolator.js';
 
 // ============================================================================
@@ -80,6 +80,7 @@ interface ShopMapSetupParameters {
     tileX: number;
     tileZ: number;
     manifest: Set<string>;
+    playerRefreshMs: number;
 }
 
 /** Dependencies for shop map dialog */
@@ -90,6 +91,8 @@ export interface ShopMapDialogDependencies {
     isOpenedFromCart: () => boolean;
     /** Reset the opened-from-cart flag */
     clearOpenedFromCart: () => void;
+    /** Get app config (specifically dynmap.playerRefreshMs) */
+    getConfig: () => { dynmap: { playerRefreshMs: number } };
 }
 
 /** Handler returned by factory */
@@ -225,6 +228,15 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     }
 }
 
+/** Get interpolated or raw player position in Leaflet coordinates. */
+function getPlayerLeafletCoords(player: Player, tileX: number, tileZ: number): { lat: number; lng: number } {
+    const interpolator = getInterpolator(player.name);
+    const interpPos = interpolator.getDisplayPosition(performance.now());
+    const posX = interpPos?.x ?? player.position.x;
+    const posZ = interpPos?.z ?? player.position.z;
+    return toLeafletCoordsRelative(posX, posZ, tileX, tileZ, TILE_CONFIG.tileSize);
+}
+
 function updateShopMapPlayerMarkers(
     dialog: HTMLDialogElement,
     container: HTMLElement,
@@ -256,34 +268,39 @@ function updateShopMapPlayerMarkers(
     shopMapTileX = tileX;
     shopMapTileZ = tileZ;
     
+    // Classify players as on-screen or edge
+    const onScreenPlayers: Array<{ player: Player; coords: { lat: number; lng: number } }> = [];
     for (const player of playersInWorld) {
-        // Use interpolated position if available, otherwise raw API position
-        const interpolator = getInterpolator(player.name);
-        const interpPos = interpolator.getDisplayPosition(performance.now());
-        const posX = interpPos?.x ?? player.position.x;
-        const posZ = interpPos?.z ?? player.position.z;
-        
-        const playerCoords = toLeafletCoordsRelative(posX, posZ, tileX, tileZ, TILE_CONFIG.tileSize);
+        const playerCoords = getPlayerLeafletCoords(player, tileX, tileZ);
         const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
         
         if (clamped.clamped) {
-            const dx = playerCoords.lng - mapCenter.lng;
-            const dy = playerCoords.lat - mapCenter.lat;
-            const angle = Math.atan2(dy, dx);
-            const marker = createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter });
-            dialog.append(marker);
+            const angle = Math.atan2(playerCoords.lat - mapCenter.lat, playerCoords.lng - mapCenter.lng);
+            dialog.append(createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter }));
         } else {
-            const leafletMarker = L.marker([playerCoords.lat, playerCoords.lng], {
-                icon: L.divIcon({
-                    className: 'leaflet-player-marker',
-                    html: `<span class="player-name">${player.name}</span>`,
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
-                }),
-                title: player.name
-            }).addTo(playerMarkersLayer!);
-            onScreenPlayerMarkers.set(player.name.toLowerCase(), leafletMarker);
+            onScreenPlayers.push({ player, coords: playerCoords });
         }
+    }
+
+    // Resolve label positions to avoid overlaps, then create Leaflet markers
+    const screenMarkers = onScreenPlayers.map(({ player, coords }) => {
+        const screenPoint = leafletMap!.latLngToContainerPoint([coords.lat, coords.lng]);
+        return { name: player.name, screenX: screenPoint.x, screenY: screenPoint.y };
+    });
+    const labelLayouts = resolvePlayerLabelPositions(screenMarkers);
+    for (const [index, { player, coords }] of onScreenPlayers.entries()) {
+        const cssClass = labelLayouts[index]?.cssClass;
+        const labelClass = cssClass ? ` ${cssClass}` : '';
+        const leafletMarker = L.marker([coords.lat, coords.lng], {
+            icon: L.divIcon({
+                className: 'leaflet-player-marker',
+                html: `<span class="player-name${labelClass}">${player.name}</span>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            }),
+            title: player.name
+        }).addTo(playerMarkersLayer!);
+        onScreenPlayerMarkers.set(player.name.toLowerCase(), leafletMarker);
     }
 }
 
@@ -337,7 +354,7 @@ function createMapConfig(): L.MapOptions {
 }
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
+    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
     
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
     leafletMap = L.map(container, createMapConfig());
@@ -397,7 +414,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
             if (!leafletMap) { return; }
             updatePlayerMarkers();
         });
-    }, 5000);
+    }, playerRefreshMs);
     
     leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
     leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
@@ -426,7 +443,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
  * Create shop map dialog handler
  */
 export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): ShopMapDialogHandler {
-    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart } = deps;
+    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart, getConfig } = deps;
     
     function open(x: number, y: number, z: number, world: string): void {
         const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
@@ -478,6 +495,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
                 setupShopMap({
                     container: container as HTMLElement,
                     coordinatesElement: coordsElement as HTMLElement,
+                    playerRefreshMs: getConfig().dynmap.playerRefreshMs,
                     dialog,
                     worldId,
                     worldDisplay,

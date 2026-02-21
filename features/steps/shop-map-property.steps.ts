@@ -6,16 +6,24 @@ import { expect } from '@playwright/test';
 import { Given, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
 import { getDirectionFromDelta } from './test-math-utilities';
+import { resolvePlayerLabelPositions } from '../../src/dialogs/shop-map-helpers';
 
 // ============================================================================
 // Page tracking interface
 // ============================================================================
+
+interface NamedPlayer {
+    name: string;
+    x: number;
+    z: number;
+}
 
 interface PageWithMapTracking extends Page, BasePageTracking {
     __overworldPlayerCount?: number;
     __netherPlayerCount?: number;
     __viewportMin?: number;
     __viewportMax?: number;
+    __namedPlayers?: NamedPlayer[];
 }
 
 // ============================================================================
@@ -164,4 +172,58 @@ Then('the edge marker label should be positioned {string}', async ({ page }, pos
     }
 
     expect(position).toBe(expected);
+});
+
+// ============================================================================
+// GIVEN Steps - Named Players
+// ============================================================================
+
+Given(String.raw`a player {string} at \({int}, {int}\)`, async ({ page }, name: string, x: number, z: number) => {
+    const p = page as PageWithMapTracking;
+    if (!p.__namedPlayers) { p.__namedPlayers = []; }
+    p.__namedPlayers.push({ name, x, z });
+});
+
+// ============================================================================
+// THEN Steps - Label Collision Avoidance
+// ============================================================================
+
+Then('the player labels should not overlap', async ({ page }) => {
+    const p = page as PageWithMapTracking;
+    const players = p.__namedPlayers ?? [];
+
+    // Use the real collision algorithm with screen-coordinate equivalents
+    const markers = players.map(player => ({
+        name: player.name,
+        screenX: player.x,
+        screenY: player.z,
+    }));
+    const layouts = resolvePlayerLabelPositions(markers);
+
+    // Verify no pair of placed labels overlaps
+    for (let index = 0; index < layouts.length; index++) {
+        for (let innerIndex = index + 1; innerIndex < layouts.length; innerIndex++) {
+            const a = layouts[index]!.rect;
+            const b = layouts[innerIndex]!.rect;
+            const overlaps = a.x < b.x + b.width && a.x + a.width > b.x
+                && a.y < b.y + b.height && a.y + a.height > b.y;
+            expect(overlaps, `Labels for ${layouts[index]!.name} and ${layouts[innerIndex]!.name} overlap`).toBe(false);
+        }
+    }
+});
+
+Then('all player labels should be positioned to the right', async ({ page }) => {
+    const p = page as PageWithMapTracking;
+    const players = p.__namedPlayers ?? [];
+
+    const markers = players.map(player => ({
+        name: player.name,
+        screenX: player.x,
+        screenY: player.z,
+    }));
+    const layouts = resolvePlayerLabelPositions(markers);
+
+    for (const layout of layouts) {
+        expect(layout.cssClass, `Label for ${layout.name} should be default (right)`).toBe('');
+    }
 });

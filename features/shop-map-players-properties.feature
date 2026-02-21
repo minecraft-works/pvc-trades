@@ -90,6 +90,26 @@ Feature: Shop Map Player Properties
       | -1000    | -1000    | northwest  |
 
   # ===========================================================================
+  # Label Collision Avoidance Properties
+  # ===========================================================================
+
+  @shop-map @property @label-collision
+  Scenario: Overlapping player labels get different positions
+    Given a shop at (0, 0)
+    And the map viewport shows -500 to 500
+    And a player "Alice" at (10, 10)
+    And a player "Bob" at (10, 10)
+    Then the player labels should not overlap
+
+  @shop-map @property @label-collision
+  Scenario: Distant player labels both use default position
+    Given a shop at (0, 0)
+    And the map viewport shows -500 to 500
+    And a player "Alice" at (0, 0)
+    And a player "Bob" at (200, 200)
+    Then all player labels should be positioned to the right
+
+  # ===========================================================================
   # Empty State Properties
   # ===========================================================================
 
