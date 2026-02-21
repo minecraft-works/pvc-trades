@@ -80,6 +80,7 @@ interface ShopMapSetupParameters {
     tileX: number;
     tileZ: number;
     manifest: Set<string>;
+    playerRefreshMs: number;
 }
 
 /** Dependencies for shop map dialog */
@@ -90,6 +91,8 @@ export interface ShopMapDialogDependencies {
     isOpenedFromCart: () => boolean;
     /** Reset the opened-from-cart flag */
     clearOpenedFromCart: () => void;
+    /** Get app config (specifically dynmap.playerRefreshMs) */
+    getConfig: () => { dynmap: { playerRefreshMs: number } };
 }
 
 /** Handler returned by factory */
@@ -351,7 +354,7 @@ function createMapConfig(): L.MapOptions {
 }
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest } = parameters;
+    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
     
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
     leafletMap = L.map(container, createMapConfig());
@@ -411,7 +414,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
             if (!leafletMap) { return; }
             updatePlayerMarkers();
         });
-    }, 5000);
+    }, playerRefreshMs);
     
     leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
     leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
@@ -440,7 +443,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
  * Create shop map dialog handler
  */
 export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): ShopMapDialogHandler {
-    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart } = deps;
+    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart, getConfig } = deps;
     
     function open(x: number, y: number, z: number, world: string): void {
         const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
@@ -492,6 +495,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
                 setupShopMap({
                     container: container as HTMLElement,
                     coordinatesElement: coordsElement as HTMLElement,
+                    playerRefreshMs: getConfig().dynmap.playerRefreshMs,
                     dialog,
                     worldId,
                     worldDisplay,
