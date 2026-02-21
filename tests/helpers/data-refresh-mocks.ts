@@ -228,7 +228,7 @@ export async function setupFastRefreshConfig(page: Page, refreshMs: number = 200
                     tileSize: 128,
                     defaultZoom: 4,
                     maxZoomLevel: 7,
-                    playerRefreshMs: 1000
+                    playerRefreshMs: 500
                 },
                 analysis: {
                     shopClusterDistance: 16,

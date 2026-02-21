@@ -252,7 +252,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
                     tileSize: 128,
                     defaultZoom: 4,
                     maxZoomLevel: 7,
-                    playerRefreshMs: 1000
+                    playerRefreshMs: 500
                 },
                 analysis: {
                     shopClusterDistance: 16,
@@ -400,7 +400,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
                     tileSize: 128,
                     defaultZoom: 4,
                     maxZoomLevel: 7,
-                    playerRefreshMs: 1000
+                    playerRefreshMs: 500
                 },
                 analysis: {
                     shopClusterDistance: 16,

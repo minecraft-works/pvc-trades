@@ -115,7 +115,7 @@ export class PlayerInterpolator {
 
     /**
      * Feed a new position sample from the API.
-     * Should be called once per poll cycle (~1000ms).
+     * Should be called once per poll cycle (~500ms).
      * 
      * @param sample - New position sample with timestamp
      */

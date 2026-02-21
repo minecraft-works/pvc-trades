@@ -85,7 +85,7 @@ async function setupMockRoutes(page: Page): Promise<void> {
                     tileSize: 128,
                     defaultZoom: 4,
                     maxZoomLevel: 7,
-                    playerRefreshMs: 1000
+                    playerRefreshMs: 500
                 },
                 analysis: {
                     shopClusterDistance: 16,

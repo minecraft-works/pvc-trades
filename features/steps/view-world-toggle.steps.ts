@@ -166,7 +166,7 @@ When('the player crosses a portal to the overworld', async ({ page, playerMock, 
     // Wait one polling cycle to ensure world is registered
     const pollInterval = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 1000;
+        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
     }) as number;
     await page.waitForTimeout(pollInterval + 200);
     
