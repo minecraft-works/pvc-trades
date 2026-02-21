@@ -385,7 +385,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
     // ── Map initialization ──────────────────────────────────────────
 
-    async function initNavigationMapDialog(route: RouteStop[], _targetWorld?: string): Promise<void> {
+    async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
         const container = document.querySelector('#nav-dialog-map-container');
         if (!container) {
             debugMap('Map container not found');
@@ -406,7 +406,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         }
 
         container.innerHTML = '';
-        const worldToShow = deps.navigationStore.viewWorld;
+        const worldToShow = targetWorld ?? deps.navigationStore.viewWorld;
         state.mapWorld = worldToShow;
         state.currentWorldRoute = allStops;
         globalThis.__navCurrentWorldRoute = allStops;

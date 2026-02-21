@@ -328,6 +328,31 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
     // ── Start / stop ────────────────────────────────────────────────
 
+    async function fetchInitialPlayerPosition(playerName: string): Promise<void> {
+        try {
+            const players = await fetchPlayers();
+            const player = players.find(p => p.name.toLowerCase() === playerName);
+            if (!player) { return; }
+
+            const playerWorld = getPlayerWorld(player);
+            const position = { x: player.position.x, y: player.position.y, z: player.position.z, world: playerWorld, yaw: player.rotation?.yaw };
+            deps.navigationStore.setPlayerPosition(position);
+            if (deps.navigationStore.viewWorldMode === 'auto') {
+                deps.navigationStore.setViewWorld(playerWorld);
+                initViewWorldButtons();
+            }
+            // @ts-expect-error - exposed for testing
+            globalThis.__currentPlayerPosition = position;
+
+            const interpolator = deps.getInterpolator(player.name);
+            interpolator.pushSample({ x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.rotation?.yaw, timestamp: performance.now() });
+            debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
+        } catch (error) {
+            debugNavigation('Failed to get initial player position: %s', error);
+            console.warn('Failed to get initial player position:', error);
+        }
+    }
+
     async function initMapAndStartPolling(): Promise<void> {
         const route = deps.computeRoute(deps.navigationStore.playerPosition, true);
         state.currentRoute = route;
@@ -367,24 +392,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             navDialog.showModal();
 
             const playerName = playerNameInput.value.trim().toLowerCase();
-            try {
-                const players = await fetchPlayers();
-                const player = players.find(p => p.name.toLowerCase() === playerName);
-                if (player) {
-                    const playerWorld = getPlayerWorld(player);
-                    const position = { x: player.position.x, y: player.position.y, z: player.position.z, world: playerWorld, yaw: player.rotation?.yaw };
-                    deps.navigationStore.setPlayerPosition(position);
-                    // @ts-expect-error - exposed for testing
-                    globalThis.__currentPlayerPosition = position;
-
-                    const interpolator = deps.getInterpolator(player.name);
-                    interpolator.pushSample({ x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.rotation?.yaw, timestamp: performance.now() });
-                    debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
-                }
-            } catch (error) {
-                debugNavigation('Failed to get initial player position: %s', error);
-                console.warn('Failed to get initial player position:', error);
-            }
+            await fetchInitialPlayerPosition(playerName);
 
             requestAnimationFrame(() => {
                 void initMapAndStartPolling();
@@ -403,14 +411,10 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         deps.removeInterpolator(stoppingPlayerName);
         deps.navigationStore.stop();
 
-        if (state.routePolyline && state.map) {
-            state.map.removeLayer(state.routePolyline);
-            state.routePolyline = undefined;
-        }
-        if (state.playerToNextLine && state.map) {
-            state.map.removeLayer(state.playerToNextLine);
-            state.playerToNextLine = undefined;
-        }
+        if (state.routePolyline && state.map) { state.map.removeLayer(state.routePolyline); }
+        state.routePolyline = undefined;
+        if (state.playerToNextLine && state.map) { state.map.removeLayer(state.playerToNextLine); }
+        state.playerToNextLine = undefined;
         if (state.map) {
             for (const marker of state.stopMarkers) {
                 state.map.removeLayer(marker);
@@ -418,7 +422,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         }
         state.stopMarkers = [];
         state.currentRoute = [];
-        state.mapWorld = 'overworld';
+        state.mapWorld = WORLDS.OVERWORLD;
 
         if (navDialog) { navDialog.close(); }
         document.body.style.overflow = '';
