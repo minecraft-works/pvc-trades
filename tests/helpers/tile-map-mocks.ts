@@ -6,6 +6,7 @@
 
 import type { Page, Route } from '@playwright/test';
 import { BLUE_PIXEL_PNG, RED_PIXEL_PNG } from './png-utilities.js';
+import { mockConfigRoute } from './test-config.js';
 
 /**
  * Sets up colored tile mocks based on world in URL
@@ -165,29 +166,7 @@ export const MULTI_WORLD_SHOP_DATA = {
  * Also mocks config.json to use local data.json path for reliable test interception
  */
 export async function setupMultiWorldDataMock(page: Page): Promise<void> {
-    // Mock config.json to use local data.json path (avoids cross-origin interception issues)
-    await page.route('**/config.json', async (route: Route) => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000,
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 500
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page);
     
     // Intercept data.json requests with mock data
     await page.route('**/data.json', async (route: Route) => {

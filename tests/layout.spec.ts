@@ -10,6 +10,7 @@
 
 import { test, expect } from './helpers/global-setup';
 import type { Page } from '@playwright/test';
+import { mockConfigRoute } from './helpers/test-config';
 
 // Test configuration
 const BASE_URL = 'http://localhost:5173';
@@ -72,29 +73,7 @@ const MOCK_SHOP_DATA = {
 
 // Helper to set up mock routes
 async function setupMockRoutes(page: Page): Promise<void> {
-    // Mock config.json to use local data.json instead of Cloudflare Worker
-    await page.route('**/config.json', route => {
-        route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000, // Must be > 0 to pass Zod validation
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 500
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page);
 
     await page.route('**/data.json', route => {
         route.fulfill({

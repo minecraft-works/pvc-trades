@@ -14,3 +14,6 @@ export { setupColoredTileMocks, MULTI_WORLD_SHOP_DATA, setupMultiWorldDataMock, 
 
 export type { MockRecipe, MockShop, DynamicDataMock } from './data-refresh-mocks.js';
 export { createDynamicDataMock, setupDynamicDataMock, setupFastRefreshConfig } from './data-refresh-mocks.js';
+
+export type { TestConfigOverrides } from './test-config.js';
+export { TEST_APP_CONFIG, buildTestConfig, mockConfigRoute } from './test-config.js';

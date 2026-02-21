@@ -13,6 +13,7 @@
 import { expect } from '@playwright/test';
 import { Given, When, Then } from './fixtures';
 import { setupColoredTileMocks } from '../../tests/helpers/navigation-mocks';
+import { mockConfigRoute } from '../../tests/helpers/test-config';
 
 // ============================================================================
 // Constants
@@ -119,28 +120,7 @@ const MOCK_TRADE_KEYS = {
  * Set up data.json & config.json mocks using dashboard-specific shop data.
  */
 async function setupDashboardMock(page: import('@playwright/test').Page): Promise<void> {
-    await page.route('**/config.json', async (route) => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000,
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 500
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page);
 
     await page.route('**/data.json', async (route) => {
         await route.fulfill({

@@ -5,6 +5,7 @@
  */
 
 import type { Page, Route } from '@playwright/test';
+import { mockConfigRoute } from './test-config.js';
 
 /**
  * Shop recipe structure for mock data
@@ -216,26 +217,5 @@ export async function setupDynamicDataMock(page: Page, mock: DynamicDataMock): P
  * Overrides config to use a shorter refresh interval and local data.json path
  */
 export async function setupFastRefreshConfig(page: Page, refreshMs: number = 2000): Promise<void> {
-    await page.route('**/config.json', async (route: Route) => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: refreshMs,
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 500
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page, { dataRefreshMs: refreshMs });
 }

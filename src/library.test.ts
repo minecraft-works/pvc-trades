@@ -47,7 +47,7 @@ import {
     computeDashboardData
 } from './library.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop, TradeSnapshot, FavoriteItem } from './types.js';
-import { AppConfigSchema } from './types.js';
+import { AppConfigSchema, DEFAULT_CONFIG } from './types.js';
 
 // String constants to avoid duplication
 const EMERALD = 'EMERALD';
@@ -140,18 +140,11 @@ const TEST_CORE_BLOCKS = [
 ];
 
 const TEST_CONFIG: AppConfig = {
+    ...DEFAULT_CONFIG,
     dataUrl: TEST_DATA_URL,
     dynmap: {
-        baseUrl: TEST_MAPS_URL,
-        tileSize: 128,
-        defaultZoom: 4,
-        maxZoomLevel: 7,
-        playerRefreshMs: 500
-    },
-    analysis: {
-        shopClusterDistance: 16,
-        maxTransitiveIterations: 10,
-        minIndependentShops: 3
+        ...DEFAULT_CONFIG.dynmap,
+        baseUrl: TEST_MAPS_URL
     }
 };
 
