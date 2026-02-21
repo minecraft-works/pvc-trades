@@ -166,13 +166,15 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
     const type = item.type.replace('minecraft:', '').toUpperCase();
 
     for (const rule of mappingRules) {
-        if (rule.item !== type) { continue; }
-        if (rule.originalName && item.name !== rule.originalName) { continue; }
-        if (rule.enchant && !enchantsMatch(item.enchant, rule.enchant)) { continue; }
+        const matchesType = rule.item === type;
+        const matchesName = !rule.originalName || item.name === rule.originalName;
+        const matchesEnchant = !rule.enchant || enchantsMatch(item.enchant, rule.enchant);
 
-        item.type = rule.customName;
-        item.name = '';
-        return;
+        if (matchesType && matchesName && matchesEnchant) {
+            item.type = rule.customName;
+            item.name = '';
+            return;
+        }
     }
 }
 
@@ -376,14 +378,14 @@ export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRu
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
 
     return {
-        x, y, z, world,
         item1: recipe.item1,
         item2: recipe.item2,
         resultItem: recipe.resultItem,
         stock: recipe.stock,
-        displayStock,
         resultText: resultName.toLowerCase(),
         costText: costName.toLowerCase(),
+        x, y, z, world,
+        displayStock,
         loreText,
         shulkerItems,
         resultName,
@@ -456,9 +458,9 @@ export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string):
     if (giveQuery && !matchCost) { return undefined; }
 
     return {
-        trade,
         matchResult: Boolean(wantQuery && matchResult),
         matchCost: Boolean(giveQuery && matchCost),
+        trade,
         displayName,
         displayAmount
     };

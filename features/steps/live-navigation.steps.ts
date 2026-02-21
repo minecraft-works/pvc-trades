@@ -250,8 +250,8 @@ When('the player marker renders', async ({ page }) => {
 
 When('the player API is polled', async ({ page }) => {
     // Wait for the navigation poll interval to trigger and update the UI
-    // The poll happens every 1000ms, so wait a bit longer
-    await page.waitForTimeout(1500);
+    // The poll happens every 500ms, so wait a bit longer
+    await page.waitForTimeout(1000);
 });
 
 When(String.raw`the player moves to \({int}, {int})`, async ({ playerMock }, x: number, z: number) => {

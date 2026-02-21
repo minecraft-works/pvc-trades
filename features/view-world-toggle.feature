@@ -134,6 +134,13 @@ Feature: View World Toggle
   # ============================================================================
 
   @navigation @view-toggle @follow @nether
+  Scenario: Starting navigation in the nether auto-selects nether map view
+    Given player "TestPlayer" is in the nether at (100, 50)
+    When I start navigation with items from both worlds
+    Then nether tiles should be loaded
+    And the world toggle button should show nether active
+
+  @navigation @view-toggle @follow @nether
   Scenario: Map stays centered on nether player when switching to manual mode
     Given player "TestPlayer" is in the nether at (100, 50)
     And I start navigation with items from both worlds

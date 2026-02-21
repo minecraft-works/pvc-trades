@@ -168,8 +168,7 @@ function buildBestDeviationMap(
 ): Map<string, number> {
     const map = new Map<string, number>();
     for (const trade of trades) {
-        if (trade.stock === 0) { continue; }
-        const deviation = getDeviation(trade);
+        const deviation = trade.stock > 0 ? getDeviation(trade) : undefined;
         if (!deviation) { continue; }
         const name = trade.resultName.toLowerCase();
         const existing = map.get(name);

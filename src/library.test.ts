@@ -47,7 +47,7 @@ import {
     computeDashboardData
 } from './library.js';
 import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop, TradeSnapshot, FavoriteItem } from './types.js';
-import { AppConfigSchema } from './types.js';
+import { AppConfigSchema, DEFAULT_CONFIG } from './types.js';
 
 // String constants to avoid duplication
 const EMERALD = 'EMERALD';
@@ -83,27 +83,29 @@ const DIAMOND_TITLE = 'Diamond';
 
 // Helper function to create a trade for tests
 const createTrade = (resultAmount: number, costAmount: number, resultName: string, stock: number, world = OVERWORLD): Trade => ({
-    x: 0, y: 0, z: 0, world,
+    world,
+    stock,
+    resultName,
+    resultAmount,
+    x: 0, y: 0, z: 0,
     item1: { type: EMERALD, name: '', amount: costAmount },
     item2: undefined,
     resultItem: { type: ITEM, name: resultName, amount: resultAmount },
-    stock,
     displayStock: stock * resultAmount,
     resultText: resultName.toLowerCase(),
     costText: EMERALD_LOWER,
     loreText: '',
     shulkerItems: undefined,
-    resultName,
-    resultAmount,
     costName: EMERALD_TITLE
 });
 
 // Helper function to create a trade with specific coordinates for tests
 const createTradeWithCoords = (name: string, x: number, z: number): Trade => ({
-    x, y: 64, z, world: OVERWORLD,
+    x, z,
+    y: 64, world: OVERWORLD,
     item1: { type: EMERALD, name: '', amount: 1 },
     item2: undefined,
-    resultItem: { type: ITEM, name, amount: 1 },
+    resultItem: { name, type: ITEM, amount: 1 },
     stock: 1,
     displayStock: 1,
     resultText: name.toLowerCase(),
@@ -138,18 +140,11 @@ const TEST_CORE_BLOCKS = [
 ];
 
 const TEST_CONFIG: AppConfig = {
+    ...DEFAULT_CONFIG,
     dataUrl: TEST_DATA_URL,
     dynmap: {
-        baseUrl: TEST_MAPS_URL,
-        tileSize: 128,
-        defaultZoom: 4,
-        maxZoomLevel: 7,
-        playerRefreshMs: 1000
-    },
-    analysis: {
-        shopClusterDistance: 16,
-        maxTransitiveIterations: 10,
-        minIndependentShops: 3
+        ...DEFAULT_CONFIG.dynmap,
+        baseUrl: TEST_MAPS_URL
     }
 };
 
@@ -2155,23 +2150,24 @@ describe('aggregateShoppingList', () => {
 
 // Helper functions for route tests
 const createRouteStop = (x: number, z: number, world = OVERWORLD): RouteStop => ({
+    x, z, world,
     type: 'shop',
-    x, y: 64, z, world,
+    y: 64,
     displayX: world === THE_NETHER ? x * 8 : x,
     displayZ: world === THE_NETHER ? z * 8 : z,
     isNether: world === THE_NETHER
 });
 
 const createStopWithCartItem = (name: string, quantity: number, isNether = false, x = 100, z = 200): RouteStop => ({
+    x, z, isNether,
     type: 'shop',
-    x, y: 64, z,
+    y: 64,
     world: isNether ? THE_NETHER : OVERWORLD,
     displayX: isNether ? x * 8 : x,
     displayZ: isNether ? z * 8 : z,
-    isNether,
     cartItem: {
+        quantity,
         trade: createTrade(1, 1, name, 1, isNether ? THE_NETHER : OVERWORLD),
-        quantity
     }
 });
 

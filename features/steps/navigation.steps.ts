@@ -137,7 +137,7 @@ When(String.raw`player moves to the overworld at \({int}, {int})`, async ({ page
     // Wait one polling cycle to make sure the current world is registered
     const pollInterval = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 1000;
+        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
     }) as number;
     await page.waitForTimeout(pollInterval + 200);
     
@@ -346,10 +346,10 @@ Then('the route should show overworld shop markers', async ({ page }) => {
 });
 
 Given('I wait for at least {int} polling cycles', async ({ page }, cycles: number) => {
-    // Get the polling interval from config (default 1000ms)
+    // Get the polling interval from config (default 500ms)
     const pollIntervalMs = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 1000;
+        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
     }) as number;
     
     // Wait for the specified number of polling cycles plus a buffer

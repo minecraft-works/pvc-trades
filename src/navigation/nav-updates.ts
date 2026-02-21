@@ -7,11 +7,11 @@
  * @module navigation/nav-updates
  */
 
+// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import {
     isNether,
-    toOverworldEquivalent,
     toViewCoords,
     toLeafletCoordsRelative,
     calculateRouteDistance,
@@ -177,15 +177,17 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
 
         if (!nextStop) { return; }
 
-        const playerDisplayCoords = toOverworldEquivalent(playerPos.x, playerPos.z, playerPos.world);
+        const viewWorld = deps.navigationStore.viewWorld;
+        const playerViewCoords = toViewCoords(playerPos.x, playerPos.z, playerPos.world, viewWorld);
 
         const playerCoords = toLeafletCoordsRelative(
-            playerDisplayCoords.x, playerDisplayCoords.z,
+            playerViewCoords.x, playerViewCoords.z,
             state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
         );
 
+        const stopViewCoords = toViewCoords(nextStop.x, nextStop.z, nextStop.world, viewWorld);
         const stopCoords = toLeafletCoordsRelative(
-            nextStop.displayX, nextStop.displayZ,
+            stopViewCoords.x, stopViewCoords.z,
             state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
         );
 

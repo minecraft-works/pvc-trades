@@ -20,7 +20,7 @@ import {
     tileExistsInManifest,
     getCachedTileUrl,
     setCachedTileUrl,
-    getPlayerWorldForFilter,
+    getPlayerWorld,
     fetchPlayers,
     calculateZoom4Coords
 } from './index.js';
@@ -238,7 +238,7 @@ function updateShopMapPlayerMarkers(
     
     if (!leafletMap || cachedPlayers.length === 0) { return; }
 
-    const playersInWorld = cachedPlayers.filter(p => getPlayerWorldForFilter(p) === worldId);
+    const playersInWorld = cachedPlayers.filter(p => getPlayerWorld(p) === worldId);
 
     const mapCenter = leafletMap.getCenter();
     const containerRect = container.getBoundingClientRect();
@@ -349,11 +349,11 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     const context: MapTileContext = {
         worldId,
+        manifest,
         centerTileX: tileX,
         centerTileZ: tileZ,
         addedToMapZoom4: new Set<string>(),
         addedToMapZoom8: new Set<string>(),
-        manifest
     };
     
     const loadTiles = () => loadVisibleShopMapTiles(context);

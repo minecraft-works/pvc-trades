@@ -30,17 +30,6 @@ export function getPlayerWorld(player: Player): string {
 }
 
 /**
- * Get the world ID for filtering players that match a given world.
- * Handles the case where player.world might be undefined.
- * 
- * @param player - The player object
- * @returns Normalized world ID, defaults to overworld if not specified
- */
-export function getPlayerWorldForFilter(player: Player): string {
-    return player.world ? getWorldId(player.world) : WORLDS.OVERWORLD;
-}
-
-/**
  * Fetch player positions from API.
  * Returns empty array if fetch fails (graceful degradation - no dots shown).
  * 
@@ -70,5 +59,5 @@ export async function fetchPlayers(): Promise<Player[]> {
  * @returns Players that are in the specified world
  */
 export function filterPlayersByWorld(players: Player[], worldId: string): Player[] {
-    return players.filter(p => getPlayerWorldForFilter(p) === worldId);
+    return players.filter(p => getPlayerWorld(p) === worldId);
 }

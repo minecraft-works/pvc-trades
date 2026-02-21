@@ -115,7 +115,7 @@ export class PlayerInterpolator {
 
     /**
      * Feed a new position sample from the API.
-     * Should be called once per poll cycle (~1000ms).
+     * Should be called once per poll cycle (~500ms).
      * 
      * @param sample - New position sample with timestamp
      */
@@ -262,7 +262,7 @@ export class PlayerInterpolator {
         // Lerp yaw via shortest path
         const yaw = this._interpolateYaw(t);
 
-        return { x: pos2d.x, y, z: pos2d.z, yaw };
+        return { x: pos2d.x, z: pos2d.z, y, yaw };
     }
 
     /**

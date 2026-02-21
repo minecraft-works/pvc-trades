@@ -267,7 +267,7 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 
 - Virtual scroll when list exceeds ~100 items
 - Debounce user input (search: 100-200ms)
-- Player position polling: 1000ms interval
+- Player position polling: 500ms interval
 - Auto-advance threshold: 8 blocks from shop
 
 ### Test Placement

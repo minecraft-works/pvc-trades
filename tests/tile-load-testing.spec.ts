@@ -10,6 +10,7 @@
 import { test, expect } from './helpers/global-setup';
 import type { Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
+import { mockConfigRoute } from './helpers/test-config';
 
 // ============================================================================
 // Test Configuration
@@ -139,27 +140,8 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     };
     
     // Mock config - must have dataRefreshMs > 0 to pass Zod validation!
-    await page.route('**/config.json', route => {
-        route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000, // Must be > 0 to pass Zod validation
-                dynmap: {
-                    baseUrl: 'http://localhost:5173/pvc-trades/tiles', // Must be valid URL
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 1000
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
+    await mockConfigRoute(page, {
+        dynmap: { baseUrl: 'http://localhost:5173/pvc-trades/tiles' }
     });
 
     // Mock data.json with minimal test data

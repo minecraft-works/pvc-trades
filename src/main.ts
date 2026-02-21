@@ -347,11 +347,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize search/sort handler (before modules that depend on it)
     searchHandler = createSearchSortHandler({
+        getInputValue,
+        getElement,
         getAllTrades: () => dataLoader.getAllTrades(),
         getDeviation: () => dataLoader.getDeviation(),
         getNewTradeKeys: () => dataLoader.getNewTradeKeys(),
-        getInputValue,
-        getElement,
         renderResults: (...arguments_) => renderer.renderResults(...arguments_),
         updateSortArrows: () => renderer.updateSortArrows(),
         updateDealsBadge: (count) => favoritesUI.updateDealsBadge(count),
@@ -434,8 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
         navMapHandler,
         computeRoute,
         getAllCartStops,
-        renderCartDialog: () => cartHandler.renderCartDialog(),
         getInterpolator,
+        renderCartDialog: () => cartHandler.renderCartDialog(),
     });
 
     liveNav = createLiveNavigationHandler(navState, {
@@ -445,14 +445,14 @@ document.addEventListener('DOMContentLoaded', () => {
         computeRoute,
         getAllCartStops,
         syncNavProgressWithCart,
-        createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
-        renderCartDialog: () => cartHandler.renderCartDialog(),
         switchTab,
         getElement,
-        getConfig: () => getConfig(),
         getInterpolator,
         removeInterpolator,
         updateNearbyShopTooltip,
+        createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
+        renderCartDialog: () => cartHandler.renderCartDialog(),
+        getConfig: () => getConfig(),
         cartStoreUniqueCount: () => cartStore.uniqueCount,
     });
 

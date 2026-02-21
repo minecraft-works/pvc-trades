@@ -6,6 +6,7 @@ import { expect } from '@playwright/test';
 import { Given, When, Then } from './fixtures';
 import type { Page, Route } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
+import { mockConfigRoute } from '../../tests/helpers/test-config';
 
 // ============================================================================
 // Tile creation helpers (same as navigation-mocks.ts)
@@ -240,28 +241,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     });
     
     // Set up config.json mock to use local data.json path
-    await page.route('**/config.json', async (route: Route) => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000,
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 1000
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page);
     
     // Set up mock shop data
     await page.route('**/data.json', async (route: Route) => {
@@ -388,28 +368,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     });
 
     // Set up config.json mock
-    await page.route('**/config.json', async (route: Route) => {
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-                dataUrl: 'data.json',
-                dataRefreshMs: 60_000,
-                dynmap: {
-                    baseUrl: 'https://web.peacefulvanilla.club/maps',
-                    tileSize: 128,
-                    defaultZoom: 4,
-                    maxZoomLevel: 7,
-                    playerRefreshMs: 1000
-                },
-                analysis: {
-                    shopClusterDistance: 16,
-                    maxTransitiveIterations: 10,
-                    minIndependentShops: 3
-                }
-            })
-        });
-    });
+    await mockConfigRoute(page);
 
     // Set up mock shop data
     await page.route('**/data.json', async (route: Route) => {
