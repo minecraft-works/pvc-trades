@@ -959,11 +959,9 @@ Then('this confirms only zoom-4 tiles are visible', async () => {
 });
 
 When('I wait for tiles to load', async ({ page }) => {
-    // Wait for tile images to load
-    await page.waitForTimeout(1000);
-    
-    // Wait for any pending network requests to complete
-    await page.waitForLoadState('networkidle');
+    // Wait for tile images to load and render.
+    // Cannot use 'networkidle' because 500ms player polling keeps the network active.
+    await page.waitForTimeout(2000);
 });
 
 Then('tiles should be {word}', async ({ page }, brightness: string) => {
@@ -1027,11 +1025,10 @@ Given('zoom-4 tiles are delayed to load after zoom-8', async ({ page }) => {
 });
 
 When('I wait for all tiles to finish loading', async ({ page }) => {
-    // Wait for network to settle and any artificial delays to complete
-    await page.waitForTimeout(1000);
-    await page.waitForLoadState('networkidle');
-    // Extra wait for any delayed tile renders
-    await page.waitForTimeout(500);
+    // Wait for artificial tile delays to complete (longest is 600ms zoom-4 delay)
+    // then extra time for Leaflet to render the tile images.
+    // Cannot use 'networkidle' because 500ms player polling keeps the network active.
+    await page.waitForTimeout(2000);
 });
 
 Then('the rendered map center should show zoom-8 brightness', async ({ page }) => {
