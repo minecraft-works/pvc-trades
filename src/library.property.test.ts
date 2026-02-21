@@ -18,6 +18,7 @@
  * ```
  */
 import { describe, test, expect, beforeAll } from 'vitest';
+// eslint-disable-next-line sonarjs/no-wildcard-import -- fast-check's fc namespace is idiomatic
 import * as fc from 'fast-check';
 import {
     escapeHtml,

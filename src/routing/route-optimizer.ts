@@ -247,24 +247,33 @@ export function twoOptOptimize(order: number[], distributionMatrix: number[][]):
     if (order.length < 3) {return [...order];}
 
     const result = [...order];
-    let improved = true;
 
-    while (improved) {
-        improved = false;
+    while (applyTwoOptPass(result, distributionMatrix)) {
+        // Keep improving until no swaps found in a pass
+    }
 
-        for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
-            for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
-                const indices = calculateEdgeIndices(result, startIndex, endIndex);
+    return result;
+}
 
-                if (shouldSwapEdges(distributionMatrix, indices)) {
-                    applyTwoOptSwap(result, startIndex, endIndex);
-                    improved = true;
-                }
+/**
+ * Perform a single pass of 2-opt improvement over all edge pairs.
+ * Returns true if any swap was made.
+ */
+function applyTwoOptPass(result: number[], distributionMatrix: number[][]): boolean {
+    let improved = false;
+
+    for (let startIndex = 0; startIndex < result.length - 1; startIndex++) {
+        for (let endIndex = startIndex + 2; endIndex < result.length; endIndex++) {
+            const indices = calculateEdgeIndices(result, startIndex, endIndex);
+
+            if (shouldSwapEdges(distributionMatrix, indices)) {
+                applyTwoOptSwap(result, startIndex, endIndex);
+                improved = true;
             }
         }
     }
 
-    return result;
+    return improved;
 }
 
 /**

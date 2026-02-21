@@ -7,6 +7,7 @@
  * @module navigation/nav-updates
  */
 
+// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import {

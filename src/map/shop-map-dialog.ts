@@ -349,11 +349,11 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     const context: MapTileContext = {
         worldId,
+        manifest,
         centerTileX: tileX,
         centerTileZ: tileZ,
         addedToMapZoom4: new Set<string>(),
         addedToMapZoom8: new Set<string>(),
-        manifest
     };
     
     const loadTiles = () => loadVisibleShopMapTiles(context);

@@ -182,22 +182,26 @@ export class FavoritesStore {
      */
     load(): void {
         try {
-            const stored = localStorage.getItem(STORAGE_KEYS.FAVORITES);
-            if (stored) {
-                const parsed: unknown = JSON.parse(stored);
-                const result = FavoriteItemArraySchema.safeParse(parsed);
-                if (result.success) {
-                    this._items.clear();
-                    for (const item of result.data) {
-                        // Use normalized key for consistent lookups
-                        this._items.set(normalizeItemName(item.itemName), item);
-                    }
-                }
-            }
+            this._loadFromStorage();
         } catch {
             // Invalid data - keep existing state
         }
         this._notifyChange();
+    }
+
+    /**
+     * Parse and apply favorites data from localStorage.
+     */
+    private _loadFromStorage(): void {
+        const stored = localStorage.getItem(STORAGE_KEYS.FAVORITES);
+        if (!stored) { return; }
+        const parsed: unknown = JSON.parse(stored);
+        const result = FavoriteItemArraySchema.safeParse(parsed);
+        if (!result.success) { return; }
+        this._items.clear();
+        for (const item of result.data) {
+            this._items.set(normalizeItemName(item.itemName), item);
+        }
     }
 
     /**

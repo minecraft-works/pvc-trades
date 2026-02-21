@@ -174,8 +174,7 @@ function calculateCoreBlockRatios(
         if (valueA === undefined) { continue; }
 
         for (const blockB of coreBlocksLower) {
-            if (blockA === blockB) { continue; }
-            const valueB = emeraldValues.get(blockB);
+            const valueB = blockA === blockB ? undefined : emeraldValues.get(blockB);
             if (valueB === undefined) { continue; }
 
             addRatioToGraph(graph, blockA, blockB, valueA / valueB);

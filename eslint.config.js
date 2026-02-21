@@ -85,6 +85,18 @@ export default tseslint.config(
             'sonarjs/cognitive-complexity': ['error', 15],
             'sonarjs/no-duplicate-string': ['error', { threshold: 4 }],
             'sonarjs/no-identical-functions': 'error',
+            'sonarjs/no-collapsible-if': 'error',
+            'sonarjs/no-nested-switch': 'error',
+            'sonarjs/no-inconsistent-returns': 'error',
+            'sonarjs/no-redundant-parentheses': 'error',
+            'sonarjs/no-wildcard-import': 'error',
+            'sonarjs/prefer-immediate-return': 'error',
+            'sonarjs/prefer-object-literal': 'error',
+            'sonarjs/nested-control-flow': 'error',
+            'sonarjs/max-union-size': 'error',
+            'sonarjs/shorthand-property-grouping': 'error',
+            'sonarjs/too-many-break-or-continue-in-loop': 'error',
+            'sonarjs/bool-param-default': 'error',
 
             // Unicorn - STRICT with minimal necessary adjustments
             'unicorn/filename-case': ['error', { cases: { kebabCase: true, camelCase: true } }],

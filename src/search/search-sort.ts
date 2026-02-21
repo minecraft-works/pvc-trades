@@ -174,20 +174,12 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         const results: FilterResult[] = [];
 
         for (const trade of deps.getAllTrades()) {
-            // Apply new-only filter if active
-            if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) {
-                continue;
-            }
+            const isFilteredOut =
+                (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) ||
+                (deps.isFilterCartOnly() && !cartStore.has(trade)) ||
+                (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase()));
 
-            // Apply cart filter if active
-            if (deps.isFilterCartOnly() && !cartStore.has(trade)) {
-                continue;
-            }
-
-            // Apply favorites filter if active
-            if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) {
-                continue;
-            }
+            if (isFilteredOut) { continue; }
 
             const result = filterTrade(trade, wantQuery, giveQuery);
             if (result) { results.push(result); }
@@ -298,9 +290,9 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     return {
         search,
         debouncedSearch,
-        triggerSearch: search,
         sortByColumn,
         clearSearchInput,
+        triggerSearch: search,
         getActiveSorts: () => activeSorts,
     };
 }

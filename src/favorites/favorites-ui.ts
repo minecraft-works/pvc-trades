@@ -485,9 +485,9 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         showFavoritePopover,
         hideFavoritePopover,
         updateFavoritesBadge,
-        updateDealsBadge: updateDealsBadgeElement,
         setupFavoritesDialog,
         renderFavoritesDialog,
-        openDialogForItem
+        openDialogForItem,
+        updateDealsBadge: updateDealsBadgeElement,
     };
 }

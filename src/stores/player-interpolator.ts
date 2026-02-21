@@ -262,7 +262,7 @@ export class PlayerInterpolator {
         // Lerp yaw via shortest path
         const yaw = this._interpolateYaw(t);
 
-        return { x: pos2d.x, y, z: pos2d.z, yaw };
+        return { x: pos2d.x, z: pos2d.z, y, yaw };
     }
 
     /**

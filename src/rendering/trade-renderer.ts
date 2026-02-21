@@ -113,7 +113,7 @@ export function getWorldDisplayInfo(world: string): { abbrev: string; title: str
 }
 
 /** Map isGood to CSS class name */
-export function getDeviationClass(isGood: boolean | undefined): string {
+export function getDeviationClass(isGood: boolean | undefined = undefined): string {
     if (isGood === undefined) {
         return '';
     }

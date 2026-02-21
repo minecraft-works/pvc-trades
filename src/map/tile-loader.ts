@@ -162,25 +162,21 @@ export function loadTileToMap(options: LoadTileOptions): void {
     const url = `${TILE_CONFIG.baseUrl}/${worldId}/${zoom}/${tx}/${tz}.png`;
     debugTiles('loadTile: FETCH url=%s', url);
     fetch(url)
-        .then(response => {
+        .then(async response => {
             if (!response.ok) {
                 debugTiles('loadTile: FETCH FAIL url=%s status=%d', url, response.status);
                 return;
             }
             debugTiles('loadTile: FETCH OK url=%s', url);
-            return response.blob();
-        })
-        .then(blob => {
-            if (blob) {
-                const blobUrl = URL.createObjectURL(blob);
-                tileBlobCache.set(cacheKey, blobUrl);
-                // Check map still exists before adding
-                if (map.getContainer()?.isConnected) {
-                    debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
-                    L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
-                } else {
-                    debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
-                }
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            tileBlobCache.set(cacheKey, blobUrl);
+            // Check map still exists before adding
+            if (map.getContainer()?.isConnected) {
+                debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
+                L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
+            } else {
+                debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
             }
         })
         .catch((error) => {

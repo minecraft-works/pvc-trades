@@ -12,6 +12,7 @@
  * @module navigation/nav-map
  */
 
+// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import {
@@ -133,22 +134,21 @@ function loadZoom4Tiles(context: TileLoadContext): { loaded: number; skipped: nu
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
             const z4 = calculateZoom4Coords(tx, tz);
             const key = `${z4.x},${z4.z}`;
-            if (!zoom4Tiles.has(key)) {
-                zoom4Tiles.add(key);
-                if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
-                    loaded++;
-                    const startZ8X = z4.x * 16;
-                    const startZ8Z = z4.z * 16;
-                    const dx = startZ8X - positionCenterX;
-                    const dy = startZ8Z - positionCenterZ;
-                    const bounds: L.LatLngBoundsExpression = [
-                        [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
-                        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize],
-                    ];
-                    loadTileToMap({ map, worldId, zoom: 4, tx: z4.x, tz: z4.z, bounds, addedToMap, pane: 'tilesZoom4' });
-                } else {
-                    skipped++;
-                }
+            if (zoom4Tiles.has(key)) { continue; }
+            zoom4Tiles.add(key);
+            if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
+                loaded++;
+                const startZ8X = z4.x * 16;
+                const startZ8Z = z4.z * 16;
+                const dx = startZ8X - positionCenterX;
+                const dy = startZ8Z - positionCenterZ;
+                const bounds: L.LatLngBoundsExpression = [
+                    [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
+                    [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize],
+                ];
+                loadTileToMap({ map, worldId, bounds, addedToMap, zoom: 4, tx: z4.x, tz: z4.z, pane: 'tilesZoom4' });
+            } else {
+                skipped++;
             }
         }
     }
@@ -169,7 +169,7 @@ function loadZoom8Tiles(context: TileLoadContext): { loaded: number; skipped: nu
                     [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
                     [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize],
                 ];
-                loadTileToMap({ map, worldId, zoom: 8, tx, tz, bounds, addedToMap, pane: 'tilesZoom8' });
+                loadTileToMap({ map, worldId, tx, tz, bounds, addedToMap, zoom: 8, pane: 'tilesZoom8' });
             } else {
                 skipped++;
             }
@@ -432,7 +432,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
         const manifest = await loadTileManifest();
         const addedToNavMap = new Set<string>();
-        loadNavMapTiles({ manifest, worldId: worldToShow, tileRange, addedToMap: addedToNavMap });
+        loadNavMapTiles({ manifest, tileRange, worldId: worldToShow, addedToMap: addedToNavMap });
         bindDynamicTileLoading(manifest, addedToNavMap);
     }
 

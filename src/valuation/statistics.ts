@@ -205,12 +205,11 @@ function getReverseConversionValue(
         if (conversion.base.toLowerCase() !== itemKey) { continue; }
 
         const blockEntry = itemValues.get(blockKey);
-        if (!blockEntry) { continue; }
-        if (isCoreBlock && !hasEnoughIndependentData(blockEntry, minShops)) { continue; }
-
-        const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
-        if (blockValue !== undefined) {
-            return blockValue / conversion.multiplier;
+        if (blockEntry && (!isCoreBlock || hasEnoughIndependentData(blockEntry, minShops))) {
+            const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
+            if (blockValue !== undefined) {
+                return blockValue / conversion.multiplier;
+            }
         }
     }
     return undefined;
