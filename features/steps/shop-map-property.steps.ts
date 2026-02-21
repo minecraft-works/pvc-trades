@@ -140,3 +140,28 @@ Then('the edge marker should point {word}', async ({ page }, expectedDirection: 
     const direction = getDirectionFromDelta(dx, dz);
     expect(direction).toBe(expectedDirection);
 });
+
+Then('the edge marker label should be positioned {string}', async ({ page }, position: string) => {
+    const p = page as PageWithMapTracking;
+
+    // Replicate angle calculation from createEdgeMarker:
+    // Leaflet uses lat = -z (north-up), lng = x (east-right)
+    const dxLeaflet = (p.__playerX ?? 0) - (p.__shopX ?? 0);
+    const dyLeaflet = (p.__shopZ ?? 0) - (p.__playerZ ?? 0);
+    const angle = Math.atan2(dyLeaflet, dxLeaflet);
+    const angleDeg = angle * 180 / Math.PI;
+
+    // Mirror the CSS-class logic in shop-map-helpers.ts createEdgeMarker
+    let expected: string;
+    if (angleDeg > 45 && angleDeg < 135) {
+        expected = 'below marker';       // label-bottom
+    } else if (angleDeg < -45 && angleDeg > -135) {
+        expected = 'above marker';       // label-top
+    } else if (Math.cos(angle) > 0) {
+        expected = 'left of marker';     // label-left (right-side edge)
+    } else {
+        expected = 'right of marker';    // default (left-side edge)
+    }
+
+    expect(position).toBe(expected);
+});

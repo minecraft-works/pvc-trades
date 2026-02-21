@@ -93,8 +93,17 @@ Then('only overworld tiles should be loaded', async ({ page }) => {
         return globalThis.__navMapWorld;
     });
     
-    // In unified view, the map world should always be overworld
     expect(mapWorld).toBe('overworld');
+});
+
+Then('the map should use the nether world', async ({ page }) => {
+    // When the player is in nether, the map auto-detects and shows nether tiles
+    const mapWorld = await page.evaluate(() => {
+        // @ts-expect-error - exposed for testing
+        return globalThis.__navMapWorld;
+    });
+    
+    expect(mapWorld).toBe('the_nether');
 });
 
 Then('nether shops should appear on overworld tiles', async ({ page }) => {

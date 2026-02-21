@@ -93,6 +93,19 @@ Feature: Shop Map Player Properties
   # Empty State Properties
   # ===========================================================================
 
+  @shop-map @property @edge-marker @label
+  Scenario Outline: Edge marker label avoids overflow
+    Given a shop at (0, 0)
+    And a player at (<player_x>, <player_z>)
+    Then the edge marker label should be positioned "<label_position>"
+
+    Examples: Label positions by player direction
+      | player_x | player_z | label_position  |
+      | 1000     | 0        | left of marker  |
+      | -1000    | 0        | right of marker |
+      | 0        | -1000    | below marker    |
+      | 0        | 1000     | above marker    |
+
   @shop-map @property @empty
   Scenario Outline: No markers when no players in world
     Given a shop in <world>

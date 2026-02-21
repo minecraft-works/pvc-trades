@@ -32,10 +32,10 @@ Feature: Unified Multi-World Navigation
     And nether shops should appear on overworld tiles
 
   @navigation @unified-map @tiles
-  Scenario: Overworld tiles shown even when player is in nether
+  Scenario: Nether tiles shown when player is in nether
     Given player "TestPlayer" is in the nether at (100, 50)
     When I open the navigation dialog with items from both worlds
-    Then only overworld tiles should be loaded
+    Then the map should use the nether world
     And the player marker should be at overworld-equivalent position (800, 400)
 
   # ============================================================================
