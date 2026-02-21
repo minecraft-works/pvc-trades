@@ -33,7 +33,6 @@ export {
 // Player utilities
 export {
     getPlayerWorld,
-    getPlayerWorldForFilter,
     fetchPlayers,
     filterPlayersByWorld
 } from './players.js';

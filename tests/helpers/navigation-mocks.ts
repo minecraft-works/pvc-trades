@@ -2,6 +2,7 @@
  * Test helpers for multi-world navigation scenarios
  * Provides mocks for player API and colored tile generation
  */
+/* eslint-disable max-lines -- test helper shared across many BDD scenarios; splitting would scatter related mocks */
 
 import type { Page, Route } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
@@ -190,8 +191,7 @@ export function createMultiPlayerMock(): MultiPlayerMock {
                 name,
                 foreign: isNether,
                 position: { x, y: 64, z },
-                rotation: { pitch: 0, yaw: 0, roll: 0 },
-                world: isNether ? 'World_nether' : 'World'
+                rotation: { pitch: 0, yaw: 0, roll: 0 }
             });
         },
         clear() {

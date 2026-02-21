@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getPlayerWorld, getPlayerWorldForFilter, fetchPlayers, filterPlayersByWorld } from './players.js';
+import { getPlayerWorld, fetchPlayers, filterPlayersByWorld } from './players.js';
 import type { Player } from '../types.js';
 
 // Mock the dependencies
@@ -63,31 +63,45 @@ describe('getPlayerWorld', () => {
     });
 });
 
-describe('getPlayerWorldForFilter', () => {
+describe('getPlayerWorld (filter cases)', () => {
     it('uses getWorldId when player has world field', () => {
         const player: Player = {
             name: 'TestPlayer',
             position: { x: 0, y: 0, z: 0 },
+            foreign: false,
+            uuid: 'test-uuid',
             world: 'world_nether'
         };
-        expect(getPlayerWorldForFilter(player)).toBe('the_nether');
+        expect(getPlayerWorld(player)).toBe('the_nether');
     });
 
-    it('defaults to overworld when player has no world field', () => {
+    it('returns overworld when player has no world field and foreign is false', () => {
         const player: Player = {
             name: 'TestPlayer',
-            position: { x: 0, y: 0, z: 0 }
+            position: { x: 0, y: 0, z: 0 },
+            foreign: false,
+            uuid: 'test-uuid'
         };
-        expect(getPlayerWorldForFilter(player)).toBe('overworld');
+        expect(getPlayerWorld(player)).toBe('overworld');
+    });
+
+    it('returns nether when player has no world field and foreign is true', () => {
+        const player: Player = {
+            name: 'TestPlayer',
+            position: { x: 0, y: 0, z: 0 },
+            foreign: true,
+            uuid: 'test-uuid'
+        };
+        expect(getPlayerWorld(player)).toBe('the_nether');
     });
 });
 
 describe('filterPlayersByWorld', () => {
     const players: Player[] = [
-        { name: 'Player1', position: { x: 0, y: 0, z: 0 }, world: 'world' },
-        { name: 'Player2', position: { x: 0, y: 0, z: 0 }, world: 'world_nether' },
-        { name: 'Player3', position: { x: 0, y: 0, z: 0 } }, // No world = overworld
-        { name: 'Player4', position: { x: 0, y: 0, z: 0 }, world: 'world_the_end' }
+        { name: 'Player1', position: { x: 0, y: 0, z: 0 }, foreign: false, uuid: 'u1', world: 'world' },
+        { name: 'Player2', position: { x: 0, y: 0, z: 0 }, foreign: true, uuid: 'u2' }, // No world, foreign=true → nether
+        { name: 'Player3', position: { x: 0, y: 0, z: 0 }, foreign: false, uuid: 'u3' }, // No world, foreign=false → overworld
+        { name: 'Player4', position: { x: 0, y: 0, z: 0 }, foreign: false, uuid: 'u4', world: 'world_the_end' }
     ];
 
     it('filters players in overworld', () => {
