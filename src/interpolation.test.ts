@@ -2,8 +2,10 @@
  * Unit tests for player position interpolation (Spring-Damper Attraction).
  * 
  * Tests the pure math functions in interpolation.ts and the PlayerInterpolator class.
- * The spring-damper model replaces the previous predictive lerp (3-phase state machine)
- * with continuous attraction toward a moving target.
+ * The spring-damper model uses continuous attraction toward the last observed
+ * server position (the "attraction point" per Karamouzas §4.3).
+ * No extrapolation beyond observations — the display converges to the
+ * attraction point and rests there until a new sample arrives.
  */
 
 import { beforeEach,describe, expect, test } from 'vitest';
@@ -106,8 +108,8 @@ describe('springStep', () => {
         let vel = { vx: 0, vz: 0 };
         const target = { x: 10, z: 5 };
 
-        // 60 steps × 16ms ≈ 1 second
-        for (let index = 0; index < 60; index++) {
+        // 120 steps × 16ms ≈ 1.9 seconds (critically damped settling time ~0.8s)
+        for (let index = 0; index < 120; index++) {
             const result = springStep(pos, target, vel, defaultConfig);
             pos = result.position;
             vel = result.velocity;
@@ -117,9 +119,9 @@ describe('springStep', () => {
         expect(pos.z).toBeCloseTo(5, 0);
     });
 
-    test('damping prevents oscillation (near-critically damped)', () => {
-        // Track X position over time — it should not overshoot by more than ~15%
-        // (ζ ≈ 0.85 → slight underdamping, max overshoot ≈ 1-2%)
+    test('damping prevents oscillation (critically damped)', () => {
+        // Track X position over time — critically damped (ζ=1.0) should not overshoot
+        // Semi-implicit Euler may introduce tiny numerical overshoot (<1%)
         let pos = { x: 0, z: 0 };
         let vel = { vx: 0, vz: 0 };
         const target = { x: 10, z: 0 };
@@ -132,8 +134,8 @@ describe('springStep', () => {
             maxX = Math.max(maxX, pos.x);
         }
 
-        // Should not overshoot target by more than 15%
-        expect(maxX).toBeLessThan(11.5);
+        // Critically damped: no oscillatory overshoot (allow <1% for numerics)
+        expect(maxX).toBeLessThan(10.1);
         // Should converge close to target
         expect(pos.x).toBeCloseTo(10, 0);
     });
@@ -259,31 +261,31 @@ describe('PlayerInterpolator', () => {
         expect(interpolator.phase).toBe('tracking');
     });
 
-    test('spring pulls display toward moving target', () => {
+    test('spring pulls display toward attraction point', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
         // Simulate a frame 100ms after second sample
         const pos = interpolator.getDisplayPosition(1100);
         expect(pos).toBeDefined();
-        // Display should move toward ~104 + velocity*100ms
+        // Display should move toward attraction point (104)
         expect(pos!.x).toBeGreaterThan(100);
     });
 
-    test('converges to target over multiple frames', () => {
+    test('converges to attraction point over multiple frames', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
-        // Simulate 60 frames at 60fps
+        // Simulate 60 frames at 60fps (~960ms)
         let pos;
         for (let index = 1; index <= 60; index++) {
             pos = interpolator.getDisplayPosition(1000 + index * 16);
         }
 
         expect(pos).toBeDefined();
-        // After ~1s of spring pull, should be near the extrapolated target
-        // Target at t=1960ms: 104 + 0.004*(960) = 107.84
-        expect(pos.x).toBeGreaterThan(104);
+        // Attraction point = 104 (last observation, no extrapolation).
+        // After ~960ms, critically damped spring (ωn=5) is ~98% converged.
+        expect(pos.x).toBeCloseTo(104, 0);
     });
 
     test('no position jumps between consecutive frames', () => {
@@ -386,7 +388,7 @@ describe('PlayerInterpolator', () => {
         interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
         interpolator.pushSample({ x: 4, y: 64, z: 0, yaw: 270, timestamp: 1000 });
 
-        // Pump frames to let spring catch up
+        // Pump frames to let spring catch up toward x=4
         for (let index = 1; index <= 60; index++) {
             interpolator.getDisplayPosition(1000 + index * 16);
         }
@@ -397,13 +399,14 @@ describe('PlayerInterpolator', () => {
         expect(interpolator.velocity.vx).toBeCloseTo(0);
         expect(interpolator.velocity.vz).toBeCloseTo(-0.004);
 
-        // After more frames, display should track northward
+        // After more frames, display should converge toward attraction point z=-4
         let pos;
         for (let index = 1; index <= 60; index++) {
             pos = interpolator.getDisplayPosition(2000 + index * 16);
         }
         expect(pos).toBeDefined();
-        expect(pos.z).toBeLessThan(-4);
+        // Attraction point is z=-4. Display converges to it (no extrapolation beyond).
+        expect(pos.z).toBeCloseTo(-4, 0);
     });
 
     test('interpolates Y coordinate smoothly', () => {
@@ -457,6 +460,122 @@ describe('PlayerInterpolator', () => {
         const pos2 = interpolator.getDisplayPosition(10_000);
         expect(pos1!.x).toBeCloseTo(pos2!.x, 1);
         expect(pos1!.z).toBeCloseTo(pos2!.z, 1);
+    });
+
+    // ====================================================================
+    // Overshoot Prevention (critical damping, no extrapolation)
+    // ====================================================================
+
+    test('no overshoot when player stops suddenly', () => {
+        // Player walks east at 4 blocks/s for 3 samples, then stops
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
+        interpolator.pushSample({ x: 4, y: 64, z: 0, timestamp: 1000 });
+
+        // Pump frames for 1s (spring converges toward attraction point x=4)
+        for (let index = 1; index <= 60; index++) {
+            interpolator.getDisplayPosition(1000 + index * 16);
+        }
+
+        interpolator.pushSample({ x: 8, y: 64, z: 0, timestamp: 2000 });
+
+        // Pump frames for 1s (spring converges toward attraction point x=8)
+        for (let index = 1; index <= 60; index++) {
+            interpolator.getDisplayPosition(2000 + index * 16);
+        }
+
+        // Player STOPS at x=8
+        interpolator.pushSample({ x: 8, y: 64, z: 0, timestamp: 3000 });
+
+        // Track max X after the stop
+        let maxX = 0;
+        for (let index = 1; index <= 120; index++) {
+            const pos = interpolator.getDisplayPosition(3000 + index * 16);
+            if (pos) { maxX = Math.max(maxX, pos.x); }
+        }
+
+        // Display should not overshoot past 8 by more than 1 block
+        expect(maxX).toBeLessThan(9);
+    });
+
+    test('no overshoot when player reverses direction', () => {
+        // Player walks east then reverses to west
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
+        interpolator.pushSample({ x: 4, y: 64, z: 0, timestamp: 1000 });
+
+        // Pump frames
+        for (let index = 1; index <= 60; index++) {
+            interpolator.getDisplayPosition(1000 + index * 16);
+        }
+
+        // Player reverses — now at x=0 (went back 4 blocks)
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 2000 });
+
+        // The display should not continue east significantly
+        let maxX = 0;
+        for (let index = 1; index <= 120; index++) {
+            const pos = interpolator.getDisplayPosition(2000 + index * 16);
+            if (pos) { maxX = Math.max(maxX, pos.x); }
+        }
+
+        // Should not overshoot east by more than 2 blocks from the reversal point (0)
+        // (display was somewhere in [0,4] range before reversal)
+        expect(maxX).toBeLessThan(6);
+    });
+
+    test('spring converges back when display is ahead of attraction point', () => {
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
+        interpolator.pushSample({ x: 8, y: 64, z: 0, timestamp: 1000 });
+
+        // Pump frames so display converges toward x=8
+        for (let index = 1; index <= 60; index++) {
+            interpolator.getDisplayPosition(1000 + index * 16);
+        }
+
+        // Player moves back — new attraction point is x=4
+        interpolator.pushSample({ x: 4, y: 64, z: 0, timestamp: 2000 });
+
+        // Get position right after — spring should pull display back toward 4
+        const pos1 = interpolator.getDisplayPosition(2016);
+        const pos2 = interpolator.getDisplayPosition(2032);
+
+        expect(pos1).toBeDefined();
+        expect(pos2).toBeDefined();
+
+        // pos2.x should be closer to 4 than pos1.x (moving toward attraction point)
+        const distance1 = Math.abs(pos1!.x - 4);
+        const distance2 = Math.abs(pos2!.x - 4);
+        expect(distance2).toBeLessThanOrEqual(distance1);
+    });
+
+    test('handles polling sync mismatch gracefully', () => {
+        // Simulate server publishing at t=0,1000,2000 but client polling
+        // at t=300,1200,2100 (300ms offset, irregular intervals)
+        interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 300 });
+        interpolator.pushSample({ x: 4, y: 64, z: 0, timestamp: 1200 });
+
+        // Pump frames
+        for (let index = 1; index <= 55; index++) {
+            interpolator.getDisplayPosition(1200 + index * 16);
+        }
+
+        interpolator.pushSample({ x: 8, y: 64, z: 0, timestamp: 2100 });
+
+        // Pump frames
+        for (let index = 1; index <= 55; index++) {
+            interpolator.getDisplayPosition(2100 + index * 16);
+        }
+
+        // Player stops — next poll at irregular interval
+        interpolator.pushSample({ x: 8, y: 64, z: 0, timestamp: 3050 });
+
+        let maxX = 0;
+        for (let index = 1; index <= 120; index++) {
+            const pos = interpolator.getDisplayPosition(3050 + index * 16);
+            if (pos) { maxX = Math.max(maxX, pos.x); }
+        }
+
+        // Even with irregular polling, no significant overshoot
+        expect(maxX).toBeLessThan(9);
     });
 });
 

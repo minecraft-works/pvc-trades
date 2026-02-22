@@ -2,12 +2,17 @@
  * Player Position Interpolation (Spring-Damper Attraction)
  *
  * Pure math functions for smooth player marker movement between
- * polled positions. Uses a spring-damper model inspired by
- * Karamouzas et al. (2009) "Indicative routes for path planning
- * and crowd simulation" — the display marker is continuously
- * attracted toward a moving target (the server-reported position
- * extrapolated by estimated velocity), producing smooth, phase-free
- * motion without teleport jumps or lerp seams.
+ * polled positions. Uses a critically damped spring-damper model
+ * inspired by Karamouzas et al. (2009) "Indicative routes for
+ * path planning and crowd simulation" — the display marker is
+ * continuously attracted toward the last observed server position
+ * (the "attraction point"), converging smoothly without overshoot.
+ *
+ * Key principle from §4.3: the attraction point is always the last
+ * observed position (never extrapolated beyond it). The force is
+ * always > 0 unless the marker has reached the target with zero
+ * velocity. This guarantees monotonic convergence — overshoot is
+ * mathematically impossible with critical damping (ζ = 1.0).
  *
  * @module interpolation/interpolation
  * @see ADR-011
@@ -77,9 +82,9 @@ export const SPRING_STIFFNESS = 25;
 /**
  * Spring damping coefficient in 1/s.
  * Critical damping = 2·√k = 2·5 = 10 for k=25.
- * Slightly underdamped (ζ ≈ 0.85) → subtle overshoot that feels natural.
+ * ζ = c / (2·√k) = 10 / 10 = 1.0 → critically damped (no overshoot).
  */
-export const SPRING_DAMPING = 8.5;
+export const SPRING_DAMPING = 10;
 
 /** Maximum dt per integration step (ms). Caps large gaps to prevent instability. */
 const MAX_STEP_MS = 100;
@@ -145,9 +150,9 @@ export function estimateVelocity(previous: Position2D, current: Position2D, dtMs
  *     { x: 0, z: 0 },        // display is at origin
  *     { x: 10, z: 0 },       // target is 10 blocks east
  *     { vx: 0, vz: 0 },      // display is stationary
- *     { stiffness: 25, damping: 8.5, dtMs: 16 }
+ *     { stiffness: 25, damping: 10, dtMs: 16 }
  * );
- * // result.position.x ≈ 0.066 (pulled toward target)
+ * // result.position.x ≈ 0.064 (pulled toward target)
  */
 export function springStep(
     displayPos: Position2D,

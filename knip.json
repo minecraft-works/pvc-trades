@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/library.ts", "src/stores/index.ts", "src/map/index.ts", "scripts/*.ts"],
+  "entry": ["src/library.ts", "src/stores/index.ts", "src/map/index.ts", "scripts/*.ts", "src/chatlog/run-parser.ts"],
   "project": ["src/**/*.ts", "scripts/**/*.ts"],
   "ignore": ["**/*.test.ts", "**/*.spec.ts", "tests/**", "features/**"],
   "ignoreDependencies": ["@stryker-mutator/api", "@axe-core/playwright"],

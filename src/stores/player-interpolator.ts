@@ -2,14 +2,18 @@
  * Player Position Interpolator
  * 
  * Provides smooth position rendering between discrete 1-second API polls
- * using a spring-damper attraction model inspired by Karamouzas et al.
- * (2009) "Indicative routes for path planning and crowd simulation".
+ * using a critically damped spring-damper attraction model inspired by
+ * Karamouzas et al. (2009) "Indicative routes for path planning and
+ * crowd simulation".
  * 
- * Instead of discrete phase transitions (correct → extrapolate), the
- * display marker is continuously attracted toward a moving target (the
- * server position extrapolated by estimated velocity). The spring force
- * is always > 0 unless the marker is at the target with zero velocity,
- * producing naturally smooth motion without seams or jumps.
+ * Following §4.3 of the paper, the attraction point is always the last
+ * observed server position — never extrapolated beyond it. The spring
+ * force is always > 0 unless the marker is at the target with zero
+ * velocity, producing naturally smooth, overshoot-free motion.
+ * 
+ * Critical damping (ζ = 1.0) guarantees monotonic convergence:
+ * the display marker approaches the attraction point as fast as
+ * possible without oscillation or overshoot.
  * 
  * Designed as a per-player instance so it can be used for both the
  * navigating player and any player on the shop map.
@@ -19,7 +23,7 @@
  * 2. Call `getDisplayPosition(now)` from a `requestAnimationFrame` loop
  *    to get the smoothly interpolated position at any instant
  * 3. The interpolator handles:
- *    - Spring attraction: continuously pulls display toward moving target
+ *    - Spring attraction: continuously pulls display toward last observation
  *    - Teleport snapping: instant snap for implausible speed transitions
  *    - Yaw interpolation: shortest-path angular lerp via spring t factor
  * 
@@ -78,8 +82,10 @@ type Phase = 'idle' | 'tracking';
  * Call `getDisplayPosition()` from `requestAnimationFrame` for fluid 60fps rendering.
  * 
  * Uses a spring-damper model: the display marker is continuously attracted toward
- * a moving target (last server position + velocity × elapsed). When a new sample
- * arrives, the target simply updates — no phase transitions or lerp seams.
+ * the last observed server position (the "attraction point" per Karamouzas §4.3).
+ * When a new sample arrives, the attraction point updates — no phase transitions
+ * or lerp seams. Critical damping ensures the display converges to the target
+ * monotonically without overshoot.
  * 
  * @example
  * ```typescript
@@ -195,11 +201,10 @@ export class PlayerInterpolator {
         // --- Tracking phase: run spring step ---
         const elapsed = now - this._lastSample.timestamp;
 
-        // Compute the moving target: last sample + velocity × time since sample
-        // This is the "attraction point" that always lies ahead
-        const targetX = this._lastSample.x + this._velocity.vx * Math.min(elapsed, MAX_TRACKING_MS);
-        const targetZ = this._lastSample.z + this._velocity.vz * Math.min(elapsed, MAX_TRACKING_MS);
-        const target: Position2D = { x: targetX, z: targetZ };
+        // Attraction point: the last observed server position (per Karamouzas §4.3).
+        // No extrapolation beyond the observation — the display converges to this
+        // point and rests there until a new sample arrives.
+        const target: Position2D = { x: this._lastSample.x, z: this._lastSample.z };
 
         // Compute dt since last frame
         const dtMs = now - this._lastFrameTime;

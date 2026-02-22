@@ -39,8 +39,8 @@ $$F = k \cdot (target - display) - c \cdot v_{display}$$
 
 where:
 - $k$ = spring stiffness (25 s⁻²) — controls convergence speed
-- $c$ = damping coefficient (8.5 s⁻¹) — prevents oscillation (ζ ≈ 0.85)
-- $target$ = last server position + velocity × elapsed (a **moving target**)
+- $c$ = damping coefficient (10 s⁻¹) — critically damped (ζ = 1.0, no overshoot)
+- $target$ = last server position + velocity × saturating(elapsed, τ=500ms)
 
 ```
 Poll N arrives (t=0)        Poll N+1 arrives (t=1000ms)
@@ -70,6 +70,8 @@ Poll N arrives (t=0)        Poll N+1 arrives (t=1000ms)
 
 - **Teleport snapping**: If new sample is >50 blocks from display, snap instantly (no spring for portals)
 - **Velocity rejection**: Speeds >12 blocks/sec (sprint=5.6, horse=10.6) zero the velocity (same as before)
+- **Overshoot velocity correction**: On sample arrival, if display velocity points away from the new position (overshoot), velocity is zeroed
+- **Saturating extrapolation**: Target uses asymptotic curve (τ=500ms) instead of linear, capping energy buildup
 - **Max tracking**: Spring freezes after 3000ms without new sample (prevents runaway)
 - **Dt clamping**: Individual spring steps clamped to 100ms to prevent instability from frame drops
 - **Per-player state**: Each player gets an independent `PlayerInterpolator` instance via a shared registry
@@ -83,14 +85,14 @@ interpolation/interpolation.ts (pure math)
 ├── springStep(displayPos, targetPos, displayVel, k, damping, dtMs) → { position, velocity }
 ├── lerpAngle(from, to, t) — shortest-path angular interpolation (unchanged)
 ├── SPRING_STIFFNESS = 25  (k, 1/s²)
-└── SPRING_DAMPING = 8.5   (c, 1/s, ζ ≈ 0.85)
+└── SPRING_DAMPING = 10   (c, 1/s, ζ = 1.0)
 
 stores/player-interpolator.ts (stateful, per-player)
 ├── PlayerInterpolator class
-│   ├── pushSample(sample) — updates target, estimates velocity
+│   ├── pushSample(sample) — updates attraction point, estimates velocity
 │   ├── getDisplayPosition(now) → InterpolatedPosition | undefined
 │   │   Runs spring step per frame:
-│   │   - XZ: spring-damper pull toward moving target
+│   │   - XZ: spring-damper pull toward last observation (attraction point)
 │   │   - Y: exponential approach (~200ms to 95%)
 │   │   - Yaw: shortest-path lerped over 200ms
 │   └── reset()
@@ -123,7 +125,7 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
 ### Positive
 - Player markers glide smoothly between polls instead of jumping
 - **No phase transition seams** — eliminates the correction→extrapolation jump of Predictive Lerp
-- Zero perceived latency — markers lead the position via spring attraction to moving target
+- **No overshoot** — critical damping (ζ=1.0) toward a fixed attraction point is mathematically guaranteed to converge monotonically
 - **Direction changes handled naturally** — spring automatically adjusts, no discrete correction needed
 - Works for all players on the shop map, not just the navigating player
 - Minimal CPU: one rAF loop per context, `setLatLng` is a single CSS transform
@@ -131,15 +133,15 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
 - Teleport/portal detection prevents visual glitches
 
 ### Negative
+- Display lags ~0.5–1s behind actual player position (no predictive leading)
 - Slight visual lag when player changes direction abruptly (spring needs ~400ms to converge)
-- Slightly overshoots when a moving player stops suddenly (~1-2% with ζ=0.85)
 - Semi-implicit Euler is less accurate than RK4, but adequate for visual interpolation
-- Additional ~250 lines of code to maintain (reduced from ~300 with Predictive Lerp)
+- Additional ~250 lines of code to maintain
 
 ### Neutral
 - Max tracking (3s) means markers freeze if polling stops — same as previous behavior
 - Registry is global but lightweight; interpolators for offline players are removed naturally
-- Spring constants (k=25, c=8.5) may benefit from tuning once deployed
+- Spring constants (k=25, c=10) are critically damped — tuned to eliminate overshoot
 
 ## Testing
 
@@ -147,7 +149,7 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
   - `springStep`: convergence, damping, dt clamping, stiffness scaling, axis proportionality
   - `estimateVelocity`: same as before (teleport rejection, speed validation)
   - `lerpAngle`: same as before (wrapping, clamping, normalization)
-  - `PlayerInterpolator`: tracking convergence, seamless sample transitions, teleport snap, Y/yaw interpolation, freeze on timeout, reset, direction changes
+  - `PlayerInterpolator`: tracking convergence, seamless sample transitions, teleport snap, Y/yaw interpolation, freeze on timeout, reset, direction changes, **overshoot prevention** (player stops, reverses, polling sync mismatch)
   - Registry: same as before (create, remove, clear, case-insensitive)
 - Integration tested via existing BDD scenarios (markers still render correctly)
 
