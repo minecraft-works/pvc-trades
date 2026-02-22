@@ -2,7 +2,14 @@
  * Player Position Interpolator
  * 
  * Provides smooth position rendering between discrete 1-second API polls
- * using predictive lerp (dead reckoning + smooth correction).
+ * using a spring-damper attraction model inspired by Karamouzas et al.
+ * (2009) "Indicative routes for path planning and crowd simulation".
+ * 
+ * Instead of discrete phase transitions (correct → extrapolate), the
+ * display marker is continuously attracted toward a moving target (the
+ * server position extrapolated by estimated velocity). The spring force
+ * is always > 0 unless the marker is at the target with zero velocity,
+ * producing naturally smooth motion without seams or jumps.
  * 
  * Designed as a per-player instance so it can be used for both the
  * navigating player and any player on the shop map.
@@ -12,9 +19,9 @@
  * 2. Call `getDisplayPosition(now)` from a `requestAnimationFrame` loop
  *    to get the smoothly interpolated position at any instant
  * 3. The interpolator handles:
- *    - Correction phase: lerps from predicted-but-wrong → true position (~200ms)
- *    - Extrapolation phase: dead reckons forward using estimated velocity
- *    - Yaw validation: suppresses extrapolation when heading diverges from velocity
+ *    - Spring attraction: continuously pulls display toward moving target
+ *    - Teleport snapping: instant snap for implausible speed transitions
+ *    - Yaw interpolation: shortest-path angular lerp via spring t factor
  * 
  * @module stores/player-interpolator
  * @see ADR-011
@@ -22,12 +29,12 @@
 
 import {
     estimateVelocity,
-    extrapolatePosition,
     type InterpolatedPosition,
     lerpAngle,
-    lerpPosition,
     type Position2D,
-    shouldExtrapolate,
+    SPRING_DAMPING,
+    SPRING_STIFFNESS,
+    springStep,
     type Velocity2D
 } from '../interpolation/interpolation.js';
 
@@ -35,11 +42,12 @@ import {
 // Configuration
 // ============================================================================
 
-/** Duration in ms to lerp from predicted position to actual on correction */
-const CORRECTION_DURATION_MS = 200;
+/** Maximum time since last sample before spring stops updating (prevents runaway) */
+const MAX_TRACKING_MS = 3000;
 
-/** Maximum extrapolation time before freezing (prevents runaway if polls stop) */
-const MAX_EXTRAPOLATION_MS = 3000;
+/** Distance threshold for teleport snap (blocks). If the new sample is this far
+ *  from the display position, snap instantly instead of springing. */
+const TELEPORT_SNAP_DISTANCE = 50;
 
 // ============================================================================
 // Types
@@ -57,7 +65,7 @@ export interface PositionSample {
 }
 
 /** Interpolation phase */
-type Phase = 'idle' | 'correcting' | 'extrapolating';
+type Phase = 'idle' | 'tracking';
 
 // ============================================================================
 // PlayerInterpolator
@@ -68,6 +76,10 @@ type Phase = 'idle' | 'correcting' | 'extrapolating';
  * 
  * Feed API samples with `pushSample()`, read display position with `getDisplayPosition()`.
  * Call `getDisplayPosition()` from `requestAnimationFrame` for fluid 60fps rendering.
+ * 
+ * Uses a spring-damper model: the display marker is continuously attracted toward
+ * a moving target (last server position + velocity × elapsed). When a new sample
+ * arrives, the target simply updates — no phase transitions or lerp seams.
  * 
  * @example
  * ```typescript
@@ -82,7 +94,7 @@ type Phase = 'idle' | 'correcting' | 'extrapolating';
  * ```
  */
 export class PlayerInterpolator {
-    /** Current estimated velocity */
+    /** Current estimated velocity from server samples */
     private _velocity: Velocity2D = { vx: 0, vz: 0 };
 
     /** Last confirmed position from API */
@@ -94,20 +106,26 @@ export class PlayerInterpolator {
     /** Current phase of the interpolator */
     private _phase: Phase = 'idle';
 
-    /** Position where correction lerp starts (the "wrong" predicted position) */
-    private _correctionStart: Position2D | undefined;
+    /** Display position maintained by the spring (XZ) */
+    private _displayPosition: Position2D = { x: 0, z: 0 };
 
-    /** Position where correction lerp ends (the new true position) */
-    private _correctionTarget: Position2D | undefined;
+    /** Display velocity maintained by the spring (blocks/ms) */
+    private _displayVelocity: Velocity2D = { vx: 0, vz: 0 };
 
-    /** Y value at the start of correction (from predicted position) */
-    private _correctionStartY: number | undefined;
+    /** Display Y coordinate (lerped separately, no spring) */
+    private _displayY = 0;
 
-    /** Timestamp when correction phase began */
-    private _correctionStartTime = 0;
+    /** Last frame time used to compute dt for spring step */
+    private _lastFrameTime = 0;
 
-    /** Last yaw from the most recent sample */
+    /** Last known yaw from the most recent sample */
     private _yaw: number | undefined;
+
+    /** Previous yaw for shortest-path yaw interpolation */
+    private _prevYaw: number | undefined;
+
+    /** Timestamp when the last sample arrived (for yaw lerp progress) */
+    private _sampleArrivalTime = 0;
 
     // ========================================================================
     // Public API
@@ -123,28 +141,35 @@ export class PlayerInterpolator {
         const now = sample.timestamp;
 
         if (this._lastSample) {
-            // Calculate where we predicted the player would be at this moment
-            const predictedNow = this._getExtrapolatedPosition(now);
-
             // Estimate velocity from the two most recent true samples
             const dt = now - this._lastSample.timestamp;
             this._velocity = estimateVelocity(this._lastSample, sample, dt);
 
-            // Start correction from our (possibly wrong) predicted position to the true position
-            this._correctionStart = { x: predictedNow.x, z: predictedNow.z };
-            this._correctionStartY = predictedNow.y;
-            this._correctionTarget = { x: sample.x, z: sample.z };
-            this._correctionStartTime = now;
-            this._phase = 'correcting';
+            // Teleport snap: if the new sample is very far from display, snap instantly
+            const dx = sample.x - this._displayPosition.x;
+            const dz = sample.z - this._displayPosition.z;
+            if (Math.hypot(dx, dz) > TELEPORT_SNAP_DISTANCE) {
+                this._displayPosition = { x: sample.x, z: sample.z };
+                this._displayVelocity = { vx: 0, vz: 0 };
+                this._displayY = sample.y;
+            }
+
+            this._phase = 'tracking';
         } else {
-            // First sample — no prediction possible
+            // First sample — snap to position, no spring history
             this._velocity = { vx: 0, vz: 0 };
+            this._displayPosition = { x: sample.x, z: sample.z };
+            this._displayVelocity = { vx: 0, vz: 0 };
+            this._displayY = sample.y;
             this._phase = 'idle';
         }
 
         this._prevSample = this._lastSample;
+        this._prevYaw = this._yaw;
         this._lastSample = sample;
         this._yaw = sample.yaw;
+        this._sampleArrivalTime = now;
+        this._lastFrameTime = now;
     }
 
     /**
@@ -157,20 +182,56 @@ export class PlayerInterpolator {
     getDisplayPosition(now: number): InterpolatedPosition | undefined {
         if (!this._lastSample) { return undefined; }
 
-        if (this._phase === 'correcting') {
-            return this._getCorrectedPosition(now);
+        if (this._phase === 'idle') {
+            // Only one sample received — return exact position
+            return {
+                x: this._lastSample.x,
+                y: this._lastSample.y,
+                z: this._lastSample.z,
+                yaw: this._lastSample.yaw
+            };
         }
 
-        if (this._phase === 'extrapolating') {
-            return this._getExtrapolatedPosition(now);
-        }
+        // --- Tracking phase: run spring step ---
+        const elapsed = now - this._lastSample.timestamp;
 
-        // Idle — return last known position
+        // Compute the moving target: last sample + velocity × time since sample
+        // This is the "attraction point" that always lies ahead
+        const targetX = this._lastSample.x + this._velocity.vx * Math.min(elapsed, MAX_TRACKING_MS);
+        const targetZ = this._lastSample.z + this._velocity.vz * Math.min(elapsed, MAX_TRACKING_MS);
+        const target: Position2D = { x: targetX, z: targetZ };
+
+        // Compute dt since last frame
+        const dtMs = now - this._lastFrameTime;
+        this._lastFrameTime = now;
+
+        if (dtMs > 0 && elapsed <= MAX_TRACKING_MS) {
+            // Run spring step
+            const result = springStep(
+                this._displayPosition,
+                target,
+                this._displayVelocity,
+                { stiffness: SPRING_STIFFNESS, damping: SPRING_DAMPING, dtMs }
+            );
+            this._displayPosition = result.position;
+            this._displayVelocity = result.velocity;
+        }
+        // If elapsed > MAX_TRACKING_MS, freeze (no spring update)
+
+        // Lerp Y toward last sample Y (simple exponential approach)
+        const yTarget = this._lastSample.y;
+        const yDt = Math.min(dtMs, 200);
+        const yAlpha = 1 - Math.exp(-10 * yDt / 1000); // ~200ms to 95% convergence
+        this._displayY = this._displayY + (yTarget - this._displayY) * yAlpha;
+
+        // Yaw: shortest-path lerp based on time since sample arrival
+        const yaw = this._interpolateYaw(now);
+
         return {
-            x: this._lastSample.x,
-            y: this._lastSample.y,
-            z: this._lastSample.z,
-            yaw: this._lastSample.yaw
+            x: this._displayPosition.x,
+            y: this._displayY,
+            z: this._displayPosition.z,
+            yaw
         };
     }
 
@@ -206,11 +267,13 @@ export class PlayerInterpolator {
         this._lastSample = undefined;
         this._prevSample = undefined;
         this._phase = 'idle';
-        this._correctionStart = undefined;
-        this._correctionTarget = undefined;
-        this._correctionStartY = undefined;
-        this._correctionStartTime = 0;
+        this._displayPosition = { x: 0, z: 0 };
+        this._displayVelocity = { vx: 0, vz: 0 };
+        this._displayY = 0;
+        this._lastFrameTime = 0;
         this._yaw = undefined;
+        this._prevYaw = undefined;
+        this._sampleArrivalTime = 0;
     }
 
     // ========================================================================
@@ -218,92 +281,16 @@ export class PlayerInterpolator {
     // ========================================================================
 
     /**
-     * Get position during the correction phase.
-     * Lerps from predicted-but-wrong position toward the extrapolated path,
-     * then transitions seamlessly to pure extrapolation.
-     *
-     * The correction target is a **moving target**: the sample position
-     * extrapolated forward by the current velocity. This ensures the lerp
-     * converges to exactly where the extrapolation phase would be at t=1,
-     * eliminating a position discontinuity at the transition. It also keeps
-     * the marker tracking a fast-moving player during the correction window
-     * instead of lagging behind the stale sample position.
-     */
-    private _getCorrectedPosition(now: number): InterpolatedPosition {
-        const elapsed = now - this._correctionStartTime;
-        const t = elapsed / CORRECTION_DURATION_MS;
-
-        if (t >= 1) {
-            // Correction complete → switch to extrapolation
-            this._phase = 'extrapolating';
-            return this._getExtrapolatedPosition(now);
-        }
-
-        // Move the correction target forward with velocity so the lerp
-        // converges smoothly to the extrapolated path (no jump at t=1).
-        if (!this._lastSample || !this._correctionTarget || !this._correctionStart) {
-            return { x: 0, z: 0, y: 0 };
-        }
-        const timeSinceSample = now - this._lastSample.timestamp;
-        const movingTarget = extrapolatePosition(
-            this._correctionTarget,
-            this._velocity,
-            timeSinceSample
-        );
-
-        // Lerp from wrong prediction to moving target (x, z)
-        const pos2d = lerpPosition(this._correctionStart, movingTarget, t);
-
-        // Lerp Y linearly
-        const fromY = this._correctionStartY ?? this._lastSample.y;
-        const toY = this._lastSample.y;
-        const y = fromY + (toY - fromY) * Math.max(0, Math.min(1, t));
-
-        // Lerp yaw via shortest path
-        const yaw = this._interpolateYaw(t);
-
-        return { x: pos2d.x, z: pos2d.z, y, yaw };
-    }
-
-    /**
-     * Get position during the extrapolation phase.
-     * Dead reckons forward from last confirmed position using velocity.
-     * Freezes after MAX_EXTRAPOLATION_MS to prevent runaway.
-     */
-    private _getExtrapolatedPosition(now: number): InterpolatedPosition {
-        if (!this._lastSample) {
-            return { x: 0, y: 0, z: 0 };
-        }
-
-        const elapsed = now - this._lastSample.timestamp;
-
-        // Don't extrapolate beyond safety limit
-        if (elapsed > MAX_EXTRAPOLATION_MS) {
-            const pos = extrapolatePosition(this._lastSample, this._velocity, MAX_EXTRAPOLATION_MS);
-            return { x: pos.x, y: this._lastSample.y, z: pos.z, yaw: this._lastSample.yaw };
-        }
-
-        // Check if extrapolation is appropriate (speed + yaw agreement)
-        if (!shouldExtrapolate(this._velocity, this._yaw)) {
-            return {
-                x: this._lastSample.x,
-                y: this._lastSample.y,
-                z: this._lastSample.z,
-                yaw: this._lastSample.yaw
-            };
-        }
-
-        const pos = extrapolatePosition(this._lastSample, this._velocity, elapsed);
-        return { x: pos.x, y: this._lastSample.y, z: pos.z, yaw: this._lastSample.yaw };
-    }
-
-    /**
      * Interpolate yaw between previous and current sample using shortest path.
+     * Uses time-based progress over 200ms for smooth rotation.
      */
-    private _interpolateYaw(t: number): number | undefined {
-        const fromYaw = this._prevSample?.yaw;
+    private _interpolateYaw(now: number): number | undefined {
+        const fromYaw = this._prevYaw;
         const toYaw = this._lastSample?.yaw;
         if (fromYaw === undefined || toYaw === undefined) { return toYaw ?? fromYaw; }
+
+        const elapsed = now - this._sampleArrivalTime;
+        const t = Math.min(1, elapsed / 200); // 200ms yaw transition
         return lerpAngle(fromYaw, toYaw, t);
     }
 }
