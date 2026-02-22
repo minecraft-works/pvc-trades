@@ -61,7 +61,7 @@ import type { TradeRendererHandler } from './rendering/index.js';
 import { createTradeRendererHandler } from './rendering/index.js';
 import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
-import { cartStore, favoritesStore, getInterpolator, navigationStore, removeInterpolator,snapshotStore } from './stores/index.js';
+import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
 
 // ============================================================================
 // State
@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navMapHandler,
         computeRoute,
         getAllCartStops,
-        getInterpolator,
+        playerPositionService,
         renderCartDialog: () => cartHandler.renderCartDialog(),
     });
 
@@ -433,8 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncNavProgressWithCart,
         switchTab,
         getElement,
-        getInterpolator,
-        removeInterpolator,
+        playerPositionService,
         updateNearbyShopTooltip,
         createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
         renderCartDialog: () => cartHandler.renderCartDialog(),

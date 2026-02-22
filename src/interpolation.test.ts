@@ -18,7 +18,8 @@ import {
     type SpringConfig,
     springStep,
 } from './library.js';
-import { clearAllInterpolators, getAllInterpolators,getInterpolator, PlayerInterpolator, removeInterpolator } from './stores/player-interpolator.js';
+import { PlayerInterpolator } from './stores/player-interpolator.js';
+import { PlayerPositionService } from './stores/player-position-service.js';
 
 // ============================================================================
 // Pure Math Functions
@@ -580,60 +581,114 @@ describe('PlayerInterpolator', () => {
 });
 
 // ============================================================================
-// Interpolator Registry
+// PlayerPositionService
 // ============================================================================
 
-describe('Interpolator Registry', () => {
+describe('PlayerPositionService', () => {
+    let service: PlayerPositionService;
+
     beforeEach(() => {
-        clearAllInterpolators();
+        service = new PlayerPositionService();
     });
 
-    test('getInterpolator creates new instance for unknown player', () => {
-        const interp = getInterpolator('TestPlayer');
-        expect(interp).toBeInstanceOf(PlayerInterpolator);
-        expect(interp.phase).toBe('idle');
+    test('pushSample creates interpolator for unknown player', () => {
+        service.pushSample('TestPlayer', { x: 0, y: 64, z: 0, timestamp: 0 });
+        expect(service.size).toBe(1);
+        expect(service.getPhase('TestPlayer')).toBe('idle');
     });
 
-    test('getInterpolator returns same instance for same player (case-insensitive)', () => {
-        const a = getInterpolator('Steve');
-        const b = getInterpolator('steve');
-        const c = getInterpolator('STEVE');
-        expect(a).toBe(b);
-        expect(b).toBe(c);
+    test('getCurrentPosition returns undefined for untracked player', () => {
+        expect(service.getCurrentPosition('Nobody')).toBeUndefined();
     });
 
-    test('removeInterpolator removes and resets', () => {
-        const interp = getInterpolator('Alex');
-        interp.pushSample({ x: 1, y: 64, z: 2, timestamp: 0 });
-        removeInterpolator('Alex');
-
-        // Getting again should create a fresh one
-        const fresh = getInterpolator('Alex');
-        expect(fresh).not.toBe(interp);
-        expect(fresh.lastConfirmedPosition).toBeUndefined();
+    test('getCurrentPosition returns interpolated position after samples', () => {
+        service.pushSample('Steve', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Steve', { x: 10, y: 64, z: 0, timestamp: 500 });
+        const pos = service.getPositionAt('Steve', 500);
+        expect(pos).toBeDefined();
+        expect(pos!.y).toBeCloseTo(64);
     });
 
-    test('removeInterpolator is no-op for unknown player', () => {
-        removeInterpolator('NonExistent');
-        expect(getAllInterpolators().size).toBe(0);
+    test('getPositionAt returns undefined for untracked player', () => {
+        expect(service.getPositionAt('Nobody', 1000)).toBeUndefined();
     });
 
-    test('clearAllInterpolators removes all', () => {
-        getInterpolator('Player1');
-        getInterpolator('Player2');
-        getInterpolator('Player3');
-        expect(getAllInterpolators().size).toBe(3);
+    test('player name is case-insensitive', () => {
+        service.pushSample('Steve', { x: 5, y: 64, z: 5, timestamp: 0 });
+        expect(service.size).toBe(1);
 
-        clearAllInterpolators();
-        expect(getAllInterpolators().size).toBe(0);
+        service.pushSample('STEVE', { x: 10, y: 64, z: 10, timestamp: 500 });
+        expect(service.size).toBe(1);
+
+        const pos = service.getPositionAt('steve', 500);
+        expect(pos).toBeDefined();
     });
 
-    test('getAllInterpolators returns readonly map', () => {
-        getInterpolator('A');
-        getInterpolator('B');
-        const all = getAllInterpolators();
-        expect(all.size).toBe(2);
-        expect(all.has('a')).toBe(true);
-        expect(all.has('b')).toBe(true);
+    test('removePlayer removes and resets', () => {
+        service.pushSample('Alex', { x: 1, y: 64, z: 2, timestamp: 0 });
+        expect(service.size).toBe(1);
+
+        service.removePlayer('Alex');
+        expect(service.size).toBe(0);
+
+        // Getting position after removal returns undefined
+        expect(service.getLastConfirmedPosition('Alex')).toBeUndefined();
+    });
+
+    test('removePlayer is no-op for unknown player', () => {
+        service.removePlayer('NonExistent');
+        expect(service.size).toBe(0);
+    });
+
+    test('clear removes all tracked players', () => {
+        service.pushSample('Player1', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Player2', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Player3', { x: 0, y: 64, z: 0, timestamp: 0 });
+        expect(service.size).toBe(3);
+
+        service.clear();
+        expect(service.size).toBe(0);
+    });
+
+    test('getPlayerNames returns lowercase names', () => {
+        service.pushSample('Alice', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Bob', { x: 0, y: 64, z: 0, timestamp: 0 });
+        const names = service.getPlayerNames();
+        expect(names).toHaveLength(2);
+        expect(names).toContain('alice');
+        expect(names).toContain('bob');
+    });
+
+    test('getLastConfirmedPosition returns raw sample data', () => {
+        service.pushSample('Steve', { x: 100, y: 64, z: 200, timestamp: 1000 });
+        const confirmed = service.getLastConfirmedPosition('Steve');
+        expect(confirmed).toBeDefined();
+        expect(confirmed!.x).toBe(100);
+        expect(confirmed!.z).toBe(200);
+    });
+
+    test('resetPlayer clears interpolation state', () => {
+        service.pushSample('Steve', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Steve', { x: 10, y: 64, z: 10, timestamp: 500 });
+        expect(service.getPhase('Steve')).toBe('tracking');
+
+        service.resetPlayer('Steve');
+        expect(service.getPhase('Steve')).toBe('idle');
+    });
+
+    test('getVelocity returns estimated velocity after two samples', () => {
+        service.pushSample('Steve', { x: 0, y: 64, z: 0, timestamp: 0 });
+        service.pushSample('Steve', { x: 4, y: 64, z: 0, timestamp: 1000 });
+        const velocity = service.getVelocity('Steve');
+        expect(velocity).toBeDefined();
+        expect(velocity!.vx).toBeCloseTo(0.004);
+    });
+
+    test('getVelocity returns undefined for untracked player', () => {
+        expect(service.getVelocity('Nobody')).toBeUndefined();
+    });
+
+    test('getPhase returns undefined for untracked player', () => {
+        expect(service.getPhase('Nobody')).toBeUndefined();
     });
 });

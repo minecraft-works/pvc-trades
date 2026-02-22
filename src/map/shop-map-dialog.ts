@@ -21,7 +21,7 @@ import {
     getWorldId,
     toLeafletCoords,
     toLeafletCoordsRelative} from '../library.js';
-import { clearAllInterpolators,getInterpolator } from '../stores/player-interpolator.js';
+import { playerPositionService } from '../stores/player-position-service.js';
 import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
@@ -110,8 +110,7 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
     // Feed each player's position to their interpolator
     const now = performance.now();
     for (const player of cachedPlayers) {
-        const interpolator = getInterpolator(player.name);
-        interpolator.pushSample({
+        playerPositionService.pushSample(player.name, {
             x: player.position.x,
             y: player.position.y,
             z: player.position.z,
@@ -228,8 +227,7 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
 
 /** Get interpolated or raw player position in Leaflet coordinates. */
 function getPlayerLeafletCoords(player: Player, tileX: number, tileZ: number): { lat: number; lng: number } {
-    const interpolator = getInterpolator(player.name);
-    const interpPos = interpolator.getDisplayPosition(performance.now());
+    const interpPos = playerPositionService.getCurrentPosition(player.name);
     const posX = interpPos?.x ?? player.position.x;
     const posZ = interpPos?.z ?? player.position.z;
     return toLeafletCoordsRelative(posX, posZ, tileX, tileZ, TILE_CONFIG.tileSize);
@@ -309,8 +307,7 @@ function startShopMapAnimLoop(): void {
     function tick(): void {
         const now = performance.now();
         for (const [name, marker] of onScreenPlayerMarkers) {
-            const interpolator = getInterpolator(name);
-            const pos = interpolator.getDisplayPosition(now);
+            const pos = playerPositionService.getPositionAt(name, now);
             if (!pos) { continue; }
             const coords = toLeafletCoordsRelative(pos.x, pos.z, shopMapTileX, shopMapTileZ, TILE_CONFIG.tileSize);
             marker.setLatLng([coords.lat, coords.lng]);
@@ -328,7 +325,7 @@ function stopShopMapAnimLoop(): void {
         shopMapAnimFrameId = undefined;
     }
     onScreenPlayerMarkers.clear();
-    clearAllInterpolators();
+    playerPositionService.clear();
 }
 
 /** Create Leaflet map configuration with optional animation disabling */

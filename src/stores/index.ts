@@ -14,12 +14,8 @@ export { snapshotStore } from './snapshot-store.js';
 
 // Player interpolation
 export type { PositionSample } from './player-interpolator.js';
-export {
-    clearAllInterpolators,
-    getAllInterpolators,
-    getInterpolator,
-    PlayerInterpolator,
-    removeInterpolator} from './player-interpolator.js';
+export { PlayerInterpolator } from './player-interpolator.js';
+export { PlayerPositionService, playerPositionService } from './player-position-service.js';
 
 // Configuration stores
 export { blockConversionsStore, loadFixedRatios } from './block-conversions-store.js';
