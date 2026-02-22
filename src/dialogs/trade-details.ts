@@ -7,8 +7,8 @@
  * @module dialogs/trade-details
  */
 
-import type { Trade, Item } from '../types.js';
-import { formatName, escapeHtml } from '../library.js';
+import { escapeHtml,formatName } from '../library.js';
+import type { Item,Trade } from '../types.js';
 import { setupDialogBackdropClose } from './dialog-utilities.js';
 
 // ============================================================================

@@ -3,8 +3,9 @@
  * Tests that player markers are correctly filtered by world
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
 import { setupMultiPlayerApiMock } from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // Selectors
 const SELECTOR_TRADE_ROW = '.trade-row';

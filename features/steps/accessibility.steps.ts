@@ -6,6 +6,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
+
 import { Then } from './fixtures';
 
 /**

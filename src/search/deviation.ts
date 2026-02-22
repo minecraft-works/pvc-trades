@@ -7,9 +7,9 @@
  * @module search/deviation
  */
 
-import type { Trade, ItemValues } from '../types.js';
-import { formatName, getTrustedItemValue } from '../library.js';
 import { DEVIATION } from '../constants.js';
+import { formatName, getTrustedItemValue } from '../library.js';
+import type { ItemValues,Trade } from '../types.js';
 
 // ============================================================================
 // Types

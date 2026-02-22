@@ -8,27 +8,22 @@
  */
 
 import {
-    hasPositionMoved,
-    getWorldId,
-    calculateTotalRouteDistance,
-} from '../library.js';
-
-import {
-    getPlayerWorld,
-    fetchPlayers,
-} from '../map/index.js';
-
-import {
+    CSS_CLASSES,
+    DIALOG_IDS,
     SELECTORS,
     WORLDS,
-    DIALOG_IDS,
-    CSS_CLASSES,
 } from '../constants.js';
-
-import type { RouteStop, Player } from '../types.js';
-
-import { debugNavigation, debugPlayerPoll, debugInterpolation } from '../debug.js';
-
+import { debugInterpolation,debugNavigation, debugPlayerPoll } from '../debug.js';
+import {
+    calculateTotalRouteDistance,
+    getWorldId,
+    hasPositionMoved,
+} from '../library.js';
+import {
+    fetchPlayers,
+    getPlayerWorld,
+} from '../map/index.js';
+import type { Player,RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';
 import type { NavUpdatesHandler } from './nav-updates.js';

@@ -2,9 +2,10 @@
  * Step definitions for data refresh property tests
  * Tests state preservation and filtering behavior during refresh
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Page tracking interface

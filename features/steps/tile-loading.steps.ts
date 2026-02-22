@@ -2,11 +2,13 @@
  * Step definitions for tile loading scenarios
  * Tests manifest-based tile loading, fallback behavior, and caching
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
-import type { Page, Route } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
+
+import type { Page, Route } from '@playwright/test';
+import { expect } from '@playwright/test';
+
 import { mockConfigRoute } from '../../tests/helpers/test-config';
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Tile creation helpers (same as navigation-mocks.ts)

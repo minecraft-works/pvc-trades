@@ -7,10 +7,10 @@
  * @module stores/cart-store
  */
 
-import type { CartItem, Trade } from '../types.js';
-import { CartItemArraySchema } from '../types.js';
 import { STORAGE_KEYS } from '../constants.js';
 import { getTradeKey } from '../library.js';
+import type { CartItem, Trade } from '../types.js';
+import { CartItemArraySchema } from '../types.js';
 
 // ============================================================================
 // Cart Store

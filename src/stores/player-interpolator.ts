@@ -23,11 +23,11 @@
 import {
     estimateVelocity,
     extrapolatePosition,
-    lerpPosition,
-    lerpAngle,
-    shouldExtrapolate,
-    type Position2D,
     type InterpolatedPosition,
+    lerpAngle,
+    lerpPosition,
+    type Position2D,
+    shouldExtrapolate,
     type Velocity2D
 } from '../library.js';
 

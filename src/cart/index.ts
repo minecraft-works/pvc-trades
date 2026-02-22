@@ -1,18 +1,17 @@
-export {
-    computeRoute,
-    getAllCartStops,
-    getShoppingList,
-    updateCartBadge,
-    refreshCartButtonStates,
-    cleanupZeroQuantityItems,
-    clearCart,
-    syncNavProgressWithCart,
-    getStopStatus,
-    createCartDialogHandler,
-} from './cart-dialog.js';
-
 export type {
-    RouteOrigin,
     CartDialogDeps,
     CartDialogHandler,
+    RouteOrigin,
+} from './cart-dialog.js';
+export {
+    cleanupZeroQuantityItems,
+    clearCart,
+    computeRoute,
+    createCartDialogHandler,
+    getAllCartStops,
+    getShoppingList,
+    getStopStatus,
+    refreshCartButtonStates,
+    syncNavProgressWithCart,
+    updateCartBadge,
 } from './cart-dialog.js';

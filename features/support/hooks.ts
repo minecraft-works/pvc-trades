@@ -1,6 +1,8 @@
-import { Before, After, BeforeAll, AfterAll, Status } from '@cucumber/cucumber';
-import { chromium, Browser } from '@playwright/test';
-import { spawn, ChildProcess } from 'node:child_process';
+import { ChildProcess,spawn } from 'node:child_process';
+
+import { After, AfterAll, Before, BeforeAll, Status } from '@cucumber/cucumber';
+import { Browser,chromium } from '@playwright/test';
+
 import { CustomWorld } from './world';
 
 // Shared browser instance for all scenarios (faster than launching per scenario)

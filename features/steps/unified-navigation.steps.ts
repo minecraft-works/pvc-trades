@@ -3,7 +3,8 @@
  * All shops displayed on a single map using overworld-equivalent coordinates
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
+import { Given, Then,When } from './fixtures';
 import { NETHER_RATIO } from './test-math-utilities';
 
 // Constants

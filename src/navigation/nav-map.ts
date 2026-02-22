@@ -15,31 +15,27 @@
 // eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
+import { CSS_CLASSES, WORLDS } from '../constants.js';
+import { debugMap, debugTiles } from '../debug.js';
 import {
-    toViewCoords,
-    toLeafletCoordsRelative,
+    buildMarkerContent,
+    buildStopTooltip,
     getTileCoords,
     getTradeKey,
     isNether,
-    buildMarkerContent,
-    buildStopTooltip,
+    toLeafletCoordsRelative,
+    toViewCoords,
 } from '../library.js';
-
-import {
-    TILE_CONFIG,
-    loadTileManifest,
-    tileExistsInManifest,
-    loadTileToMap,
-    calculateZoom4Coords,
-} from '../map/index.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
-
-import { CSS_CLASSES, WORLDS } from '../constants.js';
-
-import { shouldDisableAnimations } from '../types.js';
+import {
+    calculateZoom4Coords,
+    loadTileManifest,
+    loadTileToMap,
+    TILE_CONFIG,
+    tileExistsInManifest,
+} from '../map/index.js';
 import type { RouteStop } from '../types.js';
-
-import { debugMap, debugTiles } from '../debug.js';
+import { shouldDisableAnimations } from '../types.js';
 
 // ============================================================================
 // NavState — shared mutable state for all navigation modules

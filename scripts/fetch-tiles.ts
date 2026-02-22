@@ -1,17 +1,18 @@
+import { existsSync,mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
+import type { Page } from 'playwright';
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import path from 'node:path';
-import type { Page } from 'playwright';
+
 import {
-    getTilePath,
-    getNormalizedWorld,
-    getUniqueTiles,
-    getBaseMapTiles,
     calculateRateLimitDelay,
-    type TileInfo,
-    type FetchResult
-} from './tile-utils';
+    type FetchResult,
+    getBaseMapTiles,
+    getNormalizedWorld,
+    getTilePath,
+    getUniqueTiles,
+    type TileInfo} from './tile-utils';
 
 // Add stealth plugin to avoid Cloudflare detection
 chromium.use(StealthPlugin());

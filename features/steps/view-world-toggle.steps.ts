@@ -4,12 +4,12 @@
  * Steps for testing the overworld/nether view toggle feature in navigation dialog.
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
 import {
-    setupPlayerApiMock,
     setupColoredTileMocks,
-    setupMultiWorldDataMock
-} from '../../tests/helpers/navigation-mocks';
+    setupMultiWorldDataMock,
+    setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // Constants
 const SELECTOR_NAV_DIALOG = '#nav-dialog[open]';

@@ -2,7 +2,8 @@
  * Shop tooltip and arrival notification step definitions
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
+import { Given, Then,When } from './fixtures';
 
 // Shop data for tooltip testing - shops at known positions
 const TOOLTIP_TEST_SHOP_DATA = {

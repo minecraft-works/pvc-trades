@@ -2,10 +2,11 @@
  * Step definitions for shop tooltip property tests
  * Tests proximity detection, nearest shop selection, and item counting
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
-import { simpleDistance, isWithinRange } from './test-math-utilities';
+import { expect } from '@playwright/test';
+
+import { type BasePageTracking,Given, Then, When } from './fixtures';
+import { isWithinRange,simpleDistance } from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface

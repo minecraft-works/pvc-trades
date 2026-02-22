@@ -7,9 +7,9 @@
  * @module stores/favorites-store
  */
 
+import { DEVIATION,STORAGE_KEYS } from '../constants.js';
 import type { FavoriteItem } from '../types.js';
 import { FavoriteItemArraySchema } from '../types.js';
-import { STORAGE_KEYS, DEVIATION } from '../constants.js';
 
 // ============================================================================
 // Constants

@@ -3,27 +3,24 @@
  * @module navigation
  */
 
+export {
+    createLiveNavigationHandler,
+    type LiveNavigationDeps,
+    type LiveNavigationHandler,
+} from './live-navigation.js';
+export {
+    createNavMapHandler,
+    createNavState,
+    type NavMapDeps,
+    type NavMapHandler,
+    type NavState,
+} from './nav-map.js';
+export {
+    createNavUpdatesHandler,
+    type NavUpdatesDeps,
+    type NavUpdatesHandler,
+} from './nav-updates.js';
 export { 
     createShopTooltipHandler, 
     type ShopTooltipDependencies 
 } from './shop-tooltip.js';
-
-export {
-    createNavMapHandler,
-    createNavState,
-    type NavState,
-    type NavMapHandler,
-    type NavMapDeps,
-} from './nav-map.js';
-
-export {
-    createNavUpdatesHandler,
-    type NavUpdatesHandler,
-    type NavUpdatesDeps,
-} from './nav-updates.js';
-
-export {
-    createLiveNavigationHandler,
-    type LiveNavigationHandler,
-    type LiveNavigationDeps,
-} from './live-navigation.js';

@@ -8,17 +8,16 @@
  * @module dashboard/dashboard-data
  */
 
+import { getTradeKey } from '../map/map-math.js';
 import {
+    type DashboardData,
+    type FavoriteItem,
+    type PriceDrop,
     type Trade,
     type TradeSnapshot,
     type TradeSnapshotEntry,
-    type FavoriteItem,
-    type DashboardData,
-    type PriceDrop,
     type WatchlistHit,
 } from '../types.js';
-
-import { getTradeKey } from '../map/map-math.js';
 
 // ============================================================================
 // Public API

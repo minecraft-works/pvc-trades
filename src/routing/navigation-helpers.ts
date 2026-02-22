@@ -7,9 +7,9 @@
  * @module routing/navigation-helpers
  */
 
-import { type Trade, type ShoppingList, type RouteStop } from '../types.js';
 import { ZOOM_HEIGHT } from '../constants.js';
 import { formatName } from '../library.js';
+import { type RouteStop,type ShoppingList, type Trade } from '../types.js';
 import { calculateRouteDistance } from './route-optimizer.js';
 
 // ============================================================================

@@ -8,19 +8,17 @@
  */
 
 import {
-    type BlockConversions,
-    type ItemValues,
-    type RatioGraph,
-    type ExchangeMatrix,
-} from '../types.js';
-
-import {
+    blockConversionsStore,
     configStore,
     coreBlocksStore,
-    blockConversionsStore,
 } from '../stores/index.js';
-
-import { median, hasEnoughIndependentData } from './statistics.js';
+import {
+    type BlockConversions,
+    type ExchangeMatrix,
+    type ItemValues,
+    type RatioGraph,
+} from '../types.js';
+import { hasEnoughIndependentData,median } from './statistics.js';
 
 // ============================================================================
 // Public API

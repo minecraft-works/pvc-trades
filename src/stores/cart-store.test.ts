@@ -4,9 +4,10 @@
  * @module stores/cart-store.test
  */
 
-import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
-import { cartStore } from './cart-store.js';
+import { afterEach,beforeEach, describe, expect, test, vi } from 'vitest';
+
 import type { Trade } from '../types.js';
+import { cartStore } from './cart-store.js';
 
 // Mock localStorage
 const localStorageMock = (() => {

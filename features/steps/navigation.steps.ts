@@ -2,12 +2,12 @@
  * Multi-world navigation step definitions
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
 import {
-    setupPlayerApiMock,
     setupColoredTileMocks,
-    setupMultiWorldDataMock
-} from '../../tests/helpers/navigation-mocks';
+    setupMultiWorldDataMock,
+    setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // Constants for selectors and timeouts
 const SELECTOR_NAV_DIALOG_OPEN = '#nav-dialog[open]';

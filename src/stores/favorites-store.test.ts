@@ -1,10 +1,11 @@
 /**
  * Unit tests for FavoritesStore
  */
-import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { FavoritesStore } from './favorites-store.js';
-import { STORAGE_KEYS, DEVIATION } from '../constants.js';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+import { DEVIATION,STORAGE_KEYS } from '../constants.js';
 import type { FavoriteItem } from '../types.js';
+import { FavoritesStore } from './favorites-store.js';
 
 // Mock localStorage
 const mockLocalStorage = (() => {

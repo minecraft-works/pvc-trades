@@ -1,6 +1,7 @@
+import { mkdirSync,writeFileSync } from 'node:fs';
+
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { writeFileSync, mkdirSync } from 'node:fs';
 
 // Add stealth plugin to avoid Cloudflare detection
 chromium.use(StealthPlugin());

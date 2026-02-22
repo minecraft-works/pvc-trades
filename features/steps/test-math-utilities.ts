@@ -8,7 +8,7 @@
  */
 
 // Re-export from library.ts - use these instead of duplicating
-export { toOverworldEquivalent, calculateRouteDistance, isNether } from '../../src/library.js';
+export { calculateRouteDistance, isNether,toOverworldEquivalent } from '../../src/library.js';
 
 // Re-export constants
 export { NAVIGATION, WORLDS } from '../../src/constants.js';

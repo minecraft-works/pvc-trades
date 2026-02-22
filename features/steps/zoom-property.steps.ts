@@ -2,10 +2,11 @@
  * Step definitions for zoom height property tests
  * Tests linear zoom interpolation based on player Y height
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
 import { setupColoredTileMocks, setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
+import { type BasePageTracking,Given, Then, When } from './fixtures';
 
 // ============================================================================
 // Linear zoom interpolation (matches getZoomForHeight in library.ts)

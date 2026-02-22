@@ -11,30 +11,26 @@
 
 import VirtualScroller from 'virtual-scroller/dom';
 
+import {
+    COLUMNS,
+    CSS_CLASSES,
+    SORT,
+} from '../constants.js';
+import {
+    escapeHtml,
+    formatName,
+    getTradeKey,
+    highlight,
+} from '../library.js';
+import type { DeviationResult } from '../search/index.js';
+import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
-    Trade,
     FilterResult,
+    Item,
     SortColumn,
     SortDirection,
-    Item,
+    Trade,
 } from '../types.js';
-
-import type { DeviationResult } from '../search/index.js';
-
-import {
-    formatName,
-    highlight,
-    escapeHtml,
-    getTradeKey,
-} from '../library.js';
-
-import {
-    SORT,
-    CSS_CLASSES,
-    COLUMNS,
-} from '../constants.js';
-
-import { cartStore, favoritesStore } from '../stores/index.js';
 
 // ============================================================================
 // Dependency & Handler interfaces

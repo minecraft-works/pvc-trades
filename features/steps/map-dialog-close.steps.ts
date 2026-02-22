@@ -3,7 +3,8 @@
  * Tests that the dialog closes only when clicking outside, not during map interactions
  */
 import { expect } from '@playwright/test';
-import { When, Then } from './fixtures';
+
+import { Then,When } from './fixtures';
 
 // Selectors
 const SELECTOR_MAP_DIALOG = '#map-dialog';

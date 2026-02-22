@@ -8,19 +8,16 @@
  * @module cart/cart-dialog
  */
 
+import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
 import {
+    aggregateShoppingList,
+    computeOptimalOrder,
     getTradeKey,
     isNether,
     toOverworldEquivalent,
-    aggregateShoppingList,
-    computeOptimalOrder,
 } from '../library.js';
-
 import { cartStore, navigationStore } from '../stores/index.js';
-
-import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
-
-import type { Trade, RouteStop, ShoppingList } from '../types.js';
+import type { RouteStop, ShoppingList,Trade } from '../types.js';
 
 // ============================================================================
 // Local DOM helper

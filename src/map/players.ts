@@ -3,8 +3,8 @@
  * @module map/players
  */
 
-import { getWorldId } from '../library.js';
 import { WORLDS } from '../constants.js';
+import { getWorldId } from '../library.js';
 import type { Player, PlayersData } from '../types.js';
 
 /** API endpoint for player positions */

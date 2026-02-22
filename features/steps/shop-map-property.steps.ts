@@ -2,11 +2,12 @@
  * Step definitions for shop map player property tests
  * Tests world filtering and edge marker behavior
  */
-import { expect } from '@playwright/test';
-import { Given, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
-import { getDirectionFromDelta } from './test-math-utilities';
+import { expect } from '@playwright/test';
+
 import { resolvePlayerLabelPositions } from '../../src/dialogs/shop-map-helpers';
+import { type BasePageTracking,Given, Then } from './fixtures';
+import { getDirectionFromDelta } from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface

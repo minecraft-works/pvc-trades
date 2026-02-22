@@ -10,24 +10,19 @@
 // eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
+import { NAVIGATION } from '../constants.js';
+import { debugInterpolation } from '../debug.js';
 import {
-    isNether,
-    toViewCoords,
-    toLeafletCoordsRelative,
     calculateRouteDistance,
     getTradeKey,
-    getZoomForHeight,
     getWorldId,
+    getZoomForHeight,
+    isNether,
+    toLeafletCoordsRelative,
+    toViewCoords,
 } from '../library.js';
-
 import { TILE_CONFIG } from '../map/index.js';
-
-import { NAVIGATION } from '../constants.js';
-
 import type { RouteStop } from '../types.js';
-
-import { debugInterpolation } from '../debug.js';
-
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';
 

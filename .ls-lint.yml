@@ -1,0 +1,28 @@
+# File naming conventions - enforce kebab-case for source files
+ls:
+  src:
+    .ts: kebab-case
+    .js: kebab-case
+    .css: kebab-case
+  src/*:
+    .ts: kebab-case
+    .js: kebab-case
+  scripts:
+    .ts: kebab-case
+  features:
+    .feature: kebab-case
+    .ts: kebab-case
+  features/*:
+    .ts: kebab-case
+
+ignore:
+  - node_modules
+  - dist
+  - .features-gen
+  - docs/api
+  - reports
+  - test-results
+  - playwright-report
+  - coverage
+  - .husky
+  - public

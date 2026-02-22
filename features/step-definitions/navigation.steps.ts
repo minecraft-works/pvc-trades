@@ -1,13 +1,13 @@
-import { Given, When, Then } from '@cucumber/cucumber';
+import { Given, Then,When } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
-import { CustomWorld } from '../support/world';
+
 import {
     createPlayerMock,
-    setupPlayerApiMock,
     setupColoredTileMocks,
-    setupMultiWorldDataMock
-} from '../../tests/helpers/navigation-mocks';
+    setupMultiWorldDataMock,
+    setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
 import { BASE_URL } from '../support/hooks';
+import { CustomWorld } from '../support/world';
 
 // ============ GIVEN Steps ============
 

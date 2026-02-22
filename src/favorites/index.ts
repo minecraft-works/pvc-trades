@@ -5,7 +5,6 @@
 
 export {
     createFavoritesUIHandler,
-    isFavoritesFilterActive,
     type FavoritesUIDependencies,
-    type FavoritesUIHandler
-} from './favorites-ui.js';
+    type FavoritesUIHandler,
+    isFavoritesFilterActive} from './favorites-ui.js';

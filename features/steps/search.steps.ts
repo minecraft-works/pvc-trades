@@ -2,8 +2,9 @@
  * Search and filter step definitions
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
-import { setupMultiWorldDataMock, setupColoredTileMocks } from '../../tests/helpers/navigation-mocks';
+
+import { setupColoredTileMocks,setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // Selector constant to avoid duplicate strings
 const SELECTOR_TRADE_ROW = '.trade-row';

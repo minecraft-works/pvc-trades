@@ -4,8 +4,9 @@
  * This file sets up the connection between Playwright fixtures and BDD steps.
  * All step definition files should import Given, When, Then from here.
  */
-import { test as base, createBdd } from 'playwright-bdd';
-import { createPlayerMock, createMultiPlayerMock, type PlayerMock, type MultiPlayerMock } from '../../tests/helpers/navigation-mocks';
+import { createBdd,test as base } from 'playwright-bdd';
+
+import { createMultiPlayerMock, createPlayerMock, type MultiPlayerMock,type PlayerMock } from '../../tests/helpers/navigation-mocks';
 
 /**
  * Custom fixtures for BDD tests
