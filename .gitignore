@@ -38,3 +38,5 @@ reports/
 # Generated API docs (rebuilt in CI/deploy)
 docs/api/
 lint-output.txt
+src/chatlog.json
+chatlog-parsed.txt
