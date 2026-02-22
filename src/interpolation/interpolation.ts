@@ -1,11 +1,16 @@
 /**
- * Player Position Interpolation (Predictive Lerp)
+ * Player Position Interpolation (Spring-Damper Attraction)
  *
  * Pure math functions for smooth player marker movement between
- * polled positions. Uses velocity estimation and linear extrapolation
- * to predict player positions between server updates.
+ * polled positions. Uses a spring-damper model inspired by
+ * Karamouzas et al. (2009) "Indicative routes for path planning
+ * and crowd simulation" — the display marker is continuously
+ * attracted toward a moving target (the server-reported position
+ * extrapolated by estimated velocity), producing smooth, phase-free
+ * motion without teleport jumps or lerp seams.
  *
  * @module interpolation/interpolation
+ * @see ADR-011
  */
 
 // ============================================================================
@@ -35,12 +40,49 @@ export interface InterpolatedPosition {
     yaw?: number;
 }
 
+/** Result of a single spring-damper integration step */
+export interface SpringResult {
+    /** Updated display position */
+    position: Position2D;
+    /** Updated display velocity (blocks/ms) */
+    velocity: Velocity2D;
+}
+
+/** Configuration for a spring-damper integration step */
+export interface SpringConfig {
+    /** Spring stiffness k (1/s²) */
+    stiffness: number;
+    /** Damping coefficient (1/s) */
+    damping: number;
+    /** Timestep in milliseconds (clamped to MAX_STEP_MS internally) */
+    dtMs: number;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 /** Minecraft walking speed is ~4.3 blocks/sec = 0.0043 blocks/ms */
 const MAX_SPEED_BLOCKS_PER_MS = 0.012; // ~12 blocks/sec covers sprinting + speed effects
+
+/**
+ * Spring stiffness (k) in 1/s².
+ * Controls how aggressively the display marker accelerates toward the target.
+ * Higher values → snappier convergence but more energy in the system.
+ *
+ * With k=25, ω_n = √25 = 5 rad/s → ~0.8s to 98% convergence (critically damped).
+ */
+export const SPRING_STIFFNESS = 25;
+
+/**
+ * Spring damping coefficient in 1/s.
+ * Critical damping = 2·√k = 2·5 = 10 for k=25.
+ * Slightly underdamped (ζ ≈ 0.85) → subtle overshoot that feels natural.
+ */
+export const SPRING_DAMPING = 8.5;
+
+/** Maximum dt per integration step (ms). Caps large gaps to prevent instability. */
+const MAX_STEP_MS = 100;
 
 // ============================================================================
 // Public API
@@ -75,43 +117,71 @@ export function estimateVelocity(previous: Position2D, current: Position2D, dtMs
 }
 
 /**
- * Extrapolate a position forward using velocity and time delta.
- * Pure linear extrapolation: position += velocity × time.
+ * Advance a spring-damper system by one timestep.
  *
- * @param position - Starting position
- * @param velocity - Velocity vector
- * @param dtMs - Time to extrapolate forward (milliseconds)
- * @returns Extrapolated position
+ * Uses semi-implicit Euler integration (symplectic — update velocity first,
+ * then position with the new velocity) which is stable for oscillatory
+ * systems and preserves energy better than explicit Euler.
+ *
+ * The spring force continuously pulls the display position toward the
+ * target: `F = k·(target − display) − damping·v_display`. When the
+ * display reaches the target with zero velocity, the net force is zero
+ * and the system rests naturally — no phase transitions needed.
+ *
+ * Physics is computed in blocks/second internally (converted at boundaries)
+ * since stiffness/damping constants are expressed in per-second units.
+ *
+ * Large timesteps (>100ms) are clamped to prevent instability from frame
+ * drops or background tabs.
+ *
+ * @param displayPos - Current display position
+ * @param targetPos - Target position to attract toward
+ * @param displayVelocity - Current display velocity (blocks/ms)
+ * @param config - Spring configuration (stiffness, damping, timestep)
+ * @returns Updated position and velocity
  *
  * @example
- * const pos = extrapolatePosition({ x: 100, z: 200 }, { vx: 0.01, vz: -0.005 }, 500);
- * // pos = { x: 105, z: 197.5 }
+ * const result = springStep(
+ *     { x: 0, z: 0 },        // display is at origin
+ *     { x: 10, z: 0 },       // target is 10 blocks east
+ *     { vx: 0, vz: 0 },      // display is stationary
+ *     { stiffness: 25, damping: 8.5, dtMs: 16 }
+ * );
+ * // result.position.x ≈ 0.066 (pulled toward target)
  */
-export function extrapolatePosition(position: Position2D, velocity: Velocity2D, dtMs: number): Position2D {
-    return {
-        x: position.x + velocity.vx * dtMs,
-        z: position.z + velocity.vz * dtMs
-    };
-}
+export function springStep(
+    displayPos: Position2D,
+    targetPos: Position2D,
+    displayVelocity: Velocity2D,
+    config: SpringConfig
+): SpringResult {
+    const { stiffness, damping, dtMs } = config;
+    // Clamp dt to prevent instability from large gaps
+    const clampedDt = Math.min(Math.max(0, dtMs), MAX_STEP_MS);
+    const dt = clampedDt / 1000; // convert to seconds
 
-/**
- * Linearly interpolate between two positions.
- * t=0 returns `a`, t=1 returns `b`, t=0.5 returns midpoint.
- *
- * @param a - Start position
- * @param b - End position
- * @param t - Interpolation factor (0 to 1, clamped)
- * @returns Interpolated position
- *
- * @example
- * lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 0.5)
- * // { x: 5, z: 10 }
- */
-export function lerpPosition(a: Position2D, b: Position2D, t: number): Position2D {
-    const clamped = Math.max(0, Math.min(1, t));
+    // Convert velocity to blocks/sec for physics
+    const vxSec = displayVelocity.vx * 1000;
+    const vzSec = displayVelocity.vz * 1000;
+
+    // Displacement from display to target
+    const dx = targetPos.x - displayPos.x;
+    const dz = targetPos.z - displayPos.z;
+
+    // Acceleration = spring force − damping force (mass = 1)
+    const ax = stiffness * dx - damping * vxSec;
+    const az = stiffness * dz - damping * vzSec;
+
+    // Semi-implicit Euler: update velocity first, then position
+    const newVxSec = vxSec + ax * dt;
+    const newVzSec = vzSec + az * dt;
+
+    const newX = displayPos.x + newVxSec * dt;
+    const newZ = displayPos.z + newVzSec * dt;
+
     return {
-        x: a.x + (b.x - a.x) * clamped,
-        z: a.z + (b.z - a.z) * clamped
+        position: { x: newX, z: newZ },
+        velocity: { vx: newVxSec / 1000, vz: newVzSec / 1000 } // back to blocks/ms
     };
 }
 
@@ -136,26 +206,4 @@ export function lerpAngle(a: number, b: number, t: number): number {
     if (diff < -180) { diff += 360; }
     const result = a + diff * clamped;
     return ((result % 360) + 360) % 360;
-}
-
-/**
- * Determine whether extrapolation should be applied.
- * Returns false if the player is stationary (below speed threshold).
- *
- * @param velocity - Current velocity estimate
- * @param _yaw - Unused (reserved for future heading-based logic)
- * @param speedThreshold - Minimum speed (blocks/ms) to trigger extrapolation
- * @returns True if extrapolation is appropriate
- *
- * @example
- * shouldExtrapolate({ vx: 0.004, vz: 0 }, 270)  // true — moving
- * shouldExtrapolate({ vx: 0, vz: 0 }, 90)         // false — stationary
- */
-export function shouldExtrapolate(
-    velocity: Velocity2D,
-    _yaw?: number,
-    speedThreshold: number = 0.001
-): boolean {
-    const speed = Math.hypot(velocity.vx, velocity.vz);
-    return speed >= speedThreshold;
 }

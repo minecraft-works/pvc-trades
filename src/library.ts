@@ -550,7 +550,7 @@ export { aggregateShoppingList, buildMarkerContent, buildStopTooltip, calculateT
 // Player Position Interpolation Re-exports (kept in library.ts as canonical source)
 // ============================================================================
 
-export { estimateVelocity, extrapolatePosition, type InterpolatedPosition, lerpAngle, lerpPosition, type Position2D, shouldExtrapolate,type Velocity2D } from './interpolation/interpolation.js';
+export { estimateVelocity, type InterpolatedPosition, lerpAngle, type Position2D, SPRING_DAMPING, SPRING_STIFFNESS, type SpringConfig, type SpringResult, springStep, type Velocity2D } from './interpolation/interpolation.js';
 
 // ============================================================================
 // Dashboard Data Re-exports (implementations moved to src/dashboard/dashboard-data.ts)

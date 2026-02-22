@@ -1,17 +1,20 @@
 /**
- * Unit tests for player position interpolation (Predictive Lerp).
+ * Unit tests for player position interpolation (Spring-Damper Attraction).
  * 
- * Tests the pure math functions in library.ts and the PlayerInterpolator class.
+ * Tests the pure math functions in interpolation.ts and the PlayerInterpolator class.
+ * The spring-damper model replaces the previous predictive lerp (3-phase state machine)
+ * with continuous attraction toward a moving target.
  */
 
 import { beforeEach,describe, expect, test } from 'vitest';
 
 import {
     estimateVelocity,
-    extrapolatePosition,
     lerpAngle,
-    lerpPosition,
-    shouldExtrapolate,
+    SPRING_DAMPING,
+    SPRING_STIFFNESS,
+    type SpringConfig,
+    springStep,
 } from './library.js';
 import { clearAllInterpolators, getAllInterpolators,getInterpolator, PlayerInterpolator, removeInterpolator } from './stores/player-interpolator.js';
 
@@ -64,61 +67,123 @@ describe('estimateVelocity', () => {
     });
 });
 
-describe('extrapolatePosition', () => {
-    test('extrapolates forward using velocity', () => {
-        const pos = extrapolatePosition({ x: 100, z: 200 }, { vx: 0.004, vz: 0 }, 500);
-        expect(pos.x).toBeCloseTo(102);
-        expect(pos.z).toBeCloseTo(200);
+describe('springStep', () => {
+    const defaultConfig: SpringConfig = { stiffness: SPRING_STIFFNESS, damping: SPRING_DAMPING, dtMs: 16 };
+
+    test('zero displacement and zero velocity returns same position', () => {
+        const result = springStep(
+            { x: 5, z: 10 }, { x: 5, z: 10 },
+            { vx: 0, vz: 0 }, defaultConfig
+        );
+        expect(result.position.x).toBeCloseTo(5);
+        expect(result.position.z).toBeCloseTo(10);
+        expect(result.velocity.vx).toBeCloseTo(0);
+        expect(result.velocity.vz).toBeCloseTo(0);
     });
 
-    test('extrapolates diagonally', () => {
-        const pos = extrapolatePosition({ x: 0, z: 0 }, { vx: 0.003, vz: 0.004 }, 1000);
-        expect(pos.x).toBeCloseTo(3);
-        expect(pos.z).toBeCloseTo(4);
+    test('pulls display toward target', () => {
+        const result = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, defaultConfig
+        );
+        expect(result.position.x).toBeGreaterThan(0);
+        expect(result.velocity.vx).toBeGreaterThan(0);
     });
 
-    test('zero elapsed returns base position', () => {
-        const pos = extrapolatePosition({ x: 50, z: 60 }, { vx: 0.01, vz: 0.01 }, 0);
-        expect(pos.x).toBe(50);
-        expect(pos.z).toBe(60);
+    test('pulls in both axes diagonally', () => {
+        const result = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 20 },
+            { vx: 0, vz: 0 }, defaultConfig
+        );
+        expect(result.position.x).toBeGreaterThan(0);
+        expect(result.position.z).toBeGreaterThan(0);
+        // Z displacement is double X displacement → proportional pull
+        expect(result.position.z / result.position.x).toBeCloseTo(2, 0);
     });
 
-    test('zero velocity returns base position', () => {
-        const pos = extrapolatePosition({ x: 50, z: 60 }, { vx: 0, vz: 0 }, 1000);
-        expect(pos.x).toBe(50);
-        expect(pos.z).toBe(60);
-    });
-});
+    test('converges to target after many steps', () => {
+        let pos = { x: 0, z: 0 };
+        let vel = { vx: 0, vz: 0 };
+        const target = { x: 10, z: 5 };
 
-describe('lerpPosition', () => {
-    test('t=0 returns from position', () => {
-        const pos = lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 0);
-        expect(pos.x).toBe(0);
-        expect(pos.z).toBe(0);
-    });
+        // 60 steps × 16ms ≈ 1 second
+        for (let index = 0; index < 60; index++) {
+            const result = springStep(pos, target, vel, defaultConfig);
+            pos = result.position;
+            vel = result.velocity;
+        }
 
-    test('t=1 returns to position', () => {
-        const pos = lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 1);
-        expect(pos.x).toBe(10);
-        expect(pos.z).toBe(20);
+        expect(pos.x).toBeCloseTo(10, 0);
+        expect(pos.z).toBeCloseTo(5, 0);
     });
 
-    test('t=0.5 returns midpoint', () => {
-        const pos = lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 0.5);
-        expect(pos.x).toBe(5);
-        expect(pos.z).toBe(10);
+    test('damping prevents oscillation (near-critically damped)', () => {
+        // Track X position over time — it should not overshoot by more than ~15%
+        // (ζ ≈ 0.85 → slight underdamping, max overshoot ≈ 1-2%)
+        let pos = { x: 0, z: 0 };
+        let vel = { vx: 0, vz: 0 };
+        const target = { x: 10, z: 0 };
+        let maxX = 0;
+
+        for (let index = 0; index < 120; index++) {
+            const result = springStep(pos, target, vel, defaultConfig);
+            pos = result.position;
+            vel = result.velocity;
+            maxX = Math.max(maxX, pos.x);
+        }
+
+        // Should not overshoot target by more than 15%
+        expect(maxX).toBeLessThan(11.5);
+        // Should converge close to target
+        expect(pos.x).toBeCloseTo(10, 0);
     });
 
-    test('clamps t below 0', () => {
-        const pos = lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, -1);
-        expect(pos.x).toBe(0);
-        expect(pos.z).toBe(0);
+    test('zero dt returns unchanged position and velocity', () => {
+        const result = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0.005, vz: 0 }, { stiffness: SPRING_STIFFNESS, damping: SPRING_DAMPING, dtMs: 0 }
+        );
+        expect(result.position.x).toBe(0);
+        expect(result.position.z).toBe(0);
+        expect(result.velocity.vx).toBe(0.005);
     });
 
-    test('clamps t above 1', () => {
-        const pos = lerpPosition({ x: 0, z: 0 }, { x: 10, z: 20 }, 2);
-        expect(pos.x).toBe(10);
-        expect(pos.z).toBe(20);
+    test('large dt is clamped to prevent instability', () => {
+        // 5000ms dt should be clamped to MAX_STEP_MS (100ms)
+        const resultLarge = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, { stiffness: SPRING_STIFFNESS, damping: SPRING_DAMPING, dtMs: 5000 }
+        );
+        const resultClamped = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, { stiffness: SPRING_STIFFNESS, damping: SPRING_DAMPING, dtMs: 100 }
+        );
+        expect(resultLarge.position.x).toBeCloseTo(resultClamped.position.x);
+        expect(resultLarge.velocity.vx).toBeCloseTo(resultClamped.velocity.vx);
+    });
+
+    test('higher stiffness produces stronger pull', () => {
+        const weak = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, { stiffness: 10, damping: 6, dtMs: 16 }
+        );
+        const strong = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, { stiffness: 50, damping: 14, dtMs: 16 }
+        );
+        expect(strong.position.x).toBeGreaterThan(weak.position.x);
+    });
+
+    test('existing velocity toward target adds to spring pull', () => {
+        const withVel = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0.005, vz: 0 }, defaultConfig
+        );
+        const noVel = springStep(
+            { x: 0, z: 0 }, { x: 10, z: 0 },
+            { vx: 0, vz: 0 }, defaultConfig
+        );
+        expect(withVel.position.x).toBeGreaterThan(noVel.position.x);
     });
 });
 
@@ -167,44 +232,8 @@ describe('lerpAngle', () => {
     });
 });
 
-describe('shouldExtrapolate', () => {
-    test('returns false for zero velocity', () => {
-        expect(shouldExtrapolate({ vx: 0, vz: 0 }, 90)).toBe(false);
-    });
-
-    test('returns false for very low speed', () => {
-        expect(shouldExtrapolate({ vx: 0.0001, vz: 0 }, 270)).toBe(false);
-    });
-
-    test('returns true when velocity matches heading (east)', () => {
-        // Moving east (+x), yaw=270 (east in Minecraft)
-        expect(shouldExtrapolate({ vx: 0.004, vz: 0 }, 270)).toBe(true);
-    });
-
-    test('returns true when velocity matches heading (south)', () => {
-        // Moving south (+z), yaw=0 (south in Minecraft)
-        expect(shouldExtrapolate({ vx: 0, vz: 0.004 }, 0)).toBe(true);
-    });
-
-    test('returns true even when velocity opposes heading', () => {
-        // Moving east (+x), but facing west (yaw=90) — still extrapolate
-        // Yaw is intentionally ignored; correction handles wrong predictions
-        expect(shouldExtrapolate({ vx: 0.004, vz: 0 }, 90)).toBe(true);
-    });
-
-    test('returns true when no yaw is available', () => {
-        // No yaw data — trust velocity alone
-        expect(shouldExtrapolate({ vx: 0.004, vz: 0 })).toBe(true);
-    });
-
-    test('respects custom speed threshold', () => {
-        expect(shouldExtrapolate({ vx: 0.002, vz: 0 }, undefined, 0.003)).toBe(false);
-        expect(shouldExtrapolate({ vx: 0.004, vz: 0 }, undefined, 0.003)).toBe(true);
-    });
-});
-
 // ============================================================================
-// PlayerInterpolator Class
+// PlayerInterpolator Class (Spring-Damper)
 // ============================================================================
 
 describe('PlayerInterpolator', () => {
@@ -224,112 +253,102 @@ describe('PlayerInterpolator', () => {
         expect(pos).toEqual({ x: 100, y: 64, z: 200, yaw: undefined });
     });
 
-    test('starts correction phase after second sample', () => {
+    test('transitions to tracking phase after second sample', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
-        expect(interpolator.phase).toBe('correcting');
+        expect(interpolator.phase).toBe('tracking');
     });
 
-    test('correction lerps toward true position', () => {
+    test('spring pulls display toward moving target', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
-        // At t=1000 (start of correction), display is somewhere
-        // Half through correction (100ms into 200ms correction window)
+        // Simulate a frame 100ms after second sample
         const pos = interpolator.getDisplayPosition(1100);
         expect(pos).toBeDefined();
-        // Position should be between old predicted and new true position
-        expect(pos!.x).toBeGreaterThanOrEqual(100);
-        expect(pos!.x).toBeLessThanOrEqual(110);
+        // Display should move toward ~104 + velocity*100ms
+        expect(pos!.x).toBeGreaterThan(100);
     });
 
-    test('transitions to extrapolation after correction completes', () => {
+    test('converges to target over multiple frames', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, timestamp: 1000 });
 
-        // Well past correction duration (200ms)
-        interpolator.getDisplayPosition(1300);
-        expect(interpolator.phase).toBe('extrapolating');
-    });
+        // Simulate 60 frames at 60fps
+        let pos;
+        for (let index = 1; index <= 60; index++) {
+            pos = interpolator.getDisplayPosition(1000 + index * 16);
+        }
 
-    test('correction→extrapolation transition is seamless (no position jump)', () => {
-        // Player moving east at 4 blocks/sec
-        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
-
-        // Get position 1ms before correction ends and 1ms after
-        const justBefore = interpolator.getDisplayPosition(1199);
-        const justAfter = interpolator.getDisplayPosition(1201);
-
-        expect(justBefore).toBeDefined();
-        expect(justAfter).toBeDefined();
-
-        // The positions should be very close (< 0.1 block) — no visible jump
-        const dx = Math.abs(justAfter!.x - justBefore!.x);
-        const dz = Math.abs(justAfter!.z - justBefore!.z);
-        expect(dx).toBeLessThan(0.1);
-        expect(dz).toBeLessThan(0.1);
-    });
-
-    test('correction target moves with velocity for fast players', () => {
-        // Player moving east at 8 blocks/sec (sprinting)
-        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 108, y: 64, z: 200, yaw: 270, timestamp: 1000 });
-
-        // At end of correction (t=1200), the position should account for
-        // continued movement during the 200ms correction window
-        const posAtCorrectionEnd = interpolator.getDisplayPosition(1200);
-        expect(posAtCorrectionEnd).toBeDefined();
-
-        // With moving target: 108 + 0.008 * 200 = 109.6 (accounts for movement)
-        // Without moving target: would have ended at 108 then jumped to 109.6
-        expect(posAtCorrectionEnd!.x).toBeGreaterThan(108);
-    });
-
-    test('extrapolation moves position forward using velocity', () => {
-        // Two samples: player moving east at 4 blocks/sec
-        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
-        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
-
-        // Skip past correction, then extrapolate 500ms forward
-        // After correction ends at ~1200ms, extrapolation from (104, 200) at 0.004 b/ms
-        // At 1700ms: 700ms after last sample = 104 + 0.004 * 700 = 106.8
-        const pos = interpolator.getDisplayPosition(1700);
         expect(pos).toBeDefined();
-        expect(pos!.x).toBeGreaterThan(104);
-        expect(pos!.z).toBeCloseTo(200);
+        // After ~1s of spring pull, should be near the extrapolated target
+        // Target at t=1960ms: 104 + 0.004*(960) = 107.84
+        expect(pos.x).toBeGreaterThan(104);
     });
 
-    test('freezes extrapolation at maximum duration', () => {
+    test('no position jumps between consecutive frames', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
 
-        // Way into the future — should freeze at MAX_EXTRAPOLATION_MS (3000ms)
-        const pos1 = interpolator.getDisplayPosition(5000);
-        const pos2 = interpolator.getDisplayPosition(10_000);
-        expect(pos1).toEqual(pos2);
+        // Get positions at two consecutive frames
+        const pos1 = interpolator.getDisplayPosition(1100);
+        const pos2 = interpolator.getDisplayPosition(1116);
+
+        expect(pos1).toBeDefined();
+        expect(pos2).toBeDefined();
+
+        // The positions should be very close — no visible jump
+        const dx = Math.abs(pos2!.x - pos1!.x);
+        const dz = Math.abs(pos2!.z - pos1!.z);
+        expect(dx).toBeLessThan(1);
+        expect(dz).toBeLessThan(1);
+    });
+
+    test('handles new sample arriving smoothly (no phase transition jump)', () => {
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
+
+        // Get position just before third sample
+        const posBefore = interpolator.getDisplayPosition(1999);
+
+        // Third sample arrives
+        interpolator.pushSample({ x: 108, y: 64, z: 200, yaw: 270, timestamp: 2000 });
+
+        // Get position just after
+        const posAfter = interpolator.getDisplayPosition(2001);
+
+        expect(posBefore).toBeDefined();
+        expect(posAfter).toBeDefined();
+
+        // Should be very close — spring state carries over, no jump
+        const dx = Math.abs(posAfter!.x - posBefore!.x);
+        expect(dx).toBeLessThan(1);
     });
 
     test('stationary player stays at last position', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 1000 });
 
-        // Zero velocity → no extrapolation, stays at 100, 200
-        const pos = interpolator.getDisplayPosition(1500);
+        // Zero velocity → target doesn't move → spring settles at 100
+        // Simulate several frames
+        let pos;
+        for (let index = 1; index <= 30; index++) {
+            pos = interpolator.getDisplayPosition(1000 + index * 16);
+        }
         expect(pos).toBeDefined();
-        expect(pos!.x).toBeCloseTo(100);
-        expect(pos!.z).toBeCloseTo(200);
+        expect(pos.x).toBeCloseTo(100, 0);
+        expect(pos.z).toBeCloseTo(200, 0);
     });
 
-    test('rejects teleport velocity', () => {
+    test('rejects teleport velocity and snaps when distance exceeds threshold', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         // Teleport: 1000 blocks in 1 second
         interpolator.pushSample({ x: 1100, y: 64, z: 200, timestamp: 1000 });
 
-        // After correction, should stay near 1100 (no extrapolation due to zero velocity)
-        const pos = interpolator.getDisplayPosition(2000);
+        // Display should snap near 1100 (teleport snap)
+        const pos = interpolator.getDisplayPosition(1016);
         expect(pos).toBeDefined();
-        expect(pos!.x).toBeCloseTo(1100);
+        expect(pos!.x).toBeCloseTo(1100, 0);
     });
 
     test('reset clears all state', () => {
@@ -366,34 +385,43 @@ describe('PlayerInterpolator', () => {
         // Moving east, then turns north
         interpolator.pushSample({ x: 0, y: 64, z: 0, timestamp: 0 });
         interpolator.pushSample({ x: 4, y: 64, z: 0, yaw: 270, timestamp: 1000 });
+
+        // Pump frames to let spring catch up
+        for (let index = 1; index <= 60; index++) {
+            interpolator.getDisplayPosition(1000 + index * 16);
+        }
+
         interpolator.pushSample({ x: 4, y: 64, z: -4, yaw: 180, timestamp: 2000 });
 
         // Velocity should now be northward (0, -4 blocks/sec)
         expect(interpolator.velocity.vx).toBeCloseTo(0);
         expect(interpolator.velocity.vz).toBeCloseTo(-0.004);
 
-        // Extrapolation should continue northward
-        const pos = interpolator.getDisplayPosition(2700);
+        // After more frames, display should track northward
+        let pos;
+        for (let index = 1; index <= 60; index++) {
+            pos = interpolator.getDisplayPosition(2000 + index * 16);
+        }
         expect(pos).toBeDefined();
-        expect(pos!.z).toBeLessThan(-4);
+        expect(pos.z).toBeLessThan(-4);
     });
 
-    test('interpolates Y coordinate during correction', () => {
+    test('interpolates Y coordinate smoothly', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 128, z: 200, timestamp: 1000 });
 
-        // Mid-correction
+        // Shortly after second sample, Y should start moving toward 128
         const pos = interpolator.getDisplayPosition(1100);
         expect(pos).toBeDefined();
         expect(pos!.y).toBeGreaterThanOrEqual(64);
         expect(pos!.y).toBeLessThanOrEqual(128);
     });
 
-    test('interpolates yaw via shortest path during correction', () => {
+    test('interpolates yaw via shortest path', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, yaw: 350, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 10, timestamp: 1000 });
 
-        // Mid-correction: yaw should go 350 → 0 → 10 (shortest path)
+        // Shortly after: yaw should be interpolating 350 → 10 via 0
         const pos = interpolator.getDisplayPosition(1100);
         expect(pos).toBeDefined();
         expect(pos!.yaw).toBeDefined();
@@ -402,14 +430,33 @@ describe('PlayerInterpolator', () => {
         expect(yaw >= 350 || yaw <= 10).toBe(true);
     });
 
-    test('returns Y from last sample during extrapolation', () => {
+    test('Y converges to sample value after many frames', () => {
         interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
         interpolator.pushSample({ x: 104, y: 100, z: 200, yaw: 270, timestamp: 1000 });
 
-        // Past correction
-        const pos = interpolator.getDisplayPosition(1500);
+        // Many frames later, Y should be near 100
+        let pos;
+        for (let index = 1; index <= 60; index++) {
+            pos = interpolator.getDisplayPosition(1000 + index * 16);
+        }
         expect(pos).toBeDefined();
-        expect(pos!.y).toBe(100);
+        expect(pos.y).toBeCloseTo(100, 0);
+    });
+
+    test('freezes after MAX_TRACKING_MS without new sample', () => {
+        interpolator.pushSample({ x: 100, y: 64, z: 200, timestamp: 0 });
+        interpolator.pushSample({ x: 104, y: 64, z: 200, yaw: 270, timestamp: 1000 });
+
+        // Pump frames up to 3s
+        for (let index = 1; index <= 180; index++) {
+            interpolator.getDisplayPosition(1000 + index * 16);
+        }
+
+        // Way past MAX_TRACKING_MS — position should freeze
+        const pos1 = interpolator.getDisplayPosition(5000);
+        const pos2 = interpolator.getDisplayPosition(10_000);
+        expect(pos1!.x).toBeCloseTo(pos2!.x, 1);
+        expect(pos1!.z).toBeCloseTo(pos2!.z, 1);
     });
 });
 
