@@ -34,6 +34,7 @@
  * ============================================================================
  */
 
+import { formatName } from './formatting.js';
 import {
     type Coordinates,
     type FilterResult,
@@ -127,26 +128,10 @@ export function enchantsMatch(
 }
 
 // ============================================================================
-// Formatting Functions
+// Formatting Functions (extracted to src/formatting.ts to break circular deps)
 // ============================================================================
 
-/**
- * Format an item name for display (title case).
- * Uses item.name if present, otherwise formats item.type.
- * 
- * @param item - The item to format
- * @returns Formatted display name
- * 
- * @example
- * formatName({ type: 'DIAMOND_PICKAXE', name: '', amount: 1 }) // 'Diamond pickaxe'
- * formatName({ type: 'ITEM', name: 'Vote Diamond', amount: 1 }) // 'Vote diamond'
- */
-export function formatName(item: Item): string {
-    const text = item.name || item.type.replaceAll('_', ' ');
-    if (!text) { return ''; }
-    const lower = text.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
-}
+export { formatName } from './formatting.js';
 
 /**
  * Apply custom mapping rules to transform item types.

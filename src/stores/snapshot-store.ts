@@ -13,9 +13,8 @@
  */
 
 import { DASHBOARD,STORAGE_KEYS } from '../constants.js';
-import { getTradeKey } from '../library.js';
-import type { DeviationResult } from '../search/deviation.js';
-import type { CompactSnapshotHistory,Trade, TradeSnapshot, TradeSnapshotEntry } from '../types.js';
+import { getTradeKey } from '../map/map-math.js';
+import type { CompactSnapshotHistory,DeviationResult, Trade, TradeSnapshot, TradeSnapshotEntry } from '../types.js';
 import { CompactSnapshotHistorySchema,SnapshotHistorySchema, TradeSnapshotSchema } from '../types.js';
 
 // ============================================================================

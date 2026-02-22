@@ -25,11 +25,11 @@ module.exports = {
             from: { pathNot: '^src/main\\.ts$' },
             to: { path: '^src/main\\.ts$' }
         },
-        // No circular dependencies (warning for now due to existing 7)
+        // No circular dependencies
         {
             name: 'no-circular',
-            comment: 'Circular dependencies create coupling and should be eliminated',
-            severity: 'warn',
+            comment: 'Circular dependencies create coupling and must be eliminated',
+            severity: 'error',
             from: {},
             to: { circular: true }
         },

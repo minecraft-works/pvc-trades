@@ -10,6 +10,5 @@ export type {
 } from './search-sort.js';
 export {
     createSearchSortHandler,
-    getTotalCostAmount,
     updateClearButtonVisibility,
 } from './search-sort.js';

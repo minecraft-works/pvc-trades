@@ -120,7 +120,7 @@ export function getAllCartStops(): RouteStop[] {
 // ============================================================================
 
 /** Aggregate cart into shopping lists */
-export function getShoppingList(): ShoppingList {
+function getShoppingList(): ShoppingList {
     return aggregateShoppingList(cartStore.items);
 }
 
@@ -209,7 +209,7 @@ export function syncNavProgressWithCart(route: RouteStop[]): void {
 // ============================================================================
 
 /** Get status for a route stop based on navigation progress */
-export function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
+function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
     if (stop.type === 'portal') {
         if (stopIndex < navigationStore.progress.currentIndex) { return 'completed'; }
         if (stopIndex === navigationStore.progress.currentIndex) { return 'current'; }

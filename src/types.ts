@@ -355,6 +355,21 @@ export interface TradeSnapshotEntry {
     stock: number;
 }
 
+/**
+ * Result of a deviation calculation.
+ * Moved to types.ts to break circular dependency between stores and search.
+ */
+export interface DeviationResult {
+    /** The ratio of actual price to expected price (>1 = paying more) */
+    ratio: number;
+    /** Percentage deviation, clamped to [-99, 999] for display */
+    percent: number;
+    /** Display text like "+10%" or "−5%" */
+    text: string;
+    /** True if good deal (negative deviation), false if bad, undefined if neutral */
+    isGood: boolean | undefined;
+}
+
 const TradeSnapshotEntrySchema = z.object({
     deviationPercent: z.number().optional(),
     stock: z.number().int().nonnegative()

@@ -8,7 +8,7 @@
  */
 
 import { STORAGE_KEYS } from '../constants.js';
-import { getTradeKey } from '../library.js';
+import { getTradeKey } from '../map/map-math.js';
 import type { CartItem, Trade } from '../types.js';
 import { CartItemArraySchema } from '../types.js';
 

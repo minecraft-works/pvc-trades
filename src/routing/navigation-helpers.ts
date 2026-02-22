@@ -8,7 +8,7 @@
  */
 
 import { ZOOM_HEIGHT } from '../constants.js';
-import { formatName } from '../library.js';
+import { formatName } from '../formatting.js';
 import { type RouteStop,type ShoppingList, type Trade } from '../types.js';
 import { calculateRouteDistance } from './route-optimizer.js';
 

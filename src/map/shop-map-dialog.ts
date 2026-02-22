@@ -24,17 +24,16 @@ import {
 import { clearAllInterpolators,getInterpolator } from '../stores/player-interpolator.js';
 import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
-import type { MapTileContext } from './index.js';
+import { fetchPlayers, getPlayerWorld } from './players.js';
 import {
     calculateZoom4Coords,
-    fetchPlayers,
     getCachedTileUrl,
-    getPlayerWorld,
     loadTileManifest,
     setCachedTileUrl,
     TILE_CONFIG,
     tileExistsInManifest,
-    ZOOM4_TILE_SIZE} from './index.js';
+    ZOOM4_TILE_SIZE} from './tile-loader.js';
+import type { MapTileContext } from './tile-types.js';
 
 // ============================================================================
 // Module State

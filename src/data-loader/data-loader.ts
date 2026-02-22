@@ -21,8 +21,8 @@ import {
     loadFixedRatios,
     processTrade,
 } from '../library.js';
-import type { DeviationResult } from '../search/deviation.js';
 import { createDeviationCalculator } from '../search/index.js';
+import type { DeviationResult } from '../types.js';
 import type {
     ItemValues,
     MappingRule,

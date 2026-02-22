@@ -9,8 +9,6 @@ export {
     computeRoute,
     createCartDialogHandler,
     getAllCartStops,
-    getShoppingList,
-    getStopStatus,
     refreshCartButtonStates,
     syncNavProgressWithCart,
     updateCartBadge,

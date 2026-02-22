@@ -21,12 +21,12 @@ import {
 } from '../library.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
+    DeviationResult,
     FilterResult,
     SortColumn,
     SortDirection,
     Trade,
 } from '../types.js';
-import type { DeviationResult } from './deviation.js';
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -85,7 +85,7 @@ export interface SearchSortHandler {
 // ============================================================================
 
 /** Get total cost amount including optional second item */
-export function getTotalCostAmount(t: Trade): number {
+function getTotalCostAmount(t: Trade): number {
     return t.item1.amount + (t.item2?.amount || 0);
 }
 

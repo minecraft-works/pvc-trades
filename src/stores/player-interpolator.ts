@@ -29,7 +29,7 @@ import {
     type Position2D,
     shouldExtrapolate,
     type Velocity2D
-} from '../library.js';
+} from '../interpolation/interpolation.js';
 
 // ============================================================================
 // Configuration

@@ -4,8 +4,4 @@ export type {
 } from './trade-renderer.js';
 export {
     createTradeRendererHandler,
-    getCostDisplayInfo,
-    getDeviationClass,
-    getWorldDisplayInfo,
-    itemHasDetails,
 } from './trade-renderer.js';

@@ -23,5 +23,4 @@ export type { EdgeMarkerParameters, LabelLayout, LabelPosition, LabelRect } from
 export {
     createEdgeMarker,
     getWorldDisplayName,
-    positionToCssClass,
     resolvePlayerLabelPositions} from './shop-map-helpers.js';

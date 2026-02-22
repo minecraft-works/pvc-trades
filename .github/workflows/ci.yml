@@ -48,7 +48,6 @@ jobs:
 
       - name: Check circular dependencies
         run: npm run lint:circular
-        continue-on-error: true
 
       - name: Spell check
         run: npm run lint:spelling

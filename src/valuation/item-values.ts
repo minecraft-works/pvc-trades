@@ -7,7 +7,7 @@
  * @module valuation/item-values
  */
 
-import { formatName } from '../library.js';
+import { formatName } from '../formatting.js';
 import {
     blockConversionsStore,
     configStore,
