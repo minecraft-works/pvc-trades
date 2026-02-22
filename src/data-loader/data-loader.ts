@@ -11,27 +11,24 @@
  * @module data/data-loader
  */
 
+import {
+    calculateItemValues,
+    formatName,
+    getConfig,
+    getTradeKey,
+    loadBaseItems,
+    loadConfig,
+    loadFixedRatios,
+    processTrade,
+} from '../library.js';
+import { createDeviationCalculator } from '../search/index.js';
+import type { DeviationResult } from '../types.js';
 import type {
-    Trade,
     ItemValues,
     MappingRule,
     ShopData,
+    Trade,
 } from '../types.js';
-
-import type { DeviationResult } from '../search/deviation.js';
-
-import {
-    formatName,
-    processTrade,
-    calculateItemValues,
-    loadFixedRatios,
-    loadBaseItems,
-    loadConfig,
-    getConfig,
-    getTradeKey,
-} from '../library.js';
-
-import { createDeviationCalculator } from '../search/index.js';
 
 // ============================================================================
 // Dependency & Handler interfaces

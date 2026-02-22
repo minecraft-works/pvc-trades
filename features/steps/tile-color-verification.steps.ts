@@ -3,9 +3,10 @@
  * Tests zoom level visibility, world type encoding, and tile boundaries
  * using color-coded mock tiles
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Color thresholds and types

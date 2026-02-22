@@ -8,9 +8,9 @@
  * @module dialogs/matrix-dialog
  */
 
-import { escapeHtml, buildExchangeMatrix } from '../library.js';
-import { SELECTORS, DIALOG_IDS } from '../constants.js';
-import type { ItemValues, ExchangeMatrix } from '../types.js';
+import { DIALOG_IDS,SELECTORS } from '../constants.js';
+import { buildExchangeMatrix,escapeHtml } from '../library.js';
+import type { ExchangeMatrix,ItemValues } from '../types.js';
 
 // ============================================================================
 // Constants

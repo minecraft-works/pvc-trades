@@ -7,8 +7,8 @@
  * @module stores/navigation-store
  */
 
-import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } from '../types.js';
 import { STORAGE_KEYS, WORLDS } from '../constants.js';
+import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } from '../types.js';
 
 // ============================================================================
 // Types

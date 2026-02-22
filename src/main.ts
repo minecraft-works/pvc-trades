@@ -18,64 +18,50 @@
  * @module main
  */
 
+import type { CartDialogHandler } from './cart/index.js';
+import {
+    cleanupZeroQuantityItems,
+    clearCart,
+    computeRoute,
+    createCartDialogHandler,
+    getAllCartStops,
+    refreshCartButtonStates,
+    syncNavProgressWithCart,
+    updateCartBadge,
+} from './cart/index.js';
+import {
+    CSS_CLASSES,
+    DIALOG_IDS,
+    SELECTORS,
+    STORAGE_KEYS,
+    WORLDS} from './constants.js';
+import type { DashboardUIHandler } from './dashboard/dashboard-ui.js';
+import { createDashboardUIHandler } from './dashboard/dashboard-ui.js';
+import type { DataLoaderHandler } from './data-loader/index.js';
+import { createDataLoaderHandler } from './data-loader/index.js';
+import { debugNavigation } from './debug.js';
+import {
+    createTradeDetailsHandler,
+    openDialog,
+    renderExchangeMatrix,
+    setupDialogBackdropClose} from './dialogs/index.js';
+import type { FavoritesUIHandler } from './favorites/index.js';
+import { createFavoritesUIHandler } from './favorites/index.js';
 import {
     getConfig,
     getTradeKey,
 } from './library.js';
-
-import { debugNavigation } from './debug.js';
-
-import {
-    CSS_CLASSES,
-    SELECTORS,
-    DIALOG_IDS,
-    WORLDS,
-    STORAGE_KEYS
-} from './constants.js';
-
-import { cartStore, navigationStore, favoritesStore, snapshotStore, getInterpolator, removeInterpolator } from './stores/index.js';
-
+import type { ShopMapDialogHandler } from './map/index.js';
 import {
     createShopMapDialogHandler
 } from './map/index.js';
-import type { ShopMapDialogHandler } from './map/index.js';
-
-import {
-    renderExchangeMatrix,
-    setupDialogBackdropClose,
-    openDialog,
-    createTradeDetailsHandler
-} from './dialogs/index.js';
-
-import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
-import type { SearchSortHandler } from './search/index.js';
-
-import { createDataLoaderHandler } from './data-loader/index.js';
-import type { DataLoaderHandler } from './data-loader/index.js';
-
-import { createShopTooltipHandler, createNavState, createNavMapHandler, createNavUpdatesHandler, createLiveNavigationHandler } from './navigation/index.js';
-import type { NavMapHandler, NavUpdatesHandler, LiveNavigationHandler } from './navigation/index.js';
-
-import { createFavoritesUIHandler } from './favorites/index.js';
-import type { FavoritesUIHandler } from './favorites/index.js';
-
-import { createDashboardUIHandler } from './dashboard/dashboard-ui.js';
-import type { DashboardUIHandler } from './dashboard/dashboard-ui.js';
-
-import { createTradeRendererHandler } from './rendering/index.js';
+import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
+import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
 import type { TradeRendererHandler } from './rendering/index.js';
-
-import {
-    computeRoute,
-    getAllCartStops,
-    updateCartBadge,
-    refreshCartButtonStates,
-    cleanupZeroQuantityItems,
-    clearCart,
-    syncNavProgressWithCart,
-    createCartDialogHandler,
-} from './cart/index.js';
-import type { CartDialogHandler } from './cart/index.js';
+import { createTradeRendererHandler } from './rendering/index.js';
+import type { SearchSortHandler } from './search/index.js';
+import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
+import { cartStore, favoritesStore, getInterpolator, navigationStore, removeInterpolator,snapshotStore } from './stores/index.js';
 
 // ============================================================================
 // State

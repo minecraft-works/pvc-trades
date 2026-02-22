@@ -7,9 +7,9 @@
  * @module navigation/shop-tooltip
  */
 
-import type { RouteStop, CartItem } from '../types.js';
-import type { PlayerPosition } from '../stores/navigation-store.js';
 import { calculateRouteDistance } from '../library.js';
+import type { PlayerPosition } from '../stores/navigation-store.js';
+import type { CartItem,RouteStop } from '../types.js';
 
 // ============================================================================
 // Constants

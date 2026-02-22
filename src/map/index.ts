@@ -8,41 +8,37 @@
 
 // Types
 export type {
-    TileConfig,
-    LoadTileOptions,
-    MapTileContext,
     LoadNavMapTilesOptions,
-    TileRange,
-    ManifestEntry
-} from './tile-types.js';
+    LoadTileOptions,
+    ManifestEntry,
+    MapTileContext,
+    TileConfig,
+    TileRange} from './tile-types.js';
 
 // Tile loader
 export {
-    TILE_CONFIG,
-    ZOOM4_TILE_SIZE,
-    loadTileManifest,
-    tileExistsInManifest,
-    loadTileToMap,
+    _clearCaches,
+    _getBlobCacheSize,
     calculateZoom4Coords,
     getCachedTileUrl,
+    loadTileManifest,
+    loadTileToMap,
     setCachedTileUrl,
-    _getBlobCacheSize,
-    _clearCaches
-} from './tile-loader.js';
+    TILE_CONFIG,
+    tileExistsInManifest,
+    ZOOM4_TILE_SIZE} from './tile-loader.js';
 
 // Player utilities
 export {
-    getPlayerWorld,
     fetchPlayers,
-    filterPlayersByWorld
-} from './players.js';
+    filterPlayersByWorld,
+    getPlayerWorld} from './players.js';
 
 // Shop Map Dialog
-export {
-    createShopMapDialogHandler
-} from './shop-map-dialog.js';
-
 export type {
     ShopMapDialogDependencies,
     ShopMapDialogHandler
+} from './shop-map-dialog.js';
+export {
+    createShopMapDialogHandler
 } from './shop-map-dialog.js';

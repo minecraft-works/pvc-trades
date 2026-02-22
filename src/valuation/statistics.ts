@@ -8,19 +8,18 @@
  */
 
 import {
-    type PriceEntry,
-    type ItemValueEntry,
-    type ItemValues,
-    type Coordinates,
-    type TrustedValueOptions,
-    type BlockConversions,
-} from '../types.js';
-
-import {
+    blockConversionsStore,
     configStore,
     coreBlocksStore,
-    blockConversionsStore,
 } from '../stores/index.js';
+import {
+    type BlockConversions,
+    type Coordinates,
+    type ItemValueEntry,
+    type ItemValues,
+    type PriceEntry,
+    type TrustedValueOptions,
+} from '../types.js';
 
 // ============================================================================
 // Public API

@@ -1,12 +1,13 @@
-import { describe, test, expect } from 'vitest';
+import { describe, expect,test } from 'vitest';
+
+import type { LabelRect } from './shop-map-helpers.js';
 import {
     estimateLabelWidth,
     getLabelRect,
-    rectsOverlap,
     positionToCssClass,
+    rectsOverlap,
     resolvePlayerLabelPositions
 } from './shop-map-helpers.js';
-import type { LabelRect } from './shop-map-helpers.js';
 
 // ============================================================================
 // estimateLabelWidth

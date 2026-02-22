@@ -10,17 +10,16 @@
  * @module favorites/favorites-ui
  */
 
-import { escapeHtml } from '../library.js';
 import { openDialog } from '../dialogs/dialog-utilities.js';
+import { escapeHtml } from '../library.js';
 import type { FavoritesStore } from '../stores/favorites-store.js';
 import {
     FAVORITE_POPOVER_SELECTOR,
+    type FavoritesUIState,
     hidePopover,
     positionAndShowPopover,
-    updatePopoverUI,
     readThresholdFromPopover,
-    type FavoritesUIState
-} from './favorites-popover.js';
+    updatePopoverUI} from './favorites-popover.js';
 
 /** CSS class for hiding elements */
 const HIDDEN_CLASS = 'hidden';

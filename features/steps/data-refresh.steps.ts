@@ -2,14 +2,14 @@
  * Data refresh and new items step definitions
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then, test } from './fixtures';
+
 import { 
-    setupDynamicDataMock, 
-    setupFastRefreshConfig,
-    setupColoredTileMocks,
     createDynamicDataMock,
-    type DynamicDataMock 
-} from '../../tests/helpers/navigation-mocks';
+    type DynamicDataMock, 
+    setupColoredTileMocks,
+    setupDynamicDataMock, 
+    setupFastRefreshConfig} from '../../tests/helpers/navigation-mocks';
+import { Given, test,Then, When } from './fixtures';
 
 // ============================================================================
 // Constants

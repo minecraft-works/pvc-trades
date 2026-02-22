@@ -4,8 +4,9 @@
  * Updated for dialog-based approach with dropdown threshold selection.
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
-import { setupMultiWorldDataMock, setupColoredTileMocks } from '../../tests/helpers/navigation-mocks';
+
+import { setupColoredTileMocks,setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Constants for selectors

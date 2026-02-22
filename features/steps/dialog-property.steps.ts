@@ -2,9 +2,10 @@
  * Step definitions for map dialog close property tests
  * Tests click zone detection and drag behavior
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Page tracking interface

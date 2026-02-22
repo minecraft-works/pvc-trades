@@ -2,7 +2,8 @@
  * Step definitions for Trade Details Popover feature
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
+import { Given, Then,When } from './fixtures';
 
 const SELECTOR_TRADE_ROW = '.trade-row';
 const SELECTOR_TRADE_DETAILS_DIALOG = '#trade-details-dialog';

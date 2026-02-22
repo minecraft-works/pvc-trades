@@ -2,16 +2,16 @@
  * Step definitions for live navigation property tests
  * Tests mathematical correctness of distance calculations, auto-advance, and direction
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { type BasePageTracking,Given, Then, When } from './fixtures';
 import { 
     calculateDistance, 
-    yawToDirection, 
+    NAVIGATION, 
     shouldAutoAdvance, 
     simpleDistance,
-    NAVIGATION 
-} from './test-math-utilities';
+    yawToDirection} from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface

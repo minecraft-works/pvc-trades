@@ -4,15 +4,16 @@
  * Tests the pure math functions in library.ts and the PlayerInterpolator class.
  */
 
-import { describe, test, expect, beforeEach } from 'vitest';
+import { beforeEach,describe, expect, test } from 'vitest';
+
 import {
     estimateVelocity,
     extrapolatePosition,
-    lerpPosition,
     lerpAngle,
+    lerpPosition,
     shouldExtrapolate,
 } from './library.js';
-import { PlayerInterpolator, getInterpolator, removeInterpolator, clearAllInterpolators, getAllInterpolators } from './stores/player-interpolator.js';
+import { clearAllInterpolators, getAllInterpolators,getInterpolator, PlayerInterpolator, removeInterpolator } from './stores/player-interpolator.js';
 
 // ============================================================================
 // Pure Math Functions

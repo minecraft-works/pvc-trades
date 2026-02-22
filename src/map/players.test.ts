@@ -2,9 +2,10 @@
  * Unit tests for player management utilities.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getPlayerWorld, fetchPlayers, filterPlayersByWorld } from './players.js';
+import { afterEach,beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { Player } from '../types.js';
+import { fetchPlayers, filterPlayersByWorld,getPlayerWorld } from './players.js';
 
 // Mock the dependencies
 vi.mock('../library.js', () => ({

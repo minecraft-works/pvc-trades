@@ -11,30 +11,26 @@
 
 import VirtualScroller from 'virtual-scroller/dom';
 
+import {
+    COLUMNS,
+    CSS_CLASSES,
+    SORT,
+} from '../constants.js';
+import {
+    escapeHtml,
+    formatName,
+    getTradeKey,
+    highlight,
+} from '../library.js';
+import type { DeviationResult } from '../search/index.js';
+import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
-    Trade,
     FilterResult,
+    Item,
     SortColumn,
     SortDirection,
-    Item,
+    Trade,
 } from '../types.js';
-
-import type { DeviationResult } from '../search/index.js';
-
-import {
-    formatName,
-    highlight,
-    escapeHtml,
-    getTradeKey,
-} from '../library.js';
-
-import {
-    SORT,
-    CSS_CLASSES,
-    COLUMNS,
-} from '../constants.js';
-
-import { cartStore, favoritesStore } from '../stores/index.js';
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -90,7 +86,7 @@ function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
 // ============================================================================
 
 /** Get cost display info for a trade (handles multi-item costs) */
-export function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
+function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
     let costAmt = String(t.item1.amount);
     let costName = t.costName;
     if (t.item2) {
@@ -101,7 +97,7 @@ export function getCostDisplayInfo(t: Trade): { costAmt: string; costName: strin
 }
 
 /** Get world abbreviation and full title */
-export function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
+function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
     const worldLower = world.toLowerCase();
     if (worldLower.includes('nether')) {
         return { abbrev: 'N', title: 'The Nether' };
@@ -113,7 +109,7 @@ export function getWorldDisplayInfo(world: string): { abbrev: string; title: str
 }
 
 /** Map isGood to CSS class name */
-export function getDeviationClass(isGood: boolean | undefined = undefined): string {
+function getDeviationClass(isGood: boolean | undefined = undefined): string {
     if (isGood === undefined) {
         return '';
     }
@@ -123,7 +119,7 @@ export function getDeviationClass(isGood: boolean | undefined = undefined): stri
 /**
  * Check if an item has additional details (lore or enchantments)
  */
-export function itemHasDetails(item: Item): boolean {
+function itemHasDetails(item: Item): boolean {
     const hasLore = Boolean(item.lore && item.lore.length > 0);
     const hasEnchants = Boolean(item.enchant && Object.keys(item.enchant).length > 0);
     return hasLore || hasEnchants;

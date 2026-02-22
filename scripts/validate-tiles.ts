@@ -15,13 +15,13 @@
  * npx tsx scripts/validate-tiles.ts
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+
 import {
     getTileCoordsAtZoom,
-    parseLocation,
-    getTileNeighborhood
-} from '../src/tile-coords.js';
+    getTileNeighborhood,
+    parseLocation} from '../src/tile-coords.js';
 
 // ============================================================================
 // Configuration

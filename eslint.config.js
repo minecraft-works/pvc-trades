@@ -3,12 +3,14 @@ import tseslint from 'typescript-eslint';
 import unicorn from 'eslint-plugin-unicorn';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unusedImports from 'eslint-plugin-unused-imports';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default tseslint.config(
     // Ignore generated and build files
     {
         ignores: [
             '.features-gen/**',
+            '.stryker-tmp/**',
             'dist/**',
             'docs/api/**',
             'reports/**',
@@ -28,7 +30,8 @@ export default tseslint.config(
     sonarjs.configs.recommended,
     {
         plugins: {
-            'unused-imports': unusedImports
+            'unused-imports': unusedImports,
+            'simple-import-sort': simpleImportSort
         },
         languageOptions: {
             ecmaVersion: 2022,
@@ -72,6 +75,13 @@ export default tseslint.config(
             'no-multiple-empty-lines': ['error', { max: 1 }],
             'semi': ['error', 'always'],
             'quotes': ['error', 'single', { avoidEscape: true }],
+
+            // Import sorting and deduplication
+            'simple-import-sort/imports': 'error',
+            'simple-import-sort/exports': 'error',
+
+            // Zero any in production (vibe-coding-quality guard rail)
+            '@typescript-eslint/no-explicit-any': 'error',
 
             // Complexity rules - STRICT
             'complexity': ['error', { max: 12 }],

@@ -8,22 +8,19 @@
 
 // Dialog utilities
 export {
-    setupDialogBackdropClose,
-    openDialog
-} from './dialog-utilities.js';
+    openDialog,
+    setupDialogBackdropClose} from './dialog-utilities.js';
 
 // Price table dialog
 export { renderExchangeMatrix } from './matrix-dialog.js';
 
 // Trade details dialog
-export { createTradeDetailsHandler } from './trade-details.js';
 export type { TradeDetailsOptions } from './trade-details.js';
+export { createTradeDetailsHandler } from './trade-details.js';
 
 // Shop map helpers
+export type { EdgeMarkerParameters, LabelLayout, LabelPosition, LabelRect } from './shop-map-helpers.js';
 export {
     createEdgeMarker,
     getWorldDisplayName,
-    resolvePlayerLabelPositions,
-    positionToCssClass
-} from './shop-map-helpers.js';
-export type { EdgeMarkerParameters, LabelLayout, LabelPosition, LabelRect } from './shop-map-helpers.js';
+    resolvePlayerLabelPositions} from './shop-map-helpers.js';

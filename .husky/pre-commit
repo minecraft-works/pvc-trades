@@ -1,6 +1,10 @@
 npm run typecheck
 npx lint-staged
 npm run knip
+npm run lint:filenames
+npm run lint:lockfile
+npm run lint:deps
+npm run lint:parse-safety
 npm run docs
 npm run test:coverage
 npm run test:load

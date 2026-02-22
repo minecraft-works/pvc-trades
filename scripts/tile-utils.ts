@@ -7,11 +7,10 @@
 
 // Import shared coordinate utilities
 import {
+    type Coordinates,
     getTileCoordsAtZoom,
     parseLocation as sharedParseLocation,
-    type ZoomedTileCoords,
-    type Coordinates
-} from '../src/tile-coords.js';
+    type ZoomedTileCoords} from '../src/tile-coords.js';
 
 // Re-export types from shared module
 

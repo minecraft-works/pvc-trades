@@ -8,8 +8,9 @@
  */
 
 import debug from 'debug';
-import type { TileConfig, LoadTileOptions, ManifestEntry } from './tile-types.js';
+
 import { getWorldId } from '../library.js';
+import type { LoadTileOptions, ManifestEntry,TileConfig } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
 declare const L: typeof import('leaflet');

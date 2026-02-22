@@ -3,50 +3,51 @@
  * Run with: npm test
  */
 
-import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
+import { beforeAll, describe, expect, test, vi } from 'vitest';
+
 import {
-    matchesQuery,
-    enchantsMatch,
-    formatName,
     applyMapping,
-    getRegex,
-    parseShulkerContents,
-    highlight,
-    escapeHtml,
-    parseLocation,
-    processTrade,
-    filterTrade,
-    sortResults,
-    calculateItemValues,
-    countIndependentShops,
-    hasEnoughIndependentData,
-    getTrustedItemValue,
-    buildRatioGraph,
-    getRatio,
     buildExchangeMatrix,
-    loadFixedRatios,
-    loadBaseItems,
-    loadConfig,
+    buildRatioGraph,
+    calculateFitZoom,
+    calculateItemValues,
+    clampToCircle,
+    computeDashboardData,
+    countIndependentShops,
+    enchantsMatch,
+    escapeHtml,
+    filterTrade,
+    formatName,
+    formatRelativeTime,
+    fromLeafletCoordsRelative,
     getConfig,
-    median,
-    getWorldId,
+    getRatio,
+    getRegex,
     getTileCoords,
     getTileOffset,
-    calculateFitZoom,
-    toLeafletCoords,
-    toLeafletCoordsRelative,
-    fromLeafletCoordsRelative,
-    clampToCircle,
-    isNether,
     getTradeKey,
-    shouldSwitchMapWorld,
+    getTrustedItemValue,
+    getWorldId,
     getZoomForHeight,
-    formatRelativeTime,
-    computeDashboardData
-} from './library.js';
-import type { Item, MappingRule, Trade, FilterResult, TradeInput, ItemValues, AppConfig, BlockConversions, Recipe, Shop, TradeSnapshot, FavoriteItem } from './types.js';
+    hasEnoughIndependentData,
+    highlight,
+    isNether,
+    loadBaseItems,
+    loadConfig,
+    loadFixedRatios,
+    matchesQuery,
+    median,
+    parseLocation,
+    parseShulkerContents,
+    processTrade,
+    shouldSwitchMapWorld,
+    sortResults,
+    toLeafletCoords,
+    toLeafletCoordsRelative} from './library.js';
+import type { AppConfig, BlockConversions, FavoriteItem,FilterResult, Item, ItemValues, MappingRule, Recipe, Shop, Trade, TradeInput, TradeSnapshot } from './types.js';
 import { AppConfigSchema, DEFAULT_CONFIG } from './types.js';
 
 // String constants to avoid duplication
@@ -1543,15 +1544,14 @@ describe('clampToCircle', () => {
 // ============================================================================
 
 import {
-    toOverworldEquivalent,
-    calculateRouteDistance,
     buildDistanceMatrix,
-    nearestNeighborOrder,
     calculateOrderDistance,
-    twoOptOptimize,
+    calculateRouteDistance,
     computeOptimalOrder,
-    type RoutePoint
-} from './library.js';
+    nearestNeighborOrder,
+    type RoutePoint,
+    toOverworldEquivalent,
+    twoOptOptimize} from './library.js';
 
 describe('toOverworldEquivalent', () => {
     test('returns same coords for overworld', () => {
@@ -2091,10 +2091,9 @@ describe('shouldSwitchMapWorld', () => {
 
 import { 
     aggregateShoppingList, 
-    calculateTotalRouteDistance, 
     buildMarkerContent, 
-    buildStopTooltip 
-} from './library.js';
+    buildStopTooltip, 
+    calculateTotalRouteDistance} from './library.js';
 import type { RouteStop } from './types.js';
 
 describe('aggregateShoppingList', () => {

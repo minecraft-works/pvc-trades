@@ -10,32 +10,30 @@
  */
 
 import L from 'leaflet';
+
+import { SELECTORS } from '../constants.js';
+import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } from '../dialogs/index.js';
+import {
+    calculateFitZoom,
+    clampToCircle,
+    fromLeafletCoordsRelative,
+    getTileCoords,
+    getWorldId,
+    toLeafletCoords,
+    toLeafletCoordsRelative} from '../library.js';
+import { clearAllInterpolators,getInterpolator } from '../stores/player-interpolator.js';
 import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
-import { SELECTORS } from '../constants.js';
+import { fetchPlayers, getPlayerWorld } from './players.js';
 import {
-    TILE_CONFIG,
-    ZOOM4_TILE_SIZE,
-    loadTileManifest,
-    tileExistsInManifest,
+    calculateZoom4Coords,
     getCachedTileUrl,
+    loadTileManifest,
     setCachedTileUrl,
-    getPlayerWorld,
-    fetchPlayers,
-    calculateZoom4Coords
-} from './index.js';
-import type { MapTileContext } from './index.js';
-import {
-    toLeafletCoords,
-    toLeafletCoordsRelative,
-    fromLeafletCoordsRelative,
-    clampToCircle,
-    calculateFitZoom,
-    getTileCoords,
-    getWorldId
-} from '../library.js';
-import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } from '../dialogs/index.js';
-import { getInterpolator, clearAllInterpolators } from '../stores/player-interpolator.js';
+    TILE_CONFIG,
+    tileExistsInManifest,
+    ZOOM4_TILE_SIZE} from './tile-loader.js';
+import type { MapTileContext } from './tile-types.js';
 
 // ============================================================================
 // Module State

@@ -37,6 +37,27 @@ jobs:
       - name: Lint HTML
         run: npm run lint:html
 
+      - name: Lint file naming conventions
+        run: npm run lint:filenames
+
+      - name: Lint lockfile security
+        run: npm run lint:lockfile
+
+      - name: Check dependency architecture
+        run: npm run lint:deps
+
+      - name: Check circular dependencies
+        run: npm run lint:circular
+
+      - name: Spell check
+        run: npm run lint:spelling
+
+      - name: Parse safety check
+        run: npm run lint:parse-safety
+
+      - name: Dead code detection
+        run: npm run knip
+
       - name: Run unit tests
         run: npm test
 

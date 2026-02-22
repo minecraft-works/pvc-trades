@@ -2,12 +2,12 @@
  * Zoom behavior step definitions
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
 import {
-    setupPlayerApiMock,
     setupColoredTileMocks,
-    setupMultiWorldDataMock
-} from '../../tests/helpers/navigation-mocks';
+    setupMultiWorldDataMock,
+    setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // Selector constants to avoid string duplication
 const SELECTOR_TRADE_ROW = '.trade-row';

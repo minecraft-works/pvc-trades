@@ -7,19 +7,17 @@
  * @module valuation/item-values
  */
 
+import { formatName } from '../formatting.js';
+import {
+    blockConversionsStore,
+    configStore,
+} from '../stores/index.js';
 import {
     type ItemValues,
-    type TradeInput,
     type NormalizeResult,
     type PriceEntry,
+    type TradeInput,
 } from '../types.js';
-
-import {
-    configStore,
-    blockConversionsStore,
-} from '../stores/index.js';
-
-import { formatName } from '../library.js';
 import { getTrustedItemValue } from './statistics.js';
 
 // ============================================================================

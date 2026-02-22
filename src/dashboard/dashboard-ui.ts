@@ -7,16 +7,14 @@
  * @module dashboard/dashboard-ui
  */
 
+import { DASHBOARD } from '../constants.js';
 import {
-    escapeHtml,
     computeDashboardData,
+    escapeHtml,
     formatRelativeTime,
 } from '../library.js';
-
-import { DASHBOARD } from '../constants.js';
-
-import type { Trade, DashboardData, PriceDrop, WatchlistHit, TradeSnapshot, FavoriteItem } from '../types.js';
 import type { DeviationResult } from '../search/index.js';
+import type { DashboardData, FavoriteItem,PriceDrop, Trade, TradeSnapshot, WatchlistHit } from '../types.js';
 
 // ============================================================================
 // Constants

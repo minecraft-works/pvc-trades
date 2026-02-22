@@ -4,10 +4,11 @@
  * @module stores/navigation-store.test
  */
 
-import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
-import { navigationStore, type PlayerPosition } from './navigation-store.js';
-import type { RouteStop } from '../types.js';
+import { afterEach,beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { STORAGE_KEYS, WORLDS } from '../constants.js';
+import type { RouteStop } from '../types.js';
+import { navigationStore, type PlayerPosition } from './navigation-store.js';
 
 // Mock localStorage
 const localStorageMock = (() => {

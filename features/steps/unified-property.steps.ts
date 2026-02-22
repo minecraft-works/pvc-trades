@@ -2,15 +2,15 @@
  * Step definitions for unified navigation property tests
  * Tests mathematical correctness of cross-dimension coordinate mapping
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { type BasePageTracking,Given, Then, When } from './fixtures';
 import { 
-    toOverworldEquivalent, 
     calculateDistance, 
+    netherToOverworld,
     overworldToNether,
-    netherToOverworld
-} from './test-math-utilities';
+    toOverworldEquivalent} from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface

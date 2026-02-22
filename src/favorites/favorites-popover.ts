@@ -47,7 +47,7 @@ export function positionAndShowPopover(popover: HTMLElement, button: HTMLElement
 }
 
 /** Update threshold radio buttons and input in popover */
-export function updatePopoverThresholdControls(
+function updatePopoverThresholdControls(
     popover: HTMLElement,
     hasThreshold: boolean,
     thresholdValue: number

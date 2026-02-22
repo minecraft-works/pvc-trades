@@ -11,9 +11,10 @@
  * Computed deviations: A = −43%, B = −14%, C = +14%, D = +129%, E = 0%
  */
 import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
+
 import { setupColoredTileMocks } from '../../tests/helpers/navigation-mocks';
 import { mockConfigRoute } from '../../tests/helpers/test-config';
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Constants

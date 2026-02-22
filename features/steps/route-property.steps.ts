@@ -2,14 +2,14 @@
  * Step definitions for route display property tests
  * Tests mathematical correctness of coordinate conversion and distance calculations
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then, type BasePageTracking } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { type BasePageTracking,Given, Then, When } from './fixtures';
 import { 
     calculateDistance, 
-    overworldToNether,
-    netherToOverworld
-} from './test-math-utilities';
+    netherToOverworld,
+    overworldToNether} from './test-math-utilities';
 
 // ============================================================================
 // Page tracking interface

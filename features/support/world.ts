@@ -1,5 +1,6 @@
+import { IWorldOptions, setDefaultTimeout,setWorldConstructor, World } from '@cucumber/cucumber';
 import { Browser, BrowserContext, Page } from '@playwright/test';
-import { setWorldConstructor, World, IWorldOptions, setDefaultTimeout } from '@cucumber/cucumber';
+
 import type { PlayerMock } from '../../tests/helpers/navigation-mocks';
 
 // Step timeout - 3 seconds for fast UI operations

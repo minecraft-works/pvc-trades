@@ -7,27 +7,13 @@
  * @module search/deviation
  */
 
-import type { Trade, ItemValues } from '../types.js';
-import { formatName, getTrustedItemValue } from '../library.js';
 import { DEVIATION } from '../constants.js';
+import { formatName } from '../formatting.js';
+import type { DeviationResult,ItemValues,Trade } from '../types.js';
+import { getTrustedItemValue } from '../valuation/statistics.js';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Result of a deviation calculation
- */
-export interface DeviationResult {
-    /** The ratio of actual price to expected price (>1 = paying more) */
-    ratio: number;
-    /** Percentage deviation, clamped to [-99, 999] for display */
-    percent: number;
-    /** Display text like "+10%" or "−5%" */
-    text: string;
-    /** True if good deal (negative deviation), false if bad, undefined if neutral */
-    isGood: boolean | undefined;
-}
+// Re-export for backward compatibility
+export type { DeviationResult } from '../types.js';
 
 // ============================================================================
 // Deviation Calculator

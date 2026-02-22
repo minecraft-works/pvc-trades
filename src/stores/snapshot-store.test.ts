@@ -1,11 +1,11 @@
 /**
  * Unit tests for SnapshotStore (compact rolling history)
  */
-import { describe, test, expect, beforeEach } from 'vitest';
-import { STORAGE_KEYS, DASHBOARD } from '../constants.js';
+import { beforeEach,describe, expect, test } from 'vitest';
+
+import { DASHBOARD,STORAGE_KEYS } from '../constants.js';
+import type { DeviationResult, Trade, TradeSnapshot } from '../types.js';
 import { CompactSnapshotHistorySchema } from '../types.js';
-import type { Trade, TradeSnapshot } from '../types.js';
-import type { DeviationResult } from '../search/deviation.js';
 
 // Mock localStorage
 const mockLocalStorage = (() => {

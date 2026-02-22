@@ -8,19 +8,16 @@
  * @module cart/cart-dialog
  */
 
+import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
 import {
+    aggregateShoppingList,
+    computeOptimalOrder,
     getTradeKey,
     isNether,
     toOverworldEquivalent,
-    aggregateShoppingList,
-    computeOptimalOrder,
 } from '../library.js';
-
 import { cartStore, navigationStore } from '../stores/index.js';
-
-import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
-
-import type { Trade, RouteStop, ShoppingList } from '../types.js';
+import type { RouteStop, ShoppingList,Trade } from '../types.js';
 
 // ============================================================================
 // Local DOM helper
@@ -123,7 +120,7 @@ export function getAllCartStops(): RouteStop[] {
 // ============================================================================
 
 /** Aggregate cart into shopping lists */
-export function getShoppingList(): ShoppingList {
+function getShoppingList(): ShoppingList {
     return aggregateShoppingList(cartStore.items);
 }
 
@@ -212,7 +209,7 @@ export function syncNavProgressWithCart(route: RouteStop[]): void {
 // ============================================================================
 
 /** Get status for a route stop based on navigation progress */
-export function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
+function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
     if (stop.type === 'portal') {
         if (stopIndex < navigationStore.progress.currentIndex) { return 'completed'; }
         if (stopIndex === navigationStore.progress.currentIndex) { return 'current'; }

@@ -34,18 +34,19 @@
  * ============================================================================
  */
 
+import { formatName } from './formatting.js';
 import {
+    type Coordinates,
+    type FilterResult,
     type Item,
     type MappingRule,
     type Recipe,
     type Shop,
-    type Trade,
-    type FilterResult,
-    type SortColumn,
-    type SortDirection,
-    type Coordinates,
     type ShulkerItem,
     type ShulkerParseResult,
+    type SortColumn,
+    type SortDirection,
+    type Trade,
 } from './types.js';
 
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
@@ -56,13 +57,13 @@ export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
 // Re-export stores for backward compatibility - stores are now in src/stores/
 export {
+    blockConversionsStore,
     configStore,
-    getConfig,
-    loadConfig,
     coreBlocksStore,
+    getConfig,
     getCoreBlocks,
     loadBaseItems,
-    blockConversionsStore,
+    loadConfig,
     loadFixedRatios,
 } from './stores/index.js';
 
@@ -127,26 +128,10 @@ export function enchantsMatch(
 }
 
 // ============================================================================
-// Formatting Functions
+// Formatting Functions (extracted to src/formatting.ts to break circular deps)
 // ============================================================================
 
-/**
- * Format an item name for display (title case).
- * Uses item.name if present, otherwise formats item.type.
- * 
- * @param item - The item to format
- * @returns Formatted display name
- * 
- * @example
- * formatName({ type: 'DIAMOND_PICKAXE', name: '', amount: 1 }) // 'Diamond pickaxe'
- * formatName({ type: 'ITEM', name: 'Vote Diamond', amount: 1 }) // 'Vote diamond'
- */
-export function formatName(item: Item): string {
-    const text = item.name || item.type.replaceAll('_', ' ');
-    if (!text) { return ''; }
-    const lower = text.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
-}
+export { formatName } from './formatting.js';
 
 /**
  * Apply custom mapping rules to transform item types.
@@ -539,38 +524,37 @@ export function sortResults(
 // Valuation Re-exports (implementations moved to src/valuation/)
 // ============================================================================
 
-export { median, countIndependentShops, hasEnoughIndependentData, getTrustedItemValue } from './valuation/statistics.js';
-export { buildRatioGraph, getRatio, buildExchangeMatrix } from './valuation/ratio-graph.js';
 export { calculateItemValues } from './valuation/item-values.js';
+export { buildExchangeMatrix,buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
+export { countIndependentShops, getTrustedItemValue,hasEnoughIndependentData, median } from './valuation/statistics.js';
 
 // ============================================================================
 // Map Utilities Re-exports (implementations moved to src/map/map-math.ts)
 // ============================================================================
 
-export { isNether, getTradeKey, getWorldId, shouldSwitchMapWorld, getTileOffset, calculateFitZoom, toLeafletCoords, toLeafletCoordsRelative, fromLeafletCoordsRelative, clampToCircle } from './map/map-math.js';
+export { calculateFitZoom, clampToCircle,fromLeafletCoordsRelative, getTileOffset, getTradeKey, getWorldId, isNether, shouldSwitchMapWorld, toLeafletCoords, toLeafletCoordsRelative } from './map/map-math.js';
 
 // ============================================================================
 // Route Optimization Re-exports (implementations moved to src/routing/route-optimizer.ts)
 // ============================================================================
 
-export { type RoutePoint, toOverworldEquivalent, toViewCoords, calculateRouteDistance, buildDistanceMatrix, nearestNeighborOrder, calculateOrderDistance, twoOptOptimize, computeOptimalOrder } from './routing/route-optimizer.js';
+export { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, computeOptimalOrder,nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, toViewCoords, twoOptOptimize } from './routing/route-optimizer.js';
 
 // ============================================================================
 // Shopping & Navigation Re-exports (implementations moved to src/routing/navigation-helpers.ts)
 // ============================================================================
 
-export { aggregateShoppingList, calculateTotalRouteDistance, buildMarkerContent, buildStopTooltip, getZoomForHeight, hasPositionMoved } from './routing/navigation-helpers.js';
+export { aggregateShoppingList, buildMarkerContent, buildStopTooltip, calculateTotalRouteDistance, getZoomForHeight, hasPositionMoved } from './routing/navigation-helpers.js';
 
 // ============================================================================
 // Player Position Interpolation Re-exports (kept in library.ts as canonical source)
 // ============================================================================
 
-export { type Velocity2D, type Position2D, type InterpolatedPosition, estimateVelocity, extrapolatePosition, lerpPosition, lerpAngle, shouldExtrapolate } from './interpolation/interpolation.js';
+export { estimateVelocity, extrapolatePosition, type InterpolatedPosition, lerpAngle, lerpPosition, type Position2D, shouldExtrapolate,type Velocity2D } from './interpolation/interpolation.js';
 
 // ============================================================================
 // Dashboard Data Re-exports (implementations moved to src/dashboard/dashboard-data.ts)
 // ============================================================================
 
-export { formatRelativeTime, computeDashboardData } from './dashboard/dashboard-data.js';
-
-export {getTileCoordsAtZoom, getTileBounds, getBlocksPerTile, getTileCoords} from './tile-coords.js';
+export { computeDashboardData,formatRelativeTime } from './dashboard/dashboard-data.js';
+export {getBlocksPerTile, getTileBounds, getTileCoords,getTileCoordsAtZoom} from './tile-coords.js';

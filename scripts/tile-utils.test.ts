@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect,it } from 'vitest';
+
 import {
+    calculateRateLimitDelay,
+    getNormalizedWorld,
     getTileCoords,
     getTileFilename,
     getTilePath,
     getTileUrl,
-    getWorldId,
-    parseLocation,
-    getNormalizedWorld,
     getUniqueTiles,
-    calculateRateLimitDelay
-} from './tile-utils';
+    getWorldId,
+    parseLocation} from './tile-utils';
 
 describe('getTileCoords', () => {
     const tileSize = 512;

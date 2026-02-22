@@ -2,10 +2,11 @@
  * Step definitions for cart quantity property tests
  * Tests mathematical correctness of cart calculations
  */
-import { expect } from '@playwright/test';
-import { Given, When, Then } from './fixtures';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
 import { setupColoredTileMocks, setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Page tracking interface

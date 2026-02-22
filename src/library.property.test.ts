@@ -17,32 +17,33 @@
  * fc.assert(property, { seed: 1234567890, path: "0:1:2" });
  * ```
  */
-import { describe, test, expect, beforeAll } from 'vitest';
 // eslint-disable-next-line sonarjs/no-wildcard-import -- fast-check's fc namespace is idiomatic
 import * as fc from 'fast-check';
+import { beforeAll,describe, expect, test } from 'vitest';
+
 import {
-    escapeHtml,
-    matchesQuery,
-    median,
-    toOverworldEquivalent,
-    calculateRouteDistance,
-    nearestNeighborOrder,
-    twoOptOptimize,
     buildDistanceMatrix,
     calculateOrderDistance,
-    getRegex,
+    calculateRouteDistance,
+    clampToCircle,
+    escapeHtml,
+    filterTrade,
     formatName,
+    getRegex,
     getTileCoords,
     getTileOffset,
-    clampToCircle,
-    filterTrade,
-    sortResults,
-    isNether,
     getWorldId,
     highlight,
+    isNether,
+    matchesQuery,
+    median,
+    nearestNeighborOrder,
     parseLocation,
+    sortResults,
+    toOverworldEquivalent,
+    twoOptOptimize,
 } from './library.js';
-import type { RoutePoint, Trade, FilterResult, Item } from './types.js';
+import type { FilterResult, Item,RoutePoint, Trade } from './types.js';
 
 // Configure fast-check globally: 500 runs per property
 beforeAll(() => {

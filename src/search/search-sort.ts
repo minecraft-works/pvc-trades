@@ -9,28 +9,24 @@
  * @module search/search-sort
  */
 
+import {
+    COLUMNS,
+    SORT,
+} from '../constants.js';
+import { isFavoritesFilterActive } from '../favorites/index.js';
+import {
+    filterTrade,
+    getRegex,
+    getTradeKey,
+} from '../library.js';
+import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
-    Trade,
+    DeviationResult,
     FilterResult,
     SortColumn,
     SortDirection,
+    Trade,
 } from '../types.js';
-
-import type { DeviationResult } from './deviation.js';
-
-import {
-    getRegex,
-    getTradeKey,
-    filterTrade,
-} from '../library.js';
-
-import {
-    SORT,
-    COLUMNS,
-} from '../constants.js';
-
-import { cartStore, favoritesStore } from '../stores/index.js';
-import { isFavoritesFilterActive } from '../favorites/index.js';
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -89,7 +85,7 @@ export interface SearchSortHandler {
 // ============================================================================
 
 /** Get total cost amount including optional second item */
-export function getTotalCostAmount(t: Trade): number {
+function getTotalCostAmount(t: Trade): number {
     return t.item1.amount + (t.item2?.amount || 0);
 }
 
