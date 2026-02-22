@@ -74,20 +74,28 @@ Poll N arrives (t=0)        Poll N+1 arrives (t=1000ms)
 - **Saturating extrapolation**: Target uses asymptotic curve (τ=500ms) instead of linear, capping energy buildup
 - **Max tracking**: Spring freezes after 3000ms without new sample (prevents runaway)
 - **Dt clamping**: Individual spring steps clamped to 100ms to prevent instability from frame drops
-- **Per-player state**: Each player gets an independent `PlayerInterpolator` instance via a shared registry
+- **Per-player state**: Each player gets an independent `PlayerInterpolator` instance managed by `PlayerPositionService`
 - **Semi-implicit Euler**: Symplectic integrator (velocity-first) preserves energy better than explicit Euler
 
 ## Architecture
 
 ```
-interpolation/interpolation.ts (pure math)
-├── estimateVelocity(previous, current, dtMs) — unchanged
-├── springStep(displayPos, targetPos, displayVel, k, damping, dtMs) → { position, velocity }
-├── lerpAngle(from, to, t) — shortest-path angular interpolation (unchanged)
-├── SPRING_STIFFNESS = 25  (k, 1/s²)
-└── SPRING_DAMPING = 10   (c, 1/s, ζ = 1.0)
+stores/player-position-service.ts (public API — singleton)
+├── PlayerPositionService class
+│   ├── pushSample(name, sample) — creates or updates per-player interpolator
+│   ├── getCurrentPosition(name) → InterpolatedPosition | undefined
+│   ├── getPositionAt(name, timestamp) → InterpolatedPosition | undefined
+│   ├── getLastConfirmedPosition(name) → PositionSample | undefined
+│   ├── getPhase(name) → 'idle' | 'tracking' | undefined
+│   ├── getVelocity(name) → { vx, vz } | undefined
+│   ├── resetPlayer(name) — reset interpolator state (e.g., portal crossing)
+│   ├── removePlayer(name) — dispose single player's interpolator
+│   ├── clear() — dispose all interpolators
+│   ├── getPlayerNames() → string[]
+│   └── size → number
+└── Exported singleton: playerPositionService
 
-stores/player-interpolator.ts (stateful, per-player)
+stores/player-interpolator.ts (internal — per-player physics)
 ├── PlayerInterpolator class
 │   ├── pushSample(sample) — updates attraction point, estimates velocity
 │   ├── getDisplayPosition(now) → InterpolatedPosition | undefined
@@ -96,22 +104,54 @@ stores/player-interpolator.ts (stateful, per-player)
 │   │   - Y: exponential approach (~200ms to 95%)
 │   │   - Yaw: shortest-path lerped over 200ms
 │   └── reset()
-└── Registry functions (unchanged)
-    ├── getInterpolator(name)
-    ├── removeInterpolator(name)
-    ├── clearAllInterpolators()
-    └── getAllInterpolators()
+└── No registry — PlayerPositionService manages the Map<string, PlayerInterpolator>
 
-main.ts (navigation context) — unchanged
-├── handleFoundPlayer → pushSample + authoritative logic
-├── startNavAnimationLoop → rAF reads interpolated position + yaw
-└── stopNavigation → cleanup interpolator
+interpolation/interpolation.ts (pure math)
+├── estimateVelocity(previous, current, dtMs)
+├── springStep(displayPos, targetPos, displayVel, k, damping, dtMs) → { position, velocity }
+├── lerpAngle(from, to, t) — shortest-path angular interpolation
+├── SPRING_STIFFNESS = 25  (k, 1/s²)
+└── SPRING_DAMPING = 10   (c, 1/s, ζ = 1.0)
 
-map/shop-map-dialog.ts (shop map context) — unchanged
-├── fetchPlayersAndUpdateCache → pushSample for each player
-├── startShopMapAnimLoop → rAF updates all on-screen markers
-└── stopShopMapAnimLoop → cleanup on dialog close
+navigation/live-navigation.ts (navigation context)
+├── handleFoundPlayer → playerPositionService.pushSample + authoritative logic
+├── handlePortalCrossing → playerPositionService.resetPlayer + re-push
+├── fetchInitialPlayerPosition → playerPositionService.pushSample
+└── stopNavigation → playerPositionService.removePlayer
+
+navigation/nav-updates.ts (animation loop)
+└── tick → playerPositionService.getPositionAt(name, now) for marker position
+
+map/shop-map-dialog.ts (shop map context)
+├── fetchPlayersAndUpdateCache → playerPositionService.pushSample for each player
+├── startShopMapAnimLoop → playerPositionService.getPositionAt per marker
+└── stopShopMapAnimLoop → playerPositionService.clear()
+
+main.ts (wiring)
+└── Injects playerPositionService into navigation and nav-updates deps
 ```
+
+### Layering
+
+```
+ ┌─────────────────────────────────┐
+ │  Consumers (nav, shop map, …)  │  ← sample at any time
+ └────────────┬────────────────────┘
+              │ getCurrentPosition / getPositionAt
+ ┌────────────▼────────────────────┐
+ │   PlayerPositionService         │  ← singleton, manages per-player state
+ └────────────┬────────────────────┘
+              │ internal Map<string, PlayerInterpolator>
+ ┌────────────▼────────────────────┐
+ │   PlayerInterpolator            │  ← spring-damper physics per player
+ └────────────┬────────────────────┘
+              │ springStep, estimateVelocity
+ ┌────────────▼────────────────────┐
+ │   interpolation.ts (pure math)  │  ← stateless functions
+ └─────────────────────────────────┘
+```
+
+Any feature that needs a player's interpolated position calls `playerPositionService.getPositionAt(name, timestamp)`. The service lazily creates a `PlayerInterpolator` on the first `pushSample` and manages its lifecycle. Consumers never interact with `PlayerInterpolator` directly.
 
 ### Rendering Separation
 
@@ -140,17 +180,17 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
 
 ### Neutral
 - Max tracking (3s) means markers freeze if polling stops — same as previous behavior
-- Registry is global but lightweight; interpolators for offline players are removed naturally
+- `PlayerPositionService` is a singleton but lightweight; interpolators for offline players are removed by consumers (`removePlayer` / `clear`)
 - Spring constants (k=25, c=10) are critically damped — tuned to eliminate overshoot
 
 ## Testing
 
 - **Unit tests** in `src/interpolation.test.ts` covering:
   - `springStep`: convergence, damping, dt clamping, stiffness scaling, axis proportionality
-  - `estimateVelocity`: same as before (teleport rejection, speed validation)
-  - `lerpAngle`: same as before (wrapping, clamping, normalization)
+  - `estimateVelocity`: teleport rejection, speed validation
+  - `lerpAngle`: wrapping, clamping, normalization
   - `PlayerInterpolator`: tracking convergence, seamless sample transitions, teleport snap, Y/yaw interpolation, freeze on timeout, reset, direction changes, **overshoot prevention** (player stops, reverses, polling sync mismatch)
-  - Registry: same as before (create, remove, clear, case-insensitive)
+  - `PlayerPositionService`: pushSample creation, getCurrentPosition/getPositionAt, case-insensitive names, removePlayer, clear, getPlayerNames, getLastConfirmedPosition, resetPlayer, getVelocity, getPhase, undefined for untracked players
 - Integration tested via existing BDD scenarios (markers still render correctly)
 
 ## References

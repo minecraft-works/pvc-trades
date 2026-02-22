@@ -50,8 +50,8 @@ export interface NavUpdatesDeps {
     computeRoute: (origin?: { x: number; z: number; world: string }, excludeCompleted?: boolean) => RouteStop[];
     getAllCartStops: () => RouteStop[];
     renderCartDialog: () => void;
-    getInterpolator: (name: string) => {
-        getDisplayPosition: (now: number) => { x: number; z: number; yaw?: number } | undefined;
+    playerPositionService: {
+        getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number } | undefined;
     };
 }
 
@@ -363,8 +363,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
                 return;
             }
 
-            const interpolator = deps.getInterpolator(playerName);
-            const displayPos = interpolator.getDisplayPosition(performance.now());
+            const displayPos = deps.playerPositionService.getPositionAt(playerName, performance.now());
 
             if (displayPos) {
                 const viewWorld = deps.navigationStore.viewWorld;

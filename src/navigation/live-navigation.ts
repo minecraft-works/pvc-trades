@@ -62,13 +62,13 @@ export interface LiveNavigationDeps {
     switchTab: (tab: 'cart' | 'navigate') => void;
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     getConfig: () => { dynmap: { playerRefreshMs: number } };
-    getInterpolator: (name: string) => {
-        pushSample: (sample: { x: number; y: number; z: number; yaw?: number; timestamp: number }) => void;
-        reset: () => void;
-        phase: string;
-        velocity: { vx: number; vz: number };
+    playerPositionService: {
+        pushSample: (name: string, sample: { x: number; y: number; z: number; yaw?: number; timestamp: number }) => void;
+        resetPlayer: (name: string) => void;
+        removePlayer: (name: string) => void;
+        getPhase: (name: string) => string | undefined;
+        getVelocity: (name: string) => { vx: number; vz: number } | undefined;
     };
-    removeInterpolator: (name: string) => void;
     updateNearbyShopTooltip: () => void;
     cartStoreUniqueCount: () => number;
 }
@@ -104,15 +104,19 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     }
 }
 
-/** Push a player position sample to the interpolator */
-function pushInterpolatorSample(interpolator: ReturnType<LiveNavigationDeps['getInterpolator']>, player: Player): void {
-    interpolator.pushSample({
+/** Push a player position sample to the position service and log debug info */
+function pushPlayerSampleWithDebug(service: LiveNavigationDeps['playerPositionService'], player: Player): void {
+    service.pushSample(player.name, {
         x: player.position.x,
         y: player.position.y,
         z: player.position.z,
         yaw: player.rotation?.yaw,
         timestamp: performance.now(),
     });
+    const phase = service.getPhase(player.name) ?? 'idle';
+    const vel = service.getVelocity(player.name);
+    debugInterpolation('sample pushed player=%s phase=%s vx=%.4f vz=%.4f',
+        player.name, phase, vel ? vel.vx : 0, vel ? vel.vz : 0);
 }
 
 // ============================================================================
@@ -235,9 +239,8 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         debugNavigation('Player crossed portal from %s to %s, auto-switching view', previousWorld, playerWorld);
         deps.navigationStore.setViewWorld(playerWorld);
 
-        const interpolator = deps.getInterpolator(player.name);
-        interpolator.reset();
-        pushInterpolatorSample(interpolator, player);
+        deps.playerPositionService.resetPlayer(player.name);
+        pushPlayerSampleWithDebug(deps.playerPositionService, player);
 
         const worldToggleButton = document.querySelector<HTMLButtonElement>(SELECTORS.NAV_WORLD_TOGGLE);
         if (worldToggleButton) {
@@ -270,10 +273,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             return;
         }
 
-        const interpolator = deps.getInterpolator(player.name);
-        pushInterpolatorSample(interpolator, player);
-        debugInterpolation('sample pushed player=%s phase=%s vx=%.4f vz=%.4f',
-            player.name, interpolator.phase, interpolator.velocity.vx, interpolator.velocity.vz);
+        pushPlayerSampleWithDebug(deps.playerPositionService, player);
 
         deps.navUpdatesHandler.updatePlayerMarker();
         deps.navUpdatesHandler.updateLiveDistance();
@@ -339,8 +339,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             // @ts-expect-error - exposed for testing
             globalThis.__currentPlayerPosition = position;
 
-            const interpolator = deps.getInterpolator(player.name);
-            interpolator.pushSample({ x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.rotation?.yaw, timestamp: performance.now() });
+            deps.playerPositionService.pushSample(player.name, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.rotation?.yaw, timestamp: performance.now() });
             debugNavigation('Initial player position world=%s x=%d y=%d z=%d', playerWorld, player.position.x, player.position.y, player.position.z);
         } catch (error) {
             debugNavigation('Failed to get initial player position: %s', error);
@@ -403,7 +402,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
         const stoppingPlayerName = deps.navigationStore.playerName;
         deps.navUpdatesHandler.stopNavAnimationLoop();
-        deps.removeInterpolator(stoppingPlayerName);
+        deps.playerPositionService.removePlayer(stoppingPlayerName);
         deps.navigationStore.stop();
 
         if (state.routePolyline && state.map) { state.map.removeLayer(state.routePolyline); }

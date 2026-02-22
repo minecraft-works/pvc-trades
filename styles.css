@@ -933,6 +933,10 @@ mark {
 /* Player marker on navigation map */
 .nav-player-marker {
     background: transparent;
+
+    /* Force GPU acceleration for smooth sub-pixel interpolation at all zoom levels */
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 /* Direction arrow - cone/wedge style pointing outward */
