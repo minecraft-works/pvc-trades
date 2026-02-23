@@ -7,9 +7,11 @@
  * - Memory usage with many tiles
  * - Response time degradation
  */
-import { test, expect } from './helpers/global-setup';
-import type { Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
+
+import type { Page } from '@playwright/test';
+
+import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // ============================================================================

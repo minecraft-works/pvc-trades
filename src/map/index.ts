@@ -35,10 +35,9 @@ export {
     getCachedTileUrl,
     loadTileManifest,
     loadTileToMap,
-    setCachedTileUrl,
+    OVERVIEW_TILE_SIZE,    setCachedTileUrl,
     TILE_CONFIG,
-    tileExistsInManifest,
-    OVERVIEW_TILE_SIZE} from './tile-loader.js';
+    tileExistsInManifest} from './tile-loader.js';
 
 // Player utilities
 export {
