@@ -458,9 +458,19 @@ When('I hover over the nether shop marker', async ({ page }) => {
     }
     
     await expect(netherMarker).toBeVisible({ timeout: 3000 });
-    await netherMarker.scrollIntoViewIfNeeded();
-    await netherMarker.hover({ force: true, timeout: 5000 });
-    
+
+    // Leaflet markers are CSS-positioned within the map pane — Playwright's hover
+    // fails when the element is outside the viewport even with force:true.
+    // Dispatch mouseover/mouseenter directly to trigger the Leaflet tooltip without
+    // requiring the element to be within browser viewport bounds.
+    await page.evaluate((selector) => {
+        const el = document.querySelector(selector);
+        if (el) {
+            el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+            el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        }
+    }, SELECTOR_NETHER_MARKER);
+
     // Wait for tooltip to appear
     await page.waitForSelector('.leaflet-tooltip', { state: 'visible', timeout: 2000 });
 });
