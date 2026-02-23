@@ -1,8 +1,10 @@
 /**
- * Tile utility functions for dynmap tile fetching.
+ * Tile utility functions for build-time tile fetching.
  * Extracted from fetch-tiles.js for testability.
  * 
  * Core coordinate calculations are now in src/tile-coords.ts (shared with runtime).
+ * URL generation and world ID mapping delegated to TileProvider at runtime,
+ * but build scripts use the TileUrlBuilder abstraction.
  */
 
 // Import shared coordinate utilities
@@ -16,6 +18,14 @@ import {
 
 // Re-export TileCoords as an alias to ZoomedTileCoords for backward compatibility
 export type TileCoords = ZoomedTileCoords;
+
+/**
+ * Function that builds a tile URL for a given world and tile coordinates.
+ * 
+ * Abstracts away the URL pattern so both Dynmap and BlueMap
+ * (or any future provider) can be used by build scripts.
+ */
+export type TileUrlBuilder = (world: string, tileX: number, tileZ: number) => string;
 
 export interface ShopInput {
     location: string;
@@ -33,6 +43,8 @@ export interface TileInfo {
     tileX: number;
     tileZ: number;
     blocksPerTile: number;
+    /** Provider-specific level identifier (e.g., zoom 8 for Dynmap, LOD 1 for BlueMap) */
+    levelId: number;
     url: string;
     shops: ShopLocation[];
 }
@@ -103,6 +115,15 @@ export function getTileUrl(
 }
 
 /**
+ * Create a TileUrlBuilder for Dynmap at a specific zoom level.
+ * Wraps getTileUrl into the provider-agnostic interface.
+ */
+export function createDynmapUrlBuilder(baseUrl: string, zoom: number): TileUrlBuilder {
+    return (world: string, tileX: number, tileZ: number) =>
+        getTileUrl(baseUrl, world, zoom, tileX, tileZ);
+}
+
+/**
  * Convert world name to dynmap world ID.
  */
 export function getWorldId(world: string): string {
@@ -147,27 +168,32 @@ export function getNormalizedWorld(world: string): string {
 
 /**
  * Get unique tiles needed for all shops (including 5x5 neighbors).
+ * 
+ * @param shops - Array of shop data with location and world
+ * @param blocksPerTile - Number of blocks covered by each tile at this level
+ * @param levelId - Provider-specific level identifier (e.g., zoom 8, LOD 1)
+ * @param urlBuilder - Function to generate tile URLs for the active provider
  */
 export function getUniqueTiles(
     shops: ShopInput[],
-    zoom: number,
-    maxZoom: number,
-    tileSize: number,
-    baseUrl: string
+    blocksPerTile: number,
+    levelId: number,
+    urlBuilder: TileUrlBuilder
 ): TileInfo[] {
     const tilesMap = new Map<string, TileInfo>();
     
     for (const shop of shops) {
         const { x, z } = parseLocation(shop.location);
         const world = shop.world.replace('minecraft:', '');
-        const { tileX, tileZ, blocksPerTile } = getTileCoords(x, z, zoom, maxZoom, tileSize);
+        const tileX = Math.floor(x / blocksPerTile);
+        const tileZ = Math.floor(z / blocksPerTile);
         
         // Add the center tile and all 24 neighbors (5x5 grid)
         for (let dx = -2; dx <= 2; dx++) {
             for (let dz = -2; dz <= 2; dz++) {
                 const tx = tileX + dx;
                 const tz = tileZ + dz;
-                const key = `${world}/${zoom}/${tx}_${tz}`;
+                const key = `${world}/${levelId}/${tx}_${tz}`;
                 
                 if (!tilesMap.has(key)) {
                     tilesMap.set(key, {
@@ -175,7 +201,8 @@ export function getUniqueTiles(
                         tileX: tx,
                         tileZ: tz,
                         blocksPerTile,
-                        url: getTileUrl(baseUrl, world, zoom, tx, tz),
+                        levelId,
+                        url: urlBuilder(world, tx, tz),
                         shops: []
                     });
                 }
@@ -192,22 +219,28 @@ export function getUniqueTiles(
 }
 
 /**
- * Get all zoom 4 tiles in a specific range.
- * Used to provide base map coverage across a region.
+ * Get all tiles in a specific range for base map coverage.
+ * 
+ * @param minTileX - Minimum tile X coordinate
+ * @param maxTileX - Maximum tile X coordinate
+ * @param minTileZ - Minimum tile Z coordinate
+ * @param maxTileZ - Maximum tile Z coordinate
+ * @param blocksPerTile - Number of blocks covered by each tile at this level
+ * @param levelId - Provider-specific level identifier (e.g., zoom 4, LOD 3)
+ * @param urlBuilder - Function to generate tile URLs for the active provider
+ * @param world - World name (default: 'overworld')
  */
 export function getBaseMapTiles(
     minTileX: number,
     maxTileX: number,
     minTileZ: number,
     maxTileZ: number,
-    zoom: number,
-    maxZoom: number,
-    tileSize: number,
-    baseUrl: string,
+    blocksPerTile: number,
+    levelId: number,
+    urlBuilder: TileUrlBuilder,
     world: string = 'overworld'
 ): TileInfo[] {
     const tiles: TileInfo[] = [];
-    const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
     
     for (let tx = minTileX; tx <= maxTileX; tx++) {
         for (let tz = minTileZ; tz <= maxTileZ; tz++) {
@@ -216,7 +249,8 @@ export function getBaseMapTiles(
                 tileX: tx,
                 tileZ: tz,
                 blocksPerTile,
-                url: getTileUrl(baseUrl, world, zoom, tx, tz),
+                levelId,
+                url: urlBuilder(world, tx, tz),
                 shops: []
             });
         }

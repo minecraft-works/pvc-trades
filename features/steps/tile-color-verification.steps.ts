@@ -12,7 +12,7 @@ import { Given, Then,When } from './fixtures';
 // Color thresholds and types
 // ============================================================================
 
-const BRIGHTNESS_THRESHOLD = 150;  // Above = bright (zoom 8), Below = dark (zoom 4)
+const BRIGHTNESS_THRESHOLD = 150;  // Above = bright (detail), Below = dark (overview)
 const AMBIGUOUS_MIN = 140;         // Ambiguous range: [140, 149] - gap between dark and bright
 const AMBIGUOUS_MAX = 149;
 const CHECKERBOARD_DIFFERENCE = 0.15;  // 15% brightness difference
@@ -31,13 +31,13 @@ interface PageWithTileTracking extends Page {
     __lastPlayerX?: number;
     __lastPlayerZ?: number;
     __useColorEncoding?: boolean;
-    __zoom8Available?: boolean;
+    __detailLevelAvailable?: boolean;
     __manifestRequestTime?: number;
     __firstTileRequestTime?: number;
     __currentMapZoom?: number;
     __savedTileCount?: number;
-    __zoom4Delay?: number;
-    __zoom8Delay?: number;
+    __overviewDelay?: number;
+    __detailDelay?: number;
 }
 
 // ============================================================================
@@ -217,8 +217,8 @@ Given('the navigation map is open at map zoom {int}', async ({ page, tileRequest
     await page.waitForTimeout(1000);
     
     // For request verification tests:
-    // - If checking "no zoom-8 at low zoom": use allRequests (includes initialization)
-    // - If checking "zoom-8 at high zoom": track after setting target zoom
+    // - If checking "no detail tiles at low zoom": use allRequests (includes initialization)
+    // - If checking "detail tiles at high zoom": track after setting target zoom
     // Store both for test steps to use appropriately
     p.__tileRequests = allRequests;
     p.__tileRequestsAtTargetZoom = allRequests.slice(allRequests.length > 0 ? -20 : 0);
@@ -246,12 +246,12 @@ Given(String.raw`a {word} shop exists at \({int}, {int}\)`, async ({ page }, wor
     p.__lastPlayerZ = z;
 });
 
-Given(String.raw`a tile at \({int}, {int}\) at zoom {int}`, async ({ page }, tileX: number, tileZ: number, zoom: number) => {
+Given(String.raw`a tile at \({int}, {int}\) at level {int}`, async ({ page }, tileX: number, tileZ: number, level: number) => {
     // Store for later verification
     const p = page as PageWithTileTracking;
     (p as unknown as { __testTileX: number }).__testTileX = tileX;
     (p as unknown as { __testTileZ: number }).__testTileZ = tileZ;
-    (p as unknown as { __testZoom: number }).__testZoom = zoom;
+    (p as unknown as { __testLevel: number }).__testLevel = level;
 });
 
 Given(String.raw`a nether shop at nether coordinates \({int}, {int}\)`, async ({ page }, netherX: number, netherZ: number) => {
@@ -272,9 +272,9 @@ Given('tiles are currently {word}', async ({ page }, brightness: string) => {
     (p as unknown as { __expectedStartBrightness: string }).__expectedStartBrightness = brightness;
 });
 
-Given('zoom-8 tiles are unavailable for the current area', async ({ page }) => {
+Given('detail tiles are unavailable for the current area', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    p.__zoom8Available = false;
+    p.__detailLevelAvailable = false;
 });
 
 // Store mock shop data for dynamic shop creation
@@ -367,7 +367,7 @@ When(String.raw`I center the map on world coordinates \({int}, {int}\)`, async (
         if (map) {
             // Leaflet uses lat/lng, we need to convert from Minecraft coords
             // In our tile system, x maps to lng, z maps to lat (negated)
-            map.setView([-z, x], 8); // Force zoom 8 for consistent testing
+            map.setView([-z, x], 2); // Force detail level for consistent testing
             map.invalidateSize(); // Force tile recalculation
         }
     }, { x, z });
@@ -547,8 +547,8 @@ When('I open the navigation map', async ({ page }) => {
     await page.waitForTimeout(1000);
 });
 
-When('the map falls back to zoom-4 tiles', async ({ page }) => {
-    // Fallback happens automatically when zoom-8 unavailable
+When('the map falls back to overview tiles', async ({ page }) => {
+    // Fallback happens automatically when detail tiles are unavailable
     await page.waitForTimeout(500);
 });
 
@@ -605,7 +605,7 @@ When('player position updates {int} times within the same tile', async ({ page }
     const baseX = p.__lastPlayerX ?? 100;
     const baseZ = p.__lastPlayerZ ?? 200;
 
-    // Update position slightly within same tile (tile is 512 blocks)
+    // Update position slightly within same tile (tile is 256 blocks)
     for (let index = 0; index < count; index++) {
         const newX = baseX + (index % 10);
         const newZ = baseZ + (index % 10);
@@ -624,11 +624,11 @@ Then(String.raw`the expected tile \({int}, {int}\) for world {string} should be 
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     
-    // URL format is /tiles/{world}/{zoomLevel}/{tileX}/{tileZ}.png
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
     const worldPath = world === 'the_nether' ? 'the_nether' : 'overworld';
     const patterns = [
-        `/${worldPath}/8/${tileX}/${tileZ}.png`,
-        `/tiles/${worldPath}/8/${tileX}/${tileZ}.png`,
+        `/${worldPath}/2/${tileX}/${tileZ}.png`,
+        `/tiles/${worldPath}/2/${tileX}/${tileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -643,22 +643,22 @@ Then(String.raw`the expected tile \({int}, {int}\) for world {string} should be 
         console.log(`Requests for ${world}:`, worldRequests.slice(0, 10));
     }
     
-    expect(found, `Expected tile (${tileX}, ${tileZ}) in ${world} at zoom 8 to be requested. Got ${requests.length} total requests.`).toBe(true);
+    expect(found, `Expected tile (${tileX}, ${tileZ}) in ${world} at detail level to be requested. Got ${requests.length} total requests.`).toBe(true);
 });
 
 Then(String.raw`a tile containing coordinates \({int}, {int}\) should be requested`, async ({ page }, x: number, z: number) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     
-    // Calculate which tile contains these coordinates at zoom 8 (512 blocks per tile)
-    const blocksPerTile = 512;
+    // Calculate which tile contains these coordinates at detail level (256 blocks per tile)
+    const blocksPerTile = 256;
     const expectedTileX = Math.floor(x / blocksPerTile);
     const expectedTileZ = Math.floor(z / blocksPerTile);
     
-    // URL format is /tiles/{world}/{zoomLevel}/{tileX}/{tileZ}.png
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
     const patterns = [
-        `/overworld/8/${expectedTileX}/${expectedTileZ}.png`,
-        `/tiles/overworld/8/${expectedTileX}/${expectedTileZ}.png`,
+        `/overworld/2/${expectedTileX}/${expectedTileZ}.png`,
+        `/tiles/overworld/2/${expectedTileX}/${expectedTileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -670,22 +670,22 @@ Then(String.raw`a tile containing coordinates \({int}, {int}\) should be request
         console.log('Patterns searched:', patterns);
         
         // Extract tile coordinates from actual requests
-        const overworldRequests = requests.filter(url => url.includes('/overworld/8/'));
-        console.log('Overworld zoom-8 tiles:', overworldRequests.slice(0, 10));
+        const overworldRequests = requests.filter(url => url.includes('/overworld/2/'));
+        console.log('Overworld detail tiles:', overworldRequests.slice(0, 10));
     }
     
     expect(found, `Expected tile (${expectedTileX}, ${expectedTileZ}) containing coords (${x}, ${z}) to be requested. Got ${requests.length} total requests.`).toBe(true);
 });
 
-Then(String.raw`tile \({int}, {int}\) should be requested at zoom 8`, async ({ page }, tileX: number, tileZ: number) => {
+Then(String.raw`tile \({int}, {int}\) should be requested at detail level`, async ({ page }, tileX: number, tileZ: number) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    // URL format is /tiles/{world}/{zoomLevel}/{tileX}/{tileZ}.png
-    // Zoom level 8 = 512 blocks per tile
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
+    // Detail level 2 = 256 blocks per tile
     const patterns = [
-        `/overworld/8/${tileX}/${tileZ}.png`,
-        `/tiles/overworld/8/${tileX}/${tileZ}.png`,
+        `/overworld/2/${tileX}/${tileZ}.png`,
+        `/tiles/overworld/2/${tileX}/${tileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -695,33 +695,33 @@ Then(String.raw`tile \({int}, {int}\) should be requested at zoom 8`, async ({ p
         console.log(`Looking for tile (${tileX}, ${tileZ}), patterns:`, patterns);
     }
     
-    expect(found, `Expected tile (${tileX}, ${tileZ}) at zoom 8 to be requested. Got ${requests.length} requests.`).toBe(true);
+    expect(found, `Expected tile (${tileX}, ${tileZ}) at detail level to be requested. Got ${requests.length} requests.`).toBe(true);
 });
 
 Then('the tile\'s west edge should be at x = {int}', async ({ page }, westX: number) => {
-    const p = page as unknown as { __testTileX: number; __testZoom: number };
-    const blocksPerTile = p.__testZoom === 8 ? 512 : 8192;
+    const p = page as unknown as { __testTileX: number; __testLevel: number };
+    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
     const calculatedWest = p.__testTileX * blocksPerTile;
     expect(calculatedWest).toBe(westX);
 });
 
 Then('the tile\'s east edge should be at x = {int}', async ({ page }, eastX: number) => {
-    const p = page as unknown as { __testTileX: number; __testZoom: number };
-    const blocksPerTile = p.__testZoom === 8 ? 512 : 8192;
+    const p = page as unknown as { __testTileX: number; __testLevel: number };
+    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
     const calculatedEast = (p.__testTileX + 1) * blocksPerTile;
     expect(calculatedEast).toBe(eastX);
 });
 
 Then('the tile\'s north edge should be at z = {int}', async ({ page }, northZ: number) => {
-    const p = page as unknown as { __testTileZ: number; __testZoom: number };
-    const blocksPerTile = p.__testZoom === 8 ? 512 : 8192;
+    const p = page as unknown as { __testTileZ: number; __testLevel: number };
+    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
     const calculatedNorth = p.__testTileZ * blocksPerTile;
     expect(calculatedNorth).toBe(northZ);
 });
 
 Then('the tile\'s south edge should be at z = {int}', async ({ page }, southZ: number) => {
-    const p = page as unknown as { __testTileZ: number; __testZoom: number };
-    const blocksPerTile = p.__testZoom === 8 ? 512 : 8192;
+    const p = page as unknown as { __testTileZ: number; __testLevel: number };
+    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
     const calculatedSouth = (p.__testTileZ + 1) * blocksPerTile;
     expect(calculatedSouth).toBe(southZ);
 });
@@ -860,7 +860,7 @@ Then(String.raw`overworld tile at \({int}, {int}\) should be requested`, async (
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    const expectedPattern = `/overworld/512/${tileX}/${tileZ}.png`;
+    const expectedPattern = `/overworld/2/${tileX}/${tileZ}.png`;
     const found = requests.some(url => url.includes(expectedPattern));
 
     expect(found).toBe(true);
@@ -951,11 +951,11 @@ Then('all tiles should have brightness below {int}', async ({ page }, threshold:
     }
 });
 
-Then('this confirms zoom-8 tiles are loading', async () => {
+Then('this confirms detail tiles are loading', async () => {
     // This is a documentation step - the actual verification was in the previous step
 });
 
-Then('this confirms only zoom-4 tiles are visible', async () => {
+Then('this confirms only overview tiles are visible', async () => {
     // This is a documentation step - the actual verification was in the previous step
 });
 
@@ -980,10 +980,10 @@ Then('tiles should be {word}', async ({ page }, brightness: string) => {
     }
 });
 
-Then('zoom 8 tiles should NOT be requested', async ({ page }) => {
+Then('detail level tiles should NOT be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const zoom8Requests = p.__tileRequests?.filter(url => url.includes('/8/')) ?? [];
-    expect(zoom8Requests.length, 'Expected no zoom 8 tile requests').toBe(0);
+    const detailRequests = p.__tileRequests?.filter(url => url.includes('/2/')) ?? [];
+    expect(detailRequests.length, 'Expected no detail level tile requests').toBe(0);
 });
 
 Then('tile URLs should contain {string}', async ({ page }, pattern: string) => {
@@ -1008,31 +1008,31 @@ Then('tile URLs should only contain {string}', async ({ page }, pattern: string)
 // ============================================================================
 // Z-Order / Layer Stacking Verification Steps
 // ============================================================================
-// These steps verify that zoom-8 tiles render ON TOP of zoom-4 tiles
+// These steps verify that detail tiles render ON TOP of overview tiles
 // by taking screenshots and sampling actual rendered pixel colors.
 
-Given('both zoom levels will load with artificial delay', async ({ page }) => {
+Given('both tile levels will load with artificial delay', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    // Both zoom levels load with same small delay - tests natural race conditions
-    p.__zoom4Delay = 100;
-    p.__zoom8Delay = 100;
+    // Both tile levels load with same small delay - tests natural race conditions
+    p.__overviewDelay = 100;
+    p.__detailDelay = 100;
 });
 
-Given('zoom-4 tiles are delayed to load after zoom-8', async ({ page }) => {
+Given('overview tiles are delayed to load after detail', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    // Zoom 4 loads 500ms after zoom 8 - simulates the bug condition
-    p.__zoom4Delay = 600;
-    p.__zoom8Delay = 100;
+    // Overview loads 500ms after detail - simulates the bug condition
+    p.__overviewDelay = 600;
+    p.__detailDelay = 100;
 });
 
 When('I wait for all tiles to finish loading', async ({ page }) => {
-    // Wait for artificial tile delays to complete (longest is 600ms zoom-4 delay)
+    // Wait for artificial tile delays to complete (longest is 600ms overview delay)
     // then extra time for Leaflet to render the tile images.
     // Cannot use 'networkidle' because 500ms player polling keeps the network active.
     await page.waitForTimeout(2000);
 });
 
-Then('the rendered map center should show zoom-8 brightness', async ({ page }) => {
+Then('the rendered map center should show detail brightness', async ({ page }) => {
     // Take a screenshot and sample the center pixel
     // Wait for Leaflet to initialize and make the container visible
     const mapContainer = page.locator('#nav-dialog .leaflet-container, #map-dialog .leaflet-container').first();
@@ -1074,16 +1074,16 @@ Then('the rendered map center should show zoom-8 brightness', async ({ page }) =
         });
     }, base64Screenshot);
     
-    // Zoom 8 tiles should be bright (average RGB > 150)
+    // Detail tiles should be bright (average RGB > 150)
     const brightness = (centerColor.r + centerColor.g + centerColor.b) / 3;
-    expect(brightness, `Expected bright zoom-8 tile at center (got brightness ${brightness})`).toBeGreaterThanOrEqual(BRIGHTNESS_THRESHOLD);
+    expect(brightness, `Expected bright detail tile at center (got brightness ${brightness})`).toBeGreaterThanOrEqual(BRIGHTNESS_THRESHOLD);
 });
 
-Then('the topmost visible tile should be from zoom level 8', async ({ page }) => {
-    // Check that the z-index of zoom-8 pane is higher than zoom-4 pane
+Then('the topmost visible tile should be from the detail level', async ({ page }) => {
+    // Check that the z-index of detail pane is higher than overview pane
     const zIndexes = await page.evaluate(() => {
-        const zoom4Pane = document.querySelector<HTMLElement>('.leaflet-tilesZoom4-pane, [class*="tilesZoom4"]');
-        const zoom8Pane = document.querySelector<HTMLElement>('.leaflet-tilesZoom8-pane, [class*="tilesZoom8"]');
+        const overviewPane = document.querySelector<HTMLElement>('.leaflet-tilesOverview-pane, [class*="tilesOverview"]');
+        const detailPane = document.querySelector<HTMLElement>('.leaflet-tilesDetail-pane, [class*="tilesDetail"]');
         
         // Also check via computed styles on overlay images
         const overlays = document.querySelectorAll('.leaflet-image-layer');
@@ -1097,14 +1097,14 @@ Then('the topmost visible tile should be from zoom level 8', async ({ page }) =>
         }
         
         return {
-            zoom4: zoom4Pane ? Number.parseInt(globalThis.getComputedStyle(zoom4Pane).zIndex, 10) : undefined,
-            zoom8: zoom8Pane ? Number.parseInt(globalThis.getComputedStyle(zoom8Pane).zIndex, 10) : undefined,
+            overview: overviewPane ? Number.parseInt(globalThis.getComputedStyle(overviewPane).zIndex, 10) : undefined,
+            detail: detailPane ? Number.parseInt(globalThis.getComputedStyle(detailPane).zIndex, 10) : undefined,
             overlayZIndexes
         };
     });
     
-    // If panes exist, zoom8 should be higher than zoom4
-    if (zIndexes.zoom4 !== undefined && zIndexes.zoom8 !== undefined) {
-        expect(zIndexes.zoom8, 'zoom-8 pane z-index should be higher than zoom-4').toBeGreaterThan(zIndexes.zoom4);
+    // If panes exist, detail should be higher than overview
+    if (zIndexes.overview !== undefined && zIndexes.detail !== undefined) {
+        expect(zIndexes.detail, 'detail pane z-index should be higher than overview').toBeGreaterThan(zIndexes.overview);
     }
 });

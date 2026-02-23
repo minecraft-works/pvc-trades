@@ -7,7 +7,8 @@
  * @module stores/config-store
  */
 
-import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG } from '../types.js';
+import { BlueMapTileProvider, DynmapTileProvider, setActiveTileProvider } from '../map/providers/index.js';
+import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, type TileSource } from '../types.js';
 
 // ============================================================================
 // Config Store
@@ -41,6 +42,7 @@ class ConfigStore {
             const response = await fetch('config.json');
             if (!response.ok) {
                 console.warn('Failed to load config, using defaults');
+                initTileProviderFromConfig(this.config);
                 return this.config;
             }
             const data: unknown = await response.json();
@@ -60,10 +62,12 @@ class ConfigStore {
                 console.warn('Invalid config format, using defaults:', parsed.error);
             }
             this.loaded = true;
+            initTileProviderFromConfig(this.config);
             return this.config;
         } catch (error) {
             console.warn('Error loading config, using defaults:', error);
             this.loaded = true;
+            initTileProviderFromConfig(this.config);
             return this.config;
         }
     }
@@ -107,4 +111,45 @@ export function getConfig(): AppConfig {
  */
 export async function loadConfig(): Promise<AppConfig> {
     return configStore.load();
+}
+
+// ============================================================================
+// Tile Provider Initialization
+// ============================================================================
+
+/**
+ * Create a tile provider matching the given config.
+ *
+ * @param config - The application config to read tile source from
+ * @returns A TileProvider instance matching the configured source
+ */
+export function createTileProviderFromConfig(config: AppConfig): DynmapTileProvider | BlueMapTileProvider {
+    const source: TileSource = config.tileSource;
+    switch (source) {
+        case 'dynmap': {
+            return new DynmapTileProvider(config.dynmap.baseUrl);
+        }
+        case 'bluemap': {
+            const bluemap = config.bluemap;
+            if (!bluemap) {
+                console.warn('tileSource is "bluemap" but no bluemap config provided, falling back to dynmap');
+                return new DynmapTileProvider(config.dynmap.baseUrl);
+            }
+            return new BlueMapTileProvider(bluemap.baseUrl, bluemap.mapId);
+        }
+    }
+}
+
+/**
+ * Initialize the active tile provider based on the loaded configuration.
+ *
+ * Called automatically after config is loaded. Creates the appropriate
+ * provider and sets it as the active provider for the application.
+ *
+ * @param config - The loaded application config
+ */
+function initTileProviderFromConfig(config: AppConfig): void {
+    const provider = createTileProviderFromConfig(config);
+    setActiveTileProvider(provider);
+    console.info(`Tile provider initialized: ${provider.name}`);
 }

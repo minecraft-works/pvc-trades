@@ -2,6 +2,7 @@ import { describe, expect,it } from 'vitest';
 
 import {
     calculateRateLimitDelay,
+    createDynmapUrlBuilder,
     getNormalizedWorld,
     getTileCoords,
     getTileFilename,
@@ -218,18 +219,18 @@ describe('getNormalizedWorld', () => {
 
 describe('getUniqueTiles', () => {
     const baseUrl = 'https://example.com/maps';
-    const zoom = 8;
-    const maxZoom = 8;
-    const tileSize = 512;
+    const blocksPerTile = 512;
+    const levelId = 8;
+    const urlBuilder = createDynmapUrlBuilder(baseUrl, levelId);
     
     it('returns empty array for empty shops', () => {
-        const result = getUniqueTiles([], zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles([], blocksPerTile, levelId, urlBuilder);
         expect(result).toEqual([]);
     });
     
     it('returns 25 tiles (5x5 grid) for single shop', () => {
         const shops = [{ location: '100, 64, 100', world: 'overworld' }];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         expect(result).toHaveLength(25);
     });
     
@@ -239,7 +240,7 @@ describe('getUniqueTiles', () => {
             { location: '100, 64, 100', world: 'overworld' },
             { location: '200, 64, 200', world: 'overworld' }
         ];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         // Both are in tile (0, 0), so we should get 25 tiles, not 50
         expect(result).toHaveLength(25);
     });
@@ -249,14 +250,14 @@ describe('getUniqueTiles', () => {
             { location: '100, 64, 100', world: 'overworld' },
             { location: '100, 64, 100', world: 'nether' }
         ];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         // 25 tiles for each world
         expect(result).toHaveLength(50);
     });
     
     it('tracks shops only on center tile', () => {
         const shops = [{ location: '100, 64, 100', world: 'overworld' }];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         
         // Center tile should have the shop
         const centerTile = result.find(t => t.tileX === 0 && t.tileZ === 0);
@@ -269,15 +270,23 @@ describe('getUniqueTiles', () => {
     
     it('strips minecraft: prefix from world', () => {
         const shops = [{ location: '100, 64, 100', world: 'minecraft:overworld' }];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         expect(result[0].world).toBe('overworld');
     });
     
     it('includes correct URL for each tile', () => {
         const shops = [{ location: '100, 64, 100', world: 'overworld' }];
-        const result = getUniqueTiles(shops, zoom, maxZoom, tileSize, baseUrl);
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
         const centerTile = result.find(t => t.tileX === 0 && t.tileZ === 0);
         expect(centerTile?.url).toBe('https://example.com/maps/tiles/minecraft_overworld/8/0_0.png');
+    });
+    
+    it('stores levelId on each tile', () => {
+        const shops = [{ location: '100, 64, 100', world: 'overworld' }];
+        const result = getUniqueTiles(shops, blocksPerTile, levelId, urlBuilder);
+        for (const tile of result) {
+            expect(tile.levelId).toBe(8);
+        }
     });
 });
 

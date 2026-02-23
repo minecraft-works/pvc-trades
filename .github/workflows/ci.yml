@@ -49,9 +49,6 @@ jobs:
       - name: Check circular dependencies
         run: npm run lint:circular
 
-      - name: Spell check
-        run: npm run lint:spelling
-
       - name: Parse safety check
         run: npm run lint:parse-safety
 

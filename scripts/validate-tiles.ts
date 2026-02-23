@@ -7,6 +7,9 @@
  * 2. Every tile file is listed in the manifest
  * 3. Shops have expected tiles (warning only, not failure)
  * 
+ * Reads config.json to determine the active tile provider and its
+ * detail/overview levels, replacing previously hardcoded Dynmap constants.
+ * 
  * Exit codes:
  * - 0: All validations passed (shop coverage warnings are OK)
  * - 1: Manifest/file integrity errors (hard failure)
@@ -18,10 +21,15 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import { createTileProviderFromConfig } from '../src/stores/config-store.js';
 import {
-    getTileCoordsAtZoom,
     getTileNeighborhood,
     parseLocation} from '../src/tile-coords.js';
+import {
+    blocksPerTile as pyramidBlocksPerTile,
+    detailLevel,
+} from '../src/tile-pyramid.js';
+import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, type TilePyramidConfig } from '../src/types.js';
 
 // ============================================================================
 // Configuration
@@ -31,15 +39,32 @@ const TILES_DIR = 'public/tiles';
 const MANIFEST_PATH = path.join(TILES_DIR, 'manifest.json');
 const DATA_PATH = 'public/data.json';
 
-const TILE_SIZE = 512;
-const MAX_ZOOM = 8;
-const DETAIL_ZOOM = 8;  // Zoom level for tiles around shops
+/**
+ * Load config.json from disk.
+ */
+function loadConfig(): AppConfig {
+    const configPath = 'config.json';
+    let config = DEFAULT_CONFIG;
+    if (existsSync(configPath)) {
+        const raw: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+        const parsed = AppConfigSchema.safeParse(raw);
+        if (parsed.success) {
+            config = parsed.data;
+        } else {
+            console.warn('Invalid config.json, using defaults:', parsed.error.message);
+        }
+    } else {
+        console.warn('config.json not found, using defaults');
+    }
+    return config;
+}
 
 interface ManifestEntry {
     world: string;
     tileX: number;
     tileZ: number;
     blocksPerTile: number;
+    levelId?: number;
     shopCount?: number;
 }
 
@@ -56,20 +81,21 @@ interface ShopData {
 /**
  * Recursively scan a directory for PNG files
  */
-function scanPngFiles(dir: string, baseDir: string = dir): string[] {
+function scanTileFiles(dir: string, format: string, baseDir: string = dir): string[] {
     const files: string[] = [];
     
     if (!existsSync(dir)) {
         return files;
     }
     
+    const extension = `.${format}`;
     for (const entry of readdirSync(dir)) {
         const fullPath = path.join(dir, entry);
         const stat = statSync(fullPath);
         
         if (stat.isDirectory()) {
-            files.push(...scanPngFiles(fullPath, baseDir));
-        } else if (entry.endsWith('.png')) {
+            files.push(...scanTileFiles(fullPath, format, baseDir));
+        } else if (entry.endsWith(extension)) {
             // Normalize path separators to forward slashes (matching manifest format)
             const relativePath = path.relative(baseDir, fullPath).replaceAll('\\', '/');
             files.push(relativePath);
@@ -80,11 +106,11 @@ function scanPngFiles(dir: string, baseDir: string = dir): string[] {
 }
 
 /**
- * Parse a tile path like "overworld/8/0/0.png" into components
+ * Parse a tile path like "overworld/2/0/0.png" into components
  */
-function parseTilePath(tilePath: string): { world: string; zoom: number; tileX: number; tileZ: number } | undefined {
-    // Format: {world}/{zoom}/{x}/{z}.png
-    const regex = /^([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png$/;
+function parseTilePath(tilePath: string): { world: string; level: number; tileX: number; tileZ: number } | undefined {
+    // Format: {world}/{level}/{x}/{z}.{format}
+    const regex = /^([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.\w+$/;
     const match = regex.exec(tilePath);
     if (!match) {
         return undefined;
@@ -92,24 +118,32 @@ function parseTilePath(tilePath: string): { world: string; zoom: number; tileX: 
     
     return {
         world: match[1]!,
-        zoom: Number.parseInt(match[2]!, 10),
+        level: Number.parseInt(match[2]!, 10),
         tileX: Number.parseInt(match[3]!, 10),
         tileZ: Number.parseInt(match[4]!, 10)
     };
 }
 
 /**
- * Convert manifest entry to file path
+ * Derive canonical pyramid level from blocksPerTile.
  */
-function manifestEntryToPath(entry: ManifestEntry): string {
-    // Calculate zoom from blocksPerTile
-    // blocksPerTile = tileSize × 2^(maxZoom - zoom)
-    // So: 2^(maxZoom - zoom) = blocksPerTile / tileSize
-    // maxZoom - zoom = log2(blocksPerTile / tileSize)
-    // zoom = maxZoom - log2(blocksPerTile / tileSize)
-    const zoom = MAX_ZOOM - Math.log2(entry.blocksPerTile / TILE_SIZE);
+function getCanonicalLevel(blocksPerTile: number, pyramid: TilePyramidConfig): number {
+    for (let level = 0; level < pyramid.levels; level++) {
+        if (pyramidBlocksPerTile(level, pyramid) === blocksPerTile) {
+            return level;
+        }
+    }
+    // Fallback: detail level
+    return detailLevel(pyramid);
+}
+
+/**
+ * Convert manifest entry to canonical file path.
+ */
+function manifestEntryToPath(entry: ManifestEntry, pyramid: TilePyramidConfig): string {
+    const level = getCanonicalLevel(entry.blocksPerTile, pyramid);
     const normalizedWorld = normalizeWorld(entry.world);
-    return `${normalizedWorld}/${zoom}/${entry.tileX}/${entry.tileZ}.png`;
+    return `${normalizedWorld}/${level}/${entry.tileX}/${entry.tileZ}.${pyramid.format}`;
 }
 
 /**
@@ -133,18 +167,17 @@ function normalizeWorld(world: string): string {
 // Validation Logic
 // ============================================================================
 
-const MANIFEST_ZOOM = 8; // Manifest only tracks zoom 8 tiles
-
-function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<string>): {
+function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<string>, pyramid: TilePyramidConfig): {
     missingFiles: string[];
-    orphanedZoom8Files: string[];
-    otherZoomFiles: number;
+    orphanedDetailFiles: string[];
+    otherLevelFiles: number;
 } {
-    const manifestPaths = new Set(manifest.map(manifestEntryToPath));
+    const manifestPaths = new Set(manifest.map(entry => manifestEntryToPath(entry, pyramid)));
+    const canonDetailLevel = detailLevel(pyramid);
     
     const missingFiles: string[] = [];
-    const orphanedZoom8Files: string[] = [];
-    let otherZoomFiles = 0;
+    const orphanedDetailFiles: string[] = [];
+    let otherLevelFiles = 0;
     
     // Check each manifest entry has a file
     for (const path of manifestPaths) {
@@ -153,24 +186,24 @@ function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<str
         }
     }
     
-    // Check each file - only zoom 8 files should be in manifest
+    // Check each file - only detail-level files should be in manifest
     for (const file of tileFiles) {
         const parsed = parseTilePath(file);
         if (!parsed) {continue;}
         
-        if (parsed.zoom === MANIFEST_ZOOM) {
+        if (parsed.level === canonDetailLevel) {
             if (!manifestPaths.has(file)) {
-                orphanedZoom8Files.push(file);
+                orphanedDetailFiles.push(file);
             }
         } else {
-            otherZoomFiles++;
+            otherLevelFiles++;
         }
     }
     
-    return { missingFiles, orphanedZoom8Files, otherZoomFiles };
+    return { missingFiles, orphanedDetailFiles, otherLevelFiles };
 }
 
-function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[]): Array<{
+function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[], pyramid: TilePyramidConfig): Array<{
     shop: string;
     world: string;
     location: string;
@@ -182,6 +215,8 @@ function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[]): Arr
         location: string;
         missingTiles: string[];
     }> = [];
+    
+    const detailBlocksPerTile = pyramidBlocksPerTile(detailLevel(pyramid), pyramid);
     
     // Build a set of manifest keys for quick lookup
     const manifestKeys = new Set<string>();
@@ -196,17 +231,16 @@ function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[]): Arr
         const coords = parseLocation(shop.location);
         const world = normalizeWorld(shop.world);
         
-        // Get the tile containing this shop
-        const { tileX, tileZ, blocksPerTile } = getTileCoordsAtZoom(
-            coords.x, coords.z, DETAIL_ZOOM, MAX_ZOOM, TILE_SIZE
-        );
+        // Get the tile containing this shop using provider's detail level
+        const tileX = Math.floor(coords.x / detailBlocksPerTile);
+        const tileZ = Math.floor(coords.z / detailBlocksPerTile);
         
         // Get 5×5 neighborhood
         const neighborhood = getTileNeighborhood(tileX, tileZ);
         
         const missingTiles: string[] = [];
         for (const tile of neighborhood) {
-            const key = `${world}/${blocksPerTile}/${tile.tileX}/${tile.tileZ}`;
+            const key = `${world}/${detailBlocksPerTile}/${tile.tileX}/${tile.tileZ}`;
             if (!manifestKeys.has(key)) {
                 missingTiles.push(`${tile.tileX},${tile.tileZ}`);
             }
@@ -215,9 +249,9 @@ function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[]): Arr
         if (missingTiles.length > 0) {
             shopsMissingTiles.push({
                 shop: shop.shopName,
-                world,
                 location: shop.location,
-                missingTiles
+                world,
+                missingTiles,
             });
         }
     }
@@ -231,6 +265,13 @@ function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[]): Arr
 
 function main(): void {
     console.log('=== Tile Validation ===\n');
+    
+    // Load config and pyramid
+    const config = loadConfig();
+    const pyramid = config.tilePyramid;
+    const provider = createTileProviderFromConfig(config);
+    console.log(`Tile provider: ${provider.name}`);
+    console.log(`Detail level: ${provider.detailLevel.label} (canonical: ${pyramidBlocksPerTile(detailLevel(pyramid), pyramid)} blocks/tile)`);
     
     // Check paths exist
     if (!existsSync(TILES_DIR)) {
@@ -250,13 +291,13 @@ function main(): void {
     console.log(`Manifest entries: ${manifest.length}`);
     
     // Scan tile files
-    const tileFilesArray = scanPngFiles(TILES_DIR);
+    const tileFilesArray = scanTileFiles(TILES_DIR, pyramid.format);
     const tileFiles = new Set(tileFilesArray);
     console.log(`Tile files on disk: ${tileFiles.size}`);
     
     // Validate manifest ↔ file integrity
     console.log('\n--- Manifest Integrity ---');
-    const { missingFiles, orphanedZoom8Files, otherZoomFiles } = validateManifestIntegrity(manifest, tileFiles);
+    const { missingFiles, orphanedDetailFiles, otherLevelFiles } = validateManifestIntegrity(manifest, tileFiles, pyramid);
     
     let hasErrors = false;
     
@@ -273,21 +314,21 @@ function main(): void {
         console.log('All manifest entries have corresponding files.');
     }
     
-    if (orphanedZoom8Files.length > 0) {
-        console.warn(`\nWARNING: ${orphanedZoom8Files.length} zoom-8 files not in manifest (orphaned from previous runs):`);
-        for (const file of orphanedZoom8Files.slice(0, 10)) {
+    if (orphanedDetailFiles.length > 0) {
+        console.warn(`\nWARNING: ${orphanedDetailFiles.length} detail-level files not in manifest (orphaned from previous runs):`);
+        for (const file of orphanedDetailFiles.slice(0, 10)) {
             console.warn(`  - ${file}`);
         }
-        if (orphanedZoom8Files.length > 10) {
-            console.warn(`  ... and ${orphanedZoom8Files.length - 10} more`);
+        if (orphanedDetailFiles.length > 10) {
+            console.warn(`  ... and ${orphanedDetailFiles.length - 10} more`);
         }
         // Orphan files are harmless - just cached tiles from shops that moved/were removed
     } else {
-        console.log('All zoom-8 tile files are listed in manifest.');
+        console.log('All detail-level tile files are listed in manifest.');
     }
     
-    if (otherZoomFiles > 0) {
-        console.log(`(${otherZoomFiles} tiles at other zoom levels are not tracked in manifest - expected)`);
+    if (otherLevelFiles > 0) {
+        console.log(`(${otherLevelFiles} tiles at other levels are not tracked in manifest - expected)`);
     }
     
     // Validate shop coverage (warnings only)
@@ -297,7 +338,7 @@ function main(): void {
         const shops: ShopData[] = shopData.data || [];
         console.log(`Shops in data.json: ${shops.length}`);
         
-        const shopsMissingTiles = validateShopCoverage(shops, manifest);
+        const shopsMissingTiles = validateShopCoverage(shops, manifest, pyramid);
         
         if (shopsMissingTiles.length > 0) {
             console.warn(`\nWARNING: ${shopsMissingTiles.length} shops have incomplete tile coverage:`);

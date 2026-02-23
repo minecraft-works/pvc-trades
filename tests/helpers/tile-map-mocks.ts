@@ -32,7 +32,7 @@ export async function setupColoredTileMocks(page: Page): Promise<void> {
         
         // Generate manifest entries for a range of tiles around 0,0 and nether shop location
         const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = [512, 8192]; // zoom 8 and zoom 4
+        const blocksPerTileOptions = [256, 4096]; // detail level 2 and overview level 0
         
         for (const world of worlds) {
             for (const blocksPerTile of blocksPerTileOptions) {

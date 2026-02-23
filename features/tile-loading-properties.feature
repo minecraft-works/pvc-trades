@@ -3,8 +3,8 @@ Feature: Tile Loading Properties
   Property-based tests for tile positioning, loading, and visual verification
   
   Uses color-coded tiles to verify behavior:
-  - Overworld: Blue (bright = zoom 8, dark = zoom 4)
-  - Nether: Red (bright = zoom 8, dark = zoom 4)
+  - Overworld: Blue (bright = detail level 2, dark = overview level 0)
+  - Nether: Red (bright = detail level 2, dark = overview level 0)
   - Checkerboard pattern shows tile boundaries
 
   Background:
@@ -16,24 +16,24 @@ Feature: Tile Loading Properties
 
   @tiles @property @bounds
   Scenario Outline: Tile bounds match world coordinates
-    Given a tile at (<tile_x>, <tile_z>) at zoom <zoom>
+    Given a tile at (<tile_x>, <tile_z>) at level <level>
     Then the tile's west edge should be at x = <west_x>
     And the tile's east edge should be at x = <east_x>
     And the tile's north edge should be at z = <north_z>
     And the tile's south edge should be at z = <south_z>
 
-    Examples: Zoom 8 tiles (512 blocks per tile)
-      | tile_x | tile_z | zoom | west_x | east_x | north_z | south_z |
-      | 0      | 0      | 8    | 0      | 512    | 0       | 512     |
-      | 1      | 0      | 8    | 512    | 1024   | 0       | 512     |
-      | -1     | -1     | 8    | -512   | 0      | -512    | 0       |
-      | 10     | -5     | 8    | 5120   | 5632   | -2560   | -2048   |
+    Examples: Detail level tiles (256 blocks per tile)
+      | tile_x | tile_z | level | west_x | east_x | north_z | south_z |
+      | 0      | 0      | 2     | 0      | 256    | 0       | 256     |
+      | 1      | 0      | 2     | 256    | 512    | 0       | 256     |
+      | -1     | -1     | 2     | -256   | 0      | -256    | 0       |
+      | 10     | -5     | 2     | 2560   | 2816   | -1280   | -1024   |
 
-    Examples: Zoom 4 tiles (8192 blocks per tile)
-      | tile_x | tile_z | zoom | west_x | east_x  | north_z | south_z |
-      | 0      | 0      | 4    | 0      | 8192    | 0       | 8192    |
-      | 1      | 1      | 4    | 8192   | 16384   | 8192    | 16384   |
-      | -1     | 0      | 4    | -8192  | 0       | 0       | 8192    |
+    Examples: Overview level tiles (4096 blocks per tile)
+      | tile_x | tile_z | level | west_x | east_x | north_z | south_z |
+      | 0      | 0      | 0     | 0      | 4096   | 0       | 4096    |
+      | 1      | 1      | 0     | 4096   | 8192   | 4096    | 8192    |
+      | -1     | 0      | 0     | -4096  | 0      | 0       | 4096    |
 
   # ===========================================================================
   # Shop Navigation → Tile Loading Properties
@@ -79,26 +79,26 @@ Feature: Tile Loading Properties
       | -1      | 0       | 0       | 0       |
 
   # ===========================================================================
-  # Zoom-Based Tile Loading Properties
+  # Level-Based Tile Loading Properties
   # ===========================================================================
-  # These tests verify the critical zoom > -2 threshold for zoom-8 tile loading
+  # These tests verify the critical zoom > -2 threshold for detail tile loading
   # The __leafletMap is exposed on globalThis for programmatic zoom control
 
-  # NOTE: Brightness-based tests assume zoom-8 tiles are brighter than zoom-4.
+  # NOTE: Brightness-based tests assume detail tiles are brighter than overview.
   # This doesn't hold for real Dynmap tiles. Use @request-verification tests instead.
   @tiles @property @zoom-threshold @skip
-  Scenario: Zoom-8 tiles load when map zoom is above threshold
+  Scenario: Detail tiles load when map zoom is above threshold
     Given the navigation map is open at map zoom 0
     When I inspect all visible tile pixels
     Then at least one tile should have brightness above 150
-    And this confirms zoom-8 tiles are loading
+    And this confirms detail tiles are loading
 
   @tiles @property @zoom-threshold @fallback @skip
-  Scenario: Only zoom-4 tiles visible when map zoom is at or below -2
+  Scenario: Only overview tiles visible when map zoom is at or below -2
     Given the navigation map is open at map zoom -3
     When I inspect all visible tile pixels
     Then all tiles should have brightness below 150
-    And this confirms only zoom-4 tiles are visible
+    And this confirms only overview tiles are visible
 
   @tiles @property @zoom-transition @skip
   Scenario Outline: Zooming changes tile brightness correctly
@@ -107,33 +107,33 @@ Feature: Tile Loading Properties
     And I wait for tiles to load
     Then tiles should be <end_brightness>
 
-    Examples: Zoom above threshold shows bright (zoom-8) tiles
+    Examples: Zoom above threshold shows bright (detail) tiles
       | start_zoom | end_zoom | end_brightness |
       | 0          | 1        | bright         |
       | -1         | 0        | bright         |
       | -3         | 0        | bright         |
 
-    Examples: Zoom at or below threshold shows dark (zoom-4) tiles
+    Examples: Zoom at or below threshold shows dark (overview) tiles
       | start_zoom | end_zoom | end_brightness |
       | 0          | -3       | dark           |
       | 1          | -2       | dark           |
 
   @tiles @property @zoom-threshold @request-verification
-  Scenario: Zoom-8 tile requests are made when zoom > -2
+  Scenario: Detail tile requests are made when zoom > -2
     Given the navigation map is open at map zoom 0
-    Then zoom 8 tiles should be requested
-    And tile URLs should contain "/8/"
+    Then detail level tiles should be requested
+    And tile URLs should contain "/2/"
 
-  # NOTE: This test verifies that zoom-8 tiles are NOT requested when zoom <= -2.
+  # NOTE: This test verifies that detail tiles are NOT requested when map zoom <= -2.
   # Currently marked @skip because the map initializes before the target zoom is set,
-  # so initial tile requests include zoom-8. The production fix correctly prevents
-  # zoom-8 loading after initialization, but testing this requires deeper mocking.
+  # so initial tile requests include detail tiles. The production fix correctly prevents
+  # detail tile loading after initialization, but testing this requires deeper mocking.
   # The fix can be verified manually by observing network requests during navigation.
   @tiles @property @zoom-threshold @request-verification @skip
-  Scenario: No zoom-8 tile requests when zoom <= -2
+  Scenario: No detail tile requests when zoom <= -2
     Given the navigation map is open at map zoom -3
-    Then zoom 8 tiles should NOT be requested
-    And tile URLs should only contain "/4/"
+    Then detail level tiles should NOT be requested
+    And tile URLs should only contain "/0/"
 
   # ===========================================================================
   # Nether → Overworld Tile Mapping Properties
@@ -193,23 +193,23 @@ Feature: Tile Loading Properties
   # ===========================================================================
   # Z-Order / Layer Stacking Properties
   # ===========================================================================
-  # These tests verify that zoom-8 (detail) tiles render ON TOP of zoom-4 (fallback)
+  # These tests verify that detail tiles render ON TOP of overview (fallback)
   # regardless of which fetch completes first. Uses screenshot-based verification
   # to check actual rendered pixels, not just DOM element existence.
 
   @tiles @property @z-order
-  Scenario: Zoom-8 tiles render on top of zoom-4 tiles
+  Scenario: Detail tiles render on top of overview tiles
     Given the tile loading test app is configured with color-coded tiles
-    And both zoom levels will load with artificial delay
+    And both tile levels will load with artificial delay
     When I open the navigation map with an overworld item
     And I wait for all tiles to finish loading
-    Then the rendered map center should show zoom-8 brightness
-    And the topmost visible tile should be from zoom level 8
+    Then the rendered map center should show detail brightness
+    And the topmost visible tile should be from the detail level
 
   @tiles @property @z-order @race-condition
-  Scenario: Zoom-8 tiles visible even when zoom-4 loads last
+  Scenario: Detail tiles visible even when overview loads last
     Given the tile loading test app is configured with color-coded tiles
-    And zoom-4 tiles are delayed to load after zoom-8
+    And overview tiles are delayed to load after detail
     When I open the navigation map with an overworld item
     And I wait for all tiles to finish loading
-    Then the rendered map center should show zoom-8 brightness
+    Then the rendered map center should show detail brightness

@@ -2,7 +2,7 @@
  * Shop Map Dialog Module
  * 
  * Displays a Leaflet map centered on a shop location with:
- * - Tile loading at zoom levels 4 and 8
+ * - Tile loading at overview and detail levels
  * - Player markers with edge indicators for off-screen players
  * - Coordinate display updating on pan/zoom
  * 
@@ -26,13 +26,12 @@ import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
 import {
-    calculateZoom4Coords,
+    calculateOverviewCoords,
     getCachedTileUrl,
     loadTileManifest,
     setCachedTileUrl,
     TILE_CONFIG,
-    tileExistsInManifest,
-    ZOOM4_TILE_SIZE} from './tile-loader.js';
+    tileExistsInManifest} from './tile-loader.js';
 import type { MapTileContext } from './tile-types.js';
 
 // ============================================================================
@@ -60,8 +59,8 @@ interface ShopMapTileContext {
     worldId: string;
     centerTileX: number;
     centerTileZ: number;
-    addedToMapZoom4: Set<string>;
-    addedToMapZoom8: Set<string>;
+    addedToMapOverview: Set<string>;
+    addedToMapDetail: Set<string>;
     manifest: Set<string>;
 }
 
@@ -121,69 +120,71 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
     return cachedPlayers;
 }
 
-function loadZoom4TileToShopMap(context: ShopMapTileContext, z4x: number, z4z: number): void {
-    const { worldId, centerTileX, centerTileZ, addedToMapZoom4, manifest } = context;
-    const mapKey = `z4:${z4x},${z4z}`;
-    if (addedToMapZoom4.has(mapKey)) { return; }
-    addedToMapZoom4.add(mapKey);
+function loadOverviewTileToShopMap(context: ShopMapTileContext, ovX: number, ovZ: number): void {
+    const { worldId, centerTileX, centerTileZ, addedToMapOverview, manifest } = context;
+    const mapKey = `ov:${ovX},${ovZ}`;
+    if (addedToMapOverview.has(mapKey)) { return; }
+    addedToMapOverview.add(mapKey);
     
-    if (!tileExistsInManifest(manifest, worldId, 8192, z4x, z4z)) { return; }
+    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.overviewTileBlocks, ovX, ovZ)) { return; }
     
-    const startZ8X = z4x * 16;
-    const startZ8Z = z4z * 16;
+    const ratio = TILE_CONFIG.detailToOverviewRatio;
+    const overviewSize = TILE_CONFIG.overviewTileBlocks;
+    const startZ8X = ovX * ratio;
+    const startZ8Z = ovZ * ratio;
     const dx = startZ8X - centerTileX;
     const dy = startZ8Z - centerTileZ;
     const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - ZOOM4_TILE_SIZE, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + ZOOM4_TILE_SIZE]
+        [-dy * TILE_CONFIG.tileSize - overviewSize, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize]
     ];
     
-    const cachedBlobUrl = getCachedTileUrl(worldId, 4, z4x, z4z);
+    const cachedBlobUrl = getCachedTileUrl(worldId, TILE_CONFIG.fallbackZoom, ovX, ovZ);
     if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesZoom4' }).addTo(leafletMap); }
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesOverview' }).addTo(leafletMap); }
         return;
     }
 
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${z4x}/${z4z}.png`;
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${ovX}/${ovZ}.${TILE_CONFIG.format}`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, 4, z4x, z4z, blobUrl);
-                L.imageOverlay(blobUrl, bounds, { pane: 'tilesZoom4' }).addTo(leafletMap);
+                setCachedTileUrl(worldId, TILE_CONFIG.fallbackZoom, ovX, ovZ, blobUrl);
+                L.imageOverlay(blobUrl, bounds, { pane: 'tilesOverview' }).addTo(leafletMap);
             }
         })
         .catch(() => {});
 }
 
-function loadZoom8TileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
-    const { worldId, addedToMapZoom8, manifest } = context;
-    const mapKey = `z8:${tx},${tz}`;
-    if (addedToMapZoom8.has(mapKey)) { return; }
-    addedToMapZoom8.add(mapKey);
+function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
+    const { worldId, addedToMapDetail, manifest } = context;
+    const mapKey = `dt:${tx},${tz}`;
+    if (addedToMapDetail.has(mapKey)) { return; }
+    addedToMapDetail.add(mapKey);
     
-    if (!tileExistsInManifest(manifest, worldId, 512, tx, tz)) { return; }
+    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, tx, tz)) { return; }
     
     const bounds: L.LatLngBoundsExpression = [
         [-dy * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize],
         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
     ];
     
-    const cachedBlobUrl = getCachedTileUrl(worldId, 8, tx, tz);
+    const cachedBlobUrl = getCachedTileUrl(worldId, TILE_CONFIG.maxZoom, tx, tz);
     if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesZoom8' }).addTo(leafletMap); }
+        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesDetail' }).addTo(leafletMap); }
         return;
     }
 
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.png`;
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.${TILE_CONFIG.format}`;
     fetch(url)
         .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
         .then(blob => {
             if (blob && leafletMap) {
                 const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, 8, tx, tz, blobUrl);
-                L.imageOverlay(blobUrl, bounds, { pane: 'tilesZoom8' }).addTo(leafletMap);
+                setCachedTileUrl(worldId, TILE_CONFIG.maxZoom, tx, tz, blobUrl);
+                L.imageOverlay(blobUrl, bounds, { pane: 'tilesDetail' }).addTo(leafletMap);
             }
         })
         .catch(() => {});
@@ -199,16 +200,16 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     const minDy = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
     const maxDy = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
     
-    const zoom4Tiles = new Set<string>();
+    const overviewTiles = new Set<string>();
     for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
         for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
             const tx = context.centerTileX + dx;
             const tz = context.centerTileZ + dy;
-            const z4 = calculateZoom4Coords(tx, tz);
-            const key = `${z4.x},${z4.z}`;
-            if (!zoom4Tiles.has(key)) {
-                zoom4Tiles.add(key);
-                loadZoom4TileToShopMap(context, z4.x, z4.z);
+            const ov = calculateOverviewCoords(tx, tz);
+            const key = `${ov.x},${ov.z}`;
+            if (!overviewTiles.has(key)) {
+                overviewTiles.add(key);
+                loadOverviewTileToShopMap(context, ov.x, ov.z);
             }
         }
     }
@@ -219,7 +220,7 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
             for (let dx = minDx; dx <= maxDx; dx++) {
                 const tx = context.centerTileX + dx;
                 const tz = context.centerTileZ + dy;
-                loadZoom8TileToShopMap(context, tx, tz, dx, dy);
+                loadDetailTileToShopMap(context, tx, tz, dx, dy);
             }
         }
     }
@@ -354,18 +355,18 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
     leafletMap = L.map(container, createMapConfig());
     
-    // Create custom panes for proper z-ordering: zoom 4 below zoom 8
-    // Default overlayPane z-index is 400, we put zoom4 below and zoom8 above
-    leafletMap.createPane('tilesZoom4').style.zIndex = '350';
-    leafletMap.createPane('tilesZoom8').style.zIndex = '360';
+    // Create custom panes for proper z-ordering: overview below detail
+    // Default overlayPane z-index is 400, we put overview below and detail above
+    leafletMap.createPane('tilesOverview').style.zIndex = '350';
+    leafletMap.createPane('tilesDetail').style.zIndex = '360';
     
     const context: MapTileContext = {
         worldId,
         manifest,
         centerTileX: tileX,
         centerTileZ: tileZ,
-        addedToMapZoom4: new Set<string>(),
-        addedToMapZoom8: new Set<string>(),
+        addedToMapOverview: new Set<string>(),
+        addedToMapDetail: new Set<string>(),
     };
     
     const loadTiles = () => loadVisibleShopMapTiles(context);

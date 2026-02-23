@@ -7,9 +7,11 @@
  * - Memory usage with many tiles
  * - Response time degradation
  */
-import { test, expect } from './helpers/global-setup';
-import type { Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
+
+import type { Page } from '@playwright/test';
+
+import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // ============================================================================
@@ -99,7 +101,7 @@ const TILE_PNG = createColoredPng(0, 100, 255);
 function generateLargeManifest(): Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> {
     const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> = [];
     const worlds = ['World', 'World_nether'];
-    const blocksPerTileOptions = [64, 512];  // zoom 8 and zoom 1
+    const blocksPerTileOptions = [256, 4096];  // detail and overview canonical levels
     
     // Generate tiles around origin for stress testing
     for (const world of worlds) {

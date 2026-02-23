@@ -45,16 +45,53 @@ const DynmapConfigSchema = z.object({
     playerRefreshMs: z.number().int().positive()
 });
 
+const BlueMapConfigSchema = z.object({
+    baseUrl: z.url(),
+    mapId: z.string().min(1).optional().default('world'),
+    playerRefreshMs: z.number().int().positive()
+});
+
+const TilePyramidConfigSchema = z.object({
+    /** Canonical tile width in pixels */
+    tileWidth: z.number().int().positive().default(256),
+    /** Canonical tile height in pixels */
+    tileHeight: z.number().int().positive().default(256),
+    /** Number of pyramid levels (higher = more detail tiers) */
+    levels: z.number().int().min(1).max(10).default(3),
+    /** Block coverage multiplier between adjacent levels */
+    scaleFactor: z.number().int().min(2).max(32).default(4),
+    /** Blocks per tile at the highest detail level */
+    baseBlocksPerTile: z.number().int().positive().default(256),
+    /** Output tile format */
+    format: z.enum(['png', 'webp', 'avif']).default('png')
+});
+
+export type TilePyramidConfig = z.infer<typeof TilePyramidConfigSchema>;
+
 const AnalysisConfigSchema = z.object({
     shopClusterDistance: z.number().positive(),
     maxTransitiveIterations: z.number().int().positive(),
     minIndependentShops: z.number().int().positive()
 });
 
+/** Tile source discriminator: 'dynmap' or 'bluemap' */
+export const TileSourceSchema = z.enum(['dynmap', 'bluemap']).default('dynmap');
+export type TileSource = z.infer<typeof TileSourceSchema>;
+
 export const AppConfigSchema = z.object({
     dataUrl: z.string().min(1),
     dataRefreshMs: z.number().int().positive().optional().default(60_000),
+    tileSource: TileSourceSchema,
+    tilePyramid: TilePyramidConfigSchema.default({
+        tileWidth: 256,
+        tileHeight: 256,
+        levels: 3,
+        scaleFactor: 4,
+        baseBlocksPerTile: 256,
+        format: 'png' as const
+    }),
     dynmap: DynmapConfigSchema,
+    bluemap: BlueMapConfigSchema.optional(),
     analysis: AnalysisConfigSchema
 });
 
@@ -512,6 +549,15 @@ export interface PlayersData {
 export const DEFAULT_CONFIG: AppConfig = {
     dataUrl: 'https://web.peacefulvanilla.club/shops/data.json',
     dataRefreshMs: 60_000,
+    tileSource: 'dynmap',
+    tilePyramid: {
+        tileWidth: 256,
+        tileHeight: 256,
+        levels: 3,
+        scaleFactor: 4,
+        baseBlocksPerTile: 256,
+        format: 'png'
+    },
     dynmap: {
         baseUrl: 'https://web.peacefulvanilla.club/maps',
         tileSize: 128,

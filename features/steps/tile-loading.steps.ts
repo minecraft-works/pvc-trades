@@ -75,17 +75,17 @@ function crc32(data: Buffer): Buffer {
 // ============================================================================
 // Encoding scheme:
 //   - World type (hue): Blue = Overworld, Red = Nether
-//   - Zoom level (brightness): Bright = Zoom 8 (512 bpt), Dark = Zoom 4 (8192 bpt)
+//   - Tile level (brightness): Bright = Detail level 2 (256 bpt), Dark = Overview level 0 (4096 bpt)
 //   - Checkerboard pattern: 15% brightness variation based on tile parity
 
 const TILE_COLORS = {
     overworld: {
-        zoom8: { r: 100, g: 180, b: 255 },  // Bright Sky Blue
-        zoom4: { r: 40, g: 80, b: 140 },    // Dark Navy Blue
+        detail: { r: 100, g: 180, b: 255 },  // Bright Sky Blue
+        overview: { r: 40, g: 80, b: 140 },    // Dark Navy Blue
     },
     the_nether: {
-        zoom8: { r: 255, g: 120, b: 100 },  // Bright Coral Red
-        zoom4: { r: 140, g: 50, b: 40 },    // Dark Maroon Red
+        detail: { r: 255, g: 120, b: 100 },  // Bright Coral Red
+        overview: { r: 140, g: 50, b: 40 },    // Dark Maroon Red
     }
 } as const;
 
@@ -98,8 +98,8 @@ interface TileColorConfig {
 
 function createEncodedTile(config: TileColorConfig): Buffer {
     const worldColors = TILE_COLORS[config.world];
-    const zoom = config.blocksPerTile === 512 ? 'zoom8' : 'zoom4';
-    const base = worldColors[zoom];
+    const zoomKey = config.blocksPerTile === 256 ? 'detail' : 'overview';
+    const base = worldColors[zoomKey];
 
     // Apply checkerboard pattern (15% darker for odd parity)
     const isEven = (config.tileX + config.tileZ) % 2 === 0;
@@ -113,8 +113,8 @@ function createEncodedTile(config: TileColorConfig): Buffer {
 }
 
 // Legacy constants for backward compatibility with existing tests
-const BLUE_PIXEL_PNG = createColoredPng(100, 180, 255);  // Overworld zoom 8
-const RED_PIXEL_PNG = createColoredPng(255, 120, 100);   // Nether zoom 8
+const BLUE_PIXEL_PNG = createColoredPng(100, 180, 255);  // Overworld detail
+const RED_PIXEL_PNG = createColoredPng(255, 120, 100);   // Nether detail
 
 // ============================================================================
 // Test data with controlled shop locations
@@ -125,7 +125,7 @@ const MOCK_SHOP_DATA = {
         {
             shopName: 'Origin Overworld Shop',
             shopOwner: 'TestOwner',
-            location: '100.0, 64.0, 200.0',  // Near origin, tile (0, 0) at zoom 8
+            location: '100.0, 64.0, 200.0',  // Near origin, tile (0, 0) at detail level
             world: 'World',
             recipes: [{
                 resultItem: { type: 'EMERALD', name: 'Emerald', amount: 1 },
@@ -169,11 +169,11 @@ interface PageWithTileTracking extends Page {
     __lastPlayerX?: number;
     __lastPlayerZ?: number;
     __useColorEncoding?: boolean;
-    __zoom8Available?: boolean;
+    __detailLevelAvailable?: boolean;
     __manifestRequestTime?: number;
     __firstTileRequestTime?: number;
-    __zoom4Delay?: number;
-    __zoom8Delay?: number;
+    __overviewDelay?: number;
+    __detailDelay?: number;
 }
 
 // ============================================================================
@@ -221,7 +221,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     await page.route('**/tiles/manifest.json', async (route: Route) => {
         const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
         const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = [512, 8192];
+        const blocksPerTileOptions = [256, 4096];
         
         const range = p.__manifestFilter === 'origin-only' ? 5 : 200;
         
@@ -282,7 +282,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     p.__tileRequests = [];
     p.__manifestFilter = 'all';
     p.__useColorEncoding = true;
-    p.__zoom8Available = true;
+    p.__detailLevelAvailable = true;
 
     // Set up tile request tracking with color-encoded tiles
     await page.route('**/tiles/**/*.png', async (route: Route) => {
@@ -295,20 +295,20 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
         }
 
         // Parse URL to extract tile info
-        // Format: /tiles/{world}/{zoom}/{tileX}/{tileZ}.png
-        // zoom 8 = 512 blocks per tile, zoom 4 = 8192 blocks per tile
+        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.png
+        // level 2 = 256 blocks per tile, level 0 = 4096 blocks per tile
         const match = url.match(/tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
 
         if (match) {
-            const [, world, zoomString, tileXString, tileZString] = match;
-            const zoom = Number.parseInt(zoomString, 10);
+            const [, world, levelString, tileXString, tileZString] = match;
+            const level = Number.parseInt(levelString, 10);
             const tileX = Number.parseInt(tileXString, 10);
             const tileZ = Number.parseInt(tileZString, 10);
-            // Convert zoom level to blocks per tile: zoom 8 = 512, zoom 4 = 8192
-            const blocksPerTile = zoom === 8 ? 512 : 8192;
+            // Convert level to blocks per tile: level 2 = 256, level 0 = 4096
+            const blocksPerTile = level === 2 ? 256 : 4096;
 
-            // Check if zoom 8 is available (for fallback tests)
-            if (zoom === 8 && !p.__zoom8Available) {
+            // Check if detail level is available (for fallback tests)
+            if (level === 2 && !p.__detailLevelAvailable) {
                 await route.fulfill({ status: 404 });
                 return;
             }
@@ -321,8 +321,8 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
             });
 
             // Apply artificial delay if configured (for z-order race condition testing)
-            const pWithDelay = p as PageWithTileTracking & { __zoom4Delay?: number; __zoom8Delay?: number };
-            const delay = zoom === 8 ? pWithDelay.__zoom8Delay : pWithDelay.__zoom4Delay;
+            const pWithDelay = p as PageWithTileTracking & { __overviewDelay?: number; __detailDelay?: number };
+            const delay = level === 2 ? pWithDelay.__detailDelay : pWithDelay.__overviewDelay;
             if (delay && delay > 0) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -348,7 +348,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
 
         const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
         const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = p.__zoom8Available ? [512, 8192] : [8192];
+        const blocksPerTileOptions = p.__detailLevelAvailable ? [256, 4096] : [4096];
 
         const range = p.__manifestFilter === 'origin-only' ? 5 : 200;
 
@@ -539,18 +539,18 @@ When('I close and reopen the navigation map', async ({ page }) => {
 // THEN Steps
 // ============================================================================
 
-Then('zoom 8 tiles should be requested', async ({ page }) => {
+Then('detail level tiles should be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
     await expect(async () => {
-        const zoom8Requests = p.__tileRequests?.filter(url => url.includes('/8/')) ?? [];
-        expect(zoom8Requests.length, 'Expected zoom 8 tile requests').toBeGreaterThan(0);
+        const detailRequests = p.__tileRequests?.filter(url => url.includes('/2/')) ?? [];
+        expect(detailRequests.length, 'Expected detail level tile requests').toBeGreaterThan(0);
     }).toPass({ timeout: 10_000, intervals: [500] });
 });
 
-Then('zoom 4 tiles should be requested', async ({ page }) => {
+Then('overview level tiles should be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const zoom4Requests = p.__tileRequests?.filter(url => url.includes('/4/')) ?? [];
-    expect(zoom4Requests.length, 'Expected zoom 4 tile requests').toBeGreaterThan(0);
+    const overviewRequests = p.__tileRequests?.filter(url => url.includes('/0/')) ?? [];
+    expect(overviewRequests.length, 'Expected overview level tile requests').toBeGreaterThan(0);
 });
 
 Then('nether tile requests should include {string} in path', async ({ page }, expectedPath: string) => {
@@ -572,7 +572,7 @@ Then('only tiles near origin should be requested', async ({ page }) => {
     
     // Since manifest only has tiles near origin (range -5 to +5),
     // no tiles far from origin should be requested
-    // For a shop at 50000, 50000, that would be tile ~97 at zoom 8
+    // For a shop at 50000, 50000, that would be tile ~195 at detail level
     const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     const farTileRequests = p.__tileRequests?.filter(url => {
         const match = tilePattern.exec(url);
@@ -668,7 +668,7 @@ interface TileInfo {
     url: string;
     tileX: number;
     tileZ: number;
-    zoom: number;
+    level: number;
     world: string;
 }
 
@@ -677,7 +677,7 @@ interface TileInfo {
  */
 function parseTileRequests(requests: string[]): TileInfo[] {
     const tiles: TileInfo[] = [];
-    // URL pattern: /tiles/world/zoom/x/z.png
+    // URL pattern: /tiles/world/level/x/z.png
     const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     for (const url of requests) {
         const match = tileUrlPattern.exec(url);
@@ -685,7 +685,7 @@ function parseTileRequests(requests: string[]): TileInfo[] {
             tiles.push({
                 url,
                 world: match[1]!,
-                zoom: Number.parseInt(match[2]!, 10),
+                level: Number.parseInt(match[2]!, 10),
                 tileX: Number.parseInt(match[3]!, 10),
                 tileZ: Number.parseInt(match[4]!, 10)
             });
@@ -834,30 +834,30 @@ Then('the visible tiles should correspond to the player area', async ({ page }) 
     const playerX = p.__lastPlayerX ?? 0;
     const playerZ = p.__lastPlayerZ ?? 0;
     
-    // Calculate expected tile coordinates for player position at different zoom levels
-    // Zoom 8 in URL (512 blocks per tile) - high detail
-    const expectedTileX_z8 = Math.floor(playerX / 512);
-    const expectedTileZ_z8 = Math.floor(playerZ / 512);
-    // Zoom 4 in URL (8192 blocks per tile) - lower detail, loaded at low zoom
-    const expectedTileX_z4 = Math.floor(playerX / 8192);
-    const expectedTileZ_z4 = Math.floor(playerZ / 8192);
+    // Calculate expected tile coordinates for player position at different levels
+    // Level 2 in URL (256 blocks per tile) - high detail
+    const expectedTileX_detail = Math.floor(playerX / 256);
+    const expectedTileZ_detail = Math.floor(playerZ / 256);
+    // Level 0 in URL (4096 blocks per tile) - lower detail, loaded at low zoom
+    const expectedTileX_overview = Math.floor(playerX / 4096);
+    const expectedTileZ_overview = Math.floor(playerZ / 4096);
     
-    // Separate tiles by zoom level in URL (4 or 8)
-    // Note: URL zoom 8 = 512 blocks per tile, URL zoom 4 = 8192 blocks per tile
-    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
-    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
+    // Separate tiles by level in URL (0 or 2)
+    // Note: URL level 2 = 256 blocks per tile, URL level 0 = 4096 blocks per tile
+    const detailTiles = tiles.filter(t => t.level === 2);
+    const overviewTiles = tiles.filter(t => t.level === 0);
     
-    // Check that tiles were requested near the player area at either zoom level
-    const nearbyTiles_z8 = getTilesForArea(zoom8Tiles, expectedTileX_z8, expectedTileZ_z8, 3);
-    const nearbyTiles_z4 = getTilesForArea(zoom4Tiles, expectedTileX_z4, expectedTileZ_z4, 3);
+    // Check that tiles were requested near the player area at either level
+    const nearbyTiles_detail = getTilesForArea(detailTiles, expectedTileX_detail, expectedTileZ_detail, 3);
+    const nearbyTiles_overview = getTilesForArea(overviewTiles, expectedTileX_overview, expectedTileZ_overview, 3);
     
-    const hasNearbyTiles = nearbyTiles_z8.length > 0 || nearbyTiles_z4.length > 0;
+    const hasNearbyTiles = nearbyTiles_detail.length > 0 || nearbyTiles_overview.length > 0;
     
-    const zoom8TileList = zoom8Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
-    const zoom4TileList = zoom4Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const detailTileList = detailTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const overviewTileList = overviewTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
     const errorMessage = 'Expected tiles near player area. ' +
-        `Zoom 8 (512bpt): expected (${expectedTileX_z8}, ${expectedTileZ_z8}), got: ${zoom8TileList}. ` +
-        `Zoom 4 (8192bpt): expected (${expectedTileX_z4}, ${expectedTileZ_z4}), got: ${zoom4TileList}`;
+        `Detail (256bpt): expected (${expectedTileX_detail}, ${expectedTileZ_detail}), got: ${detailTileList}. ` +
+        `Overview (4096bpt): expected (${expectedTileX_overview}, ${expectedTileZ_overview}), got: ${overviewTileList}`;
     
     expect(hasNearbyTiles, errorMessage).toBe(true);
 });
@@ -868,27 +868,27 @@ Then('the visible tiles should correspond to the new player area', async ({ page
     const tiles = parseTileRequests(requests);
     
     // For the "moves to (5000, 5000)" step
-    // Calculate expected tile coords at both zoom levels
-    const expectedTileX_z8 = Math.floor(5000 / 512);  // ~9
-    const expectedTileZ_z8 = Math.floor(5000 / 512);  // ~9
-    const expectedTileX_z4 = Math.floor(5000 / 8192); // ~0
-    const expectedTileZ_z4 = Math.floor(5000 / 8192); // ~0
+    // Calculate expected tile coords at both levels
+    const expectedTileX_detail = Math.floor(5000 / 256);  // ~19
+    const expectedTileZ_detail = Math.floor(5000 / 256);  // ~19
+    const expectedTileX_overview = Math.floor(5000 / 4096); // ~1
+    const expectedTileZ_overview = Math.floor(5000 / 4096); // ~1
     
-    // Separate tiles by zoom level in URL (4 or 8)
-    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
-    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
+    // Separate tiles by level in URL (0 or 2)
+    const detailTiles = tiles.filter(t => t.level === 2);
+    const overviewTiles = tiles.filter(t => t.level === 0);
     
-    // Check that tiles were requested near the new player area at either zoom level
-    const nearbyTiles_z8 = getTilesForArea(zoom8Tiles, expectedTileX_z8, expectedTileZ_z8, 3);
-    const nearbyTiles_z4 = getTilesForArea(zoom4Tiles, expectedTileX_z4, expectedTileZ_z4, 3);
+    // Check that tiles were requested near the new player area at either level
+    const nearbyTiles_detail = getTilesForArea(detailTiles, expectedTileX_detail, expectedTileZ_detail, 3);
+    const nearbyTiles_overview = getTilesForArea(overviewTiles, expectedTileX_overview, expectedTileZ_overview, 3);
     
-    const hasNearbyTiles = nearbyTiles_z8.length > 0 || nearbyTiles_z4.length > 0;
+    const hasNearbyTiles = nearbyTiles_detail.length > 0 || nearbyTiles_overview.length > 0;
     
-    const zoom8TileList = zoom8Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
-    const zoom4TileList = zoom4Tiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const detailTileList = detailTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
+    const overviewTileList = overviewTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
     const errorMessage = 'Expected tiles near new player area (5000, 5000). ' +
-        `Zoom 8: expected (${expectedTileX_z8}, ${expectedTileZ_z8}), got: ${zoom8TileList}. ` +
-        `Zoom 4: expected (${expectedTileX_z4}, ${expectedTileZ_z4}), got: ${zoom4TileList}`;
+        `Detail: expected (${expectedTileX_detail}, ${expectedTileZ_detail}), got: ${detailTileList}. ` +
+        `Overview: expected (${expectedTileX_overview}, ${expectedTileZ_overview}), got: ${overviewTileList}`;
     
     expect(hasNearbyTiles, errorMessage).toBe(true);
 });
@@ -904,15 +904,15 @@ Then('each loaded tile should have bounds matching its tile coordinates', async 
     expect(tiles.length, 'Expected some tiles to be requested').toBeGreaterThan(0);
     
     // Verify we have a reasonable distribution of tiles
-    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
-    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
+    const detailTiles = tiles.filter(t => t.level === 2);
+    const overviewTiles = tiles.filter(t => t.level === 0);
     
-    // Both zoom levels should typically be requested
-    expect(zoom8Tiles.length + zoom4Tiles.length, 'Expected tiles at zoom 4 or 8').toBeGreaterThan(0);
+    // Both levels should typically be requested
+    expect(detailTiles.length + overviewTiles.length, 'Expected tiles at overview or detail level').toBeGreaterThan(0);
     
     // Verify tiles form a contiguous region (adjacent tiles exist)
-    if (zoom8Tiles.length >= 2) {
-        const sortedByX = [...zoom8Tiles].toSorted((a, b) => a.tileX - b.tileX || a.tileZ - b.tileZ);
+    if (detailTiles.length >= 2) {
+        const sortedByX = [...detailTiles].toSorted((a, b) => a.tileX - b.tileX || a.tileZ - b.tileZ);
         
         // Check that we have some adjacent tiles (grid pattern)
         let hasAdjacentPair = false;
@@ -955,34 +955,34 @@ Then('tiles should still be visible in the viewport', async ({ page }) => {
     expect(tiles.length, 'Expected tiles to remain after zoom').toBeGreaterThan(0);
 });
 
-Then('zoom 4 tiles should cover the same area as zoom 8 tiles', async ({ page }) => {
+Then('overview tiles should cover the same area as detail tiles', async ({ page }) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     const tiles = parseTileRequests(requests);
     
-    const zoom4Tiles = tiles.filter(t => t.zoom === 4);
-    const zoom8Tiles = tiles.filter(t => t.zoom === 8);
+    const overviewTiles = tiles.filter(t => t.level === 0);
+    const detailTiles = tiles.filter(t => t.level === 2);
     
-    // We should have tiles at zoom 4 (they're always loaded as base layer)
-    expect(zoom4Tiles.length, 'Expected zoom 4 tiles').toBeGreaterThan(0);
+    // We should have overview tiles (they're always loaded as base layer)
+    expect(overviewTiles.length, 'Expected overview tiles').toBeGreaterThan(0);
     
-    // If we have zoom 8 tiles, verify zoom 4 tiles cover the same general area
-    if (zoom8Tiles.length > 0 && zoom4Tiles.length > 0) {
-        // Each zoom 4 tile covers 16x16 zoom 8 tiles
-        const z8MinX = Math.min(...zoom8Tiles.map(t => t.tileX));
-        const z8MaxX = Math.max(...zoom8Tiles.map(t => t.tileX));
+    // If we have detail tiles, verify overview tiles cover the same general area
+    if (detailTiles.length > 0 && overviewTiles.length > 0) {
+        // Each overview tile covers 16x16 detail tiles
+        const detailMinX = Math.min(...detailTiles.map(t => t.tileX));
+        const detailMaxX = Math.max(...detailTiles.map(t => t.tileX));
         
-        // Convert to zoom 4 coordinates
-        const expectedZ4MinX = Math.floor(z8MinX / 16);
-        const expectedZ4MaxX = Math.floor(z8MaxX / 16);
+        // Convert to overview coordinates
+        const expectedOverviewMinX = Math.floor(detailMinX / 16);
+        const expectedOverviewMaxX = Math.floor(detailMaxX / 16);
         
-        // Verify zoom 4 tiles are in a similar range
-        const z4MinX = Math.min(...zoom4Tiles.map(t => t.tileX));
-        const z4MaxX = Math.max(...zoom4Tiles.map(t => t.tileX));
+        // Verify overview tiles are in a similar range
+        const overviewMinX = Math.min(...overviewTiles.map(t => t.tileX));
+        const overviewMaxX = Math.max(...overviewTiles.map(t => t.tileX));
         
         // They should overlap
-        const overlap = z4MaxX >= expectedZ4MinX && z4MinX <= expectedZ4MaxX;
-        expect(overlap, `Zoom 4 tiles (${z4MinX} to ${z4MaxX}) should cover zoom 8 area (z4 equiv: ${expectedZ4MinX} to ${expectedZ4MaxX})`).toBe(true);
+        const overlap = overviewMaxX >= expectedOverviewMinX && overviewMinX <= expectedOverviewMaxX;
+        expect(overlap, `Overview tiles (${overviewMinX} to ${overviewMaxX}) should cover detail area (overview equiv: ${expectedOverviewMinX} to ${expectedOverviewMaxX})`).toBe(true);
     }
 });
 

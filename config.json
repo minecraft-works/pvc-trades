@@ -1,6 +1,15 @@
 {
   "dataUrl": "https://pvc-shops.minecraft-works.workers.dev/",
   "dataRefreshMs": 60000,
+  "tileSource": "dynmap",
+  "tilePyramid": {
+    "tileWidth": 256,
+    "tileHeight": 256,
+    "levels": 3,
+    "scaleFactor": 4,
+    "baseBlocksPerTile": 256,
+    "format": "png"
+  },
   "dynmap": {
     "baseUrl": "https://web.peacefulvanilla.club/maps",
     "tileSize": 128,

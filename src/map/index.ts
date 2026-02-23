@@ -1,10 +1,22 @@
 /**
  * Map Module Barrel Export
  * 
- * Exports map tile loading functionality.
+ * Exports map tile loading functionality and tile provider abstraction.
  * 
  * @module map
  */
+
+// Tile provider abstraction
+export type {
+    DetailLevel,
+    ProcessedTile,
+    TileProvider} from './providers/index.js';
+export {
+    BlueMapTileProvider,
+    DynmapTileProvider,
+    encodeCoordPath,
+    getActiveTileProvider,
+    setActiveTileProvider} from './providers/index.js';
 
 // Types
 export type {
@@ -19,14 +31,13 @@ export type {
 export {
     _clearCaches,
     _getBlobCacheSize,
-    calculateZoom4Coords,
+    calculateOverviewCoords,
     getCachedTileUrl,
     loadTileManifest,
     loadTileToMap,
-    setCachedTileUrl,
+    OVERVIEW_TILE_SIZE,    setCachedTileUrl,
     TILE_CONFIG,
-    tileExistsInManifest,
-    ZOOM4_TILE_SIZE} from './tile-loader.js';
+    tileExistsInManifest} from './tile-loader.js';
 
 // Player utilities
 export {
