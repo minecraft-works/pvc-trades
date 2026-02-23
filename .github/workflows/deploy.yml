@@ -55,15 +55,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: public/tiles
-          key: map-tiles-v5-pyramid
+          key: map-tiles-v7-${{ hashFiles('config.json') }}
           restore-keys: |
-            map-tiles-v5-
+            map-tiles-v7-
 
       - name: Fetch trade data
         run: npm run fetch-data
 
       - name: Fetch map tiles (only missing)
         run: npm run fetch-tiles
+
+      - name: Render canonical tiles
+        run: npm run render-tiles
 
       - name: Validate tile integrity
         run: npm run validate-tiles

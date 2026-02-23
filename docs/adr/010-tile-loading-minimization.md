@@ -65,9 +65,9 @@ This yields ~25 tiles per unique shop location instead of thousands.
   uses: actions/cache@v4
   with:
     path: public/tiles
-    key: map-tiles-v5-pyramid
+    key: map-tiles-v6-${{ hashFiles('config.json') }}
     restore-keys: |
-      map-tiles-v5-
+      map-tiles-v6-
 ```
 
 Tiles persist across deployments:
@@ -133,7 +133,7 @@ Shop-centric is 40× fewer tiles while covering all navigation use cases.
 
 ### Why Cache Key is Static?
 
-A static cache key (`map-tiles-v5-pyramid`) means:
+A config-derived cache key (`map-tiles-v6-${{ hashFiles('config.json') }}`) means:
 - Tiles accumulate across deploys
 - Old tiles for removed shops remain (harmless)
 - No weekly re-fetch of entire tile set

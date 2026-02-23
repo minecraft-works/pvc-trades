@@ -99,7 +99,7 @@ const TILE_PNG = createColoredPng(0, 100, 255);
 function generateLargeManifest(): Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> {
     const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> = [];
     const worlds = ['World', 'World_nether'];
-    const blocksPerTileOptions = [64, 512];  // zoom 8 and zoom 1
+    const blocksPerTileOptions = [64, 512];  // detail and overview scale tiles
     
     // Generate tiles around origin for stress testing
     for (const world of worlds) {

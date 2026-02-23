@@ -5,6 +5,9 @@ import type { Page } from 'playwright';
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
+import type { TileProvider } from '../src/map/providers/tile-provider';
+import { createTileProviderFromConfig } from '../src/stores/config-store';
+import { AppConfigSchema, DEFAULT_CONFIG } from '../src/types';
 import {
     calculateRateLimitDelay,
     type FetchResult,
@@ -12,22 +15,53 @@ import {
     getNormalizedWorld,
     getTilePath,
     getUniqueTiles,
-    type TileInfo} from './tile-utils';
+    type TileInfo,
+    type TileUrlBuilder} from './tile-utils';
 
 // Add stealth plugin to avoid Cloudflare detection
 chromium.use(StealthPlugin());
 
-const CONFIG = {
-    baseUrl: 'https://web.peacefulvanilla.club/maps',
+/** Rate limiting / browser config (provider-independent) */
+const FETCH_CONFIG = {
     homepageUrl: 'https://web.peacefulvanilla.club/',
-    tileSize: 512,  // pixels per tile
-    maxZoom: 8,     // at maxZoom, 1 pixel = 1 block
-    minZoom: 1,     // minimum zoom level to generate
     // Rate limiting to avoid DDoS
     delayBetweenTiles: 500, // ms between tile fetches
     batchSize: 10, // tiles per batch
     delayBetweenBatches: 2000 // ms between batches
 } as const;
+
+/**
+ * Load config.json from disk and create the matching tile provider.
+ */
+function loadProviderFromConfig(): { provider: TileProvider; homepageUrl: string } {
+    const configPath = 'config.json';
+    let config = DEFAULT_CONFIG;
+    if (existsSync(configPath)) {
+        const raw: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
+        const parsed = AppConfigSchema.safeParse(raw);
+        if (parsed.success) {
+            config = parsed.data;
+        } else {
+            console.warn('Invalid config.json, using defaults:', parsed.error.message);
+        }
+    } else {
+        console.warn('config.json not found, using defaults');
+    }
+    const provider = createTileProviderFromConfig(config);
+    // Derive homepage from baseUrl (strip path after host)
+    const homepageUrl = new URL(config.dynmap.baseUrl).origin + '/';
+    return { provider, homepageUrl };
+}
+
+/**
+ * Create a TileUrlBuilder from a provider for a specific detail level.
+ */
+function createUrlBuilder(provider: TileProvider, level: TileProvider['detailLevel']): TileUrlBuilder {
+    return (world: string, tileX: number, tileZ: number) => {
+        const normalizedWorld = getNormalizedWorld(world);
+        return provider.getSourceTileUrl(normalizedWorld, level, tileX, tileZ);
+    };
+}
 
 interface FetchTileResult extends FetchResult {
     error?: string;
@@ -35,14 +69,10 @@ interface FetchTileResult extends FetchResult {
 
 /**
  * Fetch a single tile by navigating to it (like fetch-data.ts does)
- * Saves in pyramid structure: {world}/{z}/{x}/{y}.png
+ * Saves in pyramid structure: {world}/{levelId}/{x}/{y}.png
  */
 async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise<FetchTileResult> {
-    // Calculate actual zoom level from blocksPerTile
-    // At maxZoom (8), blocksPerTile = tileSize (512)
-    // At zoom 4, blocksPerTile = 512 * 2^(8-4) = 512 * 16 = 8192
-    const zoom = CONFIG.maxZoom - Math.log2(tile.blocksPerTile / CONFIG.tileSize);
-    const tilePath = getTilePath(zoom, tile.tileX, tile.tileZ);
+    const tilePath = getTilePath(tile.levelId, tile.tileX, tile.tileZ);
     const normalizedWorld = getNormalizedWorld(tile.world);
     
     const filepath = path.join(outputDir, normalizedWorld, tilePath);
@@ -106,6 +136,16 @@ async function main() {
     console.log('=== Tile Fetcher ===');
     console.log(`Timestamp: ${new Date().toISOString()}`);
     
+    // Load config and create provider
+    const { provider, homepageUrl } = loadProviderFromConfig();
+    console.log(`Tile provider: ${provider.name}`);
+    console.log(`Detail level: ${provider.detailLevel.label} (${provider.detailLevel.blocksPerTile} blocks/tile)`);
+    console.log(`Overview level: ${provider.overviewLevel.label} (${provider.overviewLevel.blocksPerTile} blocks/tile)`);
+    
+    // Create URL builders for each level
+    const detailUrlBuilder = createUrlBuilder(provider, provider.detailLevel);
+    const overviewUrlBuilder = createUrlBuilder(provider, provider.overviewLevel);
+    
     // Read shop data
     const dataPath = 'public/data.json';
     if (!existsSync(dataPath)) {
@@ -116,13 +156,24 @@ async function main() {
     const shopData = JSON.parse(readFileSync(dataPath, 'utf8'));
     console.log(`Loaded ${shopData.data.length} shops`);
     
-    // Get zoom 8 tiles around shops (5x5 grid per shop)
-    const shopTiles = getUniqueTiles(shopData.data, CONFIG.maxZoom, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl);
-    console.log(`\nShop tiles (zoom 8): ${shopTiles.length}`);
+    // Get detail tiles around shops (5x5 grid per shop)
+    const shopTiles = getUniqueTiles(
+        shopData.data,
+        provider.detailLevel.blocksPerTile,
+        provider.detailLevel.id,
+        detailUrlBuilder
+    );
+    console.log(`\nShop tiles (${provider.detailLevel.label}): ${shopTiles.length}`);
     
-    // Get zoom 4 base map tiles (range -5 to 4, which is 10x10 = 100 tiles)
-    const baseMapTiles = getBaseMapTiles(-5, 4, -5, 4, 4, CONFIG.maxZoom, CONFIG.tileSize, CONFIG.baseUrl, 'overworld');
-    console.log(`Base map tiles (zoom 4): ${baseMapTiles.length}`);
+    // Get overview base map tiles (range -5 to 4, which is 10x10 = 100 tiles)
+    const baseMapTiles = getBaseMapTiles(
+        -5, 4, -5, 4,
+        provider.overviewLevel.blocksPerTile,
+        provider.overviewLevel.id,
+        overviewUrlBuilder,
+        'overworld'
+    );
+    console.log(`Base map tiles (${provider.overviewLevel.label}): ${baseMapTiles.length}`);
     
     // Combine both sets, removing duplicates
     const tilesMap = new Map<string, TileInfo>();
@@ -135,16 +186,16 @@ async function main() {
     const tiles = [...tilesMap.values()];
     console.log(`\nTotal unique tiles: ${tiles.length}`);
     
-    // Group by world and zoom for summary
-    const byWorldZoom: Record<string, Record<number, number>> = {};
+    // Group by world and level for summary
+    const byWorldLevel: Record<string, Record<string, number>> = {};
     for (const tile of tiles) {
-        if (!byWorldZoom[tile.world]) {
-            byWorldZoom[tile.world] = {};
+        if (!byWorldLevel[tile.world]) {
+            byWorldLevel[tile.world] = {};
         }
-        const zoom = CONFIG.maxZoom - Math.log2(tile.blocksPerTile / CONFIG.tileSize);
-        byWorldZoom[tile.world][zoom] = (byWorldZoom[tile.world][zoom] || 0) + 1;
+        const levelKey = `level-${tile.levelId}`;
+        byWorldLevel[tile.world][levelKey] = (byWorldLevel[tile.world][levelKey] || 0) + 1;
     }
-    console.log('By world/zoom:', JSON.stringify(byWorldZoom, null, 2));
+    console.log('By world/level:', JSON.stringify(byWorldLevel, null, 2));
     
     // Output directory
     const outputDir = 'public/tiles';
@@ -163,12 +214,12 @@ async function main() {
     
     // Visit homepage first to get cookies
     console.log('Visiting homepage for cookies...');
-    await page.goto(CONFIG.homepageUrl, { waitUntil: 'networkidle', timeout: 60_000 });
+    await page.goto(homepageUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     await sleep(3000);
     
-    // Sanity check: fetch a center tile (0_0) to verify dynmap is accessible
+    // Sanity check: fetch a known tile to verify tile server is accessible
     console.log('\n--- Sanity check: fetching center tile ---');
-    const testUrl = `${CONFIG.baseUrl}/tiles/minecraft_overworld/${CONFIG.maxZoom}/0_0.png`;
+    const testUrl = provider.getSourceTileUrl('overworld', provider.detailLevel, 0, 0);
     console.log(`Testing: ${testUrl}`);
     
     try {
@@ -178,14 +229,14 @@ async function main() {
         
         if (testStatus !== 200) {
             console.error(`\nSanity check FAILED: HTTP ${testStatus}`);
-            console.error('The dynmap tile server may be down or blocking requests.');
+            console.error('The tile server may be down or blocking requests.');
             await browser.close();
             process.exit(1);
         }
         
         if (!testContentType.includes('image')) {
             console.error(`\nSanity check FAILED: Expected image, got ${testContentType}`);
-            console.error('The dynmap may be returning an error page.');
+            console.error('The tile server may be returning an error page.');
             await browser.close();
             process.exit(1);
         }
@@ -194,7 +245,7 @@ async function main() {
         console.log(`Sanity check PASSED: Got ${testBuffer.length} bytes of image data`);
     } catch (error) {
         console.error(`\nSanity check FAILED: ${error.message}`);
-        console.error('Cannot connect to dynmap. Aborting tile fetch.');
+        console.error('Cannot connect to tile server. Aborting tile fetch.');
         await browser.close();
         process.exit(1);
     }
@@ -205,13 +256,13 @@ async function main() {
     let failed = 0;
     const rateLimitState = { fetchedInBatch: 0 };
     const rateLimitConfig = {
-        batchSize: CONFIG.batchSize,
-        delayBetweenTiles: CONFIG.delayBetweenTiles,
-        delayBetweenBatches: CONFIG.delayBetweenBatches
+        batchSize: FETCH_CONFIG.batchSize,
+        delayBetweenTiles: FETCH_CONFIG.delayBetweenTiles,
+        delayBetweenBatches: FETCH_CONFIG.delayBetweenBatches
     };
 
     console.log(`\nFetching ${tiles.length} tiles...`);
-    console.log(`Rate limit: ${CONFIG.delayBetweenTiles}ms between fetches, ${CONFIG.delayBetweenBatches}ms between batches of ${CONFIG.batchSize}`);
+    console.log(`Rate limit: ${FETCH_CONFIG.delayBetweenTiles}ms between fetches, ${FETCH_CONFIG.delayBetweenBatches}ms between batches of ${FETCH_CONFIG.batchSize}`);
 
     for (let i = 0; i < tiles.length; i++) {
         const tile = tiles[i];
@@ -256,15 +307,16 @@ async function main() {
         tileX: t.tileX,
         tileZ: t.tileZ,
         blocksPerTile: t.blocksPerTile,
+        levelId: t.levelId,
         shopCount: t.shops.length
     }));
     writeFileSync(path.join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
     console.log(`\nSaved tile manifest with ${manifest.length} entries (${failed} failed tiles excluded)`);
     
     console.log('\n=== Complete ===');
-    console.log('Note: Tile pyramid generation skipped.');
-    console.log('Zoom 8: High detail around shops');
-    console.log('Zoom 4: Base map coverage (-5 to 4 range)');
+    console.log(`Provider: ${provider.name}`);
+    console.log(`Detail: ${provider.detailLevel.label} around shops`);
+    console.log(`Overview: ${provider.overviewLevel.label} base map coverage`);
 }
 
 main().catch(error => {

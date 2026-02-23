@@ -12,18 +12,24 @@
 
 /** Map tile configuration */
 export interface TileConfig {
-    /** Pixels per tile (and blocks per tile at maxZoom) */
+    /** Blocks per tile at the highest detail level */
     readonly tileSize: number;
     /** Base URL for tile assets */
     readonly baseUrl: string;
-    /** Highest detail zoom level (1 pixel = 1 block) */
+    /** Highest detail pyramid level */
     readonly maxZoom: number;
-    /** Base map zoom level for fallback tiles */
+    /** Overview pyramid level for fallback tiles */
     readonly fallbackZoom: number;
     /** Lowest detail zoom level */
     readonly minZoom: number;
     /** URL for player position data */
     readonly playersUrl: string;
+    /** Blocks covered by one overview tile */
+    readonly overviewTileBlocks: number;
+    /** Number of detail tiles per overview tile per axis */
+    readonly detailToOverviewRatio: number;
+    /** Output tile format (png, webp, avif) */
+    readonly format: string;
 }
 
 // ============================================================================
@@ -36,11 +42,11 @@ export interface LoadTileOptions {
     map: L.Map;
     /** World identifier (overworld, the_nether) */
     worldId: string;
-    /** Zoom level (4 or 8) */
+    /** Pyramid level (overview or detail) */
     zoom: number;
-    /** Tile X coordinate at the specified zoom */
+    /** Tile X coordinate at the specified level */
     tx: number;
-    /** Tile Z coordinate at the specified zoom */
+    /** Tile Z coordinate at the specified level */
     tz: number;
     /** Bounds for the tile overlay */
     bounds: L.LatLngBoundsExpression;
@@ -58,10 +64,10 @@ export interface MapTileContext {
     centerTileX: number;
     /** Center tile Z coordinate for positioning */
     centerTileZ: number;
-    /** Set tracking zoom4 tiles added */
-    addedToMapZoom4: Set<string>;
-    /** Set tracking zoom8 tiles added */
-    addedToMapZoom8: Set<string>;
+    /** Set tracking overview tiles added */
+    addedToMapOverview: Set<string>;
+    /** Set tracking detail tiles added */
+    addedToMapDetail: Set<string>;
     /** Manifest of available tiles */
     manifest: Set<string>;
 }

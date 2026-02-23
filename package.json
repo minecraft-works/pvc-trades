@@ -38,6 +38,7 @@
     "lint:parse-safety": "tsx scripts/check-parse-safety.ts",
     "fetch-data": "tsx scripts/fetch-data.ts",
     "fetch-tiles": "tsx scripts/fetch-tiles.ts",
+    "render-tiles": "tsx scripts/render-tiles.ts",
     "validate-tiles": "tsx scripts/validate-tiles.ts",
     "prepare": "husky",
     "size": "size-limit"
@@ -95,6 +96,7 @@
     "playwright-bdd": "^8.4.2",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sharp": "^0.34.5",
     "size-limit": "^12.0.0",
     "stylelint": "^17.0.0",
     "stylelint-config-standard": "^40.0.0",

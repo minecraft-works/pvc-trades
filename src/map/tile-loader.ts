@@ -10,6 +10,15 @@
 import debug from 'debug';
 
 import { getWorldId } from '../library.js';
+import { getConfig } from '../stores/config-store.js';
+import {
+    blocksPerTile as pyramidBlocksPerTile,
+    canonicalTileUrl,
+    coarsenTile,
+    detailLevel,
+    detailToOverviewRatio as pyramidDetailToOverviewRatio,
+    overviewLevel
+} from '../tile-pyramid.js';
 import type { LoadTileOptions, ManifestEntry,TileConfig } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
@@ -21,18 +30,32 @@ const debugTiles = debug('tiles');
 // Configuration
 // ============================================================================
 
-/** Default tile configuration */
+/**
+ * Tile configuration derived from the pyramid config in config.json.
+ *
+ * Dynamic properties (tileSize, detailLevel, overviewLevel, overviewTileBlocks,
+ * detailToOverviewRatio) are getters that read from the app config,
+ * so they update automatically when configuration changes.
+ */
 export const TILE_CONFIG: TileConfig = {
-    tileSize: 512,      // pixels per tile (and blocks per tile at maxZoom)
+    get tileSize() { return getConfig().tilePyramid.baseBlocksPerTile; },
     baseUrl: 'tiles',
-    maxZoom: 8,         // highest detail zoom level (1 pixel = 1 block)
-    fallbackZoom: 4,    // base map zoom level for fallback
-    minZoom: 1,         // lowest detail zoom level
-    playersUrl: 'players.json'
+    get maxZoom() { return detailLevel(getConfig().tilePyramid); },
+    get fallbackZoom() { return overviewLevel(); },
+    minZoom: 1,
+    playersUrl: 'players.json',
+    get overviewTileBlocks() { return pyramidBlocksPerTile(overviewLevel(), getConfig().tilePyramid); },
+    get detailToOverviewRatio() {
+        return pyramidDetailToOverviewRatio(getConfig().tilePyramid);
+    },
+    get format() { return getConfig().tilePyramid.format; }
 };
 
-/** Zoom 4 tile size (16x the base tile) */
-export const ZOOM4_TILE_SIZE = TILE_CONFIG.tileSize * 16;
+/**
+ * @deprecated Remove after all callers migrate to pyramid-based values.
+ * Use `TILE_CONFIG.overviewTileBlocks` instead.
+ */
+export const OVERVIEW_TILE_SIZE = 512 * 16; // Legacy: only correct for Dynmap default
 
 // ============================================================================
 // Cache State (Module-scoped)
@@ -112,7 +135,7 @@ export async function loadTileManifest(): Promise<Set<string>> {
  * 
  * @param manifest - The manifest Set to check
  * @param world - World identifier
- * @param blocksPerTile - Blocks per tile (512 for zoom8, 8192 for zoom4)
+ * @param blocksPerTile - Blocks per tile at the target pyramid level
  * @param tx - Tile X coordinate
  * @param tz - Tile Z coordinate
  * @returns true if tile exists in manifest
@@ -160,7 +183,8 @@ export function loadTileToMap(options: LoadTileOptions): void {
     }
     
     // Fire-and-forget: load tile without blocking
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${zoom}/${tx}/${tz}.png`;
+    const pyramid = getConfig().tilePyramid;
+    const url = canonicalTileUrl({ world: worldId, level: zoom, tileX: tx, tileZ: tz }, pyramid);
     debugTiles('loadTile: FETCH url=%s', url);
     fetch(url)
         .then(async response => {
@@ -190,17 +214,18 @@ export function loadTileToMap(options: LoadTileOptions): void {
 // ============================================================================
 
 /**
- * Calculate zoom 4 tile coordinates from zoom 8 coordinates
- * 
- * @param z8x - Zoom 8 tile X coordinate
- * @param z8z - Zoom 8 tile Z coordinate
- * @returns Zoom 4 tile coordinates
+ * Calculate overview tile coordinates from detail tile coordinates.
+ *
+ * Uses the pyramid config to derive the correct ratio.
+ *
+ * @param detailTileX - Detail-level tile X coordinate
+ * @param detailTileZ - Detail-level tile Z coordinate
+ * @returns Overview tile coordinates
  */
-export function calculateZoom4Coords(z8x: number, z8z: number): { x: number; z: number } {
-    return {
-        x: Math.floor(z8x / 16),
-        z: Math.floor(z8z / 16)
-    };
+export function calculateOverviewCoords(detailTileX: number, detailTileZ: number): { x: number; z: number } {
+    const pyramid = getConfig().tilePyramid;
+    const result = coarsenTile(detailTileX, detailTileZ, detailLevel(pyramid), overviewLevel(), pyramid);
+    return { x: result.tileX, z: result.tileZ };
 }
 
 // ============================================================================
@@ -210,26 +235,26 @@ export function calculateZoom4Coords(z8x: number, z8z: number): { x: number; z: 
 /**
  * Get a cached tile blob URL if available.
  * @param worldId - World identifier
- * @param zoom - Zoom level (4 or 8)
+ * @param level - Pyramid level
  * @param tx - Tile X coordinate
  * @param tz - Tile Z coordinate
  * @returns Blob URL if cached, undefined otherwise
  */
-export function getCachedTileUrl(worldId: string, zoom: number, tx: number, tz: number): string | undefined {
-    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+export function getCachedTileUrl(worldId: string, level: number, tx: number, tz: number): string | undefined {
+    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
     return tileBlobCache.get(cacheKey);
 }
 
 /**
  * Cache a tile blob URL for future reuse.
  * @param worldId - World identifier
- * @param zoom - Zoom level (4 or 8)
+ * @param level - Pyramid level
  * @param tx - Tile X coordinate
  * @param tz - Tile Z coordinate
  * @param blobUrl - The blob URL to cache
  */
-export function setCachedTileUrl(worldId: string, zoom: number, tx: number, tz: number, blobUrl: string): void {
-    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
+export function setCachedTileUrl(worldId: string, level: number, tx: number, tz: number, blobUrl: string): void {
+    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
     tileBlobCache.set(cacheKey, blobUrl);
 }
 

@@ -7,10 +7,10 @@ Feature: Tile Loading
     Given the tile loading test app is configured
 
   @tiles @loading
-  Scenario: Both zoom levels are requested when available in manifest
+  Scenario: Both tile levels are requested when available in manifest
     When I open the navigation map with an overworld item
-    Then zoom 8 tiles should be requested
-    And zoom 4 tiles should be requested
+    Then detail level tiles should be requested
+    And overview level tiles should be requested
 
   @tiles @loading @nether @unified
   Scenario: Unified view shows overworld tiles even for nether shops
@@ -47,7 +47,7 @@ Feature: Tile Loading
   @tiles @dynamic @pan
   Scenario: Panning the map requests additional tiles
     Given the navigation map is open with an overworld item
-    Then zoom 8 tiles should be requested
+    Then detail level tiles should be requested
     When I pan the map to a new area
     Then the map should continue displaying tiles
 
@@ -89,7 +89,7 @@ Feature: Tile Loading
     Given the navigation map is open with an overworld item
     When I zoom out the map
     Then tiles should still be visible in the viewport
-    And zoom 4 tiles should cover the same area as zoom 8 tiles
+    And overview tiles should cover the same area as detail tiles
 
   @tiles @positioning @nether @unified
   Scenario: Nether shops positioned at overworld-equivalent on unified map

@@ -3,7 +3,7 @@
  *
  * Manages the Leaflet map used during live navigation:
  * - Map creation and teardown
- * - Tile range calculation and tile loading (zoom 4 + 8)
+ * - Tile range calculation and tile loading (overview + detail)
  * - Unified route marker creation (completed/incomplete)
  * - Dynamic tile loading on pan/zoom
  *
@@ -28,7 +28,7 @@ import {
 } from '../library.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
 import {
-    calculateZoom4Coords,
+    calculateOverviewCoords,
     loadTileManifest,
     loadTileToMap,
     TILE_CONFIG,
@@ -120,29 +120,30 @@ interface TileLoadContext {
 // Pure tile loading helpers (no closure needed)
 // ============================================================================
 
-function loadZoom4Tiles(context: TileLoadContext): { loaded: number; skipped: number } {
+function loadOverviewTiles(context: TileLoadContext): { loaded: number; skipped: number } {
     const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
     let loaded = 0;
     let skipped = 0;
-    const zoom4TileSize = TILE_CONFIG.tileSize * 16;
-    const zoom4Tiles = new Set<string>();
+    const overviewSize = TILE_CONFIG.overviewTileBlocks;
+    const ratio = TILE_CONFIG.detailToOverviewRatio;
+    const overviewTiles = new Set<string>();
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            const z4 = calculateZoom4Coords(tx, tz);
-            const key = `${z4.x},${z4.z}`;
-            if (zoom4Tiles.has(key)) { continue; }
-            zoom4Tiles.add(key);
-            if (tileExistsInManifest(manifest, worldId, 8192, z4.x, z4.z)) {
+            const ov = calculateOverviewCoords(tx, tz);
+            const key = `${ov.x},${ov.z}`;
+            if (overviewTiles.has(key)) { continue; }
+            overviewTiles.add(key);
+            if (tileExistsInManifest(manifest, worldId, TILE_CONFIG.overviewTileBlocks, ov.x, ov.z)) {
                 loaded++;
-                const startZ8X = z4.x * 16;
-                const startZ8Z = z4.z * 16;
-                const dx = startZ8X - positionCenterX;
-                const dy = startZ8Z - positionCenterZ;
+                const startDetailX = ov.x * ratio;
+                const startDetailZ = ov.z * ratio;
+                const dx = startDetailX - positionCenterX;
+                const dy = startDetailZ - positionCenterZ;
                 const bounds: L.LatLngBoundsExpression = [
-                    [-dy * TILE_CONFIG.tileSize - zoom4TileSize, dx * TILE_CONFIG.tileSize],
-                    [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + zoom4TileSize],
+                    [-dy * TILE_CONFIG.tileSize - overviewSize, dx * TILE_CONFIG.tileSize],
+                    [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize],
                 ];
-                loadTileToMap({ map, worldId, bounds, addedToMap, zoom: 4, tx: z4.x, tz: z4.z, pane: 'tilesZoom4' });
+                loadTileToMap({ map, worldId, bounds, addedToMap, zoom: TILE_CONFIG.fallbackZoom, tx: ov.x, tz: ov.z, pane: 'tilesOverview' });
             } else {
                 skipped++;
             }
@@ -151,13 +152,13 @@ function loadZoom4Tiles(context: TileLoadContext): { loaded: number; skipped: nu
     return { loaded, skipped };
 }
 
-function loadZoom8Tiles(context: TileLoadContext): { loaded: number; skipped: number } {
+function loadDetailTiles(context: TileLoadContext): { loaded: number; skipped: number } {
     const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
     let loaded = 0;
     let skipped = 0;
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            if (tileExistsInManifest(manifest, worldId, 512, tx, tz)) {
+            if (tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, tx, tz)) {
                 loaded++;
                 const relativeX = tx - positionCenterX;
                 const relativeZ = tz - positionCenterZ;
@@ -165,7 +166,7 @@ function loadZoom8Tiles(context: TileLoadContext): { loaded: number; skipped: nu
                     [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
                     [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize],
                 ];
-                loadTileToMap({ map, worldId, tx, tz, bounds, addedToMap, zoom: 8, pane: 'tilesZoom8' });
+                loadTileToMap({ map, worldId, tx, tz, bounds, addedToMap, zoom: TILE_CONFIG.maxZoom, pane: 'tilesDetail' });
             } else {
                 skipped++;
             }
@@ -193,8 +194,8 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
         ...animationOptions,
     });
 
-    map.createPane('tilesZoom4').style.zIndex = '350';
-    map.createPane('tilesZoom8').style.zIndex = '360';
+    map.createPane('tilesOverview').style.zIndex = '350';
+    map.createPane('tilesDetail').style.zIndex = '360';
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     map.on('dragstart', () => onMapDrag());
@@ -292,18 +293,18 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
         const tileContext: TileLoadContext = { map: state.map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap };
 
-        const z4 = loadZoom4Tiles(tileContext);
-        debugTiles('loadNavMapTiles: zoom4 loaded=%d skipped=%d (not in manifest)', z4.loaded, z4.skipped);
+        const z4 = loadOverviewTiles(tileContext);
+        debugTiles('loadNavMapTiles: overview loaded=%d skipped=%d (not in manifest)', z4.loaded, z4.skipped);
 
         let z8 = { loaded: 0, skipped: 0 };
         if (currentZoom > -2) {
-            z8 = loadZoom8Tiles(tileContext);
+            z8 = loadDetailTiles(tileContext);
         } else {
-            debugTiles('loadNavMapTiles: skipping zoom8 tiles (currentZoom=%d <= -2)', currentZoom);
+            debugTiles('loadNavMapTiles: skipping detail tiles (currentZoom=%d <= -2)', currentZoom);
         }
 
-        debugTiles('loadNavMapTiles: zoom8 loaded=%d skipped=%d (not in manifest)', z8.loaded, z8.skipped);
-        debugTiles('loadNavMapTiles: TOTAL loaded=%d (zoom4=%d zoom8=%d)', z4.loaded + z8.loaded, z4.loaded, z8.loaded);
+        debugTiles('loadNavMapTiles: detail loaded=%d skipped=%d (not in manifest)', z8.loaded, z8.skipped);
+        debugTiles('loadNavMapTiles: TOTAL loaded=%d (overview=%d detail=%d)', z4.loaded + z8.loaded, z4.loaded, z8.loaded);
     }
 
     // ── Route markers ───────────────────────────────────────────────
