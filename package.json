@@ -51,15 +51,15 @@
   ],
   "lint-staged": {
     "src/**/*.ts": [
-      "eslint"
+      "eslint --fix"
     ],
-    "scripts/**/*.ts": "eslint",
+    "scripts/**/*.ts": "eslint --fix",
     "tests/**/*.spec.ts": [
-      "eslint"
+      "eslint --fix"
     ],
-    "tests/helpers/**/*.ts": "eslint",
+    "tests/helpers/**/*.ts": "eslint --fix",
     "features/**/*.ts": [
-      "eslint"
+      "eslint --fix"
     ],
     "styles.css": "stylelint",
     "index.html": "htmlhint"
