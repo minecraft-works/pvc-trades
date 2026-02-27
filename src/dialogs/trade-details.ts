@@ -31,15 +31,13 @@ function formatEnchantmentName(name: string): string {
  */
 function renderItemDetails(item: Item): string {
     const name = formatName(item);
-    const hasLore = item.lore && item.lore.length > 0;
-    const hasEnchants = item.enchant && Object.keys(item.enchant).length > 0;
 
     let html = `
         <div class="trade-detail-item">
             <div class="trade-detail-name">${escapeHtml(name)}</div>
     `;
 
-    if (hasLore && item.lore) {
+    if (item.lore && item.lore.length > 0) {
         html += '<div class="trade-detail-lore">';
         for (const line of item.lore) {
             html += `<span class="trade-detail-lore-line">${escapeHtml(line)}</span>`;
@@ -47,7 +45,7 @@ function renderItemDetails(item: Item): string {
         html += '</div>';
     }
 
-    if (hasEnchants && item.enchant) {
+    if (item.enchant && Object.keys(item.enchant).length > 0) {
         html += '<div class="trade-detail-enchants">';
         for (const [enchant, level] of Object.entries(item.enchant)) {
             html += `<span class="trade-detail-enchant">${escapeHtml(formatEnchantmentName(enchant))} ${level}</span>`;

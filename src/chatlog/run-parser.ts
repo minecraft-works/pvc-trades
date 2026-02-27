@@ -15,6 +15,7 @@ const raw: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
 const results = parseChatlog(raw as any);
 
 // Summary
+// eslint-disable-next-line @typescript-eslint/consistent-generic-constructors -- prefer-immutable-types requires explicit Map<> annotation at module level
 const counts: Map<string, number> = new Map();
 for (const message of results) {
     counts.set(message.type, (counts.get(message.type) ?? 0) + 1);

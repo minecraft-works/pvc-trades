@@ -365,12 +365,12 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
 
     return {
-        item1,
-        item2,
-        resultItem,
         stock: recipe.stock,
         resultText: resultName.toLowerCase(),
         costText: costName.toLowerCase(),
+        item1,
+        item2,
+        resultItem,
         x, y, z, world,
         displayStock,
         loreText,

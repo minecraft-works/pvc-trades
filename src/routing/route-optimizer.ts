@@ -257,7 +257,9 @@ export function twoOptOptimize(order: number[], distributionMatrix: number[][]):
 
 /**
  * Perform a single pass of 2-opt improvement over all edge pairs.
- * Returns true if any swap was made.
+ * @param result - Current route order (mutated in place)
+ * @param distributionMatrix - Distance matrix between all points
+ * @returns True if any swap was made (route improved)
  */
 function applyTwoOptPass(result: number[], distributionMatrix: number[][]): boolean {
     let improved = false;

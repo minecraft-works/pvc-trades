@@ -1,0 +1,98 @@
+18:7  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+47:67  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+69:22  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+69:36  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+91:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+95:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+115:27  error  Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+118:20  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+119:24  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+134:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+142:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+146:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+186:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+196:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+103:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+155:16  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+179:42  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+227:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+229:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+293:41  error  Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+312:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+473:5   error  Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+476:2   error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+31:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+32:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+82:16  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+40:75  error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+73:2   error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+115:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+116:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+133:37  error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+133:59  error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+133:79  error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+142:24  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+143:15  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+152:19  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+153:19  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+175:38  error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+175:91  error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+180:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+246:80  error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+249:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+267:19  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+292:37  error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+292:59  error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+292:79  error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+297:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+300:9   error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+323:2   error    Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+334:5   error    Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+354:11  error    Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+46:22  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+46:36  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+53:67  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+81:24  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+102:45  error  Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+103:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+126:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+129:9   error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+133:45  error  Return type should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+167:19  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+179:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+180:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+205:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+206:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+249:26  error  Parameter should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")    functional/prefer-immutable-types
+255:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+290:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")     functional/prefer-immutable-types
+22:9  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+135:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+41:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+42:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+61:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+92:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+98:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+35:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+36:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+70:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+105:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+106:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+107:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+108:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+140:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+141:28  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+174:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+210:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+211:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+212:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+213:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+220:15  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+42:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+66:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+69:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+74:16  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+76:20  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+106:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+187:11  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types
+206:27  error  Variable should have an immutability of at least "ReadonlyShallow" (actual: "Mutable")  functional/prefer-immutable-types

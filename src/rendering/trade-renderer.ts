@@ -264,13 +264,12 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const deviationResult = deps.getDeviation()(t);
         const deviationPercent = deviationResult?.percent;
 
-        const hasThreshold = favorite.maxDeviation !== undefined;
-        const isDealAlert = hasThreshold
+        const threshold = favorite.maxDeviation;
+        const isDealAlert = threshold !== undefined
             && deviationPercent !== undefined
-            && favorite.maxDeviation !== undefined
-            && deviationPercent <= favorite.maxDeviation;
+            && deviationPercent <= threshold;
 
-        const starActive = !hasThreshold || isDealAlert;
+        const starActive = threshold === undefined || isDealAlert;
         const starClass = starActive ? 'favorite-star active' : 'favorite-star';
 
         return { isFavorite, isDealAlert, starClass };
