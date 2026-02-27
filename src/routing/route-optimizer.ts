@@ -118,6 +118,27 @@ export function calculateRouteDistance(
 }
 
 /**
+ * Fill the symmetric pairwise distances between all points into an existing matrix.
+ *
+ * @param matrix - Pre-allocated n×n distance matrix (mutated in place)
+ * @param points - Route points whose pairwise distances populate matrix indices 1-n
+ */
+function fillPairwiseDistances(matrix: number[][], points: readonly RoutePoint[]): void {
+    for (let index = 0; index < points.length; index++) {
+        for (let index_ = index + 1; index_ < points.length; index_++) {
+            const a = points[index];
+            const b = points[index_];
+            const rowI = matrix[index + 1];
+            const rowI_ = matrix[index_ + 1];
+            if (!a || !b || !rowI || !rowI_) { continue; }
+            const distribution = calculateRouteDistance(a.x, a.z, a.world, b.x, b.z, b.world);
+            rowI[index_ + 1] = distribution;
+            rowI_[index + 1] = distribution;
+        }
+    }
+}
+
+/**
  * Build distance matrix for route optimization.
  * Index 0 is the origin; indices 1-n are the points.
  *
@@ -138,24 +159,19 @@ export function buildDistanceMatrix(points: readonly RoutePoint[], origin?: Rout
     const originZ = origin?.z ?? 0;
     const originWorld = origin?.world ?? 'overworld';
 
-    // Origin is at index 0
-    for (const [index, point_] of points.entries()) {
-        const point = point_;
+    // Origin is at index 0; matrix is pre-allocated n×n so row access is always valid
+    for (const [index, point] of points.entries()) {
         const distributionFromOrigin = calculateRouteDistance(originX, originZ, originWorld, point.x, point.z, point.world);
-        matrix[0]![index + 1] = distributionFromOrigin;
-        matrix[index + 1]![0] = distributionFromOrigin;
+        const row0 = matrix[0];
+        const rowI = matrix[index + 1];
+        if (row0 && rowI) {
+            row0[index + 1] = distributionFromOrigin;
+            rowI[0] = distributionFromOrigin;
+        }
     }
 
     // Distances between points
-    for (let index = 0; index < points.length; index++) {
-        for (let index_ = index + 1; index_ < points.length; index_++) {
-            const a = points[index]!;
-            const b = points[index_]!;
-            const distribution = calculateRouteDistance(a.x, a.z, a.world, b.x, b.z, b.world);
-            matrix[index + 1]![index_ + 1] = distribution;
-            matrix[index_ + 1]![index + 1] = distribution;
-        }
-    }
+    fillPairwiseDistances(matrix, points);
 
     return matrix;
 }
@@ -186,7 +202,7 @@ export function nearestNeighborOrder(points: readonly RoutePoint[], distribution
 
         for (let index = 0; index < points.length; index++) {
             if (visited.has(index)) {continue;}
-            const distribution = distributionMatrix[current]![index + 1]!; // +1 because origin is at 0
+            const distribution = distributionMatrix[current]?.[index + 1] ?? Infinity; // +1 because origin is at 0
             if (distribution < nearestDistribution) {
                 nearestDistribution = distribution;
                 nearestIndex = index;
@@ -216,10 +232,14 @@ export function nearestNeighborOrder(points: readonly RoutePoint[], distribution
 export function calculateOrderDistance(order: number[], distributionMatrix: number[][]): number {
     if (order.length === 0) {return 0;}
 
-    let total = distributionMatrix[0]![order[0]! + 1]!; // Origin to first
+    const firstStop = order[0];
+    let total = firstStop === undefined ? 0 : (distributionMatrix[0]?.[firstStop + 1] ?? 0); // Origin to first
 
     for (let index = 0; index < order.length - 1; index++) {
-        total += distributionMatrix[order[index]! + 1]![order[index + 1]! + 1]!;
+        const from = order[index];
+        const to = order[index + 1];
+        if (from === undefined || to === undefined) { continue; }
+        total += distributionMatrix[from + 1]?.[to + 1] ?? 0;
     }
 
     return total;
@@ -323,11 +343,15 @@ function calculateEdgeIndices(
     startIndex: number,
     endIndex: number
 ): TwoOptEdgeIndices {
+    const previousValue = startIndex === 0 ? undefined : result[startIndex - 1];
+    const currentIValue = result[startIndex];
+    const currentJValue = result[endIndex];
+    const nextValue = endIndex === result.length - 1 ? undefined : result[endIndex + 1];
     return {
-        previousI: startIndex === 0 ? 0 : result[startIndex - 1]! + 1,
-        currentI: result[startIndex]! + 1,
-        currentJ: result[endIndex]! + 1,
-        nextJ: endIndex === result.length - 1 ? -1 : result[endIndex + 1]! + 1
+        previousI: previousValue === undefined ? 0 : previousValue + 1,
+        currentI: currentIValue === undefined ? 1 : currentIValue + 1,
+        currentJ: currentJValue === undefined ? 1 : currentJValue + 1,
+        nextJ: nextValue === undefined ? -1 : nextValue + 1
     };
 }
 
@@ -338,15 +362,15 @@ function shouldSwapEdges(
     const { previousI, currentI, currentJ, nextJ } = indices;
 
     // Current cost: prevI→currI + currJ→nextJ
-    let currentCost = distributionMatrix[previousI]![currentI]!;
+    let currentCost = distributionMatrix[previousI]?.[currentI] ?? 0;
     if (nextJ !== -1) {
-        currentCost += distributionMatrix[currentJ]![nextJ]!;
+        currentCost += distributionMatrix[currentJ]?.[nextJ] ?? 0;
     }
 
     // New cost: prevI→currJ + currI→nextJ
-    let newCost = distributionMatrix[previousI]![currentJ]!;
+    let newCost = distributionMatrix[previousI]?.[currentJ] ?? 0;
     if (nextJ !== -1) {
-        newCost += distributionMatrix[currentI]![nextJ]!;
+        newCost += distributionMatrix[currentI]?.[nextJ] ?? 0;
     }
 
     return newCost < currentCost - 0.001;
