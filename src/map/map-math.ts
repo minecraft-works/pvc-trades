@@ -33,6 +33,12 @@ export function isNether(world: string): boolean {
  * Used for cart persistence and navigation progress tracking.
  *
  * @param trade - Trade with location and item info
+ * @param trade.x - X coordinate in Minecraft blocks
+ * @param trade.y - Y coordinate (height) in Minecraft blocks
+ * @param trade.z - Z coordinate in Minecraft blocks
+ * @param trade.world - World name (e.g., 'overworld', 'the_nether')
+ * @param trade.costName - Display name of the cost item
+ * @param trade.resultName - Display name of the result item
  * @returns Unique string key
  *
  * @example
@@ -114,7 +120,7 @@ export function shouldSwitchMapWorld(
  * @example
  * getTileOffset(600, -100, 512) // { offsetX: 88, offsetZ: 412 }
  */
-export function getTileOffset(x: number, z: number, tileSize: number = 512): { offsetX: number; offsetZ: number } {
+export function getTileOffset(x: number, z: number, tileSize = 512): { offsetX: number; offsetZ: number } {
     const { tileX, tileZ } = getTileCoords(x, z, tileSize);
     return {
         offsetX: x - tileX * tileSize,
@@ -152,7 +158,7 @@ export function calculateFitZoom(containerSize: number, contentSize: number): nu
 export function toLeafletCoords(
     x: number,
     z: number,
-    tileSize: number = 512
+    tileSize = 512
 ): { lat: number; lng: number } {
     const { offsetX, offsetZ } = getTileOffset(x, z, tileSize);
     return {
@@ -164,13 +170,19 @@ export function toLeafletCoords(
 /**
  * Convert Minecraft world coordinates to Leaflet coords relative to a center tile.
  * Used for placing markers (like players) relative to a shop's tile.
+ * @param x - Minecraft X coordinate in blocks
+ * @param z - Minecraft Z coordinate in blocks
+ * @param centerTileX - X tile coordinate of the center tile
+ * @param centerTileZ - Z tile coordinate of the center tile
+ * @param tileSize - Size of tiles in blocks (default 512)
+ * @returns Leaflet-compatible { lat, lng } relative to the center tile
  */
 export function toLeafletCoordsRelative(
     x: number,
     z: number,
     centerTileX: number,
     centerTileZ: number,
-    tileSize: number = 512
+    tileSize = 512
 ): { lat: number; lng: number } {
     // Calculate the block offset from the center tile's origin
     const centerOriginX = centerTileX * tileSize;
@@ -188,13 +200,19 @@ export function toLeafletCoordsRelative(
 /**
  * Convert Leaflet coords back to Minecraft world coordinates relative to a center tile.
  * Inverse of toLeafletCoordsRelative.
+ * @param lat - Leaflet latitude (negative Z)
+ * @param lng - Leaflet longitude (X)
+ * @param centerTileX - X tile coordinate of the center tile
+ * @param centerTileZ - Z tile coordinate of the center tile
+ * @param tileSize - Size of tiles in blocks (default 512)
+ * @returns Minecraft block coordinates { x, z }
  */
 export function fromLeafletCoordsRelative(
     lat: number,
     lng: number,
     centerTileX: number,
     centerTileZ: number,
-    tileSize: number = 512
+    tileSize = 512
 ): { x: number; z: number } {
     const centerOriginX = centerTileX * tileSize;
     const centerOriginZ = centerTileZ * tileSize;

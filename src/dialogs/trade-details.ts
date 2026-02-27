@@ -17,6 +17,8 @@ import { setupDialogBackdropClose } from './dialog-utilities.js';
 
 /**
  * Format enchantment name for display (e.g., "sharpness" -> "Sharpness")
+ * @param name - Raw enchantment identifier (e.g., "fire_aspect")
+ * @returns Human-readable enchantment name with spaces and capitalised first letter
  */
 function formatEnchantmentName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1).replaceAll('_', ' ');
@@ -24,6 +26,8 @@ function formatEnchantmentName(name: string): string {
 
 /**
  * Render item details HTML for the trade details dialog
+ * @param item - The item to render details for
+ * @returns HTML string with item name, lore lines, and enchantments
  */
 function renderItemDetails(item: Item): string {
     const name = formatName(item);
@@ -77,7 +81,7 @@ export function createTradeDetailsHandler(options: TradeDetailsOptions): (row: H
     const { getTrade } = options;
 
     return function openTradeDetailsPopover(row: HTMLElement, isResult: boolean): void {
-        const tradeKey = row.dataset['tradeKey'];
+        const tradeKey = row.dataset.tradeKey;
         if (!tradeKey) { return; }
 
         const trade = getTrade(tradeKey);

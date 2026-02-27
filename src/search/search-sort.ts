@@ -41,17 +41,18 @@ import type {
  */
 export interface SearchSortDeps {
     /** Return current trade list */
-    getAllTrades: () => Trade[];
+    getAllTrades: () => readonly Trade[];
     /** Return current deviation calculator */
     getDeviation: () => (t: Trade) => DeviationResult | undefined;
     /** Return set of new trade keys for highlighting */
-    getNewTradeKeys: () => Set<string>;
+    getNewTradeKeys: () => ReadonlySet<string>;
     /** Read trimmed lowercase value from an input element */
     getInputValue: (id: string) => string;
     /** Get a DOM element by id (throws if missing) */
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     /** Render filtered results via virtual scroller (lazy: bound after renderer init) */
-    renderResults: (results: FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined) => void;
+    renderResults: (results: readonly FilterResult[], wantRegex: Readonly<RegExp> | undefined, giveRegex: Readonly<RegExp> | undefined) => void;
     /** Update sort arrow indicators in header (lazy: bound after renderer init) */
     updateSortArrows: () => void;
     /** Update the deals badge count (lazy: bound after favoritesUI init) */
@@ -77,29 +78,35 @@ export interface SearchSortHandler {
     /** Clear an input field and refresh search */
     clearSearchInput: (inputId: string, clearButtonId: string) => void;
     /** Return current active sort columns for renderer */
-    getActiveSorts: () => Map<SortColumn, SortDirection>;
+    getActiveSorts: () => ReadonlyMap<SortColumn, SortDirection>;
 }
 
 // ============================================================================
 // Pure helpers (exported)
 // ============================================================================
 
-/** Get total cost amount including optional second item */
+/**
+ * Get total cost amount including optional second item
+ * @param t - Trade to compute cost for
+ * @returns Total cost amount including optional second item
+ */
 function getTotalCostAmount(t: Trade): number {
-    return t.item1.amount + (t.item2?.amount || 0);
+    return t.item1.amount + (t.item2?.amount ?? 0);
 }
 
 /**
  * Show or hide a clear button based on whether the associated input has content.
+ * @param input - Input element to check for content
+ * @param clearButtonId - ID of the clear button element to show or hide
  */
-export function updateClearButtonVisibility(input: HTMLInputElement, clearButtonId: string): void {
+export function updateClearButtonVisibility(input: Readonly<HTMLInputElement>, clearButtonId: string): void {
     const button = document.querySelector(`#${clearButtonId}`);
     if (!button) { return; }
     button.classList.toggle('hidden', input.value.length === 0);
 }
 
 // Column order for sort priority (left to right)
-const COLUMN_ORDER: SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
+const COLUMN_ORDER: readonly SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
 
 // ============================================================================
 // Factory
@@ -110,6 +117,8 @@ const COLUMN_ORDER: SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COL
  *
  * Manages sort state, regex cache, and debounce timer as internal
  * closure state.
+ * @param deps - Injected dependencies for the handler
+ * @returns Search/sort handler bound to the provided dependencies
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler {
@@ -121,7 +130,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     let cachedPattern = '';
     let searchDebounceTimer: number | undefined;
 
-    function getCachedRegex(pattern: string): RegExp {
+    function getCachedRegex(pattern: string): Readonly<RegExp> {
         if (pattern === cachedPattern && cachedRegex) { return cachedRegex; }
         cachedPattern = pattern;
         cachedRegex = getRegex(pattern);
@@ -142,15 +151,17 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
      * Count trades in results that meet their favorite threshold.
      * A "deal" is a trade for a favorited item with:
      * - A threshold set AND deviation meets that threshold
+     * @param results - Filtered trade results to count deals in
+     * @returns Number of trades meeting their favorite threshold
      */
-    function countDeals(results: FilterResult[]): number {
+    function countDeals(results: readonly FilterResult[]): number {
         const deviationCalc = deps.getDeviation();
         let count = 0;
         for (const result of results) {
             const trade = result.trade;
             const itemName = trade.resultName.toLowerCase();
             const favorite = favoritesStore.get(itemName);
-            if (!favorite || favorite.maxDeviation === undefined) {
+            if (favorite?.maxDeviation === undefined) {
                 continue;
             }
             const deviation = deviationCalc(trade);
@@ -181,11 +192,11 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
             if (result) { results.push(result); }
         }
 
-        sortResults(results);
-        deps.renderResults(results, wantRegex, giveRegex);
+        const sortedResults = sortResults(results);
+        deps.renderResults(sortedResults, wantRegex, giveRegex);
 
         // Update deals badge with count of trades meeting thresholds
-        const dealsCount = countDeals(results);
+        const dealsCount = countDeals(sortedResults);
         deps.updateDealsBadge(dealsCount);
     }
 
@@ -235,15 +246,15 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         }
     }
 
-    function sortResults(results: FilterResult[]): void {
+    function sortResults(results: readonly FilterResult[]): readonly FilterResult[] {
         if (activeSorts.size === 0) {
-            return; // No sorting applied
+            return results; // No sorting applied
         }
 
         // Get active columns in left-to-right order
         const sortColumns = COLUMN_ORDER.filter(col => activeSorts.has(col));
 
-        results.sort((a, b) => {
+        return results.toSorted((a, b) => {
             for (const column of sortColumns) {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const direction = activeSorts.get(column)!;

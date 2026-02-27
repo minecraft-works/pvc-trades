@@ -55,7 +55,10 @@ export interface NavState {
     animationFrameId: number | undefined;
 }
 
-/** Create initial NavState with default values */
+/** 
+ * Create initial NavState with default values
+ * @returns Fresh NavState object with all fields at their defaults
+ */
 export function createNavState(): NavState {
     return {
         map: undefined,
@@ -89,14 +92,14 @@ export interface NavMapDeps {
 
 /** Public API returned by the factory */
 export interface NavMapHandler {
-    initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void>;
-    createRouteMarkersUnified(
+    initNavigationMapDialog: (route: RouteStop[], targetWorld?: string) => Promise<void>;
+    createRouteMarkersUnified: (
         allStops: RouteStop[],
         centerTileX: number,
         centerTileZ: number,
         completedKeys: Set<string>,
-    ): L.LatLngExpression[];
-    cleanupNavMap(): void;
+    ) => L.LatLngExpression[];
+    cleanupNavMap: () => void;
 }
 
 // ============================================================================
@@ -175,7 +178,12 @@ function loadDetailTiles(context: TileLoadContext): { loaded: number; skipped: n
     return { loaded, skipped };
 }
 
-/** Create a Leaflet map configured for navigation */
+/**
+ * Create a Leaflet map configured for navigation
+ * @param container - DOM element to mount the Leaflet map into
+ * @param onMapDrag - Callback fired when the user starts dragging the map
+ * @returns Configured Leaflet map instance
+ */
 function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.Map {
     const animationOptions = shouldDisableAnimations() ? {
         fadeAnimation: false,
@@ -198,12 +206,16 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
     map.createPane('tilesDetail').style.zIndex = '360';
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    map.on('dragstart', () => onMapDrag());
+    map.on('dragstart', onMapDrag);
 
     return map;
 }
 
-/** Expose navigation map globals for E2E testing */
+/**
+ * Expose navigation map globals for E2E testing
+ * @param state - Shared mutable NavState
+ * @param tileRange - The tile range calculated for the current route
+ */
 function exposeNavTestGlobals(state: NavState, tileRange: TileRange): void {
     globalThis.__navMap = state.map;
     globalThis.__navMapWorld = state.mapWorld;
@@ -221,6 +233,7 @@ function exposeNavTestGlobals(state: NavState, tileRange: TileRange): void {
  *
  * @param state  Shared mutable NavState (same reference passed to all nav modules)
  * @param deps   Callbacks and stores from main.ts
+ * @returns Handler object with nav map lifecycle and rendering functions
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHandler {

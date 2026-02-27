@@ -137,27 +137,48 @@ function cleanText(text: string): string {
  *
  * Player chat uses `translate: "%s"` with the full `playerName › message`
  * text inside `with[0]`.
+ * @param content - The text component to inspect
+ * @returns True if the component represents a player chat message
  */
 function isPlayerChat(content: TextComponent): boolean {
     return content.translate === '%s';
 }
 
-/** Leave messages use the vanilla `multiplayer.player.left` translation key. */
+/**
+ * Leave messages use the vanilla `multiplayer.player.left` translation key.
+ * @param content - The text component to inspect
+ * @returns True if the component represents a leave message
+ */
 function isLeaveMessage(content: TextComponent): boolean {
     return content.translate === 'multiplayer.player.left';
 }
 
-/** Join messages are plain "X joined the game" with no `translate` key. */
+/**
+ * Join messages are plain "X joined the game" with no `translate` key.
+ * @param plainText - The extracted plain text of the message
+ * @param content - The text component to inspect
+ * @returns True if the message describes a player joining the game
+ */
 function isJoinMessage(plainText: string, content: TextComponent): boolean {
     return content.translate === undefined && plainText.endsWith('joined the game');
 }
 
-/** IP-warning messages start with "Warning:" and contain "same IP". */
+/**
+ * IP-warning messages start with "Warning:" and contain "same IP".
+ * @param plainText - The extracted plain text of the message
+ * @param content - The text component to inspect
+ * @returns True if the message is a same-IP warning
+ */
 function isSameIpWarning(plainText: string, content: TextComponent): boolean {
     return content.translate === undefined && plainText.includes('same IP');
 }
 
-/** Messages to exclude: AFK, deaths, advancements, empty. */
+/**
+ * Messages to exclude: AFK, deaths, advancements, empty.
+ * @param plainText - The extracted plain text of the message
+ * @param content - The text component to inspect
+ * @returns True if the message should be filtered out
+ */
 function isExcluded(plainText: string, content: TextComponent): boolean {
     // Deaths
     if (content.translate?.startsWith('death.')) {
@@ -194,6 +215,8 @@ interface TimestampInfo {
  * ChatPatches stores:
  * - `.text` — formatted display time, e.g. `"[03:16:11] "`
  * - `.insertion` — epoch milliseconds as a string
+ * @param timestampComponent - The first extra element containing timestamp data
+ * @returns Extracted epoch milliseconds and display time string
  */
 function extractTimestamp(timestampComponent: TextComponentOrString | undefined): TimestampInfo {
     if (
@@ -218,6 +241,9 @@ function extractTimestamp(timestampComponent: TextComponentOrString | undefined)
  *
  * The full text lives in `with[0]` and follows the pattern:
  * `"PlayerName › actual message text"`
+ * @param content - Player chat text component with the message in `with[0]`
+ * @param timestamp - Extracted timestamp info
+ * @returns Parsed player chat message
  */
 function parsePlayerChat(
     content: TextComponent,
@@ -251,6 +277,9 @@ function parsePlayerChat(
 
 /**
  * Parse a join message — plain text like `"PlayerName joined the game"`.
+ * @param plainText - The full extracted plain text of the message
+ * @param timestamp - Extracted timestamp info
+ * @returns Parsed join message
  */
 function parseJoinMessage(
     plainText: string,
@@ -278,6 +307,9 @@ function parseJoinMessage(
  * Parse a leave message (`translate: "multiplayer.player.left"`).
  *
  * The player name is in `with[0]`.
+ * @param content - Leave message text component with player name in `with[0]`
+ * @param timestamp - Extracted timestamp info
+ * @returns Parsed leave message
  */
 function parseLeaveMessage(
     content: TextComponent,
@@ -306,6 +338,7 @@ function parseLeaveMessage(
  * @param plainText - The warning line text.
  * @param altNamesText - Plain text of the follow-up message listing alt names.
  * @param timestamp - Extracted timestamp info.
+ * @returns Parsed same-IP warning message
  */
 function parseSameIpMessage(
     plainText: string,
@@ -343,6 +376,8 @@ function parseSameIpMessage(
  * Extract the content component from a raw message, or undefined if invalid.
  *
  * A valid message has `extra` with at least 2 elements where `extra[1]` is an object.
+ * @param message - Raw message to extract components from
+ * @returns Timestamp and content components, or undefined if the message is invalid
  */
 function getContentComponent(message: TextComponentOrString): {
     readonly timestampComponent: TextComponentOrString;
@@ -369,6 +404,9 @@ function getContentComponent(message: TextComponentOrString): {
 
 /**
  * Look ahead to extract alt-names text from the message following an IP warning.
+ * @param messages - Full message array from the chatlog
+ * @param currentIndex - Index of the current IP warning message
+ * @returns Alt-names text and whether the next message was consumed
  */
 function extractAltNames(messages: readonly TextComponentOrString[], currentIndex: number): {
     readonly altNamesText: string;
@@ -390,6 +428,12 @@ function extractAltNames(messages: readonly TextComponentOrString[], currentInde
 
 /**
  * Classify a single content component and return a parsed message, or undefined to skip.
+ * @param contentComponent - The content text component to classify
+ * @param plainText - Plain text extracted from the content component
+ * @param timestamp - Extracted timestamp info
+ * @param messages - Full message array for look-ahead
+ * @param index - Current message index
+ * @returns Parsed message and skip count, or undefined if the message should be ignored
  */
 function classifyMessage(
     contentComponent: TextComponent,
@@ -419,13 +463,16 @@ function classifyMessage(
 
 /**
  * Process a single message from the chatlog.
+ * @param message - Raw message component to process
+ * @param messages - Full message array for look-ahead
+ * @param index - Current message index
  * @returns The parsed message and number of messages to skip, or undefined if message should be ignored.
  */
 function processMessage(
     message: TextComponentOrString,
     messages: readonly TextComponentOrString[],
     index: number,
-): { result: ParsedChatMessage; skip: number } | undefined {
+): Readonly<{ result: ParsedChatMessage; skip: number }> | undefined {
     const parts = getContentComponent(message);
     if (!parts) {
         return undefined;
@@ -451,7 +498,7 @@ function processMessage(
  * @param chatlog - The parsed chatlog.json object.
  * @returns Array of parsed messages in chronological order.
  */
-export function parseChatlog(chatlog: ChatlogFile): ParsedChatMessage[] {
+export function parseChatlog(chatlog: ChatlogFile): readonly ParsedChatMessage[] {
     const results: ParsedChatMessage[] = [];
     const messages = chatlog.messages;
     let index = 0;

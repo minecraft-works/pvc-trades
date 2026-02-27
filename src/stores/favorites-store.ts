@@ -15,12 +15,20 @@ import { FavoriteItemArraySchema } from '../types.js';
 // Constants
 // ============================================================================
 
-/** Clamp threshold to valid range */
+/**
+ * Clamp threshold to valid range
+ * @param value - Threshold value to clamp
+ * @returns Value clamped and rounded to the valid deviation range
+ */
 function clampThreshold(value: number): number {
     return Math.max(DEVIATION.MIN_PERCENT, Math.min(DEVIATION.MAX_PERCENT, Math.round(value)));
 }
 
-/** Normalize item name for consistent lookups */
+/**
+ * Normalize item name for consistent lookups
+ * @param name - Raw item name to normalize
+ * @returns Lowercase trimmed item name
+ */
 function normalizeItemName(name: string): string {
     return name.toLowerCase().trim();
 }
@@ -46,8 +54,8 @@ function normalizeItemName(name: string): string {
  * ```
  */
 export class FavoritesStore {
-    private _items: Map<string, FavoriteItem> = new Map();
-    private _onChangeCallbacks: Array<() => void> = [];
+    private _items = new Map<string, FavoriteItem>();
+    private _onChangeCallbacks: (() => void)[] = [];
 
     // ========================================================================
     // Getters
@@ -55,6 +63,7 @@ export class FavoritesStore {
 
     /**
      * Get all favorite items (returns a copy to prevent external mutation)
+     * @returns Sorted array of all favorite items, newest first
      */
     getAll(): FavoriteItem[] {
         return [...this._items.values()].toSorted((a, b) => b.addedAt - a.addedAt);
@@ -62,6 +71,7 @@ export class FavoritesStore {
 
     /**
      * Get number of watched items
+     * @returns Total count of favorited items
      */
     get count(): number {
         return this._items.size;
@@ -69,6 +79,7 @@ export class FavoritesStore {
 
     /**
      * Check if any items are being watched
+     * @returns True if no items are in the watchlist
      */
     get isEmpty(): boolean {
         return this._items.size === 0;
@@ -81,6 +92,7 @@ export class FavoritesStore {
     /**
      * Check if an item is in favorites
      * @param itemName Item name (case-insensitive)
+     * @returns True if the item is in the watchlist
      */
     has(itemName: string): boolean {
         return this._items.has(normalizeItemName(itemName));
@@ -89,6 +101,7 @@ export class FavoritesStore {
     /**
      * Get a favorite item by name
      * @param itemName Item name (case-insensitive)
+     * @returns Matching favorite item, or undefined if not found
      */
     get(itemName: string): FavoriteItem | undefined {
         return this._items.get(normalizeItemName(itemName));
@@ -137,9 +150,10 @@ export class FavoritesStore {
         const existing = this._items.get(normalized);
 
         if (existing) {
-            existing.maxDeviation = maxDeviation === undefined 
-                ? undefined
-                : clampThreshold(maxDeviation);
+            this._items.set(normalized, {
+                ...existing,
+                maxDeviation: maxDeviation === undefined ? undefined : clampThreshold(maxDeviation),
+            });
             this._save();
             this._notifyChange();
         }
@@ -222,6 +236,7 @@ export class FavoritesStore {
 
     /**
      * Register a callback to be called when favorites change
+     * @param callback - Function invoked when the favorites list changes
      * @returns Unsubscribe function
      */
     onChange(callback: () => void): () => void {
@@ -250,6 +265,7 @@ export class FavoritesStore {
     /**
      * Get direct reference to items map (for testing)
      * @internal
+     * @returns Direct reference to the internal favorites items map
      */
     _getItemsRef(): Map<string, FavoriteItem> {
         return this._items;
@@ -257,6 +273,7 @@ export class FavoritesStore {
 
     /**
      * Set items directly (for testing)
+     * @param items - Array of favorite items to set directly
      * @internal
      */
     _setItems(items: FavoriteItem[]): void {

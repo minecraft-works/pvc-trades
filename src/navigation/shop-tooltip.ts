@@ -54,6 +54,9 @@ interface NearestShopResult {
 
 /**
  * Find the nearest shop within threshold distance
+ * @param playerPosition - Current player position with x, z, and world
+ * @param route - Array of route stops for the current navigation
+ * @returns Nearest shop result with distance and key, or undefined if none within threshold
  */
 function findNearestShop(
     playerPosition: PlayerPosition,
@@ -89,6 +92,8 @@ function findNearestShop(
 
 /**
  * Render the shopping list tooltip HTML
+ * @param items - Shopping cart items to render in the tooltip
+ * @returns HTML string for the tooltip content
  */
 function renderTooltipContent(items: CartItem[]): string {
     const itemsHtml = items.map(cartItem =>
@@ -137,6 +142,8 @@ export function createShopTooltipHandler(
     /**
      * Show the tooltip with auto-hide timer
      * (Closure-bound to access shopTooltipTimeout state)
+     * @param tooltip - The tooltip element to display
+     * @param items - Cart items to render inside the tooltip
      */
     function showTooltip(tooltip: Element, items: CartItem[]): void {
         tooltip.innerHTML = renderTooltipContent(items);

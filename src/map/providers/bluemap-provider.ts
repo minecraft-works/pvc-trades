@@ -55,7 +55,7 @@ export class BlueMapTileProvider implements TileProvider {
 
     constructor(
         private readonly sourceBaseUrl: string,
-        private readonly mapId: string = 'world'
+        private readonly mapId = 'world'
     ) {}
 
     /**
@@ -75,6 +75,11 @@ export class BlueMapTileProvider implements TileProvider {
      * Generate BlueMap tile URL with digit-nesting path encoding.
      *
      * Format: `{baseUrl}/maps/{mapId}/tiles/{lod}/{xPath}/{zPath}.png`
+     * @param normalizedWorld - Normalized world name (e.g., 'overworld', 'the_nether')
+     * @param level - Detail level config with zoom id
+     * @param tileX - X tile coordinate
+     * @param tileZ - Z tile coordinate
+     * @returns Full URL string for the tile image
      */
     getSourceTileUrl(
         normalizedWorld: string,
@@ -97,6 +102,8 @@ export class BlueMapTileProvider implements TileProvider {
      *
      * Crops to 500×500 (removes extra interpolation vertex) for
      * consistent block-to-pixel alignment with tileSize.
+     * @param raw - Raw tile image blob from the server (501×1002 PNG)
+     * @returns ProcessedTile with color image (500×500 blob)
      */
     async processImage(raw: Blob): Promise<ProcessedTile> {
         const imageBitmap = await createImageBitmap(raw);

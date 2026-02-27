@@ -21,7 +21,7 @@ import type { Item } from './types.js';
  * formatName({ type: 'DIAMOND_PICKAXE', name: '', amount: 1 }) // 'Diamond pickaxe'
  * formatName({ type: 'ITEM', name: 'Vote Diamond', amount: 1 }) // 'Vote diamond'
  */
-export function formatName(item: Item): string {
+export function formatName(item: Readonly<Item>): string {
     const text = item.name || item.type.replaceAll('_', ' ');
     if (!text) { return ''; }
     const lower = text.toLowerCase();

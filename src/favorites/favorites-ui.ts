@@ -29,6 +29,7 @@ const ITEM_NAME_INPUT_SELECTOR = '.favorites-item-name-input';
 
 /**
  * Enter inline edit mode for a favorites row (module-level utility function)
+ * @param itemRow - The favorites row element to switch into edit mode
  */
 function enterEditMode(itemRow: HTMLElement): void {
     // Show edit controls, hide display controls
@@ -50,6 +51,7 @@ function enterEditMode(itemRow: HTMLElement): void {
 
 /**
  * Check if favorites filter is active (standalone utility - no dependencies)
+ * @returns True if the favorites column header is active (filter is on)
  */
 export function isFavoritesFilterActive(): boolean {
     const headerStar = document.querySelector('.fav-col-header');
@@ -86,7 +88,10 @@ export interface FavoritesUIHandler {
     openDialogForItem: (itemName: string) => void;
 }
 
-/** Update the favorites badge count (number of watched items) */
+/**
+ * Update the favorites badge count (number of watched items)
+ * @param favoritesStore - Store containing the current favorites data
+ */
 function updateBadge(favoritesStore: FavoritesStore): void {
     const badge = document.querySelector('.favorites-badge');
     if (!badge) {
@@ -100,7 +105,10 @@ function updateBadge(favoritesStore: FavoritesStore): void {
     badge.classList.remove('has-deals');
 }
 
-/** Update the deals badge with count of trades meeting thresholds */
+/**
+ * Update the deals badge with count of trades meeting thresholds
+ * @param dealsCount - Number of trades currently meeting watchlist thresholds
+ */
 function updateDealsBadgeElement(dealsCount: number): void {
     const badge = document.querySelector('.favorites-badge');
     if (!badge) {
@@ -112,7 +120,11 @@ function updateDealsBadgeElement(dealsCount: number): void {
     badge.classList.toggle('has-deals', dealsCount > 0);
 }
 
-/** Build threshold display text and select value from deviation */
+/**
+ * Build threshold display text and select value from deviation
+ * @param maxDeviation - Maximum deviation threshold (negative number) or undefined for no filter
+ * @returns Object with formatted display `text` and `value` string for the select option
+ */
 function buildThresholdValues(maxDeviation: number | undefined): { text: string; value: string } {
     if (maxDeviation === undefined) {
         return { text: '', value: '' };
@@ -120,11 +132,17 @@ function buildThresholdValues(maxDeviation: number | undefined): { text: string;
     return { text: `≤${maxDeviation}%`, value: String(maxDeviation) };
 }
 
-/** Create the HTML for a favorite item row */
+/**
+ * Create the HTML for a favorite item row
+ * @param fav - Favorite item data
+ * @param fav.itemName - The item name being watched
+ * @param fav.maxDeviation - Optional deviation threshold filter
+ * @returns A fully rendered HTMLDivElement for the favorites list
+ */
 function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: number }): HTMLDivElement {
     const item = document.createElement('div');
     item.className = 'favorites-item';
-    item.dataset['item'] = fav.itemName;
+    item.dataset.item = fav.itemName;
 
     const { text: thresholdText, value: thresholdValue } = buildThresholdValues(fav.maxDeviation);
 
@@ -155,7 +173,10 @@ function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: numbe
     return item;
 }
 
-/** Create the "add new item" row HTML */
+/**
+ * Create the "add new item" row HTML
+ * @returns A new HTMLDivElement for adding favorites at the bottom of the list
+ */
 function createAddRow(): HTMLDivElement {
     const addRow = document.createElement('div');
     addRow.className = 'favorites-item favorites-item-add';
@@ -177,7 +198,10 @@ function createAddRow(): HTMLDivElement {
     return addRow;
 }
 
-/** Render the favorites dialog content */
+/**
+ * Render the favorites dialog content
+ * @param favoritesStore - Store providing the current list of favorites to render
+ */
 function renderDialog(favoritesStore: FavoritesStore): void {
     const list = document.querySelector('.favorites-list');
     const empty = document.querySelector('.favorites-empty');
@@ -204,7 +228,10 @@ function renderDialog(favoritesStore: FavoritesStore): void {
     list.append(createAddRow());
 }
 
-/** Read threshold from the inline add form */
+/**
+ * Read threshold from the inline add form
+ * @returns Negative threshold number if threshold mode is selected, or undefined for any price
+ */
 function readThresholdFromAddForm(): number | undefined {
     const thresholdRadio = document.querySelector('input[name="new-threshold-type"][value="threshold"]');
     const thresholdInput = document.querySelector('#favorites-new-threshold');
@@ -222,7 +249,10 @@ function readThresholdFromAddForm(): number | undefined {
     return undefined;
 }
 
-/** Clear and reset the inline add form */
+/**
+ * Clear and reset the inline add form
+ * @param input - The text input element to clear, or null if not found
+ */
 function clearAddForm(input: Element | null): void {
     if (input instanceof HTMLInputElement) {
         input.value = '';
@@ -238,6 +268,8 @@ function clearAddForm(input: Element | null): void {
  *
  * This is a factory function that creates related event handlers and utilities.
  * The inner functions share common state and dependencies, making extraction impractical.
+ * @param dependencies - External dependencies injected from main.ts
+ * @returns Handler object with favorites UI lifecycle and rendering functions
  */
 // eslint-disable-next-line max-lines-per-function
 export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies): FavoritesUIHandler {
@@ -314,9 +346,12 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         renderDialog(favoritesStore);
     }
 
-    /** Save inline edits for a favorites row */
+    /**
+     * Save inline edits for a favorites row
+     * @param itemRow - The favorites row element containing the renamed item and threshold inputs
+     */
     function saveInlineEdit(itemRow: HTMLElement): void {
-        const originalName = itemRow.dataset['item'];
+        const originalName = itemRow.dataset.item;
         if (!originalName) {
             return;
         }
@@ -343,7 +378,10 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         triggerSearch();
     }
 
-    /** Add new item from the inline add row */
+    /**
+     * Add new item from the inline add row
+     * @param itemRow - The add-row element containing the new item name and threshold inputs
+     */
     function addNewFromInlineRow(itemRow: HTMLElement): void {
         const input = itemRow.querySelector(ITEM_NAME_INPUT_SELECTOR);
         const itemName = input && input instanceof HTMLInputElement ? input.value.trim().toLowerCase() : '';
@@ -362,11 +400,14 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         triggerSearch();
     }
 
-    /** Handle click delegation on favorites list items */
+    /**
+     * Handle click delegation on favorites list items
+     * @param event - The click event bubbled up from the favorites list container
+     */
     function handleFavoritesListClick(event: Event): void {
         const target = event.target as HTMLElement;
         const itemRow = target.closest('.favorites-item');
-        const itemName = target.dataset['item'];
+        const itemName = target.dataset.item;
 
         if (target.classList.contains('remove-favorite') && itemName) {
             favoritesStore.remove(itemName);
@@ -447,7 +488,10 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         triggerSearch();
     }
 
-    /** Open the favorites dialog with a specific item selected or pre-filled */
+    /**
+     * Open the favorites dialog with a specific item selected or pre-filled
+     * @param itemName - Item name to scroll-to and edit (if exists) or pre-fill (if new)
+     */
     function openDialogForItem(itemName: string): void {
         // First render and open the dialog
         renderFavoritesDialog();

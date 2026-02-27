@@ -15,9 +15,9 @@
  * A point with coordinates and world (for nether conversion)
  */
 export interface RoutePoint {
-    x: number;
-    z: number;
-    world: string;
+    readonly x: number;
+    readonly z: number;
+    readonly world: string;
 }
 
 // ============================================================================
@@ -37,7 +37,7 @@ export interface RoutePoint {
  * toOverworldEquivalent(100, 50, 'the_nether')  // { x: 800, z: 400 }
  * toOverworldEquivalent(100, 50, 'overworld')   // { x: 100, z: 50 }
  */
-export function toOverworldEquivalent(x: number, z: number, world: string): { x: number; z: number } {
+export function toOverworldEquivalent(x: number, z: number, world: string): { readonly x: number; readonly z: number } {
     if (world.toLowerCase().includes('nether')) {
         return { x: x * 8, z: z * 8 };
     }
@@ -70,7 +70,7 @@ export function toViewCoords(
     z: number,
     stopWorld: string,
     viewWorld: string
-): { x: number; z: number } {
+): { readonly x: number; readonly z: number } {
     const isStopNether = stopWorld.toLowerCase().includes('nether');
     const isViewNether = viewWorld.toLowerCase().includes('nether');
 
@@ -130,7 +130,7 @@ export function calculateRouteDistance(
  * // matrix[0][1] = distance from player to first shop
  * // matrix[1][2] = distance from first shop to second shop
  */
-export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): number[][] {
+export function buildDistanceMatrix(points: readonly RoutePoint[], origin?: RoutePoint): number[][] {
     const n = points.length + 1; // +1 for origin
     const matrix: number[][] = Array.from({ length: n }, () => Array.from({ length: n }, () => 0));
 
@@ -172,7 +172,7 @@ export function buildDistanceMatrix(points: RoutePoint[], origin?: RoutePoint): 
  * const order = nearestNeighborOrder(shops, distMatrix);
  * // order = [2, 0, 1] means visit shops[2], then shops[0], then shops[1]
  */
-export function nearestNeighborOrder(points: RoutePoint[], distributionMatrix: number[][]): number[] {
+export function nearestNeighborOrder(points: readonly RoutePoint[], distributionMatrix: number[][]): number[] {
     if (points.length === 0) {return [];}
     if (points.length === 1) {return [0];}
 
@@ -289,7 +289,7 @@ function applyTwoOptPass(result: number[], distributionMatrix: number[][]): bool
  * const order = computeOptimalOrder(cartItems, playerPosition);
  * const optimizedRoute = order.map(i => cartItems[i]);
  */
-export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): number[] {
+export function computeOptimalOrder(points: readonly RoutePoint[], origin?: RoutePoint): number[] {
     if (points.length === 0) {return [];}
     if (points.length === 1) {return [0];}
 
@@ -310,10 +310,10 @@ export function computeOptimalOrder(points: RoutePoint[], origin?: RoutePoint): 
 // ============================================================================
 
 interface TwoOptEdgeIndices {
-    previousI: number;
-    currentI: number;
-    currentJ: number;
-    nextJ: number;
+    readonly previousI: number;
+    readonly currentI: number;
+    readonly currentJ: number;
+    readonly nextJ: number;
 }
 
 function calculateEdgeIndices(

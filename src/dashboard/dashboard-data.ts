@@ -58,11 +58,11 @@ export function formatRelativeTime(timestamp: number, now: number = Date.now()):
  * @returns Dashboard data with new trades, price drops, and watchlist hits
  */
 export function computeDashboardData(
-    currentTrades: Trade[],
+    currentTrades: readonly Trade[],
     getDeviation: (trade: Trade) => { percent: number } | undefined,
     previousSnapshot: TradeSnapshot | undefined,
     favorites: FavoriteItem[],
-    dropThreshold: number = 5
+    dropThreshold = 5
 ): DashboardData {
     const newTradeKeysList: string[] = [];
     const priceDrops: PriceDrop[] = [];
@@ -103,6 +103,10 @@ export function computeDashboardData(
 
 /**
  * Check if a trade is new (not in previous snapshot).
+ * @param key - Unique trade key
+ * @param previousSnapshot - The previous snapshot, or undefined on first visit
+ * @param previousTrades - Map of trade keys from the previous snapshot
+ * @returns True if the trade key is absent from the previous snapshot
  */
 function isNewTrade(key: string, previousSnapshot: TradeSnapshot | undefined, previousTrades: Record<string, TradeSnapshotEntry>): boolean {
     return Boolean(previousSnapshot) && !(key in previousTrades);
@@ -110,6 +114,12 @@ function isNewTrade(key: string, previousSnapshot: TradeSnapshot | undefined, pr
 
 /**
  * Check if a trade has a price drop exceeding the threshold.
+ * @param trade - The current trade being evaluated
+ * @param key - Unique trade key
+ * @param deviation - Current deviation result for the trade
+ * @param previous - Previous snapshot entry for this trade
+ * @param dropThreshold - Minimum improvement in percentage points to qualify
+ * @returns A price drop entry, or undefined if below threshold or no prior data
  */
 function detectPriceDrop(
     trade: Trade,
@@ -135,6 +145,12 @@ function detectPriceDrop(
 
 /**
  * Update the watchlist hit map with the best deal per favorite item.
+ * @param trade - The current trade being evaluated
+ * @param deviation - Current deviation result for the trade
+ * @param deviation.percent - Deviation as a signed percentage
+ * @param previousDeviation - Deviation from the previous snapshot, if available
+ * @param favorite - The matching favorite item with optional threshold
+ * @param watchlistHitMap - Map to update with the best hit per item name
  */
 function updateWatchlistHit(
     trade: Trade,
@@ -160,9 +176,12 @@ function updateWatchlistHit(
 
 /**
  * Build a map of the best (lowest) current deviation per item across all trades.
+ * @param trades - All current trades to analyze
+ * @param getDeviation - Function that returns the deviation for a trade
+ * @returns Map of normalised item name to lowest current deviation percent
  */
 function buildBestDeviationMap(
-    trades: Trade[],
+    trades: readonly Trade[],
     getDeviation: (trade: Trade) => { percent: number } | undefined
 ): Map<string, number> {
     const map = new Map<string, number>();
@@ -182,6 +201,9 @@ function buildBestDeviationMap(
  * Filter price drops to only those that resulted in the global best price for their item.
  * If an item has a better deal from another trade, the drop isn't interesting to the user.
  * When multiple drops for the same item tie for best, keep only the one with the largest improvement.
+ * @param drops - All candidate price drops to filter
+ * @param bestDeviationByItem - Map of item name to lowest current deviation
+ * @returns Deduplicated list of best price drops per item
  */
 function filterToGlobalBestDrops(
     drops: PriceDrop[],
@@ -220,7 +242,11 @@ interface DashboardTradeContext {
     readonly watchlistHitMap: Map<string, WatchlistHit>;
 }
 
-/** Process a single trade for dashboard: detect new trades, price drops, and watchlist hits */
+/**
+ * Process a single trade for dashboard: detect new trades, price drops, and watchlist hits
+ * @param trade - The trade to process
+ * @param context - Shared dashboard computation state and dependencies
+ */
 function processDashboardTrade(trade: Trade, context: DashboardTradeContext): void {
     // Skip out-of-stock trades — they are hidden from search results,
     // so reporting them in the dashboard would confuse users (see filterTrade).

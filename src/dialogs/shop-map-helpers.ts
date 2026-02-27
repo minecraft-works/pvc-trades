@@ -157,7 +157,7 @@ export function positionToCssClass(position: LabelPosition): string {
  * @returns Array of LabelLayout with chosen CSS class and occupied rectangle
  */
 export function resolvePlayerLabelPositions(
-    markers: ReadonlyArray<{ name: string; screenX: number; screenY: number }>
+    markers: readonly { name: string; screenX: number; screenY: number }[]
 ): LabelLayout[] {
     const placed: LabelLayout[] = [];
 

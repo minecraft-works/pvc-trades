@@ -13,6 +13,7 @@ import {
     configStore,
 } from '../stores/index.js';
 import {
+    type ItemValueEntry,
     type ItemValues,
     type NormalizeResult,
     type PriceEntry,
@@ -36,9 +37,9 @@ import { getTrustedItemValue } from './statistics.js';
  * const values = calculateItemValues(trades, 'Emerald');
  * const diamondValue = getTrustedItemValue('Diamond', values);
  */
-export function calculateItemValues(trades: TradeInput[], baseCurrency: string): ItemValues {
+export function calculateItemValues(trades: readonly TradeInput[], baseCurrency: string): ItemValues {
     const config = configStore.get();
-    const values: ItemValues = new Map();
+    const values = new Map<string, ItemValueEntry>();
 
     // Phase 1: Direct trades with base currency (including item2 trades)
     for (const trade of trades) {
@@ -89,13 +90,13 @@ function normalizeToBaseCurrency(
 
     // Check if item is a block version of base currency
     const blockInfo = blockConversions[itemNorm];
-    if (blockInfo && blockInfo.base.toLowerCase() === baseNorm) {
+    if (blockInfo?.base.toLowerCase() === baseNorm) {
         return { matches: true, amount: amount * blockInfo.multiplier };
     }
 
     // Check if base is a block and item is its single version
     const baseBlockInfo = blockConversions[baseNorm];
-    if (baseBlockInfo && baseBlockInfo.base.toLowerCase() === itemNorm) {
+    if (baseBlockInfo?.base.toLowerCase() === itemNorm) {
         return { matches: true, amount: amount / baseBlockInfo.multiplier };
     }
 
@@ -104,7 +105,7 @@ function normalizeToBaseCurrency(
 
 // eslint-disable-next-line max-params
 function addValue(
-    values: ItemValues,
+    values: Map<string, ItemValueEntry>,
     item: string,
     price: number,
     type: 'buy' | 'sell',
@@ -113,10 +114,11 @@ function addValue(
     z: number
 ): void {
     const key = item.toLowerCase();
-    if (!values.has(key)) {
-        values.set(key, { name: item, buyPrices: [], sellPrices: [] });
+    let entry = values.get(key);
+    if (!entry) {
+        entry = { name: item, buyPrices: [], sellPrices: [] };
+        values.set(key, entry);
     }
-    const entry = values.get(key)!;
     const priceObject: PriceEntry = { price, x, y, z };
     if (type === 'buy') {
         entry.buyPrices.push(priceObject);
@@ -128,14 +130,14 @@ function addValue(
 function processDirectTrade(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: Map<string, ItemValueEntry>
 ): void {
     // For trades with item2, we need different handling
     if (trade.item2) {
         return processDirectTradeWithItem2(trade, baseCurrency, values);
     }
 
-    const item1Name = trade.item1Name ?? trade.costName;
+    const item1Name = trade.item1Name;
     const costAsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
     const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
 
@@ -153,11 +155,11 @@ function processDirectTrade(
 function processDirectTradeWithItem2(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues
+    values: Map<string, ItemValueEntry>
 ): void {
     if (!trade.item2) { return; }
 
-    const item1Name = trade.item1Name ?? trade.costName;
+    const item1Name = trade.item1Name;
     const item2Name = formatName(trade.item2);
 
     const item1AsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
@@ -176,15 +178,15 @@ function processDirectTradeWithItem2(
 function deriveTransitiveValue(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues,
-    knownKeys: Set<string>
+    values: Map<string, ItemValueEntry>,
+    knownKeys: ReadonlySet<string>
 ): boolean {
     // For trades with item2, we need different handling
     if (trade.item2) {
         return deriveTransitiveValueWithItem2(trade, baseCurrency, values, knownKeys);
     }
 
-    const item1Name = trade.item1Name ?? trade.costName;
+    const item1Name = trade.item1Name;
     const costKey = item1Name.toLowerCase();
     const resultKey = trade.resultName.toLowerCase();
 
@@ -223,12 +225,12 @@ function deriveTransitiveValue(
 function deriveTransitiveValueWithItem2(
     trade: TradeInput,
     baseCurrency: string,
-    values: ItemValues,
-    knownKeys: Set<string>
+    values: Map<string, ItemValueEntry>,
+    knownKeys: ReadonlySet<string>
 ): boolean {
     if (!trade.item2) { return false; }
 
-    const item1Name = trade.item1Name ?? trade.costName;
+    const item1Name = trade.item1Name;
     const item2Name = formatName(trade.item2);
     const resultKey = trade.resultName.toLowerCase();
 

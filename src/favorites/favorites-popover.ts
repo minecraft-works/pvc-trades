@@ -18,7 +18,10 @@ export interface FavoritesUIState {
     handlePopoverOutsideClick: ((event: MouseEvent) => void) | undefined;
 }
 
-/** Hide the favorite popover and clean up */
+/**
+ * Hide the favorite popover and clean up
+ * @param state - The favorites UI state containing the active popover reference
+ */
 export function hidePopover(state: FavoritesUIState): void {
     const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
     if (popover) {
@@ -30,7 +33,11 @@ export function hidePopover(state: FavoritesUIState): void {
     }
 }
 
-/** Position and show the popover near a button */
+/**
+ * Position and show the popover near a button
+ * @param popover - The popover element to position and show
+ * @param button - The trigger button whose position determines popover placement
+ */
 export function positionAndShowPopover(popover: HTMLElement, button: HTMLElement): void {
     const rect = button.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) {
@@ -46,7 +53,12 @@ export function positionAndShowPopover(popover: HTMLElement, button: HTMLElement
     popover.classList.remove('hidden');
 }
 
-/** Update threshold radio buttons and input in popover */
+/**
+ * Update threshold radio buttons and input in popover
+ * @param popover - The popover element containing the threshold controls
+ * @param hasThreshold - Whether a threshold deviation filter is active
+ * @param thresholdValue - The current threshold value (absolute, positive)
+ */
 function updatePopoverThresholdControls(
     popover: HTMLElement,
     hasThreshold: boolean,
@@ -68,7 +80,12 @@ function updatePopoverThresholdControls(
     }
 }
 
-/** Update popover UI elements based on favorite settings */
+/**
+ * Update popover UI elements based on favorite settings
+ * @param popover - The popover element to update
+ * @param itemName - Name of the item being favorited
+ * @param favoritesStore - Store containing the current favorites data
+ */
 export function updatePopoverUI(popover: HTMLElement, itemName: string, favoritesStore: FavoritesStore): void {
     // Update popover header
     const header = popover.querySelector('#popover-item-name');
@@ -94,7 +111,11 @@ export function updatePopoverUI(popover: HTMLElement, itemName: string, favorite
     }
 }
 
-/** Read threshold value from popover form */
+/**
+ * Read threshold value from popover form
+ * @param popover - The popover element containing the threshold input
+ * @returns Negative threshold value if threshold mode selected, or undefined for any price
+ */
 export function readThresholdFromPopover(popover: HTMLElement): number | undefined {
     const thresholdRadio = popover.querySelector('input[name="threshold-type"][value="threshold"]');
     const thresholdInput = popover.querySelector('#popover-threshold');

@@ -80,7 +80,7 @@ export const DEFAULT_PYRAMID: TilePyramidConfig = {
  * blocksPerTile(1, DEFAULT_PYRAMID) // 1024 (mid)
  * blocksPerTile(0, DEFAULT_PYRAMID) // 4096 (overview)
  */
-export function blocksPerTile(level: number, pyramid: TilePyramidConfig): number {
+export function blocksPerTile(level: number, pyramid: Readonly<TilePyramidConfig>): number {
     const exponent = pyramid.levels - 1 - level;
     return pyramid.baseBlocksPerTile * Math.pow(pyramid.scaleFactor, exponent);
 }
@@ -91,7 +91,7 @@ export function blocksPerTile(level: number, pyramid: TilePyramidConfig): number
  * @param pyramid - Pyramid configuration
  * @returns The detail level index (levels - 1)
  */
-export function detailLevel(pyramid: TilePyramidConfig): number {
+export function detailLevel(pyramid: Readonly<TilePyramidConfig>): number {
     return pyramid.levels - 1;
 }
 
@@ -114,7 +114,7 @@ export function overviewLevel(): number {
  * // Default: 4^2 = 16
  * detailToOverviewRatio(DEFAULT_PYRAMID) // 16
  */
-export function detailToOverviewRatio(pyramid: TilePyramidConfig): number {
+export function detailToOverviewRatio(pyramid: Readonly<TilePyramidConfig>): number {
     return Math.pow(pyramid.scaleFactor, pyramid.levels - 1);
 }
 
@@ -125,7 +125,7 @@ export function detailToOverviewRatio(pyramid: TilePyramidConfig): number {
  * @param pyramid - Pyramid configuration
  * @returns true if 0 ≤ level < levels
  */
-export function isValidLevel(level: number, pyramid: TilePyramidConfig): boolean {
+export function isValidLevel(level: number, pyramid: Readonly<TilePyramidConfig>): boolean {
     return Number.isInteger(level) && level >= 0 && level < pyramid.levels;
 }
 
@@ -153,8 +153,8 @@ export function tileFromBlock(
     blockX: number,
     blockZ: number,
     level: number,
-    pyramid: TilePyramidConfig
-): CanonicalTileCoords {
+    pyramid: Readonly<TilePyramidConfig>
+): Readonly<CanonicalTileCoords> {
     const bpt = blocksPerTile(level, pyramid);
     return {
         tileX: Math.floor(blockX / bpt),
@@ -182,8 +182,8 @@ export function tileBounds(
     tileX: number,
     tileZ: number,
     level: number,
-    pyramid: TilePyramidConfig
-): TileBounds {
+    pyramid: Readonly<TilePyramidConfig>
+): Readonly<TileBounds> {
     const bpt = blocksPerTile(level, pyramid);
     return {
         west: tileX * bpt,
@@ -215,8 +215,8 @@ export interface BlockInTileOptions {
  * @returns true if the block is within the tile
  */
 export function isBlockInTile(
-    options: BlockInTileOptions,
-    pyramid: TilePyramidConfig
+    options: Readonly<BlockInTileOptions>,
+    pyramid: Readonly<TilePyramidConfig>
 ): boolean {
     const bounds = tileBounds(options.tileX, options.tileZ, options.level, pyramid);
     return options.blockX >= bounds.west && options.blockX < bounds.east
@@ -243,8 +243,8 @@ export function coarsenTile(
     detailTileZ: number,
     fromLevel: number,
     toLevel: number,
-    pyramid: TilePyramidConfig
-): CanonicalTileCoords {
+    pyramid: Readonly<TilePyramidConfig>
+): Readonly<CanonicalTileCoords> {
     const fromBpt = blocksPerTile(fromLevel, pyramid);
     const toBpt = blocksPerTile(toLevel, pyramid);
     const ratio = toBpt / fromBpt;
@@ -286,8 +286,8 @@ export interface CanonicalTileUrlOptions {
  * // 'tiles/overworld/2/3/-2.png'
  */
 export function canonicalTileUrl(
-    options: CanonicalTileUrlOptions,
-    pyramid: TilePyramidConfig
+    options: Readonly<CanonicalTileUrlOptions>,
+    pyramid: Readonly<TilePyramidConfig>
 ): string {
     const base = options.baseUrl ?? 'tiles';
     return `${base}/${options.world}/${String(options.level)}/${String(options.tileX)}/${String(options.tileZ)}.${pyramid.format}`;
@@ -313,7 +313,7 @@ export function tileNeighborhood(
     centerTileX: number,
     centerTileZ: number,
     radius = 2
-): CanonicalTileCoords[] {
+): readonly CanonicalTileCoords[] {
     const tiles: CanonicalTileCoords[] = [];
     for (let dx = -radius; dx <= radius; dx++) {
         for (let dz = -radius; dz <= radius; dz++) {
@@ -348,9 +348,9 @@ export interface TilesInBlockRangeOptions {
  * @returns Array of tile coordinates covering the range
  */
 export function tilesInBlockRange(
-    options: TilesInBlockRangeOptions,
-    pyramid: TilePyramidConfig
-): CanonicalTileCoords[] {
+    options: Readonly<TilesInBlockRangeOptions>,
+    pyramid: Readonly<TilePyramidConfig>
+): readonly CanonicalTileCoords[] {
     const bpt = blocksPerTile(options.level, pyramid);
     const minTileX = Math.floor(options.minBlockX / bpt);
     const maxTileX = Math.floor(options.maxBlockX / bpt);

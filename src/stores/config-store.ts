@@ -51,7 +51,7 @@ class ConfigStore {
                 this.config = parsed.data;
                 
                 // Use local data.json when running on localhost
-                if (globalThis.location?.hostname === 'localhost') {
+                if (globalThis.location.hostname === 'localhost') {
                     this.config = {
                         ...this.config,
                         dataUrl: `${globalThis.location.origin}${globalThis.location.pathname}data.json`

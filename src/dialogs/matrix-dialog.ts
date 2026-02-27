@@ -46,6 +46,8 @@ const DIALOG_HEADER_HTML = '<header><h2>Exchange Rates</h2><button id="close-mat
 
 /**
  * Get the icon HTML for an item, or escaped text if no icon exists
+ * @param name - Item name to look up an icon for
+ * @returns HTML string: an <img> tag if icon found, otherwise escaped text
  */
 function getItemIcon(name: string): string {
     const url = ITEM_ICONS[name];
@@ -57,6 +59,8 @@ function getItemIcon(name: string): string {
 
 /**
  * Format a ratio value for display with appropriate precision
+ * @param value - Numeric ratio to format, or undefined for no data
+ * @returns Formatted string (e.g., '1.5', '2', or '—' if undefined)
  */
 function formatRatio(value: number | undefined): string {
     if (value === undefined) { return '\u2014'; }
@@ -66,6 +70,10 @@ function formatRatio(value: number | undefined): string {
 
 /**
  * Get exchange ratio from matrix: how many of `to` for 1 of `from`
+ * @param matrix - The exchange matrix to query
+ * @param from - Source currency label
+ * @param to - Target currency label
+ * @returns The ratio value, or undefined if either currency is not in the matrix
  */
 function getMatrixRatio(matrix: ExchangeMatrix, from: string, to: string): number | undefined {
     const fromIndex = matrix.labels.indexOf(from);
@@ -76,6 +84,8 @@ function getMatrixRatio(matrix: ExchangeMatrix, from: string, to: string): numbe
 
 /**
  * Format a converted amount — show up to 2 decimals, strip trailing zeros
+ * @param value - Numeric amount to format
+ * @returns Formatted locale string, or '—' if not finite
  */
 function formatAmount(value: number): string {
     if (!Number.isFinite(value)) { return '\u2014'; }
@@ -88,6 +98,10 @@ function formatAmount(value: number): string {
 
 /**
  * Build HTML for a single static rate row
+ * @param fromName - Source currency display name
+ * @param toName - Target currency display name
+ * @param index - Index used to identify the rate value element via data-rate
+ * @returns HTML string for the rate row div
  */
 function buildRateRow(fromName: string, toName: string, index: number): string {
     return `<div class="rate-row">
@@ -101,6 +115,7 @@ function buildRateRow(fromName: string, toName: string, index: number): string {
 
 /**
  * Build HTML for the key rates overview
+ * @returns HTML string for the key rates section
  */
 function buildKeyRates(): string {
     let html = '<div class="converter-section"><h3 class="converter-section-title">Key Rates</h3>';
@@ -118,8 +133,11 @@ function buildKeyRates(): string {
 
 /**
  * Build the <option> elements for a currency select dropdown
+ * @param labels - All available currency labels
+ * @param selected - Currently selected label to mark as selected
+ * @returns HTML string of <option> elements
  */
-function buildCurrencyOptions(labels: string[], selected: string): string {
+function buildCurrencyOptions(labels: readonly string[], selected: string): string {
     let html = '';
     for (const label of labels) {
         const sel = label === selected ? ' selected' : '';
@@ -130,8 +148,10 @@ function buildCurrencyOptions(labels: string[], selected: string): string {
 
 /**
  * Build HTML for the custom converter
+ * @param labels - Available currency labels for the dropdowns
+ * @returns HTML string for the custom converter section
  */
-function buildCustomConverter(labels: string[]): string {
+function buildCustomConverter(labels: readonly string[]): string {
     const from = labels[0] ?? '';
     const to = labels[1] ?? '';
 
@@ -167,6 +187,8 @@ function buildCustomConverter(labels: string[]): string {
 
 /**
  * Update the static key-rate values for the active matrix
+ * @param container - DOM element containing the rate value elements
+ * @param matrix - Exchange matrix with current ratio data
  */
 function updateKeyRates(container: HTMLElement, matrix: ExchangeMatrix): void {
     for (const [index, [fromName, toName]] of KEY_PAIRS.entries()) {
@@ -180,6 +202,8 @@ function updateKeyRates(container: HTMLElement, matrix: ExchangeMatrix): void {
 
 /**
  * Update the custom converter result
+ * @param container - DOM element containing the converter inputs and output
+ * @param matrix - Exchange matrix with current ratio data
  */
 function updateCustomConverter(container: HTMLElement, matrix: ExchangeMatrix): void {
     const fromSelect = container.querySelector<HTMLSelectElement>('#converter-from-select');
@@ -228,6 +252,7 @@ function updateCustomConverter(container: HTMLElement, matrix: ExchangeMatrix): 
 export function renderExchangeMatrix(
     container: HTMLElement,
     itemValues: ItemValues | undefined,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T
 ): void {
     if (!itemValues || itemValues.size === 0) {
@@ -270,7 +295,7 @@ export function renderExchangeMatrix(
                 element.classList.remove('matrix-tab--active');
             }
             tab.classList.add('matrix-tab--active');
-            activeMatrix = tab.dataset['tab'] === 'sell' ? sellMatrix : buyMatrix;
+            activeMatrix = tab.dataset.tab === 'sell' ? sellMatrix : buyMatrix;
             refreshAll();
         });
     }

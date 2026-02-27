@@ -76,7 +76,7 @@ export interface TileProvider {
      * @param normalizedWorld - One of 'overworld', 'the_nether', 'the_end'
      * @returns Provider-specific world ID (e.g., 'minecraft_overworld' for Dynmap)
      */
-    getSourceWorldId(normalizedWorld: string): string;
+    getSourceWorldId: (normalizedWorld: string) => string;
 
     /**
      * Generate URL to fetch a tile from the remote source server.
@@ -90,7 +90,7 @@ export interface TileProvider {
      * @param tileZ - Tile Z coordinate
      * @returns Full URL to the tile image on the source server
      */
-    getSourceTileUrl(normalizedWorld: string, level: DetailLevel, tileX: number, tileZ: number): string;
+    getSourceTileUrl: (normalizedWorld: string, level: DetailLevel, tileX: number, tileZ: number) => string;
 
     /**
      * Process a raw tile image from the source into display-ready content.
@@ -101,7 +101,7 @@ export interface TileProvider {
      * @param raw - Raw tile image blob from the source server
      * @returns Processed tile with color image and optional heightmap
      */
-    processImage(raw: Blob): Promise<ProcessedTile>;
+    processImage: (raw: Blob) => Promise<ProcessedTile>;
 }
 
 // ============================================================================
