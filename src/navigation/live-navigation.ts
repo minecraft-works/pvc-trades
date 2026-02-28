@@ -7,8 +7,6 @@
  * @module navigation/live-navigation
  */
 
-/* eslint-disable max-lines -- orchestrator coordinates many subsystems */
-
 import {
     CSS_CLASSES,
     DIALOG_IDS,
@@ -63,7 +61,6 @@ export interface LiveNavigationDeps {
     createTimelineStop: (stop: RouteStop, index: number, route: RouteStop[], previous: RouteStop | undefined, forNavPanel?: boolean) => HTMLElement;
     renderCartDialog: () => void;
     switchTab: (tab: 'cart' | 'navigate') => void;
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     getConfig: () => { dynmap: { playerRefreshMs: number } };
     playerPositionService: {
@@ -146,7 +143,6 @@ function pushPlayerSampleWithDebug(service: LiveNavigationDeps['playerPositionSe
  * @param deps   Callbacks and stores from main.ts
  * @returns Handler object with live navigation lifecycle functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createLiveNavigationHandler(state: NavState, deps: LiveNavigationDeps): LiveNavigationHandler {
 
     // ── Mode controls ───────────────────────────────────────────────

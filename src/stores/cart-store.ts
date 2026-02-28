@@ -195,7 +195,6 @@ class CartStore {
                 const parsed: unknown = JSON.parse(stored);
                 const result = CartItemArraySchema.safeParse(parsed);
                 if (result.success) {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Zod .loose() schema output matches CartItem at runtime but TS can't prove structural equivalence
                     this._items = result.data as unknown as CartItem[];
                 }
             }

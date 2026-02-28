@@ -147,8 +147,6 @@ async function fetchHeightmapTile(
             width: bitmap.width,
             height: bitmap.height,
         };
-
-        // eslint-disable-next-line functional/immutable-data
         heightmapCache.set(cacheKey, decoded);
         debugAtlas('decoded: %s (%dx%d, range %d–%d)',
             cacheKey, bitmap.width, bitmap.height, meta.min, meta.max);
@@ -192,7 +190,6 @@ export function dequantizeHeightmap(
     for (let index = 0; index < pixelCount; index++) {
         // Read R channel (index i*4) — grayscale has R = G = B
         const gray = rgba[index * 4] ?? 0;
-        // eslint-disable-next-line functional/immutable-data
         heights[index] = min + (gray / 255) * range;
     }
 
@@ -273,7 +270,6 @@ export async function buildHeightmapAtlas(
                         (tz - minTile.tileZ) * tilePixels,
                     );
                 });
-            // eslint-disable-next-line functional/immutable-data
             fetchPromises.push(tilePromise);
         }
     }
@@ -352,7 +348,6 @@ function stitchTile(
 export function parseManifestHeightmaps(
     manifestEntries: readonly { world: string; tileX: number; tileZ: number; blocksPerTile: number; heightmap?: { min: number; max: number } }[],
     pyramid: Readonly<TilePyramidConfig>,
-// eslint-disable-next-line functional/prefer-immutable-types
 ): Map<string, TileHeightmapMeta> {
     const result = new Map<string, TileHeightmapMeta>();
     const level = detailLevel(pyramid);
@@ -361,7 +356,6 @@ export function parseManifestHeightmaps(
     for (const entry of manifestEntries) {
         if (!entry.heightmap || entry.blocksPerTile !== bpt) { continue; }
         const key = manifestKey(entry.world, entry.blocksPerTile, entry.tileX, entry.tileZ);
-        // eslint-disable-next-line functional/immutable-data
         result.set(key, {
             tileX: entry.tileX,
             tileZ: entry.tileZ,

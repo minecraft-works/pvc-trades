@@ -28,7 +28,6 @@ import type { LoadTileOptions, ManifestEntry, TileConfig } from './tile-types.js
 import { ManifestEntrySchema } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- CDN global, not an importable module
 declare const L: typeof import('leaflet');
 
 const debugTiles = debug('tiles');
@@ -111,7 +110,6 @@ export async function loadTileManifest(): Promise<Set<string>> {
             const parsed = z.array(ManifestEntrySchema).safeParse(json);
             if (parsed.success) {
                 debugTiles('manifest: fetched %d entries', parsed.data.length);
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Zod schema matches ManifestEntry but exactOptionalPropertyTypes diverges
                 rawManifestEntries = parsed.data as ManifestEntry[];
                 for (const entry of parsed.data) {
                     // Normalize world name to match what getWorldId returns

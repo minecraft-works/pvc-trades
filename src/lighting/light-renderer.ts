@@ -76,13 +76,11 @@ export interface LightRenderer {
  * @param source - GLSL source code
  * @returns Compiled shader, or undefined on compilation error
  */
-/* eslint-disable functional/prefer-immutable-types */
 function compileShader(
     gl: WebGL2RenderingContext,
     type: number,
     source: string,
 ): WebGLShader | undefined {
-/* eslint-enable functional/prefer-immutable-types */
     const shader = gl.createShader(type);
     if (!shader) { return undefined; }
 
@@ -108,15 +106,12 @@ function compileShader(
  * @param fragShader - Compiled fragment shader
  * @returns Linked program, or undefined on link error
  */
-/* eslint-disable functional/prefer-immutable-types */
 function linkProgram(
     gl: WebGL2RenderingContext,
     vertShader: WebGLShader,
     fragShader: WebGLShader,
 ): WebGLProgram | undefined {
-/* eslint-enable functional/prefer-immutable-types */
     const program = gl.createProgram();
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!program) { return undefined; }
 
     gl.attachShader(program, vertShader);
@@ -145,19 +140,15 @@ function linkProgram(
  * @param program - Linked shader program
  * @returns Cached uniform locations
  */
-/* eslint-disable functional/prefer-immutable-types */
 function getUniformLocations(
     gl: WebGL2RenderingContext,
     program: WebGLProgram,
 ): UniformLocations {
-/* eslint-enable functional/prefer-immutable-types */
     const pointLights: (WebGLUniformLocation | null)[] = [];
     const pointLightColors: (WebGLUniformLocation | null)[] = [];
 
     for (let index = 0; index < MAX_POINT_LIGHTS; index++) {
-        // eslint-disable-next-line functional/immutable-data
         pointLights.push(gl.getUniformLocation(program, `u_pointLights[${index}]`));
-        // eslint-disable-next-line functional/immutable-data
         pointLightColors.push(gl.getUniformLocation(program, `u_pointLightColors[${index}]`));
     }
 
@@ -194,7 +185,6 @@ function getUniformLocations(
  *
  * @returns Light renderer instance
  */
-// eslint-disable-next-line max-lines-per-function
 export function createLightRenderer(): LightRenderer {
     const canvas = document.createElement('canvas');
     canvas.style.imageRendering = 'auto'; // bilinear smoothing for ¼-res output
@@ -249,9 +239,7 @@ export function createLightRenderer(): LightRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     // Track current atlas metadata
-    // eslint-disable-next-line functional/no-let
     let currentAtlasOrigin = [0, 0];
-    // eslint-disable-next-line functional/no-let
     let currentAtlasSize = [1, 1];
 
     debugRenderer('WebGL2 renderer initialized');
@@ -289,9 +277,7 @@ export function createLightRenderer(): LightRenderer {
         const pixelHeight = Math.ceil(heightBlocks / RESOLUTION_SCALE);
 
         if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-            // eslint-disable-next-line functional/immutable-data
             canvas.width = pixelWidth;
-            // eslint-disable-next-line functional/immutable-data
             canvas.height = pixelHeight;
             gl.viewport(0, 0, pixelWidth, pixelHeight);
             debugRenderer('resized to %dx%d px (¼ of %dx%d blocks)',
@@ -337,9 +323,7 @@ export function createLightRenderer(): LightRenderer {
         gl.uniform1i(uniforms.u_numPointLights, numberLights);
 
         for (let index = 0; index < MAX_POINT_LIGHTS; index++) {
-            // eslint-disable-next-line unicorn/no-null
             const posLoc = uniforms.u_pointLights[index] ?? null;
-            // eslint-disable-next-line unicorn/no-null
             const colorLoc = uniforms.u_pointLightColors[index] ?? null;
 
             if (index < numberLights) {
@@ -393,7 +377,6 @@ export function createLightRenderer(): LightRenderer {
  * @param canvas - Canvas element to render to
  * @returns Light renderer with CPU-only rendering
  */
-// eslint-disable-next-line functional/prefer-immutable-types
 function createCpuFallbackRenderer(canvas: HTMLCanvasElement): LightRenderer {
     const context = canvas.getContext('2d');
 
@@ -405,7 +388,6 @@ function createCpuFallbackRenderer(canvas: HTMLCanvasElement): LightRenderer {
             if (!context) { return; }
             const brightness = Math.min(1, config.ambientIntensity + config.sunIntensity);
             context.clearRect(0, 0, canvas.width, canvas.height);
-            // eslint-disable-next-line functional/immutable-data
             context.fillStyle = `rgb(${Math.round(brightness * 255)}, ${Math.round(brightness * 255)}, ${Math.round(brightness * 255)})`;
             context.fillRect(0, 0, canvas.width, canvas.height);
         },
@@ -413,9 +395,7 @@ function createCpuFallbackRenderer(canvas: HTMLCanvasElement): LightRenderer {
         resize: (widthBlocks: number, heightBlocks: number) => {
             const pixelWidth = Math.ceil(widthBlocks / RESOLUTION_SCALE);
             const pixelHeight = Math.ceil(heightBlocks / RESOLUTION_SCALE);
-            // eslint-disable-next-line functional/immutable-data
             canvas.width = pixelWidth;
-            // eslint-disable-next-line functional/immutable-data
             canvas.height = pixelHeight;
         },
         dispose: () => { /* nothing to clean up */ },
@@ -433,7 +413,6 @@ function createCpuFallbackRenderer(canvas: HTMLCanvasElement): LightRenderer {
  * @param v - Input vector [x, y, z]
  * @returns Normalized vector, or [0, 1, 0] if zero-length
  */
-// eslint-disable-next-line functional/prefer-immutable-types
 function normalizeVec3(v: readonly [number, number, number]): [number, number, number] {
     const length = Math.hypot(v[0], v[1], v[2]);
     if (length === 0) { return [0, 1, 0]; }

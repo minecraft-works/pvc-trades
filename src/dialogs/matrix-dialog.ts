@@ -252,7 +252,6 @@ function updateCustomConverter(container: HTMLElement, matrix: ExchangeMatrix): 
 export function renderExchangeMatrix(
     container: HTMLElement,
     itemValues: ItemValues | undefined,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T
 ): void {
     if (!itemValues || itemValues.size === 0) {

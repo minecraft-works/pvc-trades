@@ -29,7 +29,6 @@ import type { RouteStop, ShoppingList,Trade } from '../types.js';
  * @internal
  * @returns The found element cast to the requested type
  */
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -291,7 +290,6 @@ export interface CartDialogHandler {
  * @param deps Late-bound callbacks from main.ts
  * @returns Handler object with cart rendering and stop management functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler {
 
     // ── Cart item element ───────────────────────────────────────────

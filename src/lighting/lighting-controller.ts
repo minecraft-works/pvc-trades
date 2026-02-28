@@ -48,7 +48,6 @@ interface ManifestEntryLike {
 /** Public API for controlling the lighting system */
 export interface LightingController {
     /** Initialize and attach to a Leaflet map */
-    // eslint-disable-next-line functional/prefer-immutable-types
     attach: (map: L.Map, centerTileX: number, centerTileZ: number, manifestEntries: readonly ManifestEntryLike[]) => Promise<void>;
     /** Detach from the map and release resources */
     detach: () => void;
@@ -84,31 +83,21 @@ export interface LightingController {
  *
  * @returns Lighting controller instance
  */
-// eslint-disable-next-line max-lines-per-function
 export function createLightingController(): LightingController {
     const state: LightingState = createLightingState();
-    // eslint-disable-next-line functional/no-let
     let renderer: LightRenderer | undefined;
-    // eslint-disable-next-line functional/no-let
     let overlay: LightOverlay | undefined;
-    // eslint-disable-next-line functional/no-let
     let map: L.Map | undefined;
-    // eslint-disable-next-line functional/no-let
     let centerTileX = 0;
-    // eslint-disable-next-line functional/no-let
     let centerTileZ = 0;
-    // eslint-disable-next-line functional/no-let
     let heightmapMeta: Map<string, TileHeightmapMeta> | undefined;
-    // eslint-disable-next-line functional/no-let
     let currentWorld = 'overworld';
-    // eslint-disable-next-line functional/no-let
     let lastAtlasViewport: BlockViewport | undefined;
 
     /** Minimum pan distance (blocks) before atlas rebuild */
     const ATLAS_REBUILD_THRESHOLD = 128;
      
     async function attach(
-        // eslint-disable-next-line functional/prefer-immutable-types
         mapInstance: L.Map,
         ctX: number,
         ctZ: number,
@@ -148,14 +137,11 @@ export function createLightingController(): LightingController {
         await rebuildAtlas();
 
         // Enable lighting
-        // eslint-disable-next-line functional/immutable-data
         state.enabled = true;
     }
 
     function detach(): void {
-        // eslint-disable-next-line functional/immutable-data
         state.enabled = false;
-        // eslint-disable-next-line functional/immutable-data
         state.pointLights = [];
 
         overlay?.detach();
@@ -184,17 +170,14 @@ export function createLightingController(): LightingController {
 
         // Replace first point light (torch is always index 0)
         if (state.pointLights.length === 0) {
-            // eslint-disable-next-line functional/immutable-data
             state.pointLights.push(torch);
         } else {
-            // eslint-disable-next-line functional/immutable-data
             state.pointLights[0] = torch;
         }
     }
 
     function removeTorch(): void {
         if (state.pointLights.length > 0) {
-            // eslint-disable-next-line functional/immutable-data
             state.pointLights.shift();
         }
     }
@@ -209,7 +192,6 @@ export function createLightingController(): LightingController {
     }
 
     function setEnabled(enabled: boolean): void {
-        // eslint-disable-next-line functional/immutable-data
         state.enabled = enabled;
         debugLighting('enabled=%s', enabled);
     }

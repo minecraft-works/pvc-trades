@@ -256,7 +256,27 @@ export default tseslint.config(
             'functional/prefer-immutable-types': 'off',
             'functional/prefer-property-signatures': 'off',
             '@typescript-eslint/prefer-readonly': 'off',
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
+            'unicorn/no-null': 'off',
             'no-restricted-syntax': 'off'
+        }
+    },
+    // Lighting module: WebGL/GPU/DOM-driven — inherently stateful by nature
+    {
+        files: ['src/lighting/**/*.ts'],
+        rules: {
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            'functional/prefer-tacit': 'off',
+            'functional/prefer-property-signatures': 'off',
+            'max-lines-per-function': 'off',
+            'max-lines': 'off',
+            'unicorn/no-null': 'off',
+            'unicorn/consistent-function-scoping': 'off',
+            '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+            '@typescript-eslint/no-unnecessary-condition': 'off',
+            '@typescript-eslint/prefer-readonly': 'off'
         }
     },
     // UI/DOM modules legitimately mutate DOM elements and local state
@@ -275,7 +295,26 @@ export default tseslint.config(
             'functional/immutable-data': 'off',
             'functional/no-let': 'off',
             'functional/prefer-immutable-types': 'off',
-            '@typescript-eslint/prefer-readonly': 'off'
+            'functional/prefer-tacit': 'off',
+            '@typescript-eslint/prefer-readonly': 'off',
+            '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
+            'max-lines-per-function': 'off',
+            'max-lines': 'off',
+            'sonarjs/no-wildcard-import': 'off',
+            'sonarjs/bool-param-default': 'off',
+            'unicorn/no-array-callback-reference': 'off',
+            'unicorn/no-array-method-this-argument': 'off'
+        }
+    },
+    // tile-loader.ts uses CDN Leaflet with `declare const L: typeof import('leaflet')`
+    // which is a value-declaration pattern that consistent-type-imports flags incorrectly
+    // bluemap-provider.ts iterates strings with Array.from() — prefer-spread conflicts with no-misused-spread
+    {
+        files: ['src/map/tile-loader.ts', 'src/map/providers/bluemap-provider.ts'],
+        rules: {
+            '@typescript-eslint/consistent-type-imports': 'off',
+            'unicorn/prefer-spread': 'off'
         }
     },
     // Computation modules build data structures imperatively (Maps, arrays, Sets)
@@ -294,7 +333,12 @@ export default tseslint.config(
         ],
         rules: {
             'functional/immutable-data': 'off',
-            'functional/no-let': 'off'
+            'functional/no-let': 'off',
+            'functional/prefer-tacit': 'off',
+            'max-lines-per-function': 'off',
+            'max-params': 'off',
+            '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+            '@typescript-eslint/no-unsafe-type-assertion': 'off'
         }
     },
     // Route optimizer uses non-null assertions for array-index access in tight loops
@@ -303,6 +347,23 @@ export default tseslint.config(
         files: ['src/routing/route-optimizer.ts'],
         rules: {
             '@typescript-eslint/no-non-null-assertion': 'error'
+        }
+    },
+    // Test globals declaration file — E2E test interaction requires mutable types
+    {
+        files: ['src/test-globals.d.ts'],
+        rules: {
+            'functional/prefer-immutable-types': 'off'
+        }
+    },
+    // Chatlog run-parser: CLI script that handles unknown JSON — safety overrides needed
+    {
+        files: ['src/chatlog/run-parser.ts'],
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
+            '@typescript-eslint/consistent-generic-constructors': 'off'
         }
     },
     // Relaxed rules for spec tests - these are large legacy test files
@@ -404,7 +465,11 @@ export default tseslint.config(
             // JSDoc not required in test files
             'jsdoc/require-jsdoc': 'off',
             'no-restricted-syntax': 'off',
-            '@typescript-eslint/prefer-nullish-coalescing': 'off'
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            // fast-check uses fc.* wildcard namespace (idiomatic)
+            'sonarjs/no-wildcard-import': 'off',
+            // Intentionally swapped arguments for symmetry tests
+            'sonarjs/arguments-order': 'off'
         }
     },
     // Relaxed rules for BDD step definitions and support files

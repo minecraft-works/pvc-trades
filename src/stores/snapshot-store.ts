@@ -42,11 +42,9 @@ export function packSnapshots(snapshots: TradeSnapshot[]): CompactSnapshotHistor
         t: snapshot.timestamp,
         v: keys.map((key): [number | null, number] => {
             const entry = snapshot.trades[key];
-            /* eslint-disable unicorn/no-null -- null required for JSON serialization (undefined not supported) */
             return entry
                 ? [entry.deviationPercent ?? null, entry.stock]
                 : [null, 0];
-            /* eslint-enable unicorn/no-null */
         }),
     }));
 

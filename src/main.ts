@@ -105,7 +105,6 @@ let mapOpenedFromCart = false;
 const CLEAR_SEARCH_WANT_ID = 'clear-search-want';
 const CLEAR_SEARCH_GIVE_ID = 'clear-search-give';
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -323,7 +322,6 @@ function setupAllDialogs(): void {
     });
 }
 
-// eslint-disable-next-line max-lines-per-function -- application entry point wires all extracted modules
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize data loader (owns trade state, item values, deviation calculator)
     dataLoader = createDataLoaderHandler({
@@ -382,7 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         isOpenedFromCart: () => mapOpenedFromCart,
         clearOpenedFromCart: () => { mapOpenedFromCart = false; },
-        // eslint-disable-next-line functional/prefer-tacit -- late-bound: getConfig not available at init
         getConfig: () => getConfig(),
     });
 
@@ -452,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
         lightingController,
         createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
         renderCartDialog: () => cartHandler.renderCartDialog(),
-        // eslint-disable-next-line functional/prefer-tacit -- late-bound: getConfig not available at init
         getConfig: () => getConfig(),
         cartStoreUniqueCount: () => cartStore.uniqueCount,
     });

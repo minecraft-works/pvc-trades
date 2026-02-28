@@ -103,7 +103,6 @@ function normalizeToBaseCurrency(
     return { matches: false, amount };
 }
 
-// eslint-disable-next-line max-params
 function addValue(
     values: Map<string, ItemValueEntry>,
     item: string,

@@ -49,7 +49,6 @@ export interface SearchSortDeps {
     /** Read trimmed lowercase value from an input element */
     getInputValue: (id: string) => string;
     /** Get a DOM element by id (throws if missing) */
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     /** Render filtered results via virtual scroller (lazy: bound after renderer init) */
     renderResults: (results: readonly FilterResult[], wantRegex: Readonly<RegExp> | undefined, giveRegex: Readonly<RegExp> | undefined) => void;
@@ -120,7 +119,6 @@ const COLUMN_ORDER: readonly SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_
  * @param deps - Injected dependencies for the handler
  * @returns Search/sort handler bound to the provided dependencies
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler {
     // Multi-column sort state (default: sort by deviation ascending)
     const activeSorts = new Map<SortColumn, SortDirection>([['dev', SORT.ASC]]);

@@ -80,7 +80,6 @@ export interface TradeRendererHandler {
  * @throws Error if element not found
  * @returns The found element cast to the specified type
  */
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -127,7 +126,6 @@ function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
  * @param isGood - Whether the trade is a good deal
  * @returns CSS class name for the deviation cell
  */
-// eslint-disable-next-line sonarjs/bool-param-default -- undefined vs false has distinct meaning (no deviation vs bad deal)
 function getDeviationClass(isGood?: boolean  ): string {
     if (isGood === undefined) {
         return '';
@@ -161,7 +159,6 @@ const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock
  * @param deps - Injected dependencies for the handler
  * @returns Trade renderer handler bound to the provided dependencies
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRendererHandler {
     // Internal filter and rendering state
     let filterNewOnly = false;

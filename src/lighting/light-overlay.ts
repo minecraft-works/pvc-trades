@@ -29,14 +29,12 @@ const debugOverlay = debug('pvc:lighting');
 /** Public API for the light overlay */
 export interface LightOverlay {
     /** Attach the overlay to a Leaflet map */
-    // eslint-disable-next-line functional/prefer-immutable-types
     attach: (map: L.Map, centerTileX: number, centerTileZ: number) => void;
     /** Detach the overlay from the map */
     detach: () => void;
     /** Update the heightmap atlas (call after viewport change) */
     setAtlas: (atlas: HeightmapAtlas) => void;
     /** Render a frame with current lighting state */
-    // eslint-disable-next-line functional/prefer-immutable-types
     renderFrame: (state: LightingState) => void;
     /** Force a full update (atlas + render) */
     refresh: () => void;
@@ -56,15 +54,10 @@ export interface LightOverlay {
  * @param renderer - The GPU (or CPU fallback) light renderer
  * @returns Overlay controller
  */
-// eslint-disable-next-line max-lines-per-function
 export function createLightOverlay(renderer: LightRenderer): LightOverlay {
-    // eslint-disable-next-line functional/no-let
     let map: L.Map | undefined;
-    // eslint-disable-next-line functional/no-let
     let centerTileX = 0;
-    // eslint-disable-next-line functional/no-let
     let centerTileZ = 0;
-    // eslint-disable-next-line functional/no-let
     let hasAtlas = false;
 
     const canvas = renderer.canvas;
@@ -86,7 +79,6 @@ export function createLightOverlay(renderer: LightRenderer): LightOverlay {
      *
      * @returns Block viewport bounds, or undefined if map is unavailable
      */
-    // eslint-disable-next-line functional/prefer-immutable-types
     function getBlockViewport(): { minBlockX: number; maxBlockX: number; minBlockZ: number; maxBlockZ: number } | undefined {
         if (!map) { return undefined; }
 
@@ -116,14 +108,11 @@ export function createLightOverlay(renderer: LightRenderer): LightOverlay {
     /**
      * Handle map movement — update viewport and re-render.
      */
-    // eslint-disable-next-line unicorn/consistent-function-scoping
     function onMapMove(): void {
         // Re-render is handled by the animation loop, not here.
         // This is just a hook point for future atlas refresh on large pans.
         debugOverlay('map moved — next render will use updated viewport');
     }
-
-    // eslint-disable-next-line functional/prefer-immutable-types
     function attach(mapInstance: L.Map, ctX: number, ctZ: number): void {
         if (map) { detach(); }
 
@@ -156,8 +145,6 @@ export function createLightOverlay(renderer: LightRenderer): LightOverlay {
         hasAtlas = true;
         debugOverlay('atlas set: %dx%d', atlas.atlasWidth, atlas.atlasHeight);
     }
-
-    // eslint-disable-next-line functional/prefer-immutable-types
     function renderFrame(state: LightingState): void {
         if (!map || !hasAtlas || !state.enabled) {
             // If not enabled, make canvas transparent so baked tiles show through
@@ -198,8 +185,6 @@ export function createLightOverlay(renderer: LightRenderer): LightOverlay {
         get isAttached() { return map !== undefined; },
     };
 }
-
-/* eslint-disable functional/prefer-immutable-types */
 /**
  * Compute the visible block-coordinate viewport from a Leaflet map.
  *
@@ -215,7 +200,6 @@ export function getMapBlockViewport(
     centerTileX: number,
     centerTileZ: number,
 ): { minBlockX: number; maxBlockX: number; minBlockZ: number; maxBlockZ: number } | undefined {
-/* eslint-enable functional/prefer-immutable-types */
     const bounds = map.getBounds();
     const tileSize = TILE_CONFIG.tileSize;
 

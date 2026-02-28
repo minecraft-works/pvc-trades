@@ -7,7 +7,6 @@
  * @module navigation/nav-updates
  */
 
-// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import { NAVIGATION } from '../constants.js';
@@ -130,7 +129,6 @@ function buildStopDistanceHtml(
  * @param deps   Callbacks and stores from main.ts
  * @returns Handler object with navigation update functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): NavUpdatesHandler {
 
     // ── Route recalculation ─────────────────────────────────────────

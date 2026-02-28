@@ -152,7 +152,6 @@ export const RESOLUTION_SCALE = 4;
  *
  * @returns Fresh LightingState with daytime config and no point lights
  */
-// eslint-disable-next-line functional/prefer-immutable-types
 export function createLightingState(): LightingState {
     return {
         config: { ...DEFAULT_LIGHT_CONFIG },
@@ -166,8 +165,6 @@ export function createLightingState(): LightingState {
  *
  * @param state - Current lighting state (mutated in place)
  */
-// eslint-disable-next-line functional/prefer-immutable-types
 export function toggleDayNight(state: LightingState): void {
-    // eslint-disable-next-line functional/immutable-data
     state.config = state.config.isNight ? { ...DEFAULT_LIGHT_CONFIG } : { ...NIGHT_LIGHT_CONFIG };
 }

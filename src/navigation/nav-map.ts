@@ -12,7 +12,6 @@
  * @module navigation/nav-map
  */
 
-// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import { CSS_CLASSES, WORLDS } from '../constants.js';
@@ -194,7 +193,6 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
         markerZoomAnimation: false,
     } : {};
 
-    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet L.map(), not Array.map()
     const map = L.map(container, {
         crs: L.CRS.Simple,
         minZoom: -5,
@@ -238,7 +236,6 @@ function exposeNavTestGlobals(state: NavState, tileRange: TileRange): void {
  * @param deps   Callbacks and stores from main.ts
  * @returns Handler object with nav map lifecycle and rendering functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHandler {
 
     // ── Map lifecycle ───────────────────────────────────────────────

@@ -271,7 +271,6 @@ function clearAddForm(input: Element | null): void {
  * @param dependencies - External dependencies injected from main.ts
  * @returns Handler object with favorites UI lifecycle and rendering functions
  */
-// eslint-disable-next-line max-lines-per-function
 export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies): FavoritesUIHandler {
     const { favoritesStore, triggerSearch } = dependencies;
 

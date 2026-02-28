@@ -49,7 +49,6 @@ import {
  */
 export interface DataLoaderDeps {
     /** Get a DOM element by id (throws if missing) */
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     /** Render table header (lazy: bound after renderer init) */
     renderHeader: () => void;
@@ -91,7 +90,6 @@ export interface DataLoaderHandler {
  * @param deps - Dependencies injected from the host module
  * @returns Handler object with trade access and lifecycle methods
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler {
     let allTrades: Trade[] = [];
     const tradesByKey = new Map<string, Trade>();
@@ -155,7 +153,6 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             const data = parsed.data;
 
             // Track existing trade keys before processing new data
-            // eslint-disable-next-line functional/prefer-tacit -- unicorn/no-array-callback-reference conflicts
             const existingTradeKeys = new Set(allTrades.map(t => getTradeKey(t)));
 
             processShops(data.data);
