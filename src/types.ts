@@ -64,7 +64,7 @@ const TilePyramidConfigSchema = z.object({
     /** Blocks per tile at the highest detail level */
     baseBlocksPerTile: z.number().int().positive().default(256),
     /** Output tile format */
-    format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('jpeg'),
+    format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('png'),
     /** Heightmap-based lighting configuration (BlueMap sources only) */
     lighting: z.object({
         /** Enable baked lighting at build time */
@@ -106,7 +106,7 @@ export const AppConfigSchema = z.object({
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'jpeg' as const,
+        format: 'png' as const,
         lighting: {
             enabled: true,
             model: 'lambertian' as const,
@@ -182,7 +182,7 @@ export interface ShulkerParseResult {
 /** Schema for validating Item from external data */
 const ItemSchema = z.object({
     type: z.string(),
-    name: z.string(),
+    name: z.string().optional().default(''),
     amount: z.number()
 }).loose();
 
@@ -619,7 +619,7 @@ export const DEFAULT_CONFIG: AppConfig = {
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'jpeg',
+        format: 'png',
         lighting: {
             enabled: true,
             model: 'lambertian',

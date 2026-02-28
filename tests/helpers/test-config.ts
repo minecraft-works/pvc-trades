@@ -26,6 +26,22 @@ export const TEST_APP_CONFIG: AppConfig = {
 };
 
 // ============================================================================
+// Tile format constants
+// ============================================================================
+
+/**
+ * Tile format derived from DEFAULT_CONFIG so a single format change propagates
+ * to all test interceptors automatically.
+ */
+export const TILE_FORMAT = DEFAULT_CONFIG.tilePyramid.format;
+
+/** Glob pattern for page.route() tile interception */
+export const TILE_ROUTE_PATTERN = `**/tiles/**/*.${TILE_FORMAT}` as const;
+
+/** Extension for url.endsWith() checks, e.g. '.png' */
+export const TILE_URL_EXTENSION = `.${TILE_FORMAT}` as const;
+
+// ============================================================================
 // Config builder
 // ============================================================================
 

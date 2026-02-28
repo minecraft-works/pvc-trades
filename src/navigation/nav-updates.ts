@@ -399,11 +399,14 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
                     // Pan the map to the interpolated position — spring smoothness is applied
                     // to the pan, not to the marker. The marker always stays at the same
                     // Leaflet coordinates as the map center, appearing fixed/sticky.
+                    // Zoom is recalculated from hero Y each frame so altitude changes
+                    // (e.g. flying, climbing) update the zoom level continuously.
                     const { lat, lng } = toLeafletCoordsRelative(
                         viewCoords.x, viewCoords.z,
                         state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
                     );
-                    state.map.setView([lat, lng], state.map.getZoom(), { animate: false });
+                    const zoom = getZoomForHeight(playerPos.y);
+                    state.map.setView([lat, lng], zoom, { animate: false });
                 }
 
                 updatePlayerMarkerPosition(viewCoords.x, viewCoords.z, displayPos.yaw);

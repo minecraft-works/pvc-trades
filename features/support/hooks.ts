@@ -3,6 +3,7 @@ import { ChildProcess,spawn } from 'node:child_process';
 import { After, AfterAll, Before, BeforeAll, Status } from '@cucumber/cucumber';
 import { Browser,chromium } from '@playwright/test';
 
+import { TILE_URL_EXTENSION } from '../../tests/helpers/test-config';
 import { CustomWorld } from './world';
 
 // Shared browser instance for all scenarios (faster than launching per scenario)
@@ -123,7 +124,7 @@ Before(async function (this: CustomWorld) {
     
     // Track tile requests for debugging
     this.page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             this.tileRequests.push(`${world}:${request.url()}`);
         }

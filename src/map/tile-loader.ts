@@ -5,7 +5,7 @@
  * Leaflet maps. Tiles are added to the map by passing their URL directly to
  * Leaflet's imageOverlay — the browser's HTTP cache handles deduplication and
  * persistence across sessions. Because imageOverlay never sets opacity:0 on its
- * img element, progressive JPEG tiles render scan-pass by scan-pass as bytes
+ * img element, progressive PNG tiles render Adam7 pass-by-pass as bytes
  * arrive, even on a cold cache.
  * 
  * @module map/tile-loader

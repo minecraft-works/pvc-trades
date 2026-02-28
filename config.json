@@ -8,7 +8,7 @@
     "levels": 3,
     "scaleFactor": 4,
     "baseBlocksPerTile": 256,
-    "format": "jpeg",
+    "format": "png",
     "lighting": {
       "enabled": true,
       "model": "lambertian",
