@@ -12,7 +12,6 @@
  * @module navigation/nav-map
  */
 
-// eslint-disable-next-line sonarjs/no-wildcard-import -- Leaflet's L namespace is idiomatic
 import * as L from 'leaflet';
 
 import { CSS_CLASSES, WORLDS } from '../constants.js';
@@ -26,6 +25,7 @@ import {
     toLeafletCoordsRelative,
     toViewCoords,
 } from '../library.js';
+import type { LightingController } from '../lighting/lighting-controller.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
 import {
     calculateOverviewCoords,
@@ -34,6 +34,7 @@ import {
     TILE_CONFIG,
     tileExistsInManifest,
 } from '../map/index.js';
+import { getManifestEntries } from '../map/index.js';
 import type { RouteStop } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 
@@ -87,6 +88,8 @@ export interface NavMapDeps {
     };
     toggleStopCompletion: (stop: RouteStop, route: RouteStop[]) => void;
     onMapDrag: () => void;
+    /** Optional lighting controller for dynamic terrain lighting */
+    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
@@ -190,7 +193,6 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
         markerZoomAnimation: false,
     } : {};
 
-    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet L.map(), not Array.map()
     const map = L.map(container, {
         crs: L.CRS.Simple,
         minZoom: -5,
@@ -234,12 +236,12 @@ function exposeNavTestGlobals(state: NavState, tileRange: TileRange): void {
  * @param deps   Callbacks and stores from main.ts
  * @returns Handler object with nav map lifecycle and rendering functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHandler {
 
     // ── Map lifecycle ───────────────────────────────────────────────
 
     function cleanupNavMap(): void {
+        deps.lightingController?.detach();
         if (state.map) {
             try { state.map.remove(); } catch { /* already removed */ }
         }
@@ -442,6 +444,17 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         const addedToNavMap = new Set<string>();
         loadNavMapTiles({ manifest, tileRange, worldId: worldToShow, addedToMap: addedToNavMap });
         bindDynamicTileLoading(manifest, addedToNavMap);
+
+        // Attach lighting overlay to the map
+        if (deps.lightingController) {
+            const entries = getManifestEntries();
+            void deps.lightingController.attach(
+                state.map,
+                tileRange.centerTileX,
+                tileRange.centerTileZ,
+                entries,
+            );
+        }
     }
 
     // ── Return public API ───────────────────────────────────────────

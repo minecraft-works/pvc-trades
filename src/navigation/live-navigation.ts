@@ -19,6 +19,7 @@ import {
     getWorldId,
     hasPositionMoved,
 } from '../library.js';
+import type { LightingController } from '../lighting/lighting-controller.js';
 import {
     fetchPlayers,
     getPlayerWorld,
@@ -60,7 +61,6 @@ export interface LiveNavigationDeps {
     createTimelineStop: (stop: RouteStop, index: number, route: RouteStop[], previous: RouteStop | undefined, forNavPanel?: boolean) => HTMLElement;
     renderCartDialog: () => void;
     switchTab: (tab: 'cart' | 'navigate') => void;
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     getConfig: () => { dynmap: { playerRefreshMs: number } };
     playerPositionService: {
@@ -72,6 +72,8 @@ export interface LiveNavigationDeps {
     };
     updateNearbyShopTooltip: () => void;
     cartStoreUniqueCount: () => number;
+    /** Optional lighting controller for day/night toggle */
+    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
@@ -141,7 +143,6 @@ function pushPlayerSampleWithDebug(service: LiveNavigationDeps['playerPositionSe
  * @param deps   Callbacks and stores from main.ts
  * @returns Handler object with live navigation lifecycle functions
  */
-// eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createLiveNavigationHandler(state: NavState, deps: LiveNavigationDeps): LiveNavigationHandler {
 
     // ── Mode controls ───────────────────────────────────────────────
@@ -454,6 +455,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         const followToggleButton = document.querySelector('#nav-follow-toggle');
         const viewModeToggleButton = document.querySelector(SELECTORS.NAV_VIEW_MODE_TOGGLE);
         const worldToggleButton = document.querySelector(SELECTORS.NAV_WORLD_TOGGLE);
+        const dayNightToggleButton = document.querySelector<HTMLButtonElement>('#nav-daynight-toggle');
 
         startButton?.addEventListener('click', toggleNavigation);
         recenterButton?.addEventListener('click', switchToFollowMode);
@@ -461,6 +463,18 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         followToggleButton?.addEventListener('click', toggleFollowMode);
         viewModeToggleButton?.addEventListener('click', toggleViewWorldMode);
         worldToggleButton?.addEventListener('click', toggleViewWorld);
+
+        if (dayNightToggleButton) {
+            dayNightToggleButton.dataset.mode = 'day';
+            dayNightToggleButton.addEventListener('click', () => {
+                if (!deps.lightingController) { return; }
+                deps.lightingController.toggleDayNight();
+                const isNightNow = deps.lightingController.state.config.sunIntensity === 0;
+                dayNightToggleButton.dataset.mode = isNightNow ? 'night' : 'day';
+                dayNightToggleButton.textContent = isNightNow ? '🌙' : '☀️';
+                dayNightToggleButton.title = isNightNow ? 'Night mode' : 'Day mode';
+            });
+        }
 
         const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
         if (navDialog) {

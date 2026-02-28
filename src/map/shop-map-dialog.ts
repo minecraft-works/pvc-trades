@@ -330,7 +330,6 @@ function createMapConfig(): L.MapOptions {
 function setupShopMap(parameters: ShopMapSetupParameters): void {
     const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
     
-    // eslint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- Leaflet's L.map()
     leafletMap = L.map(container, createMapConfig());
     
     // Create custom panes for proper z-ordering: overview below detail

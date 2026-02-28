@@ -17,7 +17,6 @@
  * fc.assert(property, { seed: 1234567890, path: "0:1:2" });
  * ```
  */
-// eslint-disable-next-line sonarjs/no-wildcard-import -- fast-check's fc namespace is idiomatic
 import * as fc from 'fast-check';
 import { beforeAll,describe, expect, test } from 'vitest';
 
@@ -386,7 +385,6 @@ describe('calculateRouteDistance properties', () => {
                 ({ x1, z1, x2, z2, world1, world2 }) => {
                     // Test symmetry: dist(A→B) == dist(B→A)
                     const distanceAtoB = calculateRouteDistance(x1, z1, world1, x2, z2, world2);
-                    // eslint-disable-next-line sonarjs/arguments-order -- Intentionally swapped to test symmetry
                     const distanceBtoA = calculateRouteDistance(x2, z2, world2, x1, z1, world1);
                     expect(distanceAtoB).toBeCloseTo(distanceBtoA, 10);
                 }

@@ -64,7 +64,24 @@ const TilePyramidConfigSchema = z.object({
     /** Blocks per tile at the highest detail level */
     baseBlocksPerTile: z.number().int().positive().default(256),
     /** Output tile format */
-    format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('png')
+    format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('png'),
+    /** Heightmap-based lighting configuration (BlueMap sources only) */
+    lighting: z.object({
+        /** Enable baked lighting at build time */
+        enabled: z.boolean().default(true),
+        /** Shading model: 'slope' (BlueMap-style) or 'lambertian' (normal-based) */
+        model: z.enum(['slope', 'lambertian']).default('lambertian'),
+        /** Sun direction vector [x, y, z] — normalized internally */
+        sunDirection: z.tuple([z.number(), z.number(), z.number()]).default([0.3, 1, -0.3]),
+        /** Ambient light intensity (0–1). Prevents pure-black shadows */
+        ambientIntensity: z.number().min(0).max(1).default(0.35),
+        /** Diffuse light intensity (0–1) */
+        diffuseIntensity: z.number().min(0).max(1).default(0.65),
+        /** Height exaggeration factor (1.0 = real height) */
+        heightScale: z.number().positive().default(1),
+        /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
+        emitHeightmapTiles: z.boolean().default(true)
+    }).optional()
 });
 
 export type TilePyramidConfig = z.infer<typeof TilePyramidConfigSchema>;
@@ -89,7 +106,16 @@ export const AppConfigSchema = z.object({
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'png' as const
+        format: 'png' as const,
+        lighting: {
+            enabled: true,
+            model: 'lambertian' as const,
+            sunDirection: [0.3, 1, -0.3] as [number, number, number],
+            ambientIntensity: 0.35,
+            diffuseIntensity: 0.65,
+            heightScale: 1,
+            emitHeightmapTiles: true
+        }
     }),
     dynmap: DynmapConfigSchema,
     bluemap: BlueMapConfigSchema.optional(),
@@ -593,7 +619,16 @@ export const DEFAULT_CONFIG: AppConfig = {
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'png'
+        format: 'png',
+        lighting: {
+            enabled: true,
+            model: 'lambertian',
+            sunDirection: [0.3, 1, -0.3] as [number, number, number],
+            ambientIntensity: 0.35,
+            diffuseIntensity: 0.65,
+            heightScale: 1,
+            emitHeightmapTiles: true
+        }
     },
     dynmap: {
         baseUrl: 'https://web.peacefulvanilla.club/maps',

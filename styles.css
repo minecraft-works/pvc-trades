@@ -2023,7 +2023,8 @@ mark {
 
 /* Common styles for view control buttons */
 .nav-view-mode-toggle,
-.nav-world-toggle {
+.nav-world-toggle,
+.nav-daynight-toggle {
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
     border-radius: 50%;
@@ -2043,7 +2044,8 @@ mark {
 }
 
 .nav-view-mode-toggle:hover,
-.nav-world-toggle:hover {
+.nav-world-toggle:hover,
+.nav-daynight-toggle:hover {
     background: var(--color-bg-tertiary);
     transform: scale(1.05);
 }
@@ -2078,6 +2080,18 @@ mark {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* Day mode - warm accent */
+.nav-daynight-toggle[data-mode="day"] {
+    /* Default styling — day is the normal state */
+}
+
+/* Night mode - dark blue tint */
+.nav-daynight-toggle[data-mode="night"] {
+    background: #1a1a3e;
+    color: #c8d0ff;
+    border-color: #4a4a8a;
 }
 
 /* Player markers */

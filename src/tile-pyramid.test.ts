@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest';
 
-import { DEFAULT_CONFIG } from './types.js';
 import {
     blocksPerTile,
     canonicalTileUrl,
@@ -17,6 +16,7 @@ import {
     tilesInBlockRange
 } from './tile-pyramid.js';
 import type { TilePyramidConfig } from './types.js';
+import { DEFAULT_CONFIG } from './types.js';
 
 // ============================================================================
 // Test pyramids

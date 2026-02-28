@@ -35,6 +35,16 @@ import {
     overviewLevel,
 } from '../src/tile-pyramid';
 import { AppConfigSchema, DEFAULT_CONFIG, type TilePyramidConfig } from '../src/types';
+import {
+    applyShadeToColor,
+    computeShadeMap,
+    decodeHeightmap,
+    extractSubHeights,
+    extractSubRegionRgba,
+    isDualLayerTile,
+    type LightingConfig,
+    quantizeHeightmap,
+} from './heightmap-shader';
 
 // ============================================================================
 // Constants
@@ -63,6 +73,7 @@ interface CanonicalEntry {
     tileX: number;
     tileZ: number;
     blocksPerTile: number;
+    heightmap?: { min: number; max: number };
 }
 
 interface SplitResult {
@@ -83,6 +94,42 @@ interface SplitOptions {
     cropWidth: number;
     /** Pixel height of each crop region in the source */
     cropHeight: number;
+    /** Pyramid configuration */
+    pyramid: TilePyramidConfig;
+    /** Whether the source is a BlueMap dual-layer tile (color + heightmap) */
+    isDualLayer: boolean;
+    /** Lighting configuration (used only when isDualLayer is true) */
+    lightingConfig?: LightingConfig;
+}
+
+/** Shared context for rendering a single dual-layer sub-tile */
+interface DualLayerSubTileContext {
+    /** Grid offset along X axis */
+    dx: number;
+    /** Grid offset along Z axis */
+    dz: number;
+    /** Source tile metadata */
+    source: SourceTile;
+    /** Split factor per axis */
+    splitFactor: number;
+    /** Canonical level index */
+    canonLevel: number;
+    /** Canonical blocks-per-tile value */
+    canonBpt: number;
+    /** Pixel width of each crop region */
+    cropWidth: number;
+    /** Pixel height of each crop region */
+    cropHeight: number;
+    /** Width of the full source image */
+    sourceWidth: number;
+    /** Full-source color buffer (RGBA) */
+    colorBuffer: Buffer;
+    /** Decoded full-source heightmap */
+    heights: Float32Array;
+    /** Lighting configuration */
+    lightingConfig: LightingConfig;
+    /** Whether to emit heightmap sidecar tiles */
+    emitHeightmap: boolean;
     /** Pyramid configuration */
     pyramid: TilePyramidConfig;
 }
@@ -201,19 +248,101 @@ function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
 }
 
 /**
+ * Render a single dual-layer sub-tile: extract sub-region, compute shade,
+ * write the shaded color tile and optional heightmap sidecar.
+ *
+ * @param context - Shared dual-layer rendering context
+ * @returns Entry, plus whether the tile was newly rendered or skipped
+ */
+async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise<{
+    entry: CanonicalEntry;
+    wasRendered: boolean;
+}> {
+    const {
+        dx, dz, source, splitFactor, canonLevel, canonBpt,
+        cropWidth, cropHeight, sourceWidth, colorBuffer, heights,
+        lightingConfig, emitHeightmap, pyramid,
+    } = context;
+
+    const canonTileX = source.tileX * splitFactor + dx;
+    const canonTileZ = source.tileZ * splitFactor + dz;
+    const outputPath = path.join(
+        TILES_DIR, source.world,
+        String(canonLevel), String(canonTileX),
+        `${canonTileZ}.${pyramid.format}`,
+    );
+    const heightmapPath = path.join(
+        TILES_DIR, source.world,
+        String(canonLevel), String(canonTileX),
+        `${canonTileZ}.height.png`,
+    );
+
+    // Extract sub-regions
+    const startX = dx * cropWidth;
+    const startZ = dz * cropHeight;
+    const subColor = extractSubRegionRgba(colorBuffer, sourceWidth, startX, startZ, cropWidth, cropHeight);
+    const subHeights = extractSubHeights(heights, sourceWidth, startX, startZ, cropWidth, cropHeight);
+
+    // Compute and apply shade
+    const shade = computeShadeMap(subHeights, cropWidth, cropHeight, lightingConfig);
+    applyShadeToColor(subColor, shade);
+
+    // Quantize heightmap for metadata and optional tile
+    const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
+    const entry: CanonicalEntry = {
+        world: source.world,
+        tileX: canonTileX,
+        tileZ: canonTileZ,
+        blocksPerTile: canonBpt,
+        heightmap: { min: quantized.min, max: quantized.max },
+    };
+
+    if (existsSync(outputPath)) {
+        return { entry, wasRendered: false };
+    }
+
+    mkdirSync(path.dirname(outputPath), { recursive: true });
+
+    // Write shaded color tile
+    let pipeline = sharp(subColor, {
+        raw: { width: cropWidth, height: cropHeight, channels: 4 },
+    });
+    if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
+        pipeline = pipeline.resize(pyramid.tileWidth, pyramid.tileHeight);
+    }
+    pipeline = applyFormat(pipeline, pyramid.format);
+    await pipeline.toFile(outputPath);
+
+    // Write heightmap sidecar tile
+    if (emitHeightmap) {
+        let heightPipeline = sharp(quantized.data, {
+            raw: { width: cropWidth, height: cropHeight, channels: 1 },
+        });
+        if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
+            heightPipeline = heightPipeline.resize(pyramid.tileWidth, pyramid.tileHeight);
+        }
+        await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
+    }
+
+    return { entry, wasRendered: true };
+}
+
+/**
  * Split a source tile into canonical tiles.
  *
  * For Dynmap (512px source → 2×2 split → 256px canonical):
  * each quadrant of the source image becomes one canonical tile.
  *
- * If source crop dimensions differ from target tile dimensions,
- * the sub-region is resized (up or down) to match.
+ * For BlueMap dual-layer tiles (501×1002), the top half holds color pixels
+ * and the bottom half holds heightmap metadata. When lighting is enabled,
+ * shade is baked into the color using the heightmap gradients. Optionally,
+ * a separate 8-bit grayscale heightmap tile is also emitted.
  *
  * @param options - Split configuration including source tile path, level, split factor, and crop dimensions
  * @returns Rendered tile entries with counts of new and skipped tiles
  */
 async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
-    const { source, canonLevel, splitFactor, cropWidth, cropHeight, pyramid } = options;
+    const { source, canonLevel, splitFactor, cropWidth, cropHeight, pyramid, isDualLayer, lightingConfig } = options;
     const entries: CanonicalEntry[] = [];
     let rendered = 0;
     let skipped = 0;
@@ -221,6 +350,47 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
     const sourceImage = sharp(source.sourcePath);
     const canonBpt = pyramidBlocksPerTile(canonLevel, pyramid);
 
+    // -------------------------------------------------------------------
+    // Dual-layer path: decode heightmap, apply shade, write heightmap tiles
+    // -------------------------------------------------------------------
+    if (isDualLayer && lightingConfig) {
+        const meta = await sourceImage.metadata();
+        const sourceWidth = meta.width;
+        const colorHeight = Math.floor(meta.height / 2);
+
+        // Read full source as raw RGBA (color half + heightmap half)
+        const fullRaw = await sourceImage.clone()
+            .ensureAlpha()
+            .raw()
+            .toBuffer();
+
+        const rowBytes = sourceWidth * 4;
+        const colorBuffer = Buffer.from(fullRaw.subarray(0, colorHeight * rowBytes));
+        const heightBuffer = fullRaw.subarray(colorHeight * rowBytes, colorHeight * 2 * rowBytes);
+
+        // Decode full heightmap once
+        const heights = decodeHeightmap(heightBuffer, sourceWidth, colorHeight);
+        const emitHeightmap = pyramid.lighting?.emitHeightmapTiles ?? false;
+
+        for (let dx = 0; dx < splitFactor; dx++) {
+            for (let dz = 0; dz < splitFactor; dz++) {
+                const { entry, wasRendered } = await renderDualLayerSubTile({
+                    dx, dz, source, splitFactor, canonLevel, canonBpt,
+                    cropWidth, cropHeight, sourceWidth, colorBuffer, heights,
+                    lightingConfig, emitHeightmap, pyramid,
+                });
+                entries.push(entry);
+                rendered += wasRendered ? 1 : 0;
+                skipped += wasRendered ? 0 : 1;
+            }
+        }
+
+        return { entries, rendered, skipped };
+    }
+
+    // -------------------------------------------------------------------
+    // Standard path: simple crop → resize → encode (Dynmap / non-heightmap)
+    // -------------------------------------------------------------------
     for (let dx = 0; dx < splitFactor; dx++) {
         for (let dz = 0; dz < splitFactor; dz++) {
             const canonTileX = source.tileX * splitFactor + dx;
@@ -271,21 +441,27 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
 /**
  * Read the pixel dimensions of one source tile to determine crop regions.
  *
+ * For BlueMap dual-layer tiles (height > 1.5× width), only the top half
+ * (color data) is used for cropping. The bottom half is heightmap metadata.
+ *
  * @param tiles - Source tiles at a given level
  * @param splitFactor - How many canonical tiles per axis per source tile
- * @returns Crop width and height in source pixels, or undefined if no tiles
+ * @returns Crop width and height in source pixels plus dual-layer flag, or undefined if no tiles
  */
 async function getSourceCropDimensions(
     tiles: SourceTile[],
     splitFactor: number,
-): Promise<{ cropWidth: number; cropHeight: number } | undefined> {
+): Promise<{ cropWidth: number; cropHeight: number; isDualLayer: boolean } | undefined> {
     if (tiles.length === 0) { return undefined; }
 
     const { width, height } = await sharp(tiles[0].sourcePath).metadata();
+    const dualLayer = isDualLayerTile(width, height);
+    const effectiveHeight = dualLayer ? Math.floor(height / 2) : height;
 
     return {
         cropWidth: Math.floor(width / splitFactor),
-        cropHeight: Math.floor(height / splitFactor),
+        cropHeight: Math.floor(effectiveHeight / splitFactor),
+        isDualLayer: dualLayer,
     };
 }
 
@@ -300,6 +476,8 @@ interface LevelProcessOptions {
     splitFactor: number;
     pyramid: TilePyramidConfig;
     label: string;
+    /** Lighting config to use for dual-layer tiles (undefined = no shading) */
+    lightingConfig?: LightingConfig;
 }
 
 /**
@@ -309,7 +487,7 @@ interface LevelProcessOptions {
  * @returns Rendered tile entries with counts of new and skipped tiles
  */
 async function processSourceLevel(options: LevelProcessOptions): Promise<SplitResult> {
-    const { world, levelId, canonLevel, splitFactor, pyramid, label } = options;
+    const { world, levelId, canonLevel, splitFactor, pyramid, label, lightingConfig } = options;
     const tiles = findSourceTilesInWorld(world, levelId);
 
     if (tiles.length === 0) {
@@ -321,7 +499,8 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
         return { entries: [], rendered: 0, skipped: 0 };
     }
 
-    console.log(`\n[${world}] ${tiles.length} source ${label} tiles → level ${canonLevel} (crop ${crop.cropWidth}×${crop.cropHeight}px)`);
+    const dualLabel = crop.isDualLayer ? ' [dual-layer]' : '';
+    console.log(`\n[${world}] ${tiles.length} source ${label} tiles → level ${canonLevel} (crop ${crop.cropWidth}×${crop.cropHeight}px)${dualLabel}`);
 
     const entries: CanonicalEntry[] = [];
     let rendered = 0;
@@ -333,9 +512,11 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
                 source: tile,
                 cropWidth: crop.cropWidth,
                 cropHeight: crop.cropHeight,
+                isDualLayer: crop.isDualLayer,
                 canonLevel,
                 splitFactor,
                 pyramid,
+                lightingConfig,
             });
             entries.push(...result.entries);
             rendered += result.rendered;
@@ -392,6 +573,24 @@ async function main(): Promise<void> {
 
     console.log(`\nSplit factors: detail=${detailSplit}×${detailSplit}, overview=${overviewSplit}×${overviewSplit}`);
 
+    // Resolve lighting configuration (only for BlueMap sources with lighting enabled)
+    const lightingCfg = pyramid.lighting;
+    let lightingConfig: LightingConfig | undefined;
+    if (lightingCfg?.enabled) {
+        lightingConfig = {
+            model: lightingCfg.model,
+            sunDirection: lightingCfg.sunDirection,
+            ambientIntensity: lightingCfg.ambientIntensity,
+            diffuseIntensity: lightingCfg.diffuseIntensity,
+            heightScale: lightingCfg.heightScale,
+        };
+        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale})`);
+        console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
+        console.log(`  Heightmap tiles: ${lightingCfg.emitHeightmapTiles ? 'enabled' : 'disabled'}`);
+    } else {
+        console.log('\nLighting: disabled');
+    }
+
     // Discover worlds
     const worlds = findWorlds();
     console.log(`Worlds found: ${worlds.join(', ') || '(none)'}`);
@@ -413,6 +612,7 @@ async function main(): Promise<void> {
             label: 'detail',
             world,
             pyramid,
+            lightingConfig,
         });
         allEntries.push(...detail.entries);
         totalRendered += detail.rendered;
@@ -425,6 +625,7 @@ async function main(): Promise<void> {
             label: 'overview',
             world,
             pyramid,
+            lightingConfig,
         });
         allEntries.push(...overview.entries);
         totalRendered += overview.rendered;

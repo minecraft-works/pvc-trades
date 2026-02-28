@@ -109,7 +109,12 @@ export const ManifestEntrySchema = z.object({
     world: z.string(),
     tileX: z.number(),
     tileZ: z.number(),
-    blocksPerTile: z.number()
+    blocksPerTile: z.number(),
+    /** Heightmap metadata (present for BlueMap tiles with lighting) */
+    heightmap: z.object({
+        min: z.number().int(),
+        max: z.number().int()
+    }).optional()
 });
 
 /** Entry from tile manifest.json */
@@ -118,4 +123,6 @@ export interface ManifestEntry {
     tileX: number;
     tileZ: number;
     blocksPerTile: number;
+    /** Heightmap range (present when tile has corresponding .height.png) */
+    heightmap?: { min: number; max: number };
 }

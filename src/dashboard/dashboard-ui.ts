@@ -134,7 +134,6 @@ function buildWatchlistSection(hits: readonly WatchlistHit[]): HTMLDivElement {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
     const sorted = [...hits].toSorted((a, b) => a.currentDeviation - b.currentDeviation);
-    // eslint-disable-next-line functional/prefer-tacit -- unicorn/no-array-callback-reference conflicts
     const items = sorted.map(hit => renderWatchlistItem(hit)).join('');
     section.innerHTML = `
         <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>

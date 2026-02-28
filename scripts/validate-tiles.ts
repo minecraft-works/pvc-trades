@@ -41,6 +41,8 @@ const DATA_PATH = 'public/data.json';
 
 /**
  * Load config.json from disk.
+ *
+ * @returns Parsed AppConfig or defaults if config.json is missing/invalid
  */
 function loadConfig(): AppConfig {
     const configPath = 'config.json';
@@ -79,7 +81,12 @@ interface ShopData {
 // ============================================================================
 
 /**
- * Recursively scan a directory for PNG files
+ * Recursively scan a directory for tile files (color tiles + heightmap sidecar tiles).
+ *
+ * @param dir - Directory to scan
+ * @param format - Tile image format extension (e.g. 'jpeg')
+ * @param baseDir - Root directory for computing relative paths
+ * @returns Array of relative file paths found
  */
 function scanTileFiles(dir: string, format: string, baseDir: string = dir): string[] {
     const files: string[] = [];
@@ -89,13 +96,14 @@ function scanTileFiles(dir: string, format: string, baseDir: string = dir): stri
     }
     
     const extension = `.${format}`;
+    const heightmapExtension = '.height.png';
     for (const entry of readdirSync(dir)) {
         const fullPath = path.join(dir, entry);
         const stat = statSync(fullPath);
         
         if (stat.isDirectory()) {
             files.push(...scanTileFiles(fullPath, format, baseDir));
-        } else if (entry.endsWith(extension)) {
+        } else if (entry.endsWith(extension) || entry.endsWith(heightmapExtension)) {
             // Normalize path separators to forward slashes (matching manifest format)
             const relativePath = path.relative(baseDir, fullPath).replaceAll('\\', '/');
             files.push(relativePath);
@@ -106,26 +114,33 @@ function scanTileFiles(dir: string, format: string, baseDir: string = dir): stri
 }
 
 /**
- * Parse a tile path like "overworld/2/0/0.png" into components
+ * Parse a tile path like "overworld/2/0/0.png" into components.
+ *
+ * @param tilePath - Relative tile path to parse
+ * @returns Parsed tile components, or undefined if the path doesn't match
  */
 function parseTilePath(tilePath: string): { world: string; level: number; tileX: number; tileZ: number } | undefined {
     // Format: {world}/{level}/{x}/{z}.{format}
-    const regex = /^([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.\w+$/;
+    const regex = /^(?<world>[^/]+)\/(?<level>\d+)\/(?<tileX>-?\d+)\/(?<tileZ>-?\d+)\.\w+$/;
     const match = regex.exec(tilePath);
-    if (!match) {
+    if (!match?.groups) {
         return undefined;
     }
     
     return {
-        world: match[1]!,
-        level: Number.parseInt(match[2]!, 10),
-        tileX: Number.parseInt(match[3]!, 10),
-        tileZ: Number.parseInt(match[4]!, 10)
+        world: match.groups.world ?? '',
+        level: Number.parseInt(match.groups.level ?? '0', 10),
+        tileX: Number.parseInt(match.groups.tileX ?? '0', 10),
+        tileZ: Number.parseInt(match.groups.tileZ ?? '0', 10),
     };
 }
 
 /**
  * Derive canonical pyramid level from blocksPerTile.
+ *
+ * @param blocksPerTile - Blocks per tile at the target level
+ * @param pyramid - Tile pyramid configuration
+ * @returns Canonical level index
  */
 function getCanonicalLevel(blocksPerTile: number, pyramid: TilePyramidConfig): number {
     for (let level = 0; level < pyramid.levels; level++) {
@@ -139,6 +154,10 @@ function getCanonicalLevel(blocksPerTile: number, pyramid: TilePyramidConfig): n
 
 /**
  * Convert manifest entry to canonical file path.
+ *
+ * @param entry - Manifest entry to convert
+ * @param pyramid - Tile pyramid configuration
+ * @returns Canonical file path string
  */
 function manifestEntryToPath(entry: ManifestEntry, pyramid: TilePyramidConfig): string {
     const level = getCanonicalLevel(entry.blocksPerTile, pyramid);
@@ -147,7 +166,10 @@ function manifestEntryToPath(entry: ManifestEntry, pyramid: TilePyramidConfig): 
 }
 
 /**
- * Normalize world name to directory format
+ * Normalize world name to directory format.
+ *
+ * @param world - Raw world name from manifest or config
+ * @returns Normalized directory name
  */
 function normalizeWorld(world: string): string {
     const lower = world.toLowerCase();
@@ -171,18 +193,32 @@ function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<str
     missingFiles: string[];
     orphanedDetailFiles: string[];
     otherLevelFiles: number;
+    missingHeightmapFiles: string[];
 } {
     const manifestPaths = new Set(manifest.map(entry => manifestEntryToPath(entry, pyramid)));
     const canonDetailLevel = detailLevel(pyramid);
     
     const missingFiles: string[] = [];
     const orphanedDetailFiles: string[] = [];
+    const missingHeightmapFiles: string[] = [];
     let otherLevelFiles = 0;
     
     // Check each manifest entry has a file
     for (const path of manifestPaths) {
         if (!tileFiles.has(path)) {
             missingFiles.push(path);
+        }
+    }
+
+    // Check heightmap files for entries that declare heightmap metadata
+    for (const entry of manifest) {
+        if (entry.heightmap) {
+            const level = getCanonicalLevel(entry.blocksPerTile, pyramid);
+            const normalizedWorld = normalizeWorld(entry.world);
+            const heightmapPath = `${normalizedWorld}/${level}/${entry.tileX}/${entry.tileZ}.height.png`;
+            if (!tileFiles.has(heightmapPath)) {
+                missingHeightmapFiles.push(heightmapPath);
+            }
         }
     }
     
@@ -200,21 +236,21 @@ function validateManifestIntegrity(manifest: ManifestEntry[], tileFiles: Set<str
         }
     }
     
-    return { missingFiles, orphanedDetailFiles, otherLevelFiles };
+    return { missingFiles, orphanedDetailFiles, otherLevelFiles, missingHeightmapFiles };
 }
 
-function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[], pyramid: TilePyramidConfig): Array<{
+function validateShopCoverage(shops: ShopData[], manifest: ManifestEntry[], pyramid: TilePyramidConfig): {
     shop: string;
     world: string;
     location: string;
     missingTiles: string[];
-}> {
-    const shopsMissingTiles: Array<{
+}[] {
+    const shopsMissingTiles: {
         shop: string;
         world: string;
         location: string;
         missingTiles: string[];
-    }> = [];
+    }[] = [];
     
     const detailBlocksPerTile = pyramidBlocksPerTile(detailLevel(pyramid), pyramid);
     
@@ -297,7 +333,7 @@ function main(): void {
     
     // Validate manifest ↔ file integrity
     console.log('\n--- Manifest Integrity ---');
-    const { missingFiles, orphanedDetailFiles, otherLevelFiles } = validateManifestIntegrity(manifest, tileFiles, pyramid);
+    const { missingFiles, orphanedDetailFiles, otherLevelFiles, missingHeightmapFiles } = validateManifestIntegrity(manifest, tileFiles, pyramid);
     
     let hasErrors = false;
     
@@ -312,6 +348,23 @@ function main(): void {
         hasErrors = true;
     } else {
         console.log('All manifest entries have corresponding files.');
+    }
+
+    if (missingHeightmapFiles.length > 0) {
+        console.warn(`\nWARNING: ${missingHeightmapFiles.length} manifest entries with heightmap metadata have no .height.png file:`);
+        for (const file of missingHeightmapFiles.slice(0, 10)) {
+            console.warn(`  - ${file}`);
+        }
+        if (missingHeightmapFiles.length > 10) {
+            console.warn(`  ... and ${missingHeightmapFiles.length - 10} more`);
+        }
+        // Heightmap files missing is a warning, not a hard error —
+        // the color tile still works without the heightmap sidecar
+    } else {
+        const heightmapCount = manifest.filter(entry => entry.heightmap).length;
+        if (heightmapCount > 0) {
+            console.log(`All ${heightmapCount} heightmap tiles have corresponding files.`);
+        }
     }
     
     if (orphanedDetailFiles.length > 0) {

@@ -158,11 +158,9 @@ export function encodeCoordPath(value: number, prefix: string): string {
     if (value < 0) {
         const digits = text.slice(1); // remove leading '-'
         if (digits.length <= 1) { return `${prefix}-${digits}`; }
-        // eslint-disable-next-line @typescript-eslint/no-misused-spread -- digits are always 0-9
-        return `${prefix}-${[...digits].join('/')}`;
+        return `${prefix}-${Array.from(digits).join('/')}`;
     }
 
     if (text.length <= 1) { return `${prefix}${text}`; }
-    // eslint-disable-next-line @typescript-eslint/no-misused-spread -- digits are always 0-9
-    return `${prefix}${[...text].join('/')}`;
+    return `${prefix}${Array.from(text).join('/')}`;
 }

@@ -107,7 +107,6 @@ export function toViewCoords(
  * // Cross-world: nether point at (100, 100) = overworld (800, 800)
  * calculateRouteDistance(0, 0, 'overworld', 100, 100, 'the_nether') // ~1131.4
  */
-// eslint-disable-next-line max-params
 export function calculateRouteDistance(
     x1: number, z1: number, world1: string,
     x2: number, z2: number, world2: string
