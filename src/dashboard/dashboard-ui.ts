@@ -237,11 +237,10 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
      */
     function wireDashboardItemLinks(container: Element): void {
         for (const link of container.querySelectorAll('.dashboard-item-link')) {
-            const element = link as HTMLElement;
-            if (element.dataset.clickWired) { continue; }
-            element.dataset.clickWired = '1';
+            if (!(link instanceof HTMLElement) || link.dataset.clickWired) { continue; }
+            link.dataset.clickWired = '1';
             link.addEventListener('click', () => {
-                const searchTerm = element.dataset.search ?? '';
+                const searchTerm = link.dataset.search ?? '';
                 const wantInput = document.querySelector<HTMLInputElement>('#searchWant');
                 if (!wantInput) { return; }
                 wantInput.value = searchTerm;

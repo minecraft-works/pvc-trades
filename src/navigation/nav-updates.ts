@@ -33,7 +33,7 @@ import type { NavMapHandler } from './nav-map.js';
 /** Dependencies injected by main.ts */
 export interface NavUpdatesDeps {
     navigationStore: {
-        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
+        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number | undefined } | undefined;
         playerName: string;
         isActive: boolean;
         mode: 'follow' | 'manual';
@@ -51,7 +51,7 @@ export interface NavUpdatesDeps {
     getAllCartStops: () => RouteStop[];
     renderCartDialog: () => void;
     playerPositionService: {
-        getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number } | undefined;
+        getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number | undefined } | undefined;
     };
 }
 

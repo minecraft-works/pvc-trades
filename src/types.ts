@@ -153,10 +153,35 @@ export interface ShulkerParseResult {
 // Shop & Recipe Types
 // ============================================================================
 
+/** Schema for validating Item from external data */
+const ItemSchema = z.object({
+    type: z.string(),
+    name: z.string(),
+    amount: z.number()
+}).loose();
+
+const RecipeSchema = z.object({
+    resultItem: ItemSchema,
+    item1: ItemSchema,
+    item2: ItemSchema.optional(),
+    stock: z.number()
+}).loose();
+
+const ShopSchema = z.object({
+    location: z.string(),
+    world: z.string(),
+    recipes: z.array(RecipeSchema)
+}).loose();
+
+/** Schema for validating external shop data JSON */
+export const ShopDataSchema = z.object({
+    data: z.array(ShopSchema)
+});
+
 export interface Recipe {
     resultItem: Item;
     item1: Item;
-    item2?: Item;
+    item2?: Item | undefined;
     stock: number;
 }
 
@@ -164,10 +189,6 @@ export interface Shop {
     location: string;
     world: string;
     recipes: Recipe[];
-}
-
-export interface ShopData {
-    data: Shop[];
 }
 
 // ============================================================================
@@ -180,7 +201,7 @@ export interface Trade {
     readonly z: number;
     readonly world: string;
     readonly item1: Item;
-    readonly item2?: Item;
+    readonly item2?: Item | undefined;
     readonly resultItem: Item;
     readonly stock: number;
     readonly displayStock: number;
@@ -231,13 +252,6 @@ export interface CartItem {
     trade: Trade;
     quantity: number;
 }
-
-/** Schema for validating CartItem from localStorage */
-const ItemSchema = z.object({
-    type: z.string(),
-    name: z.string(),
-    amount: z.number()
-}).loose();
 
 const CartItemSchema = z.object({
     trade: z.object({
@@ -347,7 +361,7 @@ export interface TradeInput {
     readonly costName: string;
     readonly costAmount: number;
     readonly item1Name: string;
-    readonly item2?: Item;
+    readonly item2?: Item | undefined;
     readonly x: number;
     readonly y: number;
     readonly z: number;
@@ -365,7 +379,7 @@ export interface FavoriteItem {
     /** Normalized item name (lowercase) */
     readonly itemName: string;
     /** Optional: only highlight if deviation ≤ this value (e.g., -20 means 20% below market) */
-    readonly maxDeviation?: number;
+    readonly maxDeviation?: number | undefined;
     /** Timestamp when added (for sort order) */
     readonly addedAt: number;
 }
@@ -388,7 +402,7 @@ export const FavoriteItemArraySchema = z.array(FavoriteItemSchema);
  */
 export interface TradeSnapshotEntry {
     /** Deviation percentage from median market price (undefined if not calculable) */
-    deviationPercent?: number;
+    deviationPercent?: number | undefined;
     /** Stock level at snapshot time */
     stock: number;
 }
@@ -516,6 +530,32 @@ export interface DashboardData {
 // Player Types
 // ============================================================================
 
+const PlayerPositionSchema = z.object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number()
+});
+
+const PlayerRotationSchema = z.object({
+    pitch: z.number(),
+    yaw: z.number(),
+    roll: z.number()
+});
+
+const PlayerSchema = z.object({
+    uuid: z.string(),
+    name: z.string(),
+    foreign: z.boolean(),
+    position: PlayerPositionSchema,
+    rotation: PlayerRotationSchema.optional(),
+    world: z.string().optional()
+});
+
+/** Schema for validating external player API response */
+export const PlayersDataSchema = z.object({
+    players: z.array(PlayerSchema)
+});
+
 export interface PlayerPosition {
     x: number;
     y: number;
@@ -534,13 +574,9 @@ export interface Player {
     /** Whether the player is in a "foreign" dimension (nether). true = nether, false = overworld */
     foreign: boolean;
     position: PlayerPosition;
-    rotation?: PlayerRotation;  // Player's look direction
+    rotation?: PlayerRotation | undefined;  // Player's look direction
     /** Optional world name from dynmap. If absent, use `foreign` flag to determine dimension */
-    world?: string;
-}
-
-export interface PlayersData {
-    players: Player[];
+    world?: string | undefined;
 }
 
 // ============================================================================

@@ -43,4 +43,5 @@ chatlog-parsed.txt
 
 eslint-out.txt
 eslint-remaining.txt
+eslint-audit.txt
 lint-jsdoc.json

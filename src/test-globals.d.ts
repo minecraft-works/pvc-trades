@@ -7,6 +7,8 @@
  * @module test-globals
  */
 
+import type { CartStore } from './stores/cart-store.js';
+import type { FavoritesStore } from './stores/favorites-store.js';
 import type { RouteStop } from './types.js';
 
 /** Leaflet map instance (nav map) */
@@ -14,7 +16,7 @@ type NavMap = L.Map | undefined;
 
 /**
  * Test API globals exposed on globalThis for E2E testing.
- * These are defined in main.ts when running tests.
+ * These globals are only defined at runtime, not in production.
  */
 declare global {
     var __navCurrentRoute: readonly RouteStop[];
@@ -23,6 +25,12 @@ declare global {
     var __navMapWorld: string;
     var __navMapCenterTileX: number;
     var __navMapCenterTileZ: number;
+    // eslint-disable-next-line functional/prefer-immutable-types -- mutable Leaflet map instance needed for E2E test interaction
+    var __leafletMap: L.Map | undefined;
+    // eslint-disable-next-line functional/prefer-immutable-types -- mutable store needed for E2E test interaction
+    var __cartStore: CartStore;
+    // eslint-disable-next-line functional/prefer-immutable-types -- mutable store needed for E2E test interaction
+    var __favoritesStore: FavoritesStore;
     
     /** Triggers a shop data refresh and returns count of new trades */
     var refreshShopData: () => Promise<number>;

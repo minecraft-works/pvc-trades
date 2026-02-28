@@ -221,7 +221,7 @@ function exposeNavTestGlobals(state: NavState, tileRange: TileRange): void {
     globalThis.__navMapWorld = state.mapWorld;
     globalThis.__navMapCenterTileX = tileRange.centerTileX;
     globalThis.__navMapCenterTileZ = tileRange.centerTileZ;
-    (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = state.map;
+    globalThis.__leafletMap = state.map;
 }
 
 // ============================================================================
@@ -397,7 +397,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
     async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
         const container = document.querySelector('#nav-dialog-map-container');
-        if (!container) {
+        if (!(container instanceof HTMLElement)) {
             debugMap('Map container not found');
             return;
         }
@@ -425,7 +425,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         state.centerTileX = tileRange.centerTileX;
         state.centerTileZ = tileRange.centerTileZ;
 
-        state.map = createNavLeafletMap(container as HTMLElement, () => deps.onMapDrag());
+        state.map = createNavLeafletMap(container, () => deps.onMapDrag());
         exposeNavTestGlobals(state, tileRange);
 
         const routePoints = createRouteMarkersUnified(

@@ -52,6 +52,16 @@ jobs:
       - name: Parse safety check
         run: npm run lint:parse-safety
 
+      - name: Check eslint-disable budget
+        run: |
+          COUNT=$(grep -rc 'eslint-disable' src/ --include='*.ts' | awk -F: '{s+=$2}END{print s}')
+          BUDGET=40
+          echo "eslint-disable count: $COUNT (budget: $BUDGET)"
+          if [ "$COUNT" -gt "$BUDGET" ]; then
+            echo "::error::eslint-disable budget exceeded: $COUNT > $BUDGET"
+            exit 1
+          fi
+
       - name: Dead code detection
         run: npm run knip
 
@@ -93,7 +103,6 @@ jobs:
 
       - name: Security audit
         run: npm audit --audit-level=high
-        continue-on-error: true
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v12

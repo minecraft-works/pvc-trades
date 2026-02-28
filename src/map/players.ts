@@ -5,7 +5,8 @@
 
 import { WORLDS } from '../constants.js';
 import { getWorldId } from '../library.js';
-import type { Player, PlayersData } from '../types.js';
+import type { Player } from '../types.js';
+import { PlayersDataSchema } from '../types.js';
 
 /** API endpoint for player positions */
 const PLAYERS_API_URL = 'https://pvc-players.minecraft-works.workers.dev';
@@ -41,10 +42,11 @@ export async function fetchPlayers(): Promise<Player[]> {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
         });
         if (response.ok) {
-            const data = (await response.json()) as PlayersData;
-            // Defensive: external API may omit `players` despite typed interface
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            return data.players ?? [];
+            const json: unknown = await response.json();
+            const parsed = PlayersDataSchema.safeParse(json);
+            if (parsed.success) {
+                return parsed.data.players;
+            }
         }
     } catch (error) {
         console.warn('Failed to fetch players:', error);

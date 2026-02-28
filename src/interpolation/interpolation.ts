@@ -42,7 +42,7 @@ export interface InterpolatedPosition {
     y: number;
     z: number;
     /** Interpolated yaw in Minecraft degrees (0=south, 90=west, 180=north, 270=east) */
-    yaw?: number;
+    yaw?: number | undefined;
 }
 
 /** Result of a single spring-damper integration step */

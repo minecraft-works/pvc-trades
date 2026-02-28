@@ -7,6 +7,8 @@
  * @module stores/navigation-store
  */
 
+import { z } from 'zod';
+
 import { STORAGE_KEYS, WORLDS } from '../constants.js';
 import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } from '../types.js';
 
@@ -20,7 +22,7 @@ export interface PlayerPosition {
     y: number;
     z: number;
     world: string;
-    yaw?: number;
+    yaw?: number | undefined;
 }
 
 /** Leaflet map objects (not serializable) */
@@ -465,6 +467,12 @@ class NavigationStore {
         }
     }
 
+    /** Schema for validating persisted navigation progress */
+    private static readonly NavProgressSchema = z.object({
+        completedKeys: z.array(z.string()),
+        currentIndex: z.number()
+    });
+
     /**
      * Load progress from localStorage
      */
@@ -472,11 +480,13 @@ class NavigationStore {
         try {
             const stored = localStorage.getItem(STORAGE_KEYS.NAV_PROGRESS);
             if (stored) {
-                const data = JSON.parse(stored) as { completedKeys: string[]; currentIndex: number };
-                this._progress = {
-                    completedKeys: new Set(data.completedKeys),
-                    currentIndex: data.currentIndex
-                };
+                const parsed = NavigationStore.NavProgressSchema.safeParse(JSON.parse(stored));
+                if (parsed.success) {
+                    this._progress = {
+                        completedKeys: new Set(parsed.data.completedKeys),
+                        currentIndex: parsed.data.currentIndex
+                    };
+                }
             }
         } catch {
             // Invalid data - use defaults

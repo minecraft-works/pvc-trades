@@ -139,7 +139,7 @@ function buildThresholdValues(maxDeviation: number | undefined): { text: string;
  * @param fav.maxDeviation - Optional deviation threshold filter
  * @returns A fully rendered HTMLDivElement for the favorites list
  */
-function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: number }): HTMLDivElement {
+function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: number | undefined }): HTMLDivElement {
     const item = document.createElement('div');
     item.className = 'favorites-item';
     item.dataset.item = fav.itemName;
@@ -288,7 +288,8 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
     // Create the outside click handler
     state.handlePopoverOutsideClick = (event: MouseEvent): void => {
         const popover = document.querySelector(FAVORITE_POPOVER_SELECTOR);
-        const target = event.target as HTMLElement;
+        if (!(event.target instanceof HTMLElement)) { return; }
+        const target = event.target;
         if (popover && !popover.contains(target) && !target.classList.contains('favorite-star')) {
             hideFavoritePopover();
         }
@@ -405,7 +406,8 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
      * @param event - The click event bubbled up from the favorites list container
      */
     function handleFavoritesListClick(event: Event): void {
-        const target = event.target as HTMLElement;
+        if (!(event.target instanceof HTMLElement)) { return; }
+        const target = event.target;
         const itemRow = target.closest('.favorites-item');
         const itemName = target.dataset.item;
 
@@ -464,7 +466,7 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
         });
 
         document.querySelector('#favorites-item-input')?.addEventListener('keydown', (event) => {
-            if ((event as KeyboardEvent).key === 'Enter') {
+            if (event instanceof KeyboardEvent && event.key === 'Enter') {
                 addNewItemFromInlineForm();
             }
         });

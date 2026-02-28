@@ -8,6 +8,7 @@
  */
 
 import debug from 'debug';
+import { z } from 'zod';
 
 import { getWorldId } from '../library.js';
 import { getConfig } from '../stores/config-store.js';
@@ -19,7 +20,8 @@ import {
     detailToOverviewRatio as pyramidDetailToOverviewRatio,
     overviewLevel
 } from '../tile-pyramid.js';
-import type { LoadTileOptions, ManifestEntry,TileConfig } from './tile-types.js';
+import type { LoadTileOptions, TileConfig } from './tile-types.js';
+import { ManifestEntrySchema } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- CDN global, not an importable module
@@ -51,12 +53,6 @@ export const TILE_CONFIG: TileConfig = {
     },
     get format() { return getConfig().tilePyramid.format; }
 };
-
-/**
- * @deprecated Remove after all callers migrate to pyramid-based values.
- * Use `TILE_CONFIG.overviewTileBlocks` instead.
- */
-export const OVERVIEW_TILE_SIZE = 512 * 16; // Legacy: only correct for Dynmap default
 
 // ============================================================================
 // Cache State (Module-scoped)
@@ -104,18 +100,23 @@ export async function loadTileManifest(): Promise<Set<string>> {
         const newCache = new Set<string>();
         try {
             const response = await fetch(`${TILE_CONFIG.baseUrl}/manifest.json`);
-            if (response.ok) {
-                const manifest = await response.json() as ManifestEntry[];
-                debugTiles('manifest: fetched %d entries', manifest.length);
-                for (const entry of manifest) {
+            if (!response.ok) {
+                debugTiles('manifest: fetch failed status=%d', response.status);
+                tileManifestCache = newCache;
+                return newCache;
+            }
+
+            const json: unknown = await response.json();
+            const parsed = z.array(ManifestEntrySchema).safeParse(json);
+            if (parsed.success) {
+                debugTiles('manifest: fetched %d entries', parsed.data.length);
+                for (const entry of parsed.data) {
                     // Normalize world name to match what getWorldId returns
                     const normalizedWorld = getWorldId(entry.world);
                     const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
                     newCache.add(key);
                 }
                 debugTiles('manifest: processed into %d unique keys', newCache.size);
-            } else {
-                debugTiles('manifest: fetch failed status=%d', response.status);
             }
         } catch (error) {
             console.warn('Failed to load tile manifest');

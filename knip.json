@@ -9,6 +9,6 @@
     "type": true
   },
   "rules": {
-    "exports": "warn"
+    "exports": "error"
   }
 }

@@ -467,7 +467,8 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function setupTradeRowClickHandler(): void {
     getElement('results').addEventListener('click', (event) => {
-        const target = event.target as HTMLElement;
+        if (!(event.target instanceof HTMLElement)) { return; }
+        const target = event.target;
         const row = target.closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
         if (!row) { return; }
 

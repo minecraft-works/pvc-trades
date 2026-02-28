@@ -6,6 +6,8 @@
  * @module map/tile-types
  */
 
+import { z } from 'zod';
+
 // ============================================================================
 // Configuration Types
 // ============================================================================
@@ -101,6 +103,14 @@ export interface TileRange {
 // ============================================================================
 // Manifest Types
 // ============================================================================
+
+/** Schema for validating tile manifest entries */
+export const ManifestEntrySchema = z.object({
+    world: z.string(),
+    tileX: z.number(),
+    tileZ: z.number(),
+    blocksPerTile: z.number()
+});
 
 /** Entry from tile manifest.json */
 export interface ManifestEntry {

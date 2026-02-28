@@ -239,12 +239,12 @@ export default tseslint.config(
             // Force import type for type-only imports (tree-shaking + clarity)
             '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
             '@typescript-eslint/consistent-type-exports': 'error',
+            // Ban unsafe type assertions — #1 AI escape hatch
+            '@typescript-eslint/no-unsafe-type-assertion': 'error',
+
             // Prefer nullish coalescing over ||, optional chains over &&-guards
             '@typescript-eslint/prefer-nullish-coalescing': 'error',
-            '@typescript-eslint/prefer-optional-chain': 'error',
-
-            // Unicorn adjustments for getElementById pattern
-            'unicorn/prefer-query-selector': 'warn'
+            '@typescript-eslint/prefer-optional-chain': 'error'
         }
     },
     // Stores intentionally mutate state (ADR-005: class-based store pattern)
@@ -309,6 +309,8 @@ export default tseslint.config(
     {
         files: ['tests/**/*.spec.ts'],
         rules: {
+            // Type assertions are standard practice for partial test mocks
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
             // Allow longer files and functions in test files
             'max-lines': 'off',
             'max-lines-per-function': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
@@ -339,6 +341,8 @@ export default tseslint.config(
     {
         files: ['src/**/*.test.ts'],
         rules: {
+            // Type assertions are standard practice for partial test mocks
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
             // Allow longer files and functions in test files
             'max-lines': 'off',
             'max-lines-per-function': 'off',
@@ -373,6 +377,8 @@ export default tseslint.config(
     {
         files: ['src/**/*.property.test.ts'],
         rules: {
+            // Type assertions are standard practice for test data generation
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
             // Property tests can be large
             'max-lines': 'off',
             // Property tests generate arbitrary data with fast-check

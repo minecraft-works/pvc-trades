@@ -11,6 +11,8 @@
  * @module data/data-loader
  */
 
+import { z } from 'zod';
+
 import {
     calculateItemValues,
     formatName,
@@ -22,13 +24,16 @@ import {
     processTrade,
 } from '../library.js';
 import { createDeviationCalculator } from '../search/index.js';
-import type { DeviationResult } from '../types.js';
 import type {
+    DeviationResult,
     ItemValues,
     MappingRule,
     Shop,
-    ShopData,
     Trade,
+} from '../types.js';
+import {
+    MappingRuleSchema,
+    ShopDataSchema,
 } from '../types.js';
 
 // ============================================================================
@@ -140,7 +145,14 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
                 return 0;
             }
 
-            const data = (await response.json()) as ShopData;
+            const json: unknown = await response.json();
+            const parsed = ShopDataSchema.safeParse(json);
+            if (!parsed.success) {
+                console.warn('Invalid shop data format');
+                return 0;
+            }
+
+            const data = parsed.data;
 
             // Track existing trade keys before processing new data
             // eslint-disable-next-line functional/prefer-tacit -- unicorn/no-array-callback-reference conflicts
@@ -194,8 +206,18 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
                 throw new Error('Failed to load shop data');
             }
 
-            const data = (await dataResponse.json()) as ShopData;
-            mappingRules = (await mappingResponse.json()) as MappingRule[];
+            const dataJson: unknown = await dataResponse.json();
+            const mappingJson: unknown = await mappingResponse.json();
+
+            const dataParsed = ShopDataSchema.safeParse(dataJson);
+            const mappingParsed = z.array(MappingRuleSchema).safeParse(mappingJson);
+
+            if (!dataParsed.success || !mappingParsed.success) {
+                throw new Error('Invalid shop data or mapping rules format');
+            }
+
+            const data = dataParsed.data;
+            mappingRules = mappingParsed.data;
             processShops(data.data);
 
             // Calculate item values for deviation column
@@ -214,7 +236,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             }
 
             // Expose refreshShopData for E2E testing
-            (globalThis as unknown as { refreshShopData: typeof refreshShopData }).refreshShopData = refreshShopData;
+            globalThis.refreshShopData = refreshShopData;
         } catch (error) {
             console.error('Failed to load shop data:', error);
             deps.getElement('results').innerHTML =

@@ -437,7 +437,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     // Expose map for E2E testing
     if (typeof globalThis !== 'undefined') {
-        (globalThis as unknown as { __leafletMap?: L.Map }).__leafletMap = leafletMap;
+        globalThis.__leafletMap = leafletMap;
     }
 }
 
@@ -458,7 +458,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
         const container = document.querySelector('#map-container');
         const coordsElement = document.querySelector('#map-coords');
         
-        if (!dialog || !container || !coordsElement) {
+        if (!dialog || !(container instanceof HTMLElement) || !(coordsElement instanceof HTMLElement)) {
             return;
         }
         
@@ -501,14 +501,14 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             
             void loadTileManifest().then(manifest => {
                 setupShopMap({
-                    container: container as HTMLElement,
-                    coordinatesElement: coordsElement as HTMLElement,
+                    coordinatesElement: coordsElement,
                     playerRefreshMs: getConfig().dynmap.playerRefreshMs,
-                    dialog,
                     worldId,
                     worldDisplay,
                     x, y, z,
                     tileX, tileZ,
+                    container,
+                    dialog,
                     manifest
                 });
             });

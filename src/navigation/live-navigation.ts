@@ -36,7 +36,7 @@ import type { NavUpdatesHandler } from './nav-updates.js';
 export interface LiveNavigationDeps {
     navigationStore: {
         isActive: boolean;
-        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
+        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number | undefined } | undefined;
         playerName: string;
         mode: 'follow' | 'manual';
         viewWorld: string;
@@ -45,7 +45,7 @@ export interface LiveNavigationDeps {
         refreshInterval: ReturnType<typeof setInterval> | undefined;
         start: (playerName: string) => void;
         stop: () => void;
-        setPlayerPosition: (pos: { x: number; y: number; z: number; world: string; yaw?: number }) => void;
+        setPlayerPosition: (pos: { x: number; y: number; z: number; world: string; yaw?: number | undefined }) => void;
         setRefreshInterval: (interval: ReturnType<typeof setInterval>) => void;
         setMode: (mode: 'follow' | 'manual') => void;
         setViewWorld: (world: string) => void;
@@ -64,7 +64,7 @@ export interface LiveNavigationDeps {
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     getConfig: () => { dynmap: { playerRefreshMs: number } };
     playerPositionService: {
-        pushSample: (name: string, sample: { x: number; y: number; z: number; yaw?: number; timestamp: number }) => void;
+        pushSample: (name: string, sample: { x: number; y: number; z: number; yaw?: number | undefined; timestamp: number }) => void;
         resetPlayer: (name: string) => void;
         removePlayer: (name: string) => void;
         getPhase: (name: string) => string | undefined;
@@ -262,7 +262,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         return false;
     }
 
-    function handleFoundPlayer(player: Player, previousPosition: { x: number; z: number; world: string; yaw?: number } | undefined): void {
+    function handleFoundPlayer(player: Player, previousPosition: { x: number; z: number; world: string; yaw?: number | undefined } | undefined): void {
         const playerWorld = getPlayerWorld(player);
         const position = {
             x: player.position.x,
