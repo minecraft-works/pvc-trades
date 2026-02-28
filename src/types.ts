@@ -64,7 +64,7 @@ const TilePyramidConfigSchema = z.object({
     /** Blocks per tile at the highest detail level */
     baseBlocksPerTile: z.number().int().positive().default(256),
     /** Output tile format */
-    format: z.enum(['png', 'webp', 'avif']).default('png')
+    format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('jpeg')
 });
 
 export type TilePyramidConfig = z.infer<typeof TilePyramidConfigSchema>;
@@ -89,7 +89,7 @@ export const AppConfigSchema = z.object({
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'png' as const
+        format: 'jpeg' as const
     }),
     dynmap: DynmapConfigSchema,
     bluemap: BlueMapConfigSchema.optional(),
@@ -593,7 +593,7 @@ export const DEFAULT_CONFIG: AppConfig = {
         levels: 3,
         scaleFactor: 4,
         baseBlocksPerTile: 256,
-        format: 'png'
+        format: 'jpeg'
     },
     dynmap: {
         baseUrl: 'https://web.peacefulvanilla.club/maps',

@@ -55,9 +55,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: public/tiles
-          key: map-tiles-v7-${{ hashFiles('config.json') }}
+          key: map-tiles-v8-${{ hashFiles('config.json') }}
           restore-keys: |
-            map-tiles-v7-
+            map-tiles-v8-
 
       - name: Fetch trade data
         run: npm run fetch-data

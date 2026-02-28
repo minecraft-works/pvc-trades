@@ -145,9 +145,9 @@ function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
         if (!statSync(txDirPath).isDirectory() || Number.isNaN(tileX)) { continue; }
 
         for (const file of readdirSync(txDirPath)) {
-            const match = /^(-?\d+)\.png$/.exec(file);
-            if (match) {
-                const tileZ = Number.parseInt(match[1], 10);
+            const match = /^(?<z>-?\d+)\.png$/u.exec(file);
+            if (match?.groups) {
+                const tileZ = Number.parseInt(match.groups.z, 10);
                 tiles.push({
                     world,
                     tileX,
@@ -164,6 +164,8 @@ function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
 
 /**
  * Find all world directories under the tiles directory.
+ *
+ * @returns Array of normalized world name strings
  */
 function findWorlds(): string[] {
     if (!existsSync(TILES_DIR)) { return []; }
@@ -181,11 +183,16 @@ function findWorlds(): string[] {
 
 /**
  * Apply output format encoding to a sharp pipeline.
+ *
+ * @param pipeline - Sharp pipeline to encode
+ * @param format - Target format string ('jpeg', 'webp', 'avif', or default png)
+ * @returns The pipeline with the format encoder applied
  */
 function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
     switch (format) {
-        case 'webp': { return pipeline.webp(); }
+        case 'webp': { return pipeline.webp({ lossless: true }); }
         case 'avif': { return pipeline.avif(); }
+        case 'jpeg': { return pipeline.jpeg({ progressive: true, quality: 92, mozjpeg: true }); }
         default: { return pipeline.png(); }
     }
 }
@@ -198,6 +205,9 @@ function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
  *
  * If source crop dimensions differ from target tile dimensions,
  * the sub-region is resized (up or down) to match.
+ *
+ * @param options - Split configuration including source tile path, level, split factor, and crop dimensions
+ * @returns Rendered tile entries with counts of new and skipped tiles
  */
 async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
     const { source, canonLevel, splitFactor, cropWidth, cropHeight, pyramid } = options;
@@ -291,6 +301,9 @@ interface LevelProcessOptions {
 
 /**
  * Process all source tiles at a given level for one world.
+ *
+ * @param options - Level processing configuration including world, source level ID, canonical level, and split factor
+ * @returns Rendered tile entries with counts of new and skipped tiles
  */
 async function processSourceLevel(options: LevelProcessOptions): Promise<SplitResult> {
     const { world, levelId, canonLevel, splitFactor, pyramid, label } = options;

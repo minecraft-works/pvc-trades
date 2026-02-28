@@ -36,7 +36,7 @@ Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {in
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -65,7 +65,7 @@ Given(String.raw`I open the navigation dialog with an overworld shop at \({int},
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -340,7 +340,7 @@ Given('I start navigation with items from both worlds', async ({ page, playerMoc
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }

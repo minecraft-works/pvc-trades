@@ -334,7 +334,13 @@ export default tseslint.config(
             // no-restricted-syntax: allow delete/Object.assign in test helpers
             'no-restricted-syntax': 'off',
             // nullish coalescing sometimes conflicts with test idioms
-            '@typescript-eslint/prefer-nullish-coalescing': 'off'
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            // Complexity / control flow acceptable in large spec helpers
+            'sonarjs/nested-control-flow': 'off',
+            'sonarjs/shorthand-property-grouping': 'off',
+            'sonarjs/no-inconsistent-returns': 'off',
+            // Fire-and-forget patterns are common in Playwright spec helpers
+            '@typescript-eslint/no-floating-promises': 'off'
         }
     },
     // Relaxed rules for unit tests
@@ -447,11 +453,53 @@ export default tseslint.config(
             'functional/prefer-property-signatures': 'off',
             // JSDoc not required in step definitions
             'jsdoc/require-jsdoc': 'off',
+            // JSDoc return/param descriptions overly strict for test helpers
+            'jsdoc/require-returns': 'off',
+            'jsdoc/require-param-description': 'off',
             // no-restricted-syntax too strict in test helpers
             'no-restricted-syntax': 'off',
             '@typescript-eslint/prefer-nullish-coalescing': 'off',
             '@typescript-eslint/prefer-readonly': 'off',
-            '@typescript-eslint/consistent-type-imports': 'off'
+            '@typescript-eslint/consistent-type-imports': 'off',
+            // Test files use intentional type assertions for page casting patterns
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
+            // Loop structure in mock generators is fine in test code
+            'sonarjs/nested-control-flow': 'off',
+            'sonarjs/too-many-break-or-continue-in-loop': 'off',
+            'sonarjs/shorthand-property-grouping': 'off',
+            // evaluate() callbacks intentionally return in some paths only
+            'sonarjs/no-inconsistent-returns': 'off',
+            // Test URL regex patterns don't need named capture groups
+            'regexp/prefer-named-capture-group': 'off',
+            'regexp/no-unused-capturing-group': 'off'
+        }
+    },
+    // Relaxed rules for test helper / fixture files
+    {
+        files: ['tests/helpers/**/*.ts'],
+        rules: {
+            // Type assertions are standard in test mocks
+            '@typescript-eslint/no-unsafe-type-assertion': 'off',
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            // Immutability: test helpers mutate mock data by design
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            // JSDoc param/return descriptions overly strict for test helpers
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-returns': 'off',
+            'jsdoc/require-param-description': 'off',
+            // Complexity acceptable in mock/fixture generators
+            'sonarjs/nested-control-flow': 'off',
+            'sonarjs/too-many-break-or-continue-in-loop': 'off',
+            'sonarjs/shorthand-property-grouping': 'off',
+            'sonarjs/no-duplicate-string': 'off',
+            'max-lines': 'off',
+            'max-lines-per-function': 'off',
+            'no-restricted-syntax': 'off',
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            '@typescript-eslint/no-non-null-assertion': 'off'
         }
     },
     // Relaxed rules for CLI build scripts

@@ -205,7 +205,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     p.__manifestFilter = 'all';
     
     // Set up tile request tracking
-    await page.route('**/tiles/**/*.png', async (route: Route) => {
+    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
         
@@ -219,7 +219,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     
     // Set up manifest mock
     await page.route('**/tiles/manifest.json', async (route: Route) => {
-        const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
+        const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
         const worlds = ['overworld', 'the_nether'];
         const blocksPerTileOptions = [256, 4096];
         
@@ -285,7 +285,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     p.__detailLevelAvailable = true;
 
     // Set up tile request tracking with color-encoded tiles
-    await page.route('**/tiles/**/*.png', async (route: Route) => {
+    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
 
@@ -295,9 +295,9 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
         }
 
         // Parse URL to extract tile info
-        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.png
+        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.jpeg
         // level 2 = 256 blocks per tile, level 0 = 4096 blocks per tile
-        const match = url.match(/tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/);
+        const match = /tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/.exec(url);
 
         if (match) {
             const [, world, levelString, tileXString, tileZString] = match;
@@ -346,7 +346,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     await page.route('**/tiles/manifest.json', async (route: Route) => {
         p.__manifestRequestTime = Date.now();
 
-        const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
+        const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
         const worlds = ['overworld', 'the_nether'];
         const blocksPerTileOptions = p.__detailLevelAvailable ? [256, 4096] : [4096];
 
@@ -416,12 +416,16 @@ Given('the manifest only includes tiles near origin', async ({ page }) => {
 /**
  * Wait for tile requests to stabilize (no new requests for a period of time)
  * Requires at least one tile request before considering stable, unless forceMinimum is false
+ * @param page
+ * @param stableMs
+ * @param timeout
+ * @param requireAtLeastOne
  */
 async function waitForTileRequestsToStabilize(
     page: Page, 
-    stableMs: number = 1000, 
-    timeout: number = 10_000,
-    requireAtLeastOne: boolean = true
+    stableMs = 1000, 
+    timeout = 10_000,
+    requireAtLeastOne = true
 ): Promise<void> {
     const p = page as PageWithTileTracking;
     const startTime = Date.now();
@@ -443,6 +447,8 @@ async function waitForTileRequestsToStabilize(
 
 /**
  * Helper to open navigation map and wait for tile requests to stabilize
+ * @param page
+ * @param itemFilter
  */
 async function openNavigationMapWithItem(page: Page, itemFilter: string): Promise<void> {
     // Add item to cart - wait for row to be visible first
@@ -573,7 +579,7 @@ Then('only tiles near origin should be requested', async ({ page }) => {
     // Since manifest only has tiles near origin (range -5 to +5),
     // no tiles far from origin should be requested
     // For a shop at 50000, 50000, that would be tile ~195 at detail level
-    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
+    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/;
     const farTileRequests = p.__tileRequests?.filter(url => {
         const match = tilePattern.exec(url);
         if (!match) {
@@ -674,11 +680,12 @@ interface TileInfo {
 
 /**
  * Parse tile info from request URLs
+ * @param requests
  */
 function parseTileRequests(requests: string[]): TileInfo[] {
     const tiles: TileInfo[] = [];
-    // URL pattern: /tiles/world/level/x/z.png
-    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
+    // URL pattern: /tiles/world/level/x/z.jpeg
+    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/;
     for (const url of requests) {
         const match = tileUrlPattern.exec(url);
         if (match) {
@@ -696,8 +703,12 @@ function parseTileRequests(requests: string[]): TileInfo[] {
 
 /**
  * Get the most recent tile requests for a specific area
+ * @param tiles
+ * @param centerX
+ * @param centerZ
+ * @param radius
  */
-function getTilesForArea(tiles: TileInfo[], centerX: number, centerZ: number, radius: number = 5): TileInfo[] {
+function getTilesForArea(tiles: TileInfo[], centerX: number, centerZ: number, radius = 5): TileInfo[] {
     return tiles.filter(t => 
         Math.abs(t.tileX - centerX) <= radius && 
         Math.abs(t.tileZ - centerZ) <= radius

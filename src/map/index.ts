@@ -30,12 +30,9 @@ export type {
 // Tile loader
 export {
     _clearCaches,
-    _getBlobCacheSize,
     calculateOverviewCoords,
-    getCachedTileUrl,
     loadTileManifest,
     loadTileToMap,
-    setCachedTileUrl,
     TILE_CONFIG,
     tileExistsInManifest} from './tile-loader.js';
 

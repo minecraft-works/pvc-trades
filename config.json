@@ -8,7 +8,7 @@
     "levels": 3,
     "scaleFactor": 4,
     "baseBlocksPerTile": 256,
-    "format": "png"
+    "format": "jpeg"
   },
   "dynmap": {
     "baseUrl": "https://web.peacefulvanilla.club/maps",

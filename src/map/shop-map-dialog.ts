@@ -27,9 +27,7 @@ import { shouldDisableAnimations } from '../types.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
 import {
     calculateOverviewCoords,
-    getCachedTileUrl,
     loadTileManifest,
-    setCachedTileUrl,
     TILE_CONFIG,
     tileExistsInManifest} from './tile-loader.js';
 import type { MapTileContext } from './tile-types.js';
@@ -139,23 +137,8 @@ function loadOverviewTileToShopMap(context: ShopMapTileContext, ovX: number, ovZ
         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize]
     ];
     
-    const cachedBlobUrl = getCachedTileUrl(worldId, TILE_CONFIG.fallbackZoom, ovX, ovZ);
-    if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesOverview' }).addTo(leafletMap); }
-        return;
-    }
-
     const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${ovX}/${ovZ}.${TILE_CONFIG.format}`;
-    fetch(url)
-        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
-        .then(blob => {
-            if (blob && leafletMap) {
-                const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, TILE_CONFIG.fallbackZoom, ovX, ovZ, blobUrl);
-                L.imageOverlay(blobUrl, bounds, { pane: 'tilesOverview' }).addTo(leafletMap);
-            }
-        })
-        .catch(() => { /* swallow overview tile fetch error */ });
+    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesOverview' }).addTo(leafletMap); }
 }
 
 function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
@@ -171,23 +154,8 @@ function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: nu
         [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
     ];
     
-    const cachedBlobUrl = getCachedTileUrl(worldId, TILE_CONFIG.maxZoom, tx, tz);
-    if (cachedBlobUrl) {
-        if (leafletMap) { L.imageOverlay(cachedBlobUrl, bounds, { pane: 'tilesDetail' }).addTo(leafletMap); }
-        return;
-    }
-
     const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.${TILE_CONFIG.format}`;
-    fetch(url)
-        .then(response => (response.ok && leafletMap) ? response.blob() : undefined)
-        .then(blob => {
-            if (blob && leafletMap) {
-                const blobUrl = URL.createObjectURL(blob);
-                setCachedTileUrl(worldId, TILE_CONFIG.maxZoom, tx, tz, blobUrl);
-                L.imageOverlay(blobUrl, bounds, { pane: 'tilesDetail' }).addTo(leafletMap);
-            }
-        })
-        .catch(() => { /* swallow detail tile fetch error */ });
+    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesDetail' }).addTo(leafletMap); }
 }
 
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {

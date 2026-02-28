@@ -98,8 +98,8 @@ const TILE_PNG = createColoredPng(0, 100, 255);
 // ============================================================================
 
 // Large manifest covering many tiles for stress testing
-function generateLargeManifest(): Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> {
-    const entries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }> = [];
+function generateLargeManifest(): { world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }[] {
+    const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }[] = [];
     const worlds = ['World', 'World_nether'];
     const blocksPerTileOptions = [256, 4096];  // detail and overview canonical levels
     
@@ -194,7 +194,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     });
     
     // Mock tiles with timing measurement
-    await page.route('**/tiles/**/*.png', async route => {
+    await page.route('**/tiles/**/*.jpeg', async route => {
         const startTime = Date.now();
         
         // Simulate network latency (10-50ms) using crypto for consistent test behavior

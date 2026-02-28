@@ -5,6 +5,7 @@
  */
 
 import type { Page, Route } from '@playwright/test';
+
 import { BLUE_PIXEL_PNG, RED_PIXEL_PNG } from './png-utilities.js';
 import { mockConfigRoute } from './test-config.js';
 
@@ -12,9 +13,10 @@ import { mockConfigRoute } from './test-config.js';
  * Sets up colored tile mocks based on world in URL
  * - Overworld tiles: Blue
  * - Nether tiles: Red
+ * @param page
  */
 export async function setupColoredTileMocks(page: Page): Promise<void> {
-    await page.route('**/tiles/**/*.png', async (route: Route) => {
+    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
         const url = route.request().url();
         const isNether = url.includes('/the_nether/');
         
@@ -28,7 +30,7 @@ export async function setupColoredTileMocks(page: Page): Promise<void> {
     // Mock the manifest with entries for common tile coordinates
     // This ensures tiles will be loaded by the app
     await page.route('**/tiles/manifest.json', async (route: Route) => {
-        const manifestEntries: Array<{ world: string; tileX: number; tileZ: number; blocksPerTile: number }> = [];
+        const manifestEntries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
         
         // Generate manifest entries for a range of tiles around 0,0 and nether shop location
         const worlds = ['overworld', 'the_nether'];
@@ -164,6 +166,7 @@ export const MULTI_WORLD_SHOP_DATA = {
 /**
  * Sets up data.json mock with multi-world shops
  * Also mocks config.json to use local data.json path for reliable test interception
+ * @param page
  */
 export async function setupMultiWorldDataMock(page: Page): Promise<void> {
     await mockConfigRoute(page);
@@ -191,6 +194,7 @@ export interface RGB {
  * Sample a pixel color from the navigation map canvas
  * Leaflet renders to a container with multiple image overlays
  * Note: Leaflet uses blob URLs, so we can't filter by original URL path
+ * @param page
  */
 export async function sampleMapColor(page: Page): Promise<RGB | null> {
     // Wait for the map container to be visible
@@ -198,7 +202,7 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
     await container.waitFor({ state: 'visible', timeout: 5000 });
 
     // Sample color from the center of any loaded tile image
-    const color = await page.evaluate(() => {
+    return await page.evaluate(() => {
         const container = document.querySelector('#nav-dialog-map-container');
         if (!container) {
             console.log('[sampleMapColor] No container found');
@@ -243,12 +247,11 @@ export async function sampleMapColor(page: Page): Promise<RGB | null> {
         console.log('[sampleMapColor] No valid image found to sample');
         return null; // eslint-disable-line unicorn/no-null -- browser context
     });
-
-    return color;
 }
 
 /**
  * Check if the map is showing overworld (blue-ish color)
+ * @param color
  */
 export function isBlueColor(color: RGB | null): boolean {
     if (!color) {
@@ -260,6 +263,7 @@ export function isBlueColor(color: RGB | null): boolean {
 
 /**
  * Check if the map is showing nether (red-ish color)
+ * @param color
  */
 export function isRedColor(color: RGB | null): boolean {
     if (!color) {
@@ -273,11 +277,14 @@ export function isRedColor(color: RGB | null): boolean {
  * Wait for map to show a specific world color
  * Since Leaflet uses blob URLs, we can't filter by world URL
  * Instead, we just sample the color and check if it matches expectations
+ * @param page
+ * @param expectedWorld
+ * @param timeout
  */
 export async function waitForMapWorld(
     page: Page, 
     expectedWorld: 'overworld' | 'nether',
-    timeout: number = 10_000
+    timeout = 10_000
 ): Promise<boolean> {
     const checkColor = expectedWorld === 'overworld' ? isBlueColor : isRedColor;
     const startTime = Date.now();

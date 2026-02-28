@@ -1,8 +1,11 @@
 /**
  * Tile Loader Module
  * 
- * Handles tile loading, caching, and manifest management for Leaflet maps.
- * Provides shared functionality for both shop maps and navigation maps.
+ * Handles tile loading, manifest management, and coordinate utilities for
+ * Leaflet maps. Tiles are added to the map by passing their URL directly to
+ * Leaflet's imageOverlay — the browser's HTTP cache handles deduplication and
+ * persistence across sessions. Progressive JPEG tiles decode and display as
+ * bytes arrive once the browser has the image cached.
  * 
  * @module map/tile-loader
  */
@@ -57,12 +60,6 @@ export const TILE_CONFIG: TileConfig = {
 // ============================================================================
 // Cache State (Module-scoped)
 // ============================================================================
-
-/**
- * Global cache for tile blob URLs (persists across map sessions)
- * Key format: "world/zoom/x/z" -> blob URL
- */
-const tileBlobCache = new Map<string, string>();
 
 /**
  * Global cache for tile manifest (which tiles exist)
@@ -158,8 +155,11 @@ export function tileExistsInManifest(
 // ============================================================================
 
 /**
- * Load a tile and add it to a map (non-blocking, uses cache)
- * 
+ * Load a tile and add it to a map via direct URL.
+ *
+ * The browser's HTTP cache prevents redundant downloads between map sessions.
+ * Within a session, `addedToMap` prevents duplicate overlay elements.
+ *
  * @param options - Tile loading options
  */
 export function loadTileToMap(options: LoadTileOptions): void {
@@ -170,43 +170,12 @@ export function loadTileToMap(options: LoadTileOptions): void {
         return;
     }
     addedToMap.add(mapKey);
-    
-    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
-    const overlayOptions: L.ImageOverlayOptions = pane ? { pane } : {};
-    
-    // Check if we already have this tile cached
-    const cachedBlobUrl = tileBlobCache.get(cacheKey);
-    if (cachedBlobUrl) {
-        debugTiles('loadTile: CACHE HIT cacheKey=%s', cacheKey);
-        L.imageOverlay(cachedBlobUrl, bounds, overlayOptions).addTo(map);
-        return;
-    }
-    
-    // Fire-and-forget: load tile without blocking
+
     const pyramid = getConfig().tilePyramid;
     const url = canonicalTileUrl({ world: worldId, level: zoom, tileX: tx, tileZ: tz }, pyramid);
-    debugTiles('loadTile: FETCH url=%s', url);
-    fetch(url)
-        .then(async response => {
-            if (!response.ok) {
-                debugTiles('loadTile: FETCH FAIL url=%s status=%d', url, response.status);
-                return;
-            }
-            debugTiles('loadTile: FETCH OK url=%s', url);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            tileBlobCache.set(cacheKey, blobUrl);
-            // Check map still exists before adding
-            if (map.getContainer().isConnected) {
-                debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
-                L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
-            } else {
-                debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
-            }
-        })
-        .catch((error: unknown) => {
-            debugTiles('loadTile: ERROR url=%s error=%o', url, error);
-        });
+    const overlayOptions: L.ImageOverlayOptions = pane ? { pane } : {};
+    debugTiles('loadTile: ADD url=%s', url);
+    L.imageOverlay(url, bounds, overlayOptions).addTo(map);
 }
 
 // ============================================================================
@@ -232,51 +201,18 @@ export function calculateOverviewCoords(detailTileX: number, detailTileZ: number
 // Cache Access (for shop map integration)
 // ============================================================================
 
-/**
- * Get a cached tile blob URL if available.
- * @param worldId - World identifier
- * @param level - Pyramid level
- * @param tx - Tile X coordinate
- * @param tz - Tile Z coordinate
- * @returns Blob URL if cached, undefined otherwise
- */
-export function getCachedTileUrl(worldId: string, level: number, tx: number, tz: number): string | undefined {
-    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
-    return tileBlobCache.get(cacheKey);
-}
-
-/**
- * Cache a tile blob URL for future reuse.
- * @param worldId - World identifier
- * @param level - Pyramid level
- * @param tx - Tile X coordinate
- * @param tz - Tile Z coordinate
- * @param blobUrl - The blob URL to cache
- */
-export function setCachedTileUrl(worldId: string, level: number, tx: number, tz: number, blobUrl: string): void {
-    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
-    tileBlobCache.set(cacheKey, blobUrl);
-}
+// NOTE: getCachedTileUrl / setCachedTileUrl removed — tiles are now loaded via
+// direct URL. The browser HTTP cache replaces the in-memory blob cache.
 
 // ============================================================================
 // Testing Utilities
 // ============================================================================
 
 /**
- * Get the current blob cache size (for testing)
- * @internal
- * @returns Number of cached blob URLs currently held in memory
- */
-export function _getBlobCacheSize(): number {
-    return tileBlobCache.size;
-}
-
-/**
  * Clear all caches (for testing)
  * @internal
  */
 export function _clearCaches(): void {
-    tileBlobCache.clear();
     tileManifestCache = undefined;
     manifestLoadPromise = undefined;
 }
