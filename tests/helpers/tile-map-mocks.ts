@@ -7,7 +7,7 @@
 import type { Page, Route } from '@playwright/test';
 
 import { BLUE_PIXEL_PNG, RED_PIXEL_PNG } from './png-utilities.js';
-import { mockConfigRoute } from './test-config.js';
+import { mockConfigRoute, TILE_ROUTE_PATTERN } from './test-config.js';
 
 /**
  * Sets up colored tile mocks based on world in URL
@@ -16,7 +16,7 @@ import { mockConfigRoute } from './test-config.js';
  * @param page
  */
 export async function setupColoredTileMocks(page: Page): Promise<void> {
-    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
+    await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
         const url = route.request().url();
         const isNether = url.includes('/the_nether/');
         

@@ -7,6 +7,10 @@
 import { createBdd,test as base } from 'playwright-bdd';
 
 import { createMultiPlayerMock, createPlayerMock, type MultiPlayerMock,type PlayerMock } from '../../tests/helpers/navigation-mocks';
+import { TILE_FORMAT, TILE_ROUTE_PATTERN, TILE_URL_EXTENSION } from '../../tests/helpers/test-config';
+
+// Re-export so step definition files only need to import from this one module.
+export { TILE_FORMAT, TILE_ROUTE_PATTERN, TILE_URL_EXTENSION };
 
 /**
  * Custom fixtures for BDD tests

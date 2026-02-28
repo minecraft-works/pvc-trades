@@ -9,7 +9,7 @@ import {
     setupColoredTileMocks,
     setupMultiWorldDataMock,
     setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
-import { Given, Then,When } from './fixtures';
+import { Given, Then,When, TILE_URL_EXTENSION } from './fixtures';
 
 // Constants
 const SELECTOR_NAV_DIALOG = '#nav-dialog[open]';
@@ -36,7 +36,7 @@ Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {in
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -65,7 +65,7 @@ Given(String.raw`I open the navigation dialog with an overworld shop at \({int},
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -340,7 +340,7 @@ Given('I start navigation with items from both worlds', async ({ page, playerMoc
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }

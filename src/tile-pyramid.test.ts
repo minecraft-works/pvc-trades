@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { DEFAULT_CONFIG } from './types.js';
 import {
     blocksPerTile,
     canonicalTileUrl,
@@ -413,5 +414,18 @@ describe('cross-function consistency', () => {
         const url = canonicalTileUrl({ level, world: 'overworld', tileX: tile.tileX, tileZ: tile.tileZ }, DEFAULT_PYRAMID);
 
         expect(url).toBe(`tiles/overworld/2/${String(tile.tileX)}/${String(tile.tileZ)}.png`);
+    });
+});
+
+// ============================================================================
+// Config consistency
+// ============================================================================
+
+describe('config.json / DEFAULT_PYRAMID format consistency', () => {
+    test('DEFAULT_CONFIG.tilePyramid.format matches DEFAULT_PYRAMID.format', () => {
+        // Catches drift between the two code-level defaults.
+        // DEFAULT_CONFIG is what TILE_CONFIG.format falls back to at runtime;
+        // DEFAULT_PYRAMID is what canonicalTileUrl uses in tests.
+        expect(DEFAULT_PYRAMID.format).toBe(DEFAULT_CONFIG.tilePyramid.format);
     });
 });
