@@ -197,8 +197,8 @@ async function main() {
     }
     console.log('By world/level:', JSON.stringify(byWorldLevel, null, 2));
     
-    // Output directory
-    const outputDir = 'public/tiles';
+    // Output directory — source tiles only; render-tiles.ts converts these to canonical public/tiles
+    const outputDir = 'public/tiles-src';
     mkdirSync(outputDir, { recursive: true });
     
     // Track successfully fetched tiles for manifest (written after fetch loop)
