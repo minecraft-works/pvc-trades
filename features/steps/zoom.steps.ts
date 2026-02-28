@@ -118,15 +118,26 @@ Given('I am in manual mode', async ({ page }) => {
 });
 
 Given('I manually zoom to level {int}', async ({ page }, zoomLevel: number) => {
-    if (zoomLevel > 0) {
-        for (let index = 0; index < zoomLevel; index++) {
+    // Read the current map zoom so we click the right number of times.
+    // Without this, the step would assume current zoom is 0 and only click
+    // abs(zoomLevel) times, which is wrong when navigation initialises at zoom ~2.
+    const currentZoom: number = await page.evaluate(() => {
+        // @ts-expect-error - testing global
+        const map = globalThis.__navMap as { getZoom(): number } | undefined;
+        return map?.getZoom() ?? 0;
+    });
+    const delta = zoomLevel - Math.round(currentZoom);
+    if (delta > 0) {
+        for (let index = 0; index < delta; index++) {
             await page.locator('.leaflet-control-zoom-in').click();
         }
-    } else {
-        for (let index = 0; index > zoomLevel; index--) {
+    } else if (delta < 0) {
+        for (let index = 0; index > delta; index--) {
             await page.locator('.leaflet-control-zoom-out').click();
         }
     }
+    // Allow Leaflet zoom animation to settle before the next step reads zoom
+    await page.waitForTimeout(300);
 });
 
 // ============================================================================
