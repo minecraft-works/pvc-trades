@@ -16,7 +16,7 @@ import { mockConfigRoute } from './test-config.js';
  * @param page
  */
 export async function setupColoredTileMocks(page: Page): Promise<void> {
-    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
+    await page.route('**/tiles/**/*.png', async (route: Route) => {
         const url = route.request().url();
         const isNether = url.includes('/the_nether/');
         
