@@ -194,7 +194,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     });
     
     // Mock tiles with timing measurement
-    await page.route('**/tiles/**/*.jpeg', async route => {
+    await page.route('**/tiles/**/*.png', async route => {
         const startTime = Date.now();
         
         // Simulate network latency (10-50ms) using crypto for consistent test behavior
