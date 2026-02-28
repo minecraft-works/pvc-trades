@@ -114,5 +114,8 @@
     "leaflet": "^1.9.4",
     "virtual-scroller": "^1.15.3",
     "zod": "^4.3.5"
+  },
+  "overrides": {
+    "minimatch": ">=10.2.3"
   }
 }
