@@ -55,7 +55,7 @@ jobs:
       - name: Check eslint-disable budget
         run: |
           COUNT=$(grep -rc 'eslint-disable' src/ --include='*.ts' | awk -F: '{s+=$2}END{print s}')
-          BUDGET=5
+          BUDGET=0
           echo "eslint-disable count: $COUNT (budget: $BUDGET)"
           if [ "$COUNT" -gt "$BUDGET" ]; then
             echo "::error::eslint-disable budget exceeded: $COUNT > $BUDGET"
