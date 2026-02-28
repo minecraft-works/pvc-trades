@@ -8,7 +8,7 @@ import type { Page, Route } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { mockConfigRoute } from '../../tests/helpers/test-config';
-import { Given, Then,When } from './fixtures';
+import { Given, Then,When, TILE_ROUTE_PATTERN, TILE_URL_EXTENSION } from './fixtures';
 
 // ============================================================================
 // Tile creation helpers (same as navigation-mocks.ts)
@@ -205,7 +205,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     p.__manifestFilter = 'all';
     
     // Set up tile request tracking
-    await page.route('**/tiles/**/*.png', async (route: Route) => {
+    await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
         
@@ -285,7 +285,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     p.__detailLevelAvailable = true;
 
     // Set up tile request tracking with color-encoded tiles
-    await page.route('**/tiles/**/*.png', async (route: Route) => {
+    await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
 

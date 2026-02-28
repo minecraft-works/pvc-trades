@@ -6,6 +6,23 @@
  */
 import { createBdd,test as base } from 'playwright-bdd';
 
+import config from '../../config.json';
+
+// ---------------------------------------------------------------------------
+// Tile format constants
+// Derived from config.json so a format change (e.g. png → webp) only requires
+// updating config.json and re-running tests — no step file changes needed.
+// ---------------------------------------------------------------------------
+
+/** Extension of canonical tile files, e.g. 'png' */
+export const TILE_FORMAT: string = (config.tilePyramid as { format?: string } | undefined)?.format ?? 'png';
+
+/** Glob pattern for intercepting tile requests in page.route() */
+export const TILE_ROUTE_PATTERN = `**/tiles/**/*.${TILE_FORMAT}` as const;
+
+/** Extension string for url.endsWith() checks, e.g. '.png' */
+export const TILE_URL_EXTENSION = `.${TILE_FORMAT}` as const;
+
 import { createMultiPlayerMock, createPlayerMock, type MultiPlayerMock,type PlayerMock } from '../../tests/helpers/navigation-mocks';
 
 /**

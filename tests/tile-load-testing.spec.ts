@@ -12,7 +12,7 @@ import { deflateSync } from 'node:zlib';
 import type { Page } from '@playwright/test';
 
 import { expect,test } from './helpers/global-setup';
-import { mockConfigRoute } from './helpers/test-config';
+import { mockConfigRoute, TILE_ROUTE_PATTERN } from './helpers/test-config';
 
 // ============================================================================
 // Test Configuration
@@ -194,7 +194,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     });
     
     // Mock tiles with timing measurement
-    await page.route('**/tiles/**/*.png', async route => {
+    await page.route(TILE_ROUTE_PATTERN, async route => {
         const startTime = Date.now();
         
         // Simulate network latency (10-50ms) using crypto for consistent test behavior

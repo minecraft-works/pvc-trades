@@ -7,7 +7,7 @@ import {
     setupColoredTileMocks,
     setupMultiWorldDataMock,
     setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
-import { Given, Then,When } from './fixtures';
+import { Given, Then,When, TILE_URL_EXTENSION } from './fixtures';
 
 // Constants for selectors and timeouts
 const SELECTOR_NAV_DIALOG_OPEN = '#nav-dialog[open]';
@@ -50,7 +50,7 @@ Given('I open the navigation dialog with items from both worlds', async ({ page,
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -427,7 +427,7 @@ Given('I mark the nether shop as completed', async ({ page }) => {
 Given('I start navigation as {string}', async ({ page, tileRequests }, playerName: string) => {
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }

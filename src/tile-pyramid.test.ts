@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import configJson from '../config.json';
 import {
     blocksPerTile,
     canonicalTileUrl,
@@ -413,5 +414,18 @@ describe('cross-function consistency', () => {
         const url = canonicalTileUrl({ level, world: 'overworld', tileX: tile.tileX, tileZ: tile.tileZ }, DEFAULT_PYRAMID);
 
         expect(url).toBe(`tiles/overworld/2/${String(tile.tileX)}/${String(tile.tileZ)}.png`);
+    });
+});
+
+// ============================================================================
+// Config consistency
+// ============================================================================
+
+describe('config.json / DEFAULT_PYRAMID format consistency', () => {
+    test('config.json tilePyramid.format matches DEFAULT_PYRAMID.format', () => {
+        // Catches drift between the two sources of truth.
+        // If this fails, update whichever value is stale.
+        const configFormat = (configJson.tilePyramid as { format?: string } | undefined)?.format ?? 'png';
+        expect(DEFAULT_PYRAMID.format).toBe(configFormat);
     });
 });
