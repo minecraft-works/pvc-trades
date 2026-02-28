@@ -290,17 +290,14 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
         const currentPos = deps.navigationStore.playerPosition;
         if (!currentPos) { return; }
-        const positionMoved = hasPositionMoved(previousPosition, currentPos, 1);
 
         if (hasPositionMoved(previousPosition, currentPos, 10)) {
             deps.navUpdatesHandler.recalculateRouteFromPlayer();
         }
 
         deps.navUpdatesHandler.updatePlayerToNextLine();
-
-        if (deps.navigationStore.mode === 'follow' && positionMoved) {
-            deps.navUpdatesHandler.centerMapOnPlayer();
-        }
+        // Map centering in follow mode is handled by the animation loop (60fps via
+        // spring-damper interpolation), so no per-poll centerMapOnPlayer call needed.
     }
 
     // ── Player polling ──────────────────────────────────────────────

@@ -386,6 +386,18 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
                     playerPos.world,
                     viewWorld,
                 );
+
+                if (deps.navigationStore.mode === 'follow') {
+                    // Pan the map to the interpolated position — spring smoothness is applied
+                    // to the pan, not to the marker. The marker always stays at the same
+                    // Leaflet coordinates as the map center, appearing fixed/sticky.
+                    const { lat, lng } = toLeafletCoordsRelative(
+                        viewCoords.x, viewCoords.z,
+                        state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
+                    );
+                    state.map.setView([lat, lng], state.map.getZoom(), { animate: false });
+                }
+
                 updatePlayerMarkerPosition(viewCoords.x, viewCoords.z, displayPos.yaw);
             }
 
@@ -422,7 +434,9 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         );
 
         const zoom = getZoomForHeight(deps.navigationStore.playerPosition.y);
-        state.map.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
+        // Snap to position; the animation loop provides frame-by-frame smooth panning
+        // from this point onward via spring interpolation.
+        state.map.setView([lat, lng], zoom, { animate: false });
     }
 
     // ── Return public API ───────────────────────────────────────────
