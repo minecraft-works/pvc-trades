@@ -40,6 +40,9 @@ import { AppConfigSchema, DEFAULT_CONFIG, type TilePyramidConfig } from '../src/
 // Constants
 // ============================================================================
 
+/** Raw tiles downloaded by fetch-tiles.ts (never served directly) */
+const SOURCE_TILES_DIR = 'public/tiles-src';
+/** Canonical rendered tiles served at runtime */
 const TILES_DIR = 'public/tiles';
 const MANIFEST_PATH = path.join(TILES_DIR, 'manifest.json');
 
@@ -135,7 +138,7 @@ function normalizeWorld(world: string): string {
  * @returns Array of discovered source tiles
  */
 function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
-    const levelDir = path.join(TILES_DIR, world, String(levelId));
+    const levelDir = path.join(SOURCE_TILES_DIR, world, String(levelId));
     if (!existsSync(levelDir)) { return []; }
 
     const tiles: SourceTile[] = [];
@@ -168,10 +171,10 @@ function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
  * @returns Array of normalized world name strings
  */
 function findWorlds(): string[] {
-    if (!existsSync(TILES_DIR)) { return []; }
-    return readdirSync(TILES_DIR)
+    if (!existsSync(SOURCE_TILES_DIR)) { return []; }
+    return readdirSync(SOURCE_TILES_DIR)
         .filter(name => {
-            const fullPath = path.join(TILES_DIR, name);
+            const fullPath = path.join(SOURCE_TILES_DIR, name);
             return statSync(fullPath).isDirectory();
         })
         .map(name => normalizeWorld(name));

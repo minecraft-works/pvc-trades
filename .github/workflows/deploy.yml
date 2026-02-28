@@ -51,14 +51,25 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
-      - name: Restore tile cache
-        id: tile-cache-restore
+      # Source tiles: fetched from Dynmap — stable key, only busted if fetch structure changes
+      - name: Restore source tile cache
+        id: source-tile-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: public/tiles-src
+          key: map-tiles-src-v1-${{ github.run_id }}
+          restore-keys: |
+            map-tiles-src-v1-
+
+      # Canonical tiles: rendered output — key includes format; bump on format/pyramid changes
+      - name: Restore canonical tile cache
+        id: canonical-tile-cache-restore
         uses: actions/cache/restore@v4
         with:
           path: public/tiles
-          key: map-tiles-v9-${{ github.run_id }}
+          key: map-tiles-canonical-png-v1-${{ github.run_id }}
           restore-keys: |
-            map-tiles-v9-
+            map-tiles-canonical-png-v1-
 
       - name: Fetch trade data
         run: npm run fetch-data
@@ -72,12 +83,19 @@ jobs:
       - name: Validate tile integrity
         run: npm run validate-tiles
 
-      - name: Save tile cache
+      - name: Save source tile cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: public/tiles-src
+          key: map-tiles-src-v1-${{ github.run_id }}
+
+      - name: Save canonical tile cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: public/tiles
-          key: map-tiles-v9-${{ github.run_id }}
+          key: map-tiles-canonical-png-v1-${{ github.run_id }}
 
       - name: Copy static JSON files to public
         run: |
