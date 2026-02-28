@@ -3,6 +3,12 @@ name: Mutation Testing
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/library.ts'
+      - 'src/library.test.ts'
+      - 'src/library.property.test.ts'
   workflow_dispatch:
     inputs:
       mutate_pattern:

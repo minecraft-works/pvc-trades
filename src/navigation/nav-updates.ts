@@ -33,7 +33,7 @@ import type { NavMapHandler } from './nav-map.js';
 /** Dependencies injected by main.ts */
 export interface NavUpdatesDeps {
     navigationStore: {
-        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number } | undefined;
+        playerPosition: { x: number; y: number; z: number; world: string; yaw?: number | undefined } | undefined;
         playerName: string;
         isActive: boolean;
         mode: 'follow' | 'manual';
@@ -51,7 +51,7 @@ export interface NavUpdatesDeps {
     getAllCartStops: () => RouteStop[];
     renderCartDialog: () => void;
     playerPositionService: {
-        getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number } | undefined;
+        getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number | undefined } | undefined;
     };
 }
 
@@ -139,17 +139,18 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         const fullRoute = deps.computeRoute(playerPos, true);
         state.currentRoute = fullRoute;
 
-        const allStops = deps.getAllCartStops();
-        const stopsChanged = state.currentWorldRoute.length !== allStops.length ||
-            allStops.some((stop, index) => {
+        // Compute all stops in optimized order for display (includes completed stops for visual context)
+        const allStopsOrdered = deps.computeRoute(playerPos, false);
+        const stopsChanged = state.currentWorldRoute.length !== allStopsOrdered.length ||
+            allStopsOrdered.some((stop, index) => {
                 const oldStop = state.currentWorldRoute[index];
                 return stop.x !== oldStop?.x || stop.z !== oldStop.z;
             });
 
         if (!stopsChanged) { return; }
 
-        state.currentWorldRoute = allStops;
-        globalThis.__navCurrentWorldRoute = allStops;
+        state.currentWorldRoute = allStopsOrdered;
+        globalThis.__navCurrentWorldRoute = allStopsOrdered;
 
         if (state.routePolyline) {
             state.map.removeLayer(state.routePolyline);
@@ -161,9 +162,9 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         }
         state.stopMarkers = [];
 
-        if (allStops.length > 0) {
+        if (allStopsOrdered.length > 0) {
             const routePoints = deps.navMapHandler.createRouteMarkersUnified(
-                allStops, state.centerTileX, state.centerTileZ,
+                allStopsOrdered, state.centerTileX, state.centerTileZ,
                 deps.navigationStore.progress.completedKeys,
             );
 
@@ -188,11 +189,15 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             state.routePolyline = undefined;
         }
 
-        const allStops = deps.getAllCartStops();
-        if (allStops.length === 0) { return; }
+        // Use optimized order for display; fall back to insertion order if no player position
+        const playerPos = deps.navigationStore.playerPosition;
+        const allStopsOrdered = playerPos
+            ? deps.computeRoute(playerPos, false)
+            : deps.getAllCartStops();
+        if (allStopsOrdered.length === 0) { return; }
 
         const routePoints = deps.navMapHandler.createRouteMarkersUnified(
-            allStops, state.centerTileX, state.centerTileZ,
+            allStopsOrdered, state.centerTileX, state.centerTileZ,
             deps.navigationStore.progress.completedKeys,
         );
 
@@ -386,6 +391,18 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
                     playerPos.world,
                     viewWorld,
                 );
+
+                if (deps.navigationStore.mode === 'follow') {
+                    // Pan the map to the interpolated position — spring smoothness is applied
+                    // to the pan, not to the marker. The marker always stays at the same
+                    // Leaflet coordinates as the map center, appearing fixed/sticky.
+                    const { lat, lng } = toLeafletCoordsRelative(
+                        viewCoords.x, viewCoords.z,
+                        state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
+                    );
+                    state.map.setView([lat, lng], state.map.getZoom(), { animate: false });
+                }
+
                 updatePlayerMarkerPosition(viewCoords.x, viewCoords.z, displayPos.yaw);
             }
 
@@ -422,7 +439,9 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         );
 
         const zoom = getZoomForHeight(deps.navigationStore.playerPosition.y);
-        state.map.flyTo([lat, lng], zoom, { duration: 0.3, easeLinearity: 0.5 });
+        // Snap to position; the animation loop provides frame-by-frame smooth panning
+        // from this point onward via spring interpolation.
+        state.map.setView([lat, lng], zoom, { animate: false });
     }
 
     // ── Return public API ───────────────────────────────────────────

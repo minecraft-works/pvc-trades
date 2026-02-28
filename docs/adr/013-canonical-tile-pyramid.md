@@ -14,7 +14,7 @@ The current tile provider abstraction (ADR-012) translates between Dynmap and Bl
 
 When you ask for "level 1, tile (3, -2)", the answer depends on which provider is active. The BDD tests are hardcoded to Dynmap's zoom 8/4 and 512-block tiles. Switching providers requires updating test mocks, not just config.
 
-Additionally, the tile format is locked to PNG. Future requirements (progressive loading, WebP/AVIF, custom binary formats) would require touching both build scripts and runtime code.
+Additionally, the tile format is locked to PNG. Switching to a smaller format (e.g. WebP) or adding format variants would require touching both build scripts and runtime code.
 
 ### The Core Problem
 
@@ -94,38 +94,50 @@ No `blocksPerTile` in the manifest — it's derived from level + config. No prov
 ### Architecture
 
 ```
-BUILD TIME                                              RUNTIME
-┌──────────────┐     ┌──────────────────────┐     ┌─────────────────┐
-│ Dynmap       │     │                      │     │                 │
-│ BlueMap      │────►│  Tile Renderer       │────►│  public/tiles/  │
-│ (any source) │     │  (fetch + re-render) │     │  + manifest.json│
-└──────────────┘     │                      │     └────────┬────────┘
-                     │ For each canonical   │              │
-                     │ tile needed:         │              ▼
-                     │ 1. Which source tiles│     ┌─────────────────┐
-                     │    cover this area?  │     │  tile-loader.ts │
-                     │ 2. Fetch from source │     │  (canonical     │
-                     │ 3. Crop/scale to     │     │   levels only)  │
-                     │    tileWidth×Height  │     └─────────────────┘
+BUILD TIME                                                           RUNTIME
+┌──────────────┐     ┌───────────────────┐     ┌──────────────────┐
+│ Dynmap       │     │                   │     │                  │
+│ BlueMap      │────►│  Source tile      │     │  public/tiles/   │
+│ (any source) │     │  cache (GH        │     │  (canonical)     │
+└──────────────┘     │  Actions cache)   │     │  + manifest.json │
+                     └────────┬──────────┘     └────────┬─────────┘
+                              │                         │ also cached
+                              ▼                         │ (GH Actions)
+                     ┌──────────────────────┐           │
+                     │  Tile Renderer       │───────────►
+                     │  (fetch + re-render) │
+                     │                      │      ┌─────────────────┐
+                     │ For each canonical   │      │  tile-loader.ts │
+                     │ tile needed:         │      │  (canonical     │
+                     │ 1. Which source tiles│      │   levels only)  │
+                     │    cover this area?  │      └─────────────────┘
+                     │ 2. Fetch from cache  │
+                     │ 3. Crop/split to     │
+                     │    tileWidth×Height  │
                      │ 4. Write canonical   │
                      └──────────────────────┘
 ```
 
 ### Build-Time Re-Rendering
 
-For each canonical tile at level L covering blocks `[x₀, x₁) × [z₀, z₁)`:
+The renderer processes only the two source-matched levels (detail and overview). No intermediate levels are generated — the canonical pyramid produced in practice has tiles at level `detailLevel` and level `overviewLevel` only, matching the two zoom levels fetched from the source server.
 
-1. Calculate which source provider tiles overlap this block range
-2. Fetch those source tiles (with rate limiting, caching)
-3. Composite the overlapping source pixels onto a canvas of `tileWidth × tileHeight`
-4. Apply `processImage()` (e.g., extract color from BlueMap dual-layer)
+For each source tile at a given level:
+
+1. Read the source image dimensions to derive the crop region size (`sourcePixels / splitFactor`)
+2. For each canonical sub-tile in the split grid, call `sharp.extract()` to crop the exact pixel region
+3. If the cropped region dimensions already match `tileWidth × tileHeight`, write directly — **no resize**
+4. If dimensions differ (non-integer pixel alignment, e.g. BlueMap's 500-block tiles), resize to fit
 5. Encode to `format` and write to canonical path
 
-This handles:
-- **Size mismatch**: Source 512px → canonical 256px (downscale)
-- **Grid mismatch**: Source 500-block grid ≠ canonical 256-block grid (composite + crop)
-- **Format conversion**: BlueMap dual-layer → pure color PNG
-- **Pixel ratio differences**: Source may have different px-per-block ratios at different LODs
+With the default config vs Dynmap:
+
+| Canonical level | Blocks/tile | Px/block | Source | Source px/block | splitFactor | cropWidth | Resize? |
+|-----------------|-------------|----------|--------|-----------------|-------------|-----------|---------|
+| 2 (detail)      | 256         | 1        | zoom 8 (512 blocks, 512px) | 1 | 2 | 256px = tileWidth | **No** — pure crop |
+| 0 (overview)    | 4096        | 1/16     | zoom 4 (8192 blocks, 512px) | 1/16 | 2 | 256px = tileWidth | **No** — pure crop |
+
+The renderer validates that `sourceBlocksPerTile / canonicalBlocksPerTile` is an integer before processing. Non-integer ratios (misaligned grids) are rejected with an error rather than silently resampled.
 
 ### Runtime Changes
 
@@ -210,16 +222,26 @@ Examples: Detail level tiles (<baseBlocksPerTile> blocks per tile)
 
 ### Format Extensibility
 
-The `format` field enables future formats without code changes:
+The `format` field enables format changes via config. Build script encodes to whichever format is configured; runtime just requests `tile.{format}` without any code change.
 
-| Format | Use Case |
-|--------|----------|
-| `png` | Current default, lossless |
-| `webp` | Smaller files, lossy OK for maps |
-| `avif` | Even smaller, modern browsers |
-| `ptile` | Custom binary for progressive loading |
+| Format | File size vs PNG | Quality loss | Notes |
+|--------|-----------------|--------------|-------|
+| `png`  | baseline | none (lossless) | Original default |
+| `jpeg` | ~40–55% smaller | minimal on flat-color maps | **Current default** — progressive encoding |
+| `webp` | ~26% smaller (lossless) | none | Good alternative to JPEG for pixel-perfect |
+| `avif` | ~50% smaller | none (lossless) or small | CI build time concern |
 
-Build script encodes to whichever format is configured. Runtime just loads `tile.{format}`.
+**Progressive JPEG** is encoded with `{ progressive: true, quality: 92, mozjpeg: true }`. The progressive encoding produces a low-quality full-image scan followed by refinement scans. Browsers begin displaying the tile from the first scan.
+
+**Progressive rendering works with `L.imageOverlay()`**: Unlike `L.TileLayer` (which sets `tile.el.style.opacity = 0` in `_tileReady` and then fades tiles in via `_updateOpacity`), `L.imageOverlay` has no opacity-hiding mechanism. The Leaflet CSS for `.leaflet-image-layer` sets only position and pointer-events — no `opacity: 0`. The `onload` handler only fires a Leaflet event; it never touches opacity. The `<img>` element is appended to the DOM at full opacity and stays that way throughout the download. The browser renders progressive scan passes incrementally as bytes arrive — this is native browser behaviour for progressive JPEGs in `<img>` elements and it works on a cold cache as well as a warm one.
+
+On a cold cache (first visit), a user on a typical broadband connection will see:
+1. Each tile area is blank until the first scan pass arrives (typically the first ~15–20% of bytes)
+2. A blurry-but-complete image appears — for Minecraft maps with flat-colour blocks, scan 1 is already recognisable
+3. Subsequent scans sharpen the image over the remainder of the download
+4. `load` fires — Leaflet emits its event; no opacity change
+
+The in-memory blob cache was removed in favour of the browser HTTP cache (see ADR-009 revision). On a warm cache, tiles are served from disk in a single read — scan passes appear effectively instantaneously.
 
 ## Rationale
 
@@ -283,9 +305,9 @@ Fixed 2 levels (detail + overview) is sufficient today but limits future use:
 ### Positive
 
 - **True source agnosticism**: runtime has zero knowledge of tile source
-- **Format freedom**: change output format via config, no code changes
+- **Format freedom**: change output format via config — current default is progressive JPEG (~40–55% smaller than PNG with no perceptible quality loss on Minecraft maps)
 - **Clean test boundary**: all tests mock canonical URLs — source-independent
-- **Future-proof**: progressive loading, heightmap layers, WebP — all just format/config changes
+- **Future-proof**: WebP, AVIF, heightmap layers — all just format/config changes
 - **Single coordinate system**: level + (x, z) is universal, no provider-specific translation
 
 ### Negative
@@ -294,14 +316,14 @@ Fixed 2 levels (detail + overview) is sufficient today but limits future use:
 - **Build time**: composite + encode is slower than passthrough fetch
 - **CI dependency**: needs an image library (sharp or canvas) in CI
 - **Migration scope**: touches runtime, build scripts, tests, config, types — large changeset
-- **Wasted source pixels**: downscaling 512px source to 256px canonical discards detail
 
 ### Mitigations
 
 - **Sharp** is fast and runs natively in Node — minimal build time impact
-- **Build caching** means re-rendering only happens for new/changed tiles
+- **Two-layer caching**: source tiles (fetched from Dynmap/BlueMap) are cached in GitHub Actions; canonical tiles (the rendered output in `public/tiles/`) are also cached — re-rendering only runs for tiles missing from the canonical cache
+- **No quality loss for Dynmap**: both detail and overview levels have px/block ratios that match exactly — the operation is a pure `sharp.extract()` crop with no resize step
+- **Non-aligned providers (e.g. BlueMap) trigger a resize fallback**, but mismatched integer ratios are rejected at startup with a clear error rather than silently producing distorted tiles
 - **Phased rollout** keeps the system working at each step
-- **Config-driven tile size** avoids wasting pixels if 512px is preferred
 
 ## Related
 

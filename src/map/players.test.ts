@@ -136,8 +136,8 @@ describe('filterPlayersByWorld', () => {
 
 describe('fetchPlayers', () => {
     const mockPlayers: Player[] = [
-        { name: 'Alice', position: { x: 100, y: 64, z: 200 } },
-        { name: 'Bob', position: { x: -50, y: 70, z: 150 } }
+        { uuid: 'a1', name: 'Alice', foreign: false, position: { x: 100, y: 64, z: 200 } },
+        { uuid: 'b2', name: 'Bob', foreign: false, position: { x: -50, y: 70, z: 150 } }
     ];
 
     beforeEach(() => {

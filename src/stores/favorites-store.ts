@@ -298,5 +298,4 @@ export class FavoritesStore {
 export const favoritesStore = new FavoritesStore();
 
 // Expose for E2E testing
-// @ts-expect-error - exposing for e2e testing
 globalThis.__favoritesStore = favoritesStore;

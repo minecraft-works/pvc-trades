@@ -50,7 +50,7 @@ Given('I open the navigation dialog with items from both worlds', async ({ page,
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -427,7 +427,7 @@ Given('I mark the nether shop as completed', async ({ page }) => {
 Given('I start navigation as {string}', async ({ page, tileRequests }, playerName: string) => {
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -458,7 +458,7 @@ Then('the map should be centered on the player', async ({ page }) => {
     
     // Poll until we can get valid position data
     // The map might reinitialize during world switch, causing temporary DOM changes
-    type PollResult = {
+    interface PollResult {
         error?: string;
         debug?: unknown;
         markerCenter?: { x: number; y: number };
@@ -466,7 +466,7 @@ Then('the map should be centered on the player', async ({ page }) => {
         containerSize?: { width: number; height: number };
         xDiff?: number;
         yDiff?: number;
-    };
+    }
     
     let lastResult: PollResult | undefined;
     

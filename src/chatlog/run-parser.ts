@@ -11,7 +11,7 @@ import { parseChatlog } from './chatlog-parser.js';
 
 const filePath = path.resolve(process.argv[2] ?? 'src/chatlog.json');
 const raw: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-type-assertion
 const results = parseChatlog(raw as any);
 
 // Summary

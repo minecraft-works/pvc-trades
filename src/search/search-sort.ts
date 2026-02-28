@@ -256,8 +256,8 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
         return results.toSorted((a, b) => {
             for (const column of sortColumns) {
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const direction = activeSorts.get(column)!;
+                const direction = activeSorts.get(column);
+                if (direction === undefined) { continue; }
                 const cmp = compareByColumn(a, b, column, direction);
                 if (cmp !== 0) { return cmp; }
             }

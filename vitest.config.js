@@ -24,13 +24,14 @@ export default defineConfig({
                 'src/navigation/**/*.ts',
                 'src/rendering/**/*.ts',
                 'src/search/**/*.ts',
-                'src/test-globals.d.ts'
+                'src/test-globals.d.ts',
+                'src/chatlog/run-parser.ts'
             ],
             thresholds: {
-                statements: 83,
-                branches: 74,
-                functions: 85,
-                lines: 83
+                statements: 86,
+                branches: 79,
+                functions: 87,
+                lines: 86
             }
         }
     }

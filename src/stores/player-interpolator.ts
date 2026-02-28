@@ -63,7 +63,7 @@ export interface PositionSample {
     y: number;
     z: number;
     /** Minecraft yaw (0=south, 90=west, 180=north, 270=east) */
-    yaw?: number;
+    yaw?: number | undefined;
     /** Timestamp when sample was received (ms, from performance.now or Date.now) */
     timestamp: number;
 }

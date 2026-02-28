@@ -1,13 +1,18 @@
 /**
  * Tile Loader Module
  * 
- * Handles tile loading, caching, and manifest management for Leaflet maps.
- * Provides shared functionality for both shop maps and navigation maps.
+ * Handles tile loading, manifest management, and coordinate utilities for
+ * Leaflet maps. Tiles are added to the map by passing their URL directly to
+ * Leaflet's imageOverlay — the browser's HTTP cache handles deduplication and
+ * persistence across sessions. Because imageOverlay never sets opacity:0 on its
+ * img element, progressive JPEG tiles render scan-pass by scan-pass as bytes
+ * arrive, even on a cold cache.
  * 
  * @module map/tile-loader
  */
 
 import debug from 'debug';
+import { z } from 'zod';
 
 import { getWorldId } from '../library.js';
 import { getConfig } from '../stores/config-store.js';
@@ -19,7 +24,8 @@ import {
     detailToOverviewRatio as pyramidDetailToOverviewRatio,
     overviewLevel
 } from '../tile-pyramid.js';
-import type { LoadTileOptions, ManifestEntry,TileConfig } from './tile-types.js';
+import type { LoadTileOptions, TileConfig } from './tile-types.js';
+import { ManifestEntrySchema } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- CDN global, not an importable module
@@ -52,21 +58,9 @@ export const TILE_CONFIG: TileConfig = {
     get format() { return getConfig().tilePyramid.format; }
 };
 
-/**
- * @deprecated Remove after all callers migrate to pyramid-based values.
- * Use `TILE_CONFIG.overviewTileBlocks` instead.
- */
-export const OVERVIEW_TILE_SIZE = 512 * 16; // Legacy: only correct for Dynmap default
-
 // ============================================================================
 // Cache State (Module-scoped)
 // ============================================================================
-
-/**
- * Global cache for tile blob URLs (persists across map sessions)
- * Key format: "world/zoom/x/z" -> blob URL
- */
-const tileBlobCache = new Map<string, string>();
 
 /**
  * Global cache for tile manifest (which tiles exist)
@@ -104,18 +98,23 @@ export async function loadTileManifest(): Promise<Set<string>> {
         const newCache = new Set<string>();
         try {
             const response = await fetch(`${TILE_CONFIG.baseUrl}/manifest.json`);
-            if (response.ok) {
-                const manifest = await response.json() as ManifestEntry[];
-                debugTiles('manifest: fetched %d entries', manifest.length);
-                for (const entry of manifest) {
+            if (!response.ok) {
+                debugTiles('manifest: fetch failed status=%d', response.status);
+                tileManifestCache = newCache;
+                return newCache;
+            }
+
+            const json: unknown = await response.json();
+            const parsed = z.array(ManifestEntrySchema).safeParse(json);
+            if (parsed.success) {
+                debugTiles('manifest: fetched %d entries', parsed.data.length);
+                for (const entry of parsed.data) {
                     // Normalize world name to match what getWorldId returns
                     const normalizedWorld = getWorldId(entry.world);
                     const key = `${normalizedWorld}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
                     newCache.add(key);
                 }
                 debugTiles('manifest: processed into %d unique keys', newCache.size);
-            } else {
-                debugTiles('manifest: fetch failed status=%d', response.status);
             }
         } catch (error) {
             console.warn('Failed to load tile manifest');
@@ -157,8 +156,11 @@ export function tileExistsInManifest(
 // ============================================================================
 
 /**
- * Load a tile and add it to a map (non-blocking, uses cache)
- * 
+ * Load a tile and add it to a map via direct URL.
+ *
+ * The browser's HTTP cache prevents redundant downloads between map sessions.
+ * Within a session, `addedToMap` prevents duplicate overlay elements.
+ *
  * @param options - Tile loading options
  */
 export function loadTileToMap(options: LoadTileOptions): void {
@@ -169,43 +171,12 @@ export function loadTileToMap(options: LoadTileOptions): void {
         return;
     }
     addedToMap.add(mapKey);
-    
-    const cacheKey = `${worldId}/${zoom}/${tx}/${tz}`;
-    const overlayOptions: L.ImageOverlayOptions = pane ? { pane } : {};
-    
-    // Check if we already have this tile cached
-    const cachedBlobUrl = tileBlobCache.get(cacheKey);
-    if (cachedBlobUrl) {
-        debugTiles('loadTile: CACHE HIT cacheKey=%s', cacheKey);
-        L.imageOverlay(cachedBlobUrl, bounds, overlayOptions).addTo(map);
-        return;
-    }
-    
-    // Fire-and-forget: load tile without blocking
+
     const pyramid = getConfig().tilePyramid;
     const url = canonicalTileUrl({ world: worldId, level: zoom, tileX: tx, tileZ: tz }, pyramid);
-    debugTiles('loadTile: FETCH url=%s', url);
-    fetch(url)
-        .then(async response => {
-            if (!response.ok) {
-                debugTiles('loadTile: FETCH FAIL url=%s status=%d', url, response.status);
-                return;
-            }
-            debugTiles('loadTile: FETCH OK url=%s', url);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            tileBlobCache.set(cacheKey, blobUrl);
-            // Check map still exists before adding
-            if (map.getContainer().isConnected) {
-                debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
-                L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
-            } else {
-                debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
-            }
-        })
-        .catch((error: unknown) => {
-            debugTiles('loadTile: ERROR url=%s error=%o', url, error);
-        });
+    const overlayOptions: L.ImageOverlayOptions = pane ? { pane } : {};
+    debugTiles('loadTile: ADD url=%s', url);
+    L.imageOverlay(url, bounds, overlayOptions).addTo(map);
 }
 
 // ============================================================================
@@ -231,51 +202,18 @@ export function calculateOverviewCoords(detailTileX: number, detailTileZ: number
 // Cache Access (for shop map integration)
 // ============================================================================
 
-/**
- * Get a cached tile blob URL if available.
- * @param worldId - World identifier
- * @param level - Pyramid level
- * @param tx - Tile X coordinate
- * @param tz - Tile Z coordinate
- * @returns Blob URL if cached, undefined otherwise
- */
-export function getCachedTileUrl(worldId: string, level: number, tx: number, tz: number): string | undefined {
-    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
-    return tileBlobCache.get(cacheKey);
-}
-
-/**
- * Cache a tile blob URL for future reuse.
- * @param worldId - World identifier
- * @param level - Pyramid level
- * @param tx - Tile X coordinate
- * @param tz - Tile Z coordinate
- * @param blobUrl - The blob URL to cache
- */
-export function setCachedTileUrl(worldId: string, level: number, tx: number, tz: number, blobUrl: string): void {
-    const cacheKey = `${worldId}/${level}/${tx}/${tz}`;
-    tileBlobCache.set(cacheKey, blobUrl);
-}
+// NOTE: getCachedTileUrl / setCachedTileUrl removed — tiles are now loaded via
+// direct URL. The browser HTTP cache replaces the in-memory blob cache.
 
 // ============================================================================
 // Testing Utilities
 // ============================================================================
 
 /**
- * Get the current blob cache size (for testing)
- * @internal
- * @returns Number of cached blob URLs currently held in memory
- */
-export function _getBlobCacheSize(): number {
-    return tileBlobCache.size;
-}
-
-/**
  * Clear all caches (for testing)
  * @internal
  */
 export function _clearCaches(): void {
-    tileBlobCache.clear();
     tileManifestCache = undefined;
     manifestLoadPromise = undefined;
 }

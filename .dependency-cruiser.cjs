@@ -7,7 +7,10 @@ module.exports = {
             comment: 'library.ts must not import DOM/UI modules (pure functions only)',
             severity: 'error',
             from: { path: '^src/library\\.ts$' },
-            to: { path: '^src/main\\.ts$' }
+            to: {
+                path: '^src/(main\\.ts|dialogs|favorites|rendering|cart|navigation|dashboard|map)/',
+                pathNot: '(map-math|dashboard-data)\\.ts$'
+            }
         },
         // Stores must not import dialog/UI modules
         {

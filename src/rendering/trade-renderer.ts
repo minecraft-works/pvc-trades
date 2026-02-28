@@ -170,8 +170,18 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
     let currentWantRegex: RegExp | undefined;
     let currentGiveRegex: RegExp | undefined;
 
+    /** Valid sort column identifiers for dataset.col type narrowing */
+    const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<SortColumn>(
+        ['result-amt', 'result-name', 'cost-amt', 'cost-name', 'stock', 'dev', 'world', 'distance']
+    );
+
+    function isSortColumn(value: string): value is SortColumn {
+        return VALID_SORT_COLUMNS.has(value);
+    }
+
     function getArrow(col: string): string {
-        const direction = deps.getActiveSorts().get(col as SortColumn);
+        if (!isSortColumn(col)) { return ''; }
+        const direction = deps.getActiveSorts().get(col);
         if (!direction) { return ''; }
         return direction === SORT.ASC ? '↑' : '↓';
     }
@@ -182,7 +192,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             const col = element.dataset.col ?? '';
             const arrow = getArrow(col);
             element.textContent = RIGHT_ALIGNED_COLS.has(col) ? arrow + label : label + arrow;
-            element.classList.toggle('active-sort', deps.getActiveSorts().has(col as SortColumn));
+            element.classList.toggle('active-sort', isSortColumn(col) && deps.getActiveSorts().has(col));
         }
     }
 
@@ -204,8 +214,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         for (const element of header.querySelectorAll<HTMLElement>('.header')) {
             element.addEventListener('click', () => {
-                const col = element.dataset.col as SortColumn | undefined;
-                if (col) { deps.sortByColumn(col); }
+                const col = element.dataset.col ?? '';
+                if (isSortColumn(col)) { deps.sortByColumn(col); }
             });
         }
 
@@ -398,11 +408,11 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         // Initialize or update virtual scroller
         if (virtualScroller) {
-            virtualScroller.setItems(results as FilterResult[]);
+            virtualScroller.setItems([...results]);
         } else {
             virtualScroller = new VirtualScroller(
                 container,
-                results as FilterResult[],
+                [...results],
                 createTradeRowElement,
                 {
                     getEstimatedItemHeight: () => 32,
