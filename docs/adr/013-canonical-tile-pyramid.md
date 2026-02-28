@@ -233,11 +233,15 @@ The `format` field enables format changes via config. Build script encodes to wh
 
 **Progressive JPEG** is encoded with `{ progressive: true, quality: 92, mozjpeg: true }`. The progressive encoding produces a low-quality full-image scan followed by refinement scans. Browsers begin displaying the tile from the first scan.
 
-**Caveat on Leaflet's imageOverlay**: Leaflet hides tiles (opacity 0) until the `load` event fires, which means progressive scan passes are not visible during an active network download on a cold cache. However:
-- Files are ~40–55% smaller so the download completes faster
-- On a warm HTTP cache (second visit onwards), tiles are served from disk and appear immediately — the practical streaming experience
+**Progressive rendering works with `L.imageOverlay()`**: Unlike `L.TileLayer` (which sets `tile.el.style.opacity = 0` in `_tileReady` and then fades tiles in via `_updateOpacity`), `L.imageOverlay` has no opacity-hiding mechanism. The Leaflet CSS for `.leaflet-image-layer` sets only position and pointer-events — no `opacity: 0`. The `onload` handler only fires a Leaflet event; it never touches opacity. The `<img>` element is appended to the DOM at full opacity and stays that way throughout the download. The browser renders progressive scan passes incrementally as bytes arrive — this is native browser behaviour for progressive JPEGs in `<img>` elements and it works on a cold cache as well as a warm one.
 
-The in-memory blob cache was removed in favour of the browser HTTP cache (see ADR-009 revision). This makes cross-session performance the common case rather than the exception.
+On a cold cache (first visit), a user on a typical broadband connection will see:
+1. Each tile area is blank until the first scan pass arrives (typically the first ~15–20% of bytes)
+2. A blurry-but-complete image appears — for Minecraft maps with flat-colour blocks, scan 1 is already recognisable
+3. Subsequent scans sharpen the image over the remainder of the download
+4. `load` fires — Leaflet emits its event; no opacity change
+
+The in-memory blob cache was removed in favour of the browser HTTP cache (see ADR-009 revision). On a warm cache, tiles are served from disk in a single read — scan passes appear effectively instantaneously.
 
 ## Rationale
 
