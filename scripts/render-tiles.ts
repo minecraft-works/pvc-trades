@@ -193,7 +193,7 @@ function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
         case 'webp': { return pipeline.webp({ lossless: true }); }
         case 'avif': { return pipeline.avif(); }
         case 'jpeg': { return pipeline.jpeg({ progressive: true, quality: 92, mozjpeg: true }); }
-        default: { return pipeline.png(); }
+        default: { return pipeline.png({ progressive: true }); }
     }
 }
 
