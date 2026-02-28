@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import configJson from '../config.json';
+import { DEFAULT_CONFIG } from './types.js';
 import {
     blocksPerTile,
     canonicalTileUrl,
@@ -422,10 +422,10 @@ describe('cross-function consistency', () => {
 // ============================================================================
 
 describe('config.json / DEFAULT_PYRAMID format consistency', () => {
-    test('config.json tilePyramid.format matches DEFAULT_PYRAMID.format', () => {
-        // Catches drift between the two sources of truth.
-        // If this fails, update whichever value is stale.
-        const configFormat = (configJson.tilePyramid as { format?: string } | undefined)?.format ?? 'png';
-        expect(DEFAULT_PYRAMID.format).toBe(configFormat);
+    test('DEFAULT_CONFIG.tilePyramid.format matches DEFAULT_PYRAMID.format', () => {
+        // Catches drift between the two code-level defaults.
+        // DEFAULT_CONFIG is what TILE_CONFIG.format falls back to at runtime;
+        // DEFAULT_PYRAMID is what canonicalTileUrl uses in tests.
+        expect(DEFAULT_PYRAMID.format).toBe(DEFAULT_CONFIG.tilePyramid.format);
     });
 });
