@@ -37,6 +37,7 @@ let activeProvider: TileProvider = new DynmapTileProvider('');
  *
  * Returns the provider used for tile size, detail levels, and
  * all coordinate calculations throughout the app.
+ * @returns The currently active TileProvider instance
  */
 export function getActiveTileProvider(): TileProvider {
     return activeProvider;

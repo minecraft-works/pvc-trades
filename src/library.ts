@@ -117,8 +117,8 @@ export function matchesQuery(text: string, query: string): boolean {
  * enchantsMatch({ efficiency: 4 }, { efficiency: 5 })                // false
  */
 export function enchantsMatch(
-    itemEnchants: Record<string, number> | undefined,
-    ruleEnchants: Record<string, number> | undefined
+    itemEnchants: Readonly<Record<string, number>> | undefined,
+    ruleEnchants: Readonly<Record<string, number>> | undefined
 ): boolean {
     if (!itemEnchants || !ruleEnchants) { return false; }
     for (const [key, value] of Object.entries(ruleEnchants)) {
@@ -136,18 +136,20 @@ export { formatName } from './formatting.js';
 /**
  * Apply custom mapping rules to transform item types.
  * Used for special items like vote certificates or custom enchants.
- * Mutates the item in place.
- * 
- * @param item - The item to transform (mutated)
+ * Returns a new Item if a rule matches; returns the original if no rule matches;
+ * returns undefined if item is undefined.
+ *
+ * @param item - The item to check against mapping rules (may be undefined)
  * @param mappingRules - Array of mapping rules to check
- * 
+ * @returns Mapped item (new object if rule matched), original item, or undefined
+ *
  * @example
  * const item = { type: 'PAPER', name: '50 Votes Certificate', amount: 1 };
- * applyMapping(item, mappingRules);
- * // item.type might now be 'Vote Certificate'
+ * const mapped = applyMapping(item, mappingRules);
+ * // mapped?.type might now be 'Vote Certificate'
  */
-export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]): void {
-    if (!item) { return; }
+export function applyMapping(item: Item | undefined, mappingRules: readonly MappingRule[]): Item | undefined {
+    if (!item) { return undefined; }
     const type = item.type.replace('minecraft:', '').toUpperCase();
 
     for (const rule of mappingRules) {
@@ -156,11 +158,10 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
         const matchesEnchant = !rule.enchant || enchantsMatch(item.enchant, rule.enchant);
 
         if (matchesType && matchesName && matchesEnchant) {
-            item.type = rule.customName;
-            item.name = '';
-            return;
+            return { ...item, type: rule.customName, name: '' };
         }
     }
+    return item;
 }
 
 /**
@@ -175,7 +176,7 @@ export function applyMapping(item: Item | undefined, mappingRules: MappingRule[]
  * getRegex('cooked').test('cooked_beef')        // true
  * getRegex('[test]').test('[test]')             // true (special chars escaped)
  */
-export function getRegex(pattern: string): RegExp {
+export function getRegex(pattern: string): Readonly<RegExp> {
     const withPlaceholder = pattern.replaceAll('*', '\u0000');
     const escaped = withPlaceholder.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
     // Split preserving escape sequences (e.g., \[ stays together as one unit)
@@ -188,10 +189,10 @@ export function getRegex(pattern: string): RegExp {
  * Split string into tokens, keeping backslash escape sequences together.
  * Used by getRegex to ensure escaped characters aren't separated.
  * 
- * @param str - String to split
+ * @param string_ - String to split
  * @returns Array of tokens (single chars or escape sequences)
  */
-function splitPreservingEscapes(string_: string): string[] {
+function splitPreservingEscapes(string_: string): readonly string[] {
     const result: string[] = [];
     let index = 0;
     while (index < string_.length) {
@@ -221,15 +222,15 @@ function splitPreservingEscapes(string_: string): string[] {
  * parseShulkerContents(['- 64x DIAMOND', '- 32x GOLD_INGOT'])
  * // { items: [{key: 'diamond', name: 'Diamond', total: 64}, ...], defaultName: 'Diamond', defaultTotal: 64 }
  */
-export function parseShulkerContents(lore: string[]): ShulkerParseResult {
+export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerParseResult> {
     const counts: Record<string, number> = {};
-    const shulkerRegex = /-\s*(\d+)x\s+(.+)/i;
+    const shulkerRegex = /-\s*(?<quantity>\d+)x\s+(?<item>.+)/i;
     for (const line of lore) {
         const match = shulkerRegex.exec(line);
-        if (match && match[1] && match[2]) {
-            const amt = Number.parseInt(match[1], 10);
-            const item = match[2].trim();
-            counts[item] = (counts[item] || 0) + amt;
+        if (match?.groups?.quantity && match.groups.item) {
+            const amt = Number.parseInt(match.groups.quantity, 10);
+            const item = match.groups.item.trim();
+            counts[item] = (counts[item] ?? 0) + amt;
         }
     }
 
@@ -248,7 +249,8 @@ export function parseShulkerContents(lore: string[]): ShulkerParseResult {
         return { items: [], defaultName: 'Shulker box', defaultTotal: 1 };
     }
 
-    const firstItem = items[0]!;
+    const firstItem = items[0];
+    if (!firstItem) { return { items, defaultName: 'Shulker box', defaultTotal: 1 }; }
     return { items, defaultName: firstItem.name, defaultTotal: firstItem.total };
 }
 
@@ -288,7 +290,7 @@ export function escapeHtml(text: string): string {
  * @example
  * highlight('Diamond Pickaxe', /diamond/i) // '<mark>Diamond</mark> Pickaxe'
  */
-export function highlight(text: string, regex: RegExp): string {
+export function highlight(text: string, regex: Readonly<RegExp>): string {
     const escaped = escapeHtml(text);
     return escaped.replace(regex, m => `<mark>${m}</mark>`);
 }
@@ -306,7 +308,7 @@ export function highlight(text: string, regex: RegExp): string {
  * @example
  * parseLocation('100, 64, -200') // { x: 100, y: 64, z: -200 }
  */
-export function parseLocation(location: string): Coordinates {
+export function parseLocation(location: string): Readonly<Coordinates> {
     const coords = location.split(', ');
     return {
         x: Number.parseFloat(coords[0] ?? '0') || 0,
@@ -332,22 +334,22 @@ export function parseLocation(location: string): Coordinates {
  * const trade = processTrade(recipe, shop, mappingRules);
  * console.log(trade.resultName, trade.costName, trade.x, trade.z);
  */
-export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRule[]): Trade {
+export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, mappingRules: readonly MappingRule[]): Readonly<Trade> {
     const { x, y, z } = parseLocation(shop.location);
     const world = shop.world.replace('minecraft:', '');
 
-    applyMapping(recipe.resultItem, mappingRules);
-    applyMapping(recipe.item1, mappingRules);
-    if (recipe.item2) { applyMapping(recipe.item2, mappingRules); }
+    const resultItem = applyMapping(recipe.resultItem, mappingRules) ?? recipe.resultItem;
+    const item1 = applyMapping(recipe.item1, mappingRules) ?? recipe.item1;
+    const item2 = recipe.item2 ? applyMapping(recipe.item2, mappingRules) ?? recipe.item2 : undefined;
 
-    const lore = recipe.resultItem.lore || [];
+    const lore = resultItem.lore ?? [];
     let resultName: string;
     let resultAmount: number;
     let loreText = '';
     let isShulker = false;
-    let shulkerItems: ShulkerItem[] | undefined = undefined;
+    let shulkerItems: readonly ShulkerItem[] | undefined = undefined;
 
-    if (lore.length > 0 && recipe.resultItem.type.includes('SHULKER')) {
+    if (lore.length > 0 && resultItem.type.includes('SHULKER')) {
         const parsed = parseShulkerContents(lore);
         resultName = parsed.defaultName;
         resultAmount = parsed.defaultTotal;
@@ -355,20 +357,20 @@ export function processTrade(recipe: Recipe, shop: Shop, mappingRules: MappingRu
         loreText = lore.join(' ').toLowerCase();
         isShulker = true;
     } else {
-        resultName = formatName(recipe.resultItem);
-        resultAmount = recipe.resultItem.amount;
+        resultName = formatName(resultItem);
+        resultAmount = resultItem.amount;
     }
 
-    const costName = formatName(recipe.item1) + (recipe.item2 ? ' ' + formatName(recipe.item2) : '');
+    const costName = formatName(item1) + (item2 ? ' ' + formatName(item2) : '');
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
 
     return {
-        item1: recipe.item1,
-        item2: recipe.item2,
-        resultItem: recipe.resultItem,
         stock: recipe.stock,
         resultText: resultName.toLowerCase(),
         costText: costName.toLowerCase(),
+        item1,
+        item2,
+        resultItem,
         x, y, z, world,
         displayStock,
         loreText,
@@ -390,12 +392,12 @@ interface ShulkerMatchResult {
 }
 
 function findMatchingShulkerItem(
-    shulkerItems: ShulkerItem[] | undefined,
+    shulkerItems: readonly ShulkerItem[] | undefined,
     query: string
-): ShulkerMatchResult | undefined {
+): Readonly<ShulkerMatchResult> | undefined {
     if (!shulkerItems) { return undefined; }
-    const matched = shulkerItems.find(item =>
-        matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
+    const matched = shulkerItems.find(
+        item => matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
     );
     if (matched) {
         return { matched: true, name: matched.name, amount: matched.total };
@@ -404,9 +406,9 @@ function findMatchingShulkerItem(
 }
 
 function checkWantQueryMatch(
-    trade: Trade,
+    trade: Readonly<Trade>,
     wantQuery: string
-): { matchResult: boolean; displayName: string; displayAmount: number } {
+): Readonly<{ matchResult: boolean; displayName: string; displayAmount: number }> {
     if (!wantQuery) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
@@ -433,7 +435,7 @@ function checkWantQueryMatch(
  * const result = filterTrade(trade, 'diamond', 'emerald');
  * if (result) console.log(result.displayName, result.displayAmount);
  */
-export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string): FilterResult | undefined {
+export function filterTrade(trade: Readonly<Trade>, wantQuery: string, giveQuery: string): Readonly<FilterResult> | undefined {
     if (trade.stock === 0) { return undefined; }
 
     const { matchResult, displayName, displayAmount } = checkWantQueryMatch(trade, wantQuery);
@@ -457,24 +459,24 @@ export function filterTrade(trade: Trade, wantQuery: string, giveQuery: string):
 
 /**
  * Sort filter results by a specified column and direction.
- * Mutates and returns the array.
+ * Returns a new sorted array.
  * 
  * @param results - Array of filter results to sort
  * @param column - Column to sort by ('result-amt', 'cost-name', 'stock', etc.)
  * @param direction - 'asc' or 'desc'
- * @returns The sorted array (same reference)
+ * @returns A new sorted array
  * 
  * @example
- * sortResults(results, 'result-amt', 'desc'); // Sort by amount descending
+ * const sorted = sortResults(results, 'result-amt', 'desc'); // Sort by amount descending
  */
 export function sortResults(
-    results: FilterResult[],
+    results: readonly FilterResult[],
     column: SortColumn,
     direction: SortDirection
-): FilterResult[] {
+): readonly FilterResult[] {
     const sortDirection = direction === 'asc' ? 1 : -1;
 
-    results.sort((a, b) => {
+    return results.toSorted((a, b) => {
         const tradeA = a.trade;
         const tradeB = b.trade;
         let valueA: number;
@@ -482,8 +484,8 @@ export function sortResults(
 
         switch (column) {
             case 'cost-amt': {
-                valueA = tradeA.item1.amount + (tradeA.item2?.amount || 0);
-                valueB = tradeB.item1.amount + (tradeB.item2?.amount || 0);
+                valueA = tradeA.item1.amount + (tradeA.item2?.amount ?? 0);
+                valueB = tradeB.item1.amount + (tradeB.item2?.amount ?? 0);
                 break;
             }
             case 'cost-name': {
@@ -516,8 +518,6 @@ export function sortResults(
         }
         return sortDirection * (valueA - valueB);
     });
-
-    return results;
 }
 
 // ============================================================================

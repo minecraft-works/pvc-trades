@@ -59,6 +59,11 @@ export class DynmapTileProvider implements TileProvider {
      * Generate Dynmap tile URL.
      *
      * Format: `{baseUrl}/tiles/{worldId}/{zoom}/{tileX}_{tileZ}.png`
+     * @param normalizedWorld - Normalized world name (e.g., 'overworld', 'the_nether')
+     * @param level - Detail level config with zoom id
+     * @param tileX - X tile coordinate
+     * @param tileZ - Z tile coordinate
+     * @returns Full URL string for the tile image
      */
     getSourceTileUrl(
         normalizedWorld: string,
@@ -72,6 +77,8 @@ export class DynmapTileProvider implements TileProvider {
 
     /**
      * Process a Dynmap tile image (identity — tiles are pure color maps).
+     * @param raw - Raw tile image blob from the server
+     * @returns ProcessedTile with the blob as the color image
      */
     processImage(raw: Blob): Promise<ProcessedTile> {
         return Promise.resolve({ colorImage: raw });

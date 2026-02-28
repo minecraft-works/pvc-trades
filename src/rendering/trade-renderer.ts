@@ -43,9 +43,9 @@ export interface TradeRendererDeps {
     /** Return current deviation calculator */
     getDeviation: () => (t: Trade) => DeviationResult | undefined;
     /** Return current active sort columns */
-    getActiveSorts: () => Map<SortColumn, SortDirection>;
+    getActiveSorts: () => ReadonlyMap<SortColumn, SortDirection>;
     /** Return set of new trade keys for highlighting */
-    getNewTradeKeys: () => Set<string>;
+    getNewTradeKeys: () => ReadonlySet<string>;
     /** Trigger a search refresh */
     search: () => void;
     /** Sort by a column (handles toggle logic) */
@@ -61,7 +61,7 @@ export interface TradeRendererHandler {
     /** Render the table header with sort arrows and filter toggles */
     renderHeader: () => void;
     /** Render trade results using virtual scrolling */
-    renderResults: (results: FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined) => void;
+    renderResults: (results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined) => void;
     /** Update sort arrow indicators in the header */
     updateSortArrows: () => void;
     /** Whether the "new trades only" filter is active */
@@ -74,7 +74,13 @@ export interface TradeRendererHandler {
 // Local DOM helper
 // ============================================================================
 
-/** @throws Error if element not found */
+/**
+ * Get a DOM element by ID, throwing if not found.
+ * @param id - DOM element ID to find
+ * @throws Error if element not found
+ * @returns The found element cast to the specified type
+ */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -85,7 +91,11 @@ function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
 // Pure helpers (exported)
 // ============================================================================
 
-/** Get cost display info for a trade (handles multi-item costs) */
+/**
+ * Get cost display info for a trade (handles multi-item costs)
+ * @param t - Trade to extract cost info from
+ * @returns Formatted cost amount and name strings for display
+ */
 function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
     let costAmt = String(t.item1.amount);
     let costName = t.costName;
@@ -96,7 +106,11 @@ function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
     return { costAmt, costName };
 }
 
-/** Get world abbreviation and full title */
+/**
+ * Get world abbreviation and full title
+ * @param world - World name string to categorize
+ * @returns World abbreviation and full title for display
+ */
 function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
     const worldLower = world.toLowerCase();
     if (worldLower.includes('nether')) {
@@ -108,8 +122,13 @@ function getWorldDisplayInfo(world: string): { abbrev: string; title: string } {
     return { abbrev: 'O', title: 'Overworld' };
 }
 
-/** Map isGood to CSS class name */
-function getDeviationClass(isGood: boolean | undefined = undefined): string {
+/**
+ * Map isGood to CSS class name
+ * @param isGood - Whether the trade is a good deal
+ * @returns CSS class name for the deviation cell
+ */
+// eslint-disable-next-line sonarjs/bool-param-default -- undefined vs false has distinct meaning (no deviation vs bad deal)
+function getDeviationClass(isGood?: boolean  ): string {
     if (isGood === undefined) {
         return '';
     }
@@ -118,6 +137,8 @@ function getDeviationClass(isGood: boolean | undefined = undefined): string {
 
 /**
  * Check if an item has additional details (lore or enchantments)
+ * @param item - Item to check for lore or enchantments
+ * @returns True if the item has lore or enchantments
  */
 function itemHasDetails(item: Item): boolean {
     const hasLore = Boolean(item.lore && item.lore.length > 0);
@@ -137,6 +158,8 @@ const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock
  *
  * Manages filter state (new-only, cart-only), virtual scrolling,
  * and regex highlighting as internal closure state.
+ * @param deps - Injected dependencies for the handler
+ * @returns Trade renderer handler bound to the provided dependencies
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRendererHandler {
@@ -155,8 +178,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
     function updateSortArrows(): void {
         for (const element of document.querySelectorAll<HTMLElement>('#table-header .header')) {
-            const label = element.dataset['label'] ?? '';
-            const col = element.dataset['col'] ?? '';
+            const label = element.dataset.label ?? '';
+            const col = element.dataset.col ?? '';
             const arrow = getArrow(col);
             element.textContent = RIGHT_ALIGNED_COLS.has(col) ? arrow + label : label + arrow;
             element.classList.toggle('active-sort', deps.getActiveSorts().has(col as SortColumn));
@@ -181,7 +204,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         for (const element of header.querySelectorAll<HTMLElement>('.header')) {
             element.addEventListener('click', () => {
-                const col = element.dataset['col'] as SortColumn | undefined;
+                const col = element.dataset.col as SortColumn | undefined;
                 if (col) { deps.sortByColumn(col); }
             });
         }
@@ -226,6 +249,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
      * Star is filled (active) when:
      * - Item is in favorites with NO threshold (watching at any price)
      * - Item is in favorites WITH threshold AND deviation meets threshold
+     * @param t - Trade to evaluate favorite status for
+     * @returns Favorite status flags and star CSS class for the trade
      */
     function getFavoriteInfo(t: Trade): { isFavorite: boolean; isDealAlert: boolean; starClass: string } {
         const resultItemNormalized = t.resultName.toLowerCase();
@@ -239,18 +264,24 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const deviationResult = deps.getDeviation()(t);
         const deviationPercent = deviationResult?.percent;
 
-        const hasThreshold = favorite.maxDeviation !== undefined;
-        const isDealAlert = hasThreshold
+        const threshold = favorite.maxDeviation;
+        const isDealAlert = threshold !== undefined
             && deviationPercent !== undefined
-            && deviationPercent <= favorite.maxDeviation!;
+            && deviationPercent <= threshold;
 
-        const starActive = !hasThreshold || isDealAlert;
+        const starActive = threshold === undefined || isDealAlert;
         const starClass = starActive ? 'favorite-star active' : 'favorite-star';
 
         return { isFavorite, isDealAlert, starClass };
     }
 
-    /** Apply status classes (favorite, deal-alert, new-item) to a trade row */
+    /**
+     * Apply status classes (favorite, deal-alert, new-item) to a trade row
+     * @param row - DOM element for the trade row
+     * @param tradeKey - Unique key identifying the trade
+     * @param t - Trade to evaluate for status classes
+     * @returns Row class info for use in HTML building
+     */
     function applyTradeRowClasses(row: HTMLElement, tradeKey: string, t: Trade): { isFavorite: boolean; starClass: string; inCartClass: string } {
         const { isFavorite, isDealAlert, starClass } = getFavoriteInfo(t);
         const inCartClass = cartStore.has(t) ? ' in-cart' : '';
@@ -260,13 +291,22 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         if (deps.getNewTradeKeys().has(tradeKey)) {
             row.classList.add('new-item');
-            row.dataset['new'] = 'true';
+            row.dataset.new = 'true';
         }
 
         return { isFavorite, starClass, inCartClass };
     }
 
-    /** Build the inner HTML for a trade row */
+    /**
+     * Build the inner HTML for a trade row
+     * @param result - Filter result containing trade and match data
+     * @param info - Pre-computed row class and key data
+     * @param info.isFavorite - Whether the result item is favorited
+     * @param info.starClass - CSS class string for the star button
+     * @param info.inCartClass - CSS class string suffix for cart button
+     * @param info.tradeKey - Unique key for the trade
+     * @returns Inner HTML string for the trade row
+     */
     function buildTradeRowHTML(result: FilterResult, info: { isFavorite: boolean; starClass: string; inCartClass: string; tradeKey: string }): string {
         const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
         const { costAmt, costName } = getCostDisplayInfo(t);
@@ -296,6 +336,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
     /**
      * Create a trade row DOM element for a single result
+     * @param result - Filter result to render as a row element
+     * @returns Configured DOM element for the trade row
      */
     function createTradeRowElement(result: FilterResult): HTMLElement {
         const { trade: t } = result;
@@ -303,36 +345,40 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const row = document.createElement('div');
         row.className = CSS_CLASSES.TRADE_ROW;
         row.setAttribute('role', 'row');
-        row.dataset['x'] = String(t.x);
-        row.dataset['y'] = String(t.y);
-        row.dataset['z'] = String(t.z);
-        row.dataset['world'] = t.world;
+        row.dataset.x = String(t.x);
+        row.dataset.y = String(t.y);
+        row.dataset.z = String(t.z);
+        row.dataset.world = t.world;
 
         const tradeKey = getTradeKey(t);
-        row.dataset['tradeKey'] = tradeKey;
+        row.dataset.tradeKey = tradeKey;
 
         const info = applyTradeRowClasses(row, tradeKey, t);
         row.innerHTML = buildTradeRowHTML(result, { ...info, tradeKey });
 
         // Star button click handler (opens favorites dialog)
-        const starButton = row.querySelector('.favorite-star') as HTMLButtonElement;
-        starButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            deps.openDialogForItem(t.resultName);
-        });
+        const starButton = row.querySelector('.favorite-star');
+        if (starButton) {
+            starButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                deps.openDialogForItem(t.resultName);
+            });
+        }
 
-        const cartButton = row.querySelector('.add-to-cart-btn') as HTMLButtonElement;
-        cartButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            cartStore.add(t);
-            cartButton.classList.add('in-cart', 'added');
-            setTimeout(() => cartButton.classList.remove('added'), 200);
-        });
+        const cartButton = row.querySelector('.add-to-cart-btn');
+        if (cartButton) {
+            cartButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                cartStore.add(t);
+                cartButton.classList.add('in-cart', 'added');
+                setTimeout(() => cartButton.classList.remove('added'), 200);
+            });
+        }
 
         return row;
     }
 
-    function renderResults(results: FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined): void {
+    function renderResults(results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined): void {
         const container = getElement('results');
 
         // Update global regex state for the row renderer
@@ -352,11 +398,11 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         // Initialize or update virtual scroller
         if (virtualScroller) {
-            virtualScroller.setItems(results);
+            virtualScroller.setItems(results as FilterResult[]);
         } else {
             virtualScroller = new VirtualScroller(
                 container,
-                results,
+                results as FilterResult[],
                 createTradeRowElement,
                 {
                     getEstimatedItemHeight: () => 32,

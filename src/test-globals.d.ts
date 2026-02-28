@@ -17,8 +17,8 @@ type NavMap = L.Map | undefined;
  * These are defined in main.ts when running tests.
  */
 declare global {
-    var __navCurrentRoute: RouteStop[];
-    var __navCurrentWorldRoute: RouteStop[];
+    var __navCurrentRoute: readonly RouteStop[];
+    var __navCurrentWorldRoute: readonly RouteStop[];
     var __navMap: NavMap;
     var __navMapWorld: string;
     var __navMapCenterTileX: number;

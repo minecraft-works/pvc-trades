@@ -107,6 +107,7 @@ export class PlayerPositionService {
      * Use for authoritative checks like auto-advance distance.
      *
      * @param playerName - Case-insensitive player name
+     * @returns Last confirmed position sample, or undefined if not tracked
      */
     getLastConfirmedPosition(playerName: string): PositionSample | undefined {
         return this._interpolators.get(playerName.toLowerCase())?.lastConfirmedPosition;
@@ -157,22 +158,36 @@ export class PlayerPositionService {
     // Inspection (debug / testing)
     // ====================================================================
 
-    /** Get interpolation phase for a player ('idle' | 'tracking') */
+    /**
+     * Get interpolation phase for a player ('idle' | 'tracking')
+     * @param playerName - Case-insensitive player name
+     * @returns Current interpolation phase string, or undefined if not tracked
+     */
     getPhase(playerName: string): string | undefined {
         return this._interpolators.get(playerName.toLowerCase())?.phase;
     }
 
-    /** Get the current estimated velocity for a player */
+    /**
+     * Get the current estimated velocity for a player
+     * @param playerName - Case-insensitive player name
+     * @returns Current velocity vector, or undefined if not tracked
+     */
     getVelocity(playerName: string): Velocity2D | undefined {
         return this._interpolators.get(playerName.toLowerCase())?.velocity;
     }
 
-    /** Get all tracked player names (lowercase) */
+    /**
+     * Get all tracked player names (lowercase)
+     * @returns Array of lowercase player name strings
+     */
     getPlayerNames(): string[] {
         return [...this._interpolators.keys()];
     }
 
-    /** Number of tracked players */
+    /**
+     * Number of tracked players
+     * @returns Count of players currently being interpolated
+     */
     get size(): number {
         return this._interpolators.size;
     }
@@ -181,7 +196,11 @@ export class PlayerPositionService {
     // Internal
     // ====================================================================
 
-    /** Get or create an interpolator for a player */
+    /**
+     * Get or create an interpolator for a player
+     * @param playerName - Case-insensitive player name
+     * @returns Existing or newly created interpolator for the player
+     */
     private _getOrCreate(playerName: string): PlayerInterpolator {
         const key = playerName.toLowerCase();
         let interpolator = this._interpolators.get(key);

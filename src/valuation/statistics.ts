@@ -37,15 +37,18 @@ import {
  * median([{price: 10}, {price: 20}]) // 15
  * median([])                     // undefined
  */
-export function median(array: PriceEntry[] | number[]): number | undefined {
+export function median(array: readonly PriceEntry[] | readonly number[]): number | undefined {
     if (array.length === 0) { return undefined; }
     const prices = array.map(p => typeof p === 'object' ? p.price : p);
-    const sorted = prices.toSorted((a, b) => a - b);
+    const sorted: readonly number[] = prices.toSorted((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     if (sorted.length % 2) {
-        return sorted[mid]!;
+        return sorted[mid];
     }
-    return (sorted[mid - 1]! + sorted[mid]!) / 2;
+    const lower = sorted[mid - 1];
+    const upper = sorted[mid];
+    if (lower === undefined || upper === undefined) { return undefined; }
+    return (lower + upper) / 2;
 }
 
 /**
@@ -59,7 +62,7 @@ export function median(array: PriceEntry[] | number[]): number | undefined {
  * // Two shops 100 blocks apart = 2 independent shops
  * countIndependentShops([{price: 10, x: 0, y: 64, z: 0}, {price: 12, x: 100, y: 64, z: 0}]) // 2
  */
-export function countIndependentShops(priceArray: PriceEntry[]): number {
+export function countIndependentShops(priceArray: readonly PriceEntry[]): number {
     const config = configStore.get();
     if (priceArray.length === 0) { return 0; }
 
@@ -128,14 +131,14 @@ export function getTrustedItemValue(
 ): number | undefined {
     const { minShops = 3 } = options;
     const blockConversions = blockConversionsStore.get();
-    const coreBlocks = coreBlocksStore.get();
+    const coreBlocks: readonly string[] = coreBlocksStore.get();
     const itemKey = itemName.toLowerCase();
 
     // Emerald is always 1
     if (itemKey === 'emerald') { return 1; }
     if (itemKey === 'emerald block') { return 9; }
 
-    const coreBlocksLower = coreBlocks.map(b => b.toLowerCase());
+    const coreBlocksLower: readonly string[] = coreBlocks.map(b => b.toLowerCase());
     const isCoreBlock = coreBlocksLower.includes(itemKey);
 
     // Try direct value from trades
@@ -155,8 +158,8 @@ export function getTrustedItemValue(
 // ============================================================================
 
 function getMedianValue(
-    buyPrices: PriceEntry[],
-    sellPrices: PriceEntry[]
+    buyPrices: readonly PriceEntry[],
+    sellPrices: readonly PriceEntry[]
 ): number | undefined {
     const buy = median(buyPrices);
     const sell = median(sellPrices);

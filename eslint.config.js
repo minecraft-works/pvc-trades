@@ -4,6 +4,10 @@ import unicorn from 'eslint-plugin-unicorn';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unusedImports from 'eslint-plugin-unused-imports';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import functional from 'eslint-plugin-functional';
+import jsdoc from 'eslint-plugin-jsdoc';
+import security from 'eslint-plugin-security';
+import regexp from 'eslint-plugin-regexp';
 
 export default tseslint.config(
     // Ignore generated and build files
@@ -25,13 +29,18 @@ export default tseslint.config(
         ]
     },
     js.configs.recommended,
-    ...tseslint.configs.recommendedTypeChecked,
+    ...tseslint.configs.strictTypeChecked,
+    ...tseslint.configs.stylisticTypeChecked,
     unicorn.configs.recommended,
     sonarjs.configs.recommended,
+    security.configs.recommended,
+    regexp.configs['flat/recommended'],
     {
         plugins: {
             'unused-imports': unusedImports,
-            'simple-import-sort': simpleImportSort
+            'simple-import-sort': simpleImportSort,
+            functional,
+            jsdoc
         },
         languageOptions: {
             ecmaVersion: 2022,
@@ -83,6 +92,90 @@ export default tseslint.config(
             // Zero any in production (vibe-coding-quality guard rail)
             '@typescript-eslint/no-explicit-any': 'error',
 
+            // Immutability (functional plugin) — core vibe-coding drift guard
+            'functional/immutable-data': ['error', {
+                ignoreImmediateMutation: true,
+                ignoreAccessorPattern: ['**.dataset.**', '**.style.**', '**.classList.**', '**.textContent', '**.innerHTML', '**.scrollTop', '**.value']
+            }],
+            'functional/no-let': ['error', { allowInForLoopInit: true }],
+            'functional/prefer-immutable-types': ['error', {
+                enforcement: 'ReadonlyShallow',
+                variables: {
+                    // Zod schema consts, default config objects, caches, and debug loggers
+                    // are module-level mutable by design (third-party Zod types, intentional caches)
+                    ignoreNamePattern: ['[A-Z]\\w*Schema$', '^DEFAULT_\\w+$', '\\w*[Cc]ache$', '^debug[A-Z]', '^__nav'],
+                    // Explicit module-level variables whose annotated type is a mutable builder
+                    // (Map, Set, Record, or array). Covered for implicit-type variables below.
+                    ignoreTypePattern: ['\\[\\]', '^Map<', '^Set<', '^Record<'],
+                    // Local variables inside functions are builder accumulators (arrays, Maps, Sets)
+                    // that cannot use readonly because they are mutated before being returned.
+                    ignoreInFunctions: true,
+                },
+                parameters: {
+                    // Skip parameters whose type is inferred (e.g. arrow-function callback args).
+                    ignoreInferredTypes: true,
+                    // Mutable Map parameters: item-values.ts helpers call .set() on them.
+                    // number[] / number[][] are algorithm-internal in route-optimizer.ts.
+                    ignoreTypePattern: ['^Map<', '^number\\[\\]$', '^number\\[\\]\\[\\]$'],
+                },
+                returnTypes: {
+                    // Inferred return types (helpers, callbacks) don't need explicit readonly annotation.
+                    ignoreInferredTypes: true,
+                    // DOM element return types are inherently mutable — getElement returns live HTMLElement refs.
+                    // Also covers generic type param T when T extends HTMLElement (interface property signatures).
+                    ignoreNamePattern: ['^getElement$'],
+                    ignoreTypePattern: ['^number\\[\\]$', '^number\\[\\]\\[\\]$', '^[A-Z]$'],
+                },
+            }],
+            'functional/no-return-void': 'off',
+            'functional/no-classes': 'off',
+            'functional/no-mixed-types': 'off',
+            'functional/no-promise-reject': 'off',
+            'functional/no-throw-statements': 'off',
+            'functional/prefer-property-signatures': 'error',
+            'functional/prefer-tacit': 'error',
+
+            // JSDoc enforcement — all exported functions must be documented
+            'jsdoc/require-jsdoc': ['error', {
+                publicOnly: true,
+                require: { FunctionDeclaration: true, ArrowFunctionExpression: false, MethodDefinition: false }
+            }],
+            'jsdoc/require-description': ['error', { descriptionStyle: 'body' }],
+            'jsdoc/require-returns': 'error',
+            'jsdoc/require-param': 'warn',
+            'jsdoc/require-param-description': 'error',
+            'jsdoc/check-param-names': 'error',
+            'jsdoc/check-types': 'error',
+            'jsdoc/no-undefined-types': 'error',
+
+            // Security — disable noisy rules with high false-positive rate
+            'security/detect-object-injection': 'off',
+            'security/detect-non-literal-regexp': 'off',
+            'security/detect-non-literal-fs-filename': 'off',
+
+            // Regex quality
+            'regexp/no-misleading-capturing-group': 'error',
+            'regexp/no-super-linear-backtracking': 'error',
+            'regexp/prefer-named-capture-group': 'error',
+            'regexp/no-empty-character-class': 'error',
+            'regexp/no-useless-backreference': 'error',
+
+            // Mutation guards — ban common AI drift patterns
+            'no-restricted-syntax': ['error',
+                {
+                    selector: 'UnaryExpression[operator="delete"]',
+                    message: 'Use object spread or Map.delete() instead of delete operator.'
+                },
+                {
+                    selector: 'CallExpression[callee.property.name="sort"][arguments.length=0]',
+                    message: 'Always pass an explicit comparator to .sort() — bare sort mutates and is locale-dependent.'
+                },
+                {
+                    selector: 'CallExpression[callee.object.name="Object"][callee.property.name="assign"]',
+                    message: 'Use object spread { ...a, ...b } instead of Object.assign().'
+                }
+            ],
+
             // Complexity rules - STRICT
             'complexity': ['error', { max: 12 }],
             'max-depth': ['error', { max: 4 }],
@@ -121,27 +214,95 @@ export default tseslint.config(
             'unicorn/no-array-callback-reference': 'error',
             'unicorn/prefer-global-this': 'error',
 
-            // Type-checked rules - allow some common patterns
-            '@typescript-eslint/no-non-null-assertion': 'warn',
+            // Type-checked rules — bumped to error for strictTypeChecked
+            '@typescript-eslint/no-non-null-assertion': 'error',
             '@typescript-eslint/restrict-template-expressions': ['error', {
                 allowNumber: true,
                 allowBoolean: true
             }],
-            '@typescript-eslint/no-unnecessary-condition': 'warn',
+            '@typescript-eslint/no-unnecessary-condition': 'error',
+            // Downgraded: getElement<T> pattern uses T only in return position but provides caller convenience
+            '@typescript-eslint/no-unnecessary-type-parameters': 'error',
             '@typescript-eslint/no-confusing-void-expression': 'off',
             '@typescript-eslint/restrict-plus-operands': ['error', {
                 allowNumberAndString: true
             }],
-            '@typescript-eslint/no-misused-spread': 'warn',
-            '@typescript-eslint/no-floating-promises': 'warn',
-            '@typescript-eslint/no-misused-promises': 'warn',
-            '@typescript-eslint/require-await': 'warn',
-            '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-            '@typescript-eslint/use-unknown-in-catch-callback-variable': 'warn',
-            '@typescript-eslint/no-deprecated': 'warn',
-            
+            '@typescript-eslint/no-misused-spread': 'error',
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error',
+            '@typescript-eslint/require-await': 'error',
+            '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+            '@typescript-eslint/use-unknown-in-catch-callback-variable': 'error',
+            '@typescript-eslint/no-deprecated': 'error',
+            // Readonly fields in classes (stores)
+            '@typescript-eslint/prefer-readonly': 'error',
+            // Force import type for type-only imports (tree-shaking + clarity)
+            '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
+            '@typescript-eslint/consistent-type-exports': 'error',
+            // Prefer nullish coalescing over ||, optional chains over &&-guards
+            '@typescript-eslint/prefer-nullish-coalescing': 'error',
+            '@typescript-eslint/prefer-optional-chain': 'error',
+
             // Unicorn adjustments for getElementById pattern
             'unicorn/prefer-query-selector': 'warn'
+        }
+    },
+    // Stores intentionally mutate state (ADR-005: class-based store pattern)
+    {
+        files: ['src/stores/**/*.ts'],
+        rules: {
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            'functional/prefer-property-signatures': 'off',
+            '@typescript-eslint/prefer-readonly': 'off',
+            'no-restricted-syntax': 'off'
+        }
+    },
+    // UI/DOM modules legitimately mutate DOM elements and local state
+    {
+        files: [
+            'src/main.ts',
+            'src/cart/**/*.ts',
+            'src/dialogs/**/*.ts',
+            'src/favorites/**/*.ts',
+            'src/map/**/*.ts',
+            'src/navigation/**/*.ts',
+            'src/rendering/**/*.ts',
+            'src/dashboard/**/*.ts'
+        ],
+        rules: {
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            '@typescript-eslint/prefer-readonly': 'off'
+        }
+    },
+    // Computation modules build data structures imperatively (Maps, arrays, Sets)
+    // but are pure functions that return new values — not external mutation
+    {
+        files: [
+            'src/library.ts',
+            'src/routing/**/*.ts',
+            'src/valuation/**/*.ts',
+            'src/search/**/*.ts',
+            'src/data-loader/**/*.ts',
+            'src/chatlog/**/*.ts',
+            'src/interpolation/**/*.ts',
+            'src/tile-coords.ts',
+            'src/tile-pyramid.ts'
+        ],
+        rules: {
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off'
+        }
+    },
+    // Route optimizer uses non-null assertions for array-index access in tight loops
+    // where bounds are guaranteed by algorithm invariants (ADR-004: nearest-neighbor + 2-opt)
+    {
+        files: ['src/routing/route-optimizer.ts'],
+        rules: {
+            '@typescript-eslint/no-non-null-assertion': 'error'
         }
     },
     // Relaxed rules for spec tests - these are large legacy test files
@@ -157,7 +318,21 @@ export default tseslint.config(
             'max-nested-callbacks': ['error', { max: 5 }],
             // Allow unsafe any in tests
             '@typescript-eslint/no-unsafe-assignment': 'off',
-            '@typescript-eslint/no-unsafe-member-access': 'off'
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            // Immutability: tests mutate mock data by design
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            // JSDoc not required in test files
+            'jsdoc/require-jsdoc': 'off',
+            // Non-null assertions are safe in controlled test data
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            // Prefer-readonly too strict in test setup
+            '@typescript-eslint/prefer-readonly': 'off',
+            // no-restricted-syntax: allow delete/Object.assign in test helpers
+            'no-restricted-syntax': 'off',
+            // nullish coalescing sometimes conflicts with test idioms
+            '@typescript-eslint/prefer-nullish-coalescing': 'off'
         }
     },
     // Relaxed rules for unit tests
@@ -176,7 +351,22 @@ export default tseslint.config(
             // Direct callback references are fine in tests
             'unicorn/no-array-callback-reference': 'off',
             // Array element overwrite is intentional in test data setup
-            'sonarjs/no-element-overwrite': 'off'
+            'sonarjs/no-element-overwrite': 'off',
+            // Immutability: tests mutate mock data by design
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            // JSDoc not required in test files
+            'jsdoc/require-jsdoc': 'off',
+            // Non-null safe in unit tests
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            // no-restricted-syntax too strict in tests
+            'no-restricted-syntax': 'off',
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            // Test cleanup patterns use delete and empty callbacks
+            '@typescript-eslint/no-dynamic-delete': 'off',
+            '@typescript-eslint/no-empty-function': 'off',
+            '@typescript-eslint/no-unnecessary-type-parameters': 'off'
         }
     },
     // Relaxed rules for property-based tests
@@ -194,7 +384,15 @@ export default tseslint.config(
             // Property tests often have many nested callbacks
             'max-nested-callbacks': 'off',
             // Non-null assertions are safe when we control test data
-            '@typescript-eslint/no-non-null-assertion': 'off'
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            // Immutability off for test data setup
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            // JSDoc not required in test files
+            'jsdoc/require-jsdoc': 'off',
+            'no-restricted-syntax': 'off',
+            '@typescript-eslint/prefer-nullish-coalescing': 'off'
         }
     },
     // Relaxed rules for BDD step definitions and support files
@@ -234,7 +432,20 @@ export default tseslint.config(
             'sonarjs/pseudo-random': 'off',
             'sonarjs/prefer-regexp-exec': 'off',
             'sonarjs/no-os-command-from-path': 'off',
-            '@typescript-eslint/no-unnecessary-condition': 'off'
+            '@typescript-eslint/no-unnecessary-condition': 'off',
+            // Immutability: BDD steps mutate page state by design
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            'functional/prefer-tacit': 'off',
+            'functional/prefer-property-signatures': 'off',
+            // JSDoc not required in step definitions
+            'jsdoc/require-jsdoc': 'off',
+            // no-restricted-syntax too strict in test helpers
+            'no-restricted-syntax': 'off',
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            '@typescript-eslint/prefer-readonly': 'off',
+            '@typescript-eslint/consistent-type-imports': 'off'
         }
     },
     // Relaxed rules for CLI build scripts
@@ -276,7 +487,19 @@ export default tseslint.config(
             // Deprecated APIs may be used in test files
             'sonarjs/deprecation': 'off',
             // Allow callback reference in simple cases
-            'unicorn/no-array-callback-reference': 'off'
+            'unicorn/no-array-callback-reference': 'off',
+            // Scripts mutate data structures for side-effectful CLI work
+            'functional/immutable-data': 'off',
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            'functional/prefer-tacit': 'off',
+            'functional/prefer-property-signatures': 'off',
+            // No JSDoc required in CLI scripts
+            'jsdoc/require-jsdoc': 'off',
+            // Object.assign and delete patterns allowed in scripts
+            'no-restricted-syntax': 'off',
+            '@typescript-eslint/prefer-nullish-coalescing': 'off',
+            '@typescript-eslint/prefer-readonly': 'off'
         }
     }
 );

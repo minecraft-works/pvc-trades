@@ -36,12 +36,12 @@ export type { DeviationResult } from '../types.js';
  * ```
  */
 export function createDeviationCalculator(
-    itemValues: ItemValues | undefined
-): (trade: Trade) => DeviationResult | undefined {
+    itemValues: Readonly<ItemValues> | undefined
+): (trade: Readonly<Trade>) => Readonly<DeviationResult> | undefined {
     // Internal cache for this calculator instance
     const cache = new Map<Trade, DeviationResult | undefined>();
 
-    return function getDeviation(trade: Trade): DeviationResult | undefined {
+    return function getDeviation(trade: Readonly<Trade>): Readonly<DeviationResult> | undefined {
         // Check cache first
         if (cache.has(trade)) {
             return cache.get(trade);
@@ -83,7 +83,7 @@ export function createDeviationCalculator(
         );
 
         // Build result
-        let result: DeviationResult;
+        let result: Readonly<DeviationResult>;
         if (percent === 0) {
             result = { ratio, percent, text: '0%', isGood: undefined };
         } else {

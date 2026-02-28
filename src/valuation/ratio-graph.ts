@@ -28,23 +28,26 @@ import { hasEnoughIndependentData,median } from './statistics.js';
  * Build a ratio graph for the core blocks
  * Combines: fixed ratios (block↔ingot), shop trades, and transitive deductions
  * Returns: Map of "itemA->itemB" => ratio (1 itemA = ratio itemB)
+ * @param itemValues - Aggregated item values computed from shop trades
+ * @returns Ratio graph mapping "itemA->itemB" keys to their numeric conversion ratios
  */
 export function buildRatioGraph(itemValues: ItemValues): RatioGraph {
-    const graph: RatioGraph = new Map();
     const coreBlocks = coreBlocksStore.get();
-    const blockConversions = blockConversionsStore.get();
     const coreBlocksLower = coreBlocks.map(b => b.toLowerCase());
+    const blockConversions = blockConversionsStore.get();
 
     const emeraldValues = buildEmeraldValuesFromTrades(itemValues);
-    addBlockConversionValues(emeraldValues, blockConversions);
-    calculateCoreBlockRatios(graph, coreBlocksLower, emeraldValues);
-
-    return graph;
+    const emeraldValuesWithConversions = applyBlockConversions(emeraldValues, blockConversions);
+    return buildCoreBlockRatios(coreBlocksLower, emeraldValuesWithConversions);
 }
 
 /**
  * Get the ratio between two items from the ratio graph
  * Returns undefined if no path exists
+ * @param graph - The ratio graph to query
+ * @param from - The source currency name (e.g., "emerald")
+ * @param to - The target currency name (e.g., "diamond")
+ * @returns The ratio (1 `from` = ratio `to`), or undefined if not found
  */
 export function getRatio(graph: RatioGraph, from: string, to: string): number | undefined {
     const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
@@ -68,20 +71,19 @@ export function buildExchangeMatrix(itemValues: ItemValues, side: 'buy' | 'sell'
     const emeraldValues = buildDirectionalEmeraldValues(itemValues, side);
 
     const labels: string[] = [];
-    const values: number[] = [];
-
+    const blockValues: number[] = [];
     for (const block of coreBlocks) {
         const value = emeraldValues.get(block.toLowerCase());
         if (value !== undefined) {
             labels.push(block);
-            values.push(value);
+            blockValues.push(value);
         }
     }
 
     const ratios: (number | undefined)[][] = [];
-    for (const [rowIndex, rowValue] of values.entries()) {
+    for (const [rowIndex, rowValue] of blockValues.entries()) {
         const row: (number | undefined)[] = [];
-        for (const [colIndex, colValue] of values.entries()) {
+        for (const [colIndex, colValue] of blockValues.entries()) {
             if (rowIndex === colIndex) {
                 row.push(1);
             } else {
@@ -99,18 +101,7 @@ export function buildExchangeMatrix(itemValues: ItemValues, side: 'buy' | 'sell'
 // Private Helpers
 // ============================================================================
 
-function addRatioToGraph(graph: RatioGraph, from: string, to: string, ratio: number): void {
-    if (!Number.isFinite(ratio) || ratio <= 0) { return; }
-    const key = `${from.toLowerCase()}->${to.toLowerCase()}`;
-    const reverseKey = `${to.toLowerCase()}->${from.toLowerCase()}`;
-
-    if (!graph.has(key)) {
-        graph.set(key, ratio);
-        graph.set(reverseKey, 1 / ratio);
-    }
-}
-
-function buildEmeraldValuesFromTrades(itemValues: ItemValues): Map<string, number> {
+function buildEmeraldValuesFromTrades(itemValues: ItemValues): ReadonlyMap<string, number> {
     const emeraldValues = new Map<string, number>();
     const config = configStore.get();
     const coreBlocks = coreBlocksStore.get();
@@ -136,58 +127,86 @@ function buildEmeraldValuesFromTrades(itemValues: ItemValues): Map<string, numbe
     return emeraldValues;
 }
 
-function addBlockConversionValues(
-    emeraldValues: Map<string, number>,
+/**
+ * Create a new map with block conversions derived from the given emerald values.
+ * @param baseValues - Existing emerald-equivalent values
+ * @param blockConversions - Block-to-ingot conversion rates
+ * @returns New map with block conversion values added
+ */
+function applyBlockConversions(
+    baseValues: ReadonlyMap<string, number>,
     blockConversions: BlockConversions
-): void {
+): ReadonlyMap<string, number> {
+    const result = new Map(baseValues);
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {
         const blockKey = blockName.toLowerCase();
         const baseKey = base.toLowerCase();
 
         // Derive block from base item (e.g. diamond × 9 = diamond block)
-        if (!emeraldValues.has(blockKey)) {
-            const baseValue = emeraldValues.get(baseKey);
+        if (!result.has(blockKey)) {
+            const baseValue = result.get(baseKey);
             if (baseValue !== undefined) {
-                emeraldValues.set(blockKey, baseValue * multiplier);
+                result.set(blockKey, baseValue * multiplier);
             }
         }
 
         // Derive base item from block (e.g. netherite block / 9 = netherite ingot)
-        if (!emeraldValues.has(baseKey)) {
-            const blockValue = emeraldValues.get(blockKey);
+        if (!result.has(baseKey)) {
+            const blockValue = result.get(blockKey);
             if (blockValue !== undefined) {
-                emeraldValues.set(baseKey, blockValue / multiplier);
+                result.set(baseKey, blockValue / multiplier);
             }
         }
     }
+    return result;
 }
 
-function calculateCoreBlockRatios(
-    graph: RatioGraph,
-    coreBlocksLower: string[],
-    emeraldValues: Map<string, number>
-): void {
-    for (const blockA of coreBlocksLower) {
-        const valueA = emeraldValues.get(blockA);
-        if (valueA === undefined) { continue; }
+/**
+ * Build a RatioGraph from core blocks using their emerald-equivalent values.
+ * @param coreBlocksLower - Lowercase core block names to compare
+ * @param emeraldValues - Emerald-equivalent values
+ * @returns Ratio graph with all pairwise conversion ratios
+ */
+function buildCoreBlockRatios(
+    coreBlocksLower: readonly string[],
+    emeraldValues: ReadonlyMap<string, number>
+): RatioGraph {
+    const graph = new Map<string, number>();
 
-        for (const blockB of coreBlocksLower) {
-            const valueB = blockA === blockB ? undefined : emeraldValues.get(blockB);
-            if (valueB === undefined) { continue; }
-
-            addRatioToGraph(graph, blockA, blockB, valueA / valueB);
+    // Pre-filter to only blocks with known emerald-equivalent values
+    const blocksWithValues: { readonly block: string; readonly value: number }[] = [];
+    for (const block of coreBlocksLower) {
+        const value = emeraldValues.get(block);
+        if (value !== undefined) {
+            blocksWithValues.push({ block, value });
         }
     }
+
+    for (const { block: blockA, value: valueA } of blocksWithValues) {
+        for (const { block: blockB, value: valueB } of blocksWithValues) {
+            if (blockA === blockB) { continue; }
+            const ratio = valueA / valueB;
+            const key = `${blockA}->${blockB}`;
+            if (Number.isFinite(ratio) && ratio > 0 && !graph.has(key)) {
+                graph.set(key, ratio);
+                graph.set(`${blockB}->${blockA}`, 1 / ratio);
+            }
+        }
+    }
+    return graph;
 }
 
 /**
  * Build emerald values using only buy or sell medians.
  * Used to create separate buy/sell exchange matrices.
+ * @param itemValues - Aggregated item values computed from shop trades
+ * @param side - Whether to use buy (ask) or sell (bid) prices
+ * @returns Map of item keys to their emerald-equivalent value on the given side
  */
 function buildDirectionalEmeraldValues(
     itemValues: ItemValues,
     side: 'buy' | 'sell'
-): Map<string, number> {
+): ReadonlyMap<string, number> {
     const emeraldValues = new Map<string, number>();
     const config = configStore.get();
     const coreBlocks = coreBlocksStore.get();
@@ -207,6 +226,5 @@ function buildDirectionalEmeraldValues(
 
     emeraldValues.set('emerald', 1);
     const blockConversions = blockConversionsStore.get();
-    addBlockConversionValues(emeraldValues, blockConversions);
-    return emeraldValues;
+    return applyBlockConversions(emeraldValues, blockConversions);
 }

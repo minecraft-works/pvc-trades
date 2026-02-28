@@ -25,6 +25,8 @@ import { CompactSnapshotHistorySchema,SnapshotHistorySchema, TradeSnapshotSchema
  * Pack expanded snapshots into the compact storage format.
  * Keys are deduplicated across all snapshots (union of all keys).
  * Missing trades in a snapshot get [null, 0] as placeholder.
+ * @param snapshots - Array of expanded trade snapshots to pack
+ * @returns Compact snapshot history with shared key array and parallel value arrays
  */
 export function packSnapshots(snapshots: TradeSnapshot[]): CompactSnapshotHistory {
     // Collect the union of all trade keys across all snapshots
@@ -53,6 +55,8 @@ export function packSnapshots(snapshots: TradeSnapshot[]): CompactSnapshotHistor
 
 /**
  * Unpack compact storage format back to expanded TradeSnapshot array.
+ * @param compact - Compact history object to expand
+ * @returns Array of expanded trade snapshots
  */
 export function unpackSnapshots(compact: CompactSnapshotHistory): TradeSnapshot[] {
     const { keys, snapshots: compactSnapshots } = compact;
@@ -103,6 +107,7 @@ class SnapshotStore {
      * 2. History format (v2): `{ snapshots: [{ timestamp, trades }] }`
      * 3. Single snapshot (v1): `{ timestamp, trades }`
      * Returns an empty array if nothing is stored or data is invalid.
+     * @returns Array of all stored trade snapshots, or empty array if none exist
      */
     loadAll(): TradeSnapshot[] {
         try {
@@ -142,6 +147,7 @@ class SnapshotStore {
      * Returns undefined if no snapshots exist.
      * 
      * @param targetAgeMs - Desired baseline age in milliseconds (default: 24h)
+     * @returns Snapshot closest to the target age, or undefined if none stored
      */
     loadBaseline(targetAgeMs: number = DASHBOARD.BASELINE_TARGET_AGE_MS): TradeSnapshot | undefined {
         const snapshots = this.loadAll();
@@ -167,6 +173,7 @@ class SnapshotStore {
     /**
      * Load the most recent snapshot from the history.
      * Returns undefined if no snapshots exist.
+     * @returns Most recent trade snapshot, or undefined if none stored
      */
     loadLatest(): TradeSnapshot | undefined {
         const snapshots = this.loadAll();
@@ -187,7 +194,7 @@ class SnapshotStore {
      * @returns true if a new snapshot was saved
      */
     appendIfDue(
-        trades: Trade[],
+        trades: readonly Trade[],
         getDeviation: (trade: Trade) => DeviationResult | undefined
     ): boolean {
         const snapshots = this.loadAll();
@@ -220,7 +227,7 @@ class SnapshotStore {
      * @param getDeviation - Deviation calculator for current item values
      */
     save(
-        trades: Trade[],
+        trades: readonly Trade[],
         getDeviation: (trade: Trade) => DeviationResult | undefined
     ): void {
         const snapshot = this.buildSnapshot(trades, getDeviation);
@@ -254,9 +261,15 @@ class SnapshotStore {
     // Private
     // ========================================================================
 
-    /** Build an expanded TradeSnapshot from current trades */
+    /**
+     * Build an expanded TradeSnapshot from current trades
+     * @param trades - Current trade list to snapshot
+     * @param getDeviation - Deviation calculator for current item values
+     * @param timestamp - Snapshot timestamp in epoch milliseconds
+     * @returns Expanded snapshot of current trade state
+     */
     private buildSnapshot(
-        trades: Trade[],
+        trades: readonly Trade[],
         getDeviation: (trade: Trade) => DeviationResult | undefined,
         timestamp: number = Date.now()
     ): TradeSnapshot {
@@ -274,7 +287,10 @@ class SnapshotStore {
         return { timestamp, trades: entries };
     }
 
-    /** Persist snapshot array to localStorage in compact format */
+    /**
+     * Persist snapshot array to localStorage in compact format
+     * @param snapshots - Array of snapshots to persist
+     */
     private persist(snapshots: TradeSnapshot[]): void {
         const compact = packSnapshots(snapshots);
         try {

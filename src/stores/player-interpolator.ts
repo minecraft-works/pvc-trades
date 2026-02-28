@@ -243,22 +243,32 @@ export class PlayerInterpolator {
     /**
      * Get the most recent confirmed (non-interpolated) position.
      * Use this for authoritative checks like auto-advance distance.
+     * @returns The last confirmed position sample, or undefined if no samples received
      */
     get lastConfirmedPosition(): PositionSample | undefined {
         return this._lastSample;
     }
 
-    /** Current estimated velocity vector */
+    /**
+     * Current estimated velocity vector
+     * @returns The estimated velocity in blocks per millisecond
+     */
     get velocity(): Velocity2D {
         return this._velocity;
     }
 
-    /** Current interpolation phase */
+    /**
+     * Current interpolation phase
+     * @returns The active interpolation phase ('idle' or 'tracking')
+     */
     get phase(): Phase {
         return this._phase;
     }
 
-    /** Last known yaw */
+    /**
+     * Last known yaw
+     * @returns The most recent yaw angle in degrees, or undefined if unknown
+     */
     get yaw(): number | undefined {
         return this._yaw;
     }
@@ -288,6 +298,8 @@ export class PlayerInterpolator {
     /**
      * Interpolate yaw between previous and current sample using shortest path.
      * Uses time-based progress over 200ms for smooth rotation.
+     * @param now - Current timestamp in milliseconds
+     * @returns Interpolated yaw angle in degrees, or undefined if insufficient data
      */
     private _interpolateYaw(now: number): number | undefined {
         const fromYaw = this._prevYaw;

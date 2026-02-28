@@ -137,12 +137,18 @@ class NavigationStore {
         return this._viewport;
     }
 
-    /** Get the current view world (which world's tiles/coords are displayed) */
+    /**
+     * Get the current view world (which world's tiles/coords are displayed)
+     * @returns The world identifier currently displayed on the map
+     */
     get viewWorld(): string {
         return this._viewWorld;
     }
 
-    /** Get the current view world mode (auto-switch vs manual) */
+    /**
+     * Get the current view world mode (auto-switch vs manual)
+     * @returns The active view world mode
+     */
     get viewWorldMode(): ViewWorldMode {
         return this._viewWorldMode;
     }
@@ -151,12 +157,18 @@ class NavigationStore {
         return this._refreshInterval;
     }
 
-    /** Get the current stop (next destination) */
+    /**
+     * Get the current stop (next destination)
+     * @returns The current route stop, or undefined if no route active
+     */
     get currentStop(): RouteStop | undefined {
         return this._worldRoute[this._progress.currentIndex];
     }
 
-    /** Get remaining stops count */
+    /**
+     * Get remaining stops count
+     * @returns Number of unvisited stops remaining in the world route
+     */
     get remainingStops(): number {
         return this._worldRoute.length - this._progress.currentIndex;
     }
@@ -167,6 +179,7 @@ class NavigationStore {
 
     /**
      * Start navigation session
+     * @param playerName - Player name to begin navigation for
      */
     start(playerName: string): void {
         this._isActive = true;
@@ -186,6 +199,7 @@ class NavigationStore {
 
     /**
      * Toggle between follow and manual modes
+     * @returns The new navigation mode after toggle
      */
     toggleMode(): NavigationMode {
         this._mode = this._mode === 'follow' ? 'manual' : 'follow';
@@ -195,6 +209,7 @@ class NavigationStore {
 
     /**
      * Set navigation mode directly
+     * @param mode - Navigation mode to set
      */
     setMode(mode: NavigationMode): void {
         this._mode = mode;
@@ -203,6 +218,7 @@ class NavigationStore {
 
     /**
      * Set the view world (which world's tiles/coords are displayed)
+     * @param world - World identifier to display
      */
     setViewWorld(world: string): void {
         this._viewWorld = world;
@@ -211,7 +227,7 @@ class NavigationStore {
 
     /**
      * Toggle between auto and manual view world modes.
-     * Returns the new mode.
+     * @returns The new view world mode after toggle
      */
     toggleViewWorldMode(): ViewWorldMode {
         this._viewWorldMode = this._viewWorldMode === 'auto' ? 'manual' : 'auto';
@@ -221,6 +237,7 @@ class NavigationStore {
 
     /**
      * Set view world mode directly
+     * @param mode - View world mode to set
      */
     setViewWorldMode(mode: ViewWorldMode): void {
         this._viewWorldMode = mode;
@@ -229,6 +246,7 @@ class NavigationStore {
 
     /**
      * Update player position
+     * @param position - New player position, or undefined to clear
      */
     setPlayerPosition(position: PlayerPosition | undefined): void {
         this._playerPosition = position;
@@ -236,6 +254,7 @@ class NavigationStore {
 
     /**
      * Set the full route
+     * @param route - Complete ordered route stops
      */
     setRoute(route: RouteStop[]): void {
         this._route = route;
@@ -243,6 +262,7 @@ class NavigationStore {
 
     /**
      * Set world-filtered route
+     * @param worldRoute - World-filtered subset of route stops
      */
     setWorldRoute(worldRoute: RouteStop[]): void {
         this._worldRoute = worldRoute;
@@ -250,6 +270,7 @@ class NavigationStore {
 
     /**
      * Mark a stop as complete
+     * @param key - Shop key to mark as completed
      */
     markStopComplete(key: string): void {
         this._progress.completedKeys.add(key);
@@ -258,6 +279,7 @@ class NavigationStore {
 
     /**
      * Unmark a stop as complete
+     * @param key - Shop key to remove from completed set
      */
     unmarkStopComplete(key: string): void {
         this._progress.completedKeys.delete(key);
@@ -267,6 +289,8 @@ class NavigationStore {
     /**
      * Sync progress with validated keys and index
      * Used when cart changes to remove invalid completed keys
+     * @param validCompletedKeys - Validated set of completed stop keys
+     * @param currentIndex - Current stop index after sync
      */
     syncProgress(validCompletedKeys: Set<string>, currentIndex: number): void {
         this._progress = {
@@ -288,6 +312,7 @@ class NavigationStore {
 
     /**
      * Set current stop index directly
+     * @param index - Target stop index to navigate to
      */
     setCurrentIndex(index: number): void {
         this._progress.currentIndex = Math.max(0, Math.min(index, this._worldRoute.length - 1));
@@ -311,6 +336,7 @@ class NavigationStore {
 
     /**
      * Set Leaflet map instance
+     * @param map - Leaflet map instance, or undefined to clear
      */
     setMap(map: L.Map | undefined): void {
         this._mapObjects.map = map;
@@ -318,6 +344,7 @@ class NavigationStore {
 
     /**
      * Set player marker
+     * @param marker - Leaflet marker for player position
      */
     setPlayerMarker(marker: L.Marker | undefined): void {
         this._mapObjects.playerMarker = marker;
@@ -325,6 +352,7 @@ class NavigationStore {
 
     /**
      * Set route polyline
+     * @param polyline - Leaflet polyline representing the route path
      */
     setRoutePolyline(polyline: L.Polyline | undefined): void {
         this._mapObjects.routePolyline = polyline;
@@ -332,6 +360,7 @@ class NavigationStore {
 
     /**
      * Set player-to-next-stop line
+     * @param line - Leaflet polyline from player to next stop
      */
     setPlayerToNextLine(line: L.Polyline | undefined): void {
         this._mapObjects.playerToNextLine = line;
@@ -339,6 +368,7 @@ class NavigationStore {
 
     /**
      * Set stop markers array
+     * @param markers - Array of Leaflet markers for route stops
      */
     setStopMarkers(markers: L.Marker[]): void {
         this._mapObjects.stopMarkers = markers;
@@ -377,6 +407,7 @@ class NavigationStore {
 
     /**
      * Set current map world
+     * @param world - World identifier for the current map view
      */
     setMapWorld(world: string): void {
         this._viewport.world = world;
@@ -384,6 +415,8 @@ class NavigationStore {
 
     /**
      * Set map center tile coordinates
+     * @param tileX - Horizontal tile coordinate for map center
+     * @param tileZ - Vertical tile coordinate for map center
      */
     setMapCenter(tileX: number, tileZ: number): void {
         this._viewport.centerTileX = tileX;
@@ -396,6 +429,7 @@ class NavigationStore {
 
     /**
      * Set player refresh interval
+     * @param interval - Active interval handle for player position polling
      */
     setRefreshInterval(interval: ReturnType<typeof setInterval>): void {
         this.clearRefreshInterval();
@@ -462,6 +496,7 @@ class NavigationStore {
 
     /**
      * Load player name from localStorage
+     * @returns Stored player name, or empty string if none
      */
     loadPlayerName(): string {
         try {
@@ -484,6 +519,7 @@ class NavigationStore {
 
     /**
      * Load navigation mode from localStorage
+     * @returns Loaded (or default) navigation mode
      */
     loadMode(): NavigationMode {
         try {
@@ -510,6 +546,7 @@ class NavigationStore {
 
     /**
      * Load view world from localStorage
+     * @returns Loaded (or default) view world identifier
      */
     loadViewWorld(): string {
         try {
@@ -536,6 +573,7 @@ class NavigationStore {
 
     /**
      * Load view world mode from localStorage
+     * @returns Loaded (or default) view world mode
      */
     loadViewWorldMode(): ViewWorldMode {
         try {

@@ -23,7 +23,11 @@ Object.defineProperty(globalThis, 'localStorage', { value: mockLocalStorage });
 // Dynamic import to pick up mocked localStorage
 const { snapshotStore, packSnapshots, unpackSnapshots } = await import('./snapshot-store.js');
 
-/** Minimal trade for testing */
+/**
+ * Minimal trade for testing
+ * @param overrides - Partial Trade fields to override defaults
+ * @returns A complete Trade fixture with given overrides applied
+ */
 function makeTrade(overrides: Partial<Trade> = {}): Trade {
     return {
         shopName: 'TestShop',
@@ -41,12 +45,19 @@ function makeTrade(overrides: Partial<Trade> = {}): Trade {
     } as Trade;
 }
 
-/** Simple deviation result */
+/**
+ * Simple deviation result
+ * @param percent - Deviation percentage (negative = better deal)
+ * @returns A DeviationResult with the given percent value
+ */
 function makeDeviation(percent: number): DeviationResult {
     return { percent, direction: percent < 0 ? 'better' : 'worse' } as DeviationResult;
 }
 
-/** Parse stored compact history back to expanded snapshots */
+/**
+ * Parse stored compact history back to expanded snapshots
+ * @returns Expanded trade snapshots from localStorage
+ */
 function parseStoredSnapshots(): TradeSnapshot[] {
     const raw = mockLocalStorage.getItem(STORAGE_KEYS.SNAPSHOT);
     expect(raw).toBeDefined();
@@ -54,28 +65,46 @@ function parseStoredSnapshots(): TradeSnapshot[] {
     return unpackSnapshots(compact);
 }
 
-/** Deviation calculator that always returns a fixed value */
+/**
+ * Deviation calculator that always returns a fixed value
+ * @param percent - Fixed deviation percentage to always return
+ * @returns A deviation calculator function always returning the fixed percent
+ */
 function fixedDeviation(percent: number) {
     return () => makeDeviation(percent);
 }
 
-/** Deviation calculator that always returns undefined */
+/**
+ * Deviation calculator that always returns undefined
+ * @returns Always undefined, simulating no deviation available
+ */
 function noDeviation(): DeviationResult | undefined {
     return undefined;
 }
 
-/** Store snapshots in v2 history format (for migration tests) */
+/**
+ * Store snapshots in v2 history format (for migration tests)
+ * @param snapshots - Snapshots to store in v2 history format
+ */
 function storeHistory(snapshots: TradeSnapshot[]): void {
     mockLocalStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify({ snapshots }));
 }
 
-/** Store snapshots in compact format */
+/**
+ * Store snapshots in compact format
+ * @param snapshots - Snapshots to store in compact format
+ */
 function storeCompact(snapshots: TradeSnapshot[]): void {
     const compact = packSnapshots(snapshots);
     mockLocalStorage.setItem(STORAGE_KEYS.SNAPSHOT, JSON.stringify(compact));
 }
 
-/** Build a minimal snapshot at a given timestamp */
+/**
+ * Build a minimal snapshot at a given timestamp
+ * @param timestamp - Snapshot creation time in milliseconds
+ * @param trades - Trade entries keyed by trade key
+ * @returns A minimal TradeSnapshot at the given timestamp
+ */
 function makeSnapshot(timestamp: number, trades: Record<string, { deviationPercent?: number; stock: number }> = {}): TradeSnapshot {
     return { timestamp, trades };
 }
@@ -160,7 +189,7 @@ describe('SnapshotStore', () => {
             storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline();
-            expect(baseline?.trades['a']?.stock).toBe(2);
+            expect(baseline?.trades.a?.stock).toBe(2);
         });
 
         test('returns oldest snapshot when all are younger than target', () => {
@@ -172,7 +201,7 @@ describe('SnapshotStore', () => {
             storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline();
-            expect(baseline?.trades['a']?.stock).toBe(1);
+            expect(baseline?.trades.a?.stock).toBe(1);
         });
 
         test('returns single snapshot when only one exists', () => {
@@ -180,7 +209,7 @@ describe('SnapshotStore', () => {
             storeCompact([makeSnapshot(now - 3_600_000, { a: { stock: 7 } })]);
 
             const baseline = snapshotStore.loadBaseline();
-            expect(baseline?.trades['a']?.stock).toBe(7);
+            expect(baseline?.trades.a?.stock).toBe(7);
         });
 
         test('accepts custom target age', () => {
@@ -193,7 +222,7 @@ describe('SnapshotStore', () => {
             storeCompact(snapshots);
 
             const baseline = snapshotStore.loadBaseline(6 * 3_600_000);
-            expect(baseline?.trades['a']?.stock).toBe(2);
+            expect(baseline?.trades.a?.stock).toBe(2);
         });
     });
 
@@ -214,7 +243,7 @@ describe('SnapshotStore', () => {
             ]);
 
             const latest = snapshotStore.loadLatest();
-            expect(latest?.trades['a']?.stock).toBe(2);
+            expect(latest?.trades.a?.stock).toBe(2);
         });
     });
 
@@ -267,7 +296,7 @@ describe('SnapshotStore', () => {
             const snapshots = parseStoredSnapshots();
             // 40h snapshot pruned, 25h + old latest + new = 3
             expect(snapshots).toHaveLength(3);
-            expect(snapshots[0]?.trades['a']?.stock).toBe(2);
+            expect(snapshots[0]?.trades.a?.stock).toBe(2);
         });
 
         test('stores correct trade data', () => {
@@ -367,13 +396,13 @@ describe('SnapshotStore', () => {
 
             // Load triggers migration
             const baseline = snapshotStore.loadBaseline();
-            expect(baseline?.trades['key1']?.stock).toBe(10);
+            expect(baseline?.trades.key1?.stock).toBe(10);
 
             // Appending converts to compact format
             snapshotStore.save([makeTrade()], fixedDeviation(0));
             const snapshots = parseStoredSnapshots();
             expect(snapshots).toHaveLength(2);
-            expect(snapshots[0]?.trades['key1']?.stock).toBe(10);
+            expect(snapshots[0]?.trades.key1?.stock).toBe(10);
         });
 
         test('v2 history format is migrated on re-save', () => {
@@ -413,8 +442,8 @@ describe('SnapshotStore', () => {
 
             expect(unpacked).toHaveLength(1);
             expect(unpacked[0]?.timestamp).toBe(1000);
-            expect(unpacked[0]?.trades['key1']).toEqual({ deviationPercent: -15, stock: 42 });
-            expect(unpacked[0]?.trades['key2']).toEqual({ deviationPercent: undefined, stock: 7 });
+            expect(unpacked[0]?.trades.key1).toEqual({ deviationPercent: -15, stock: 42 });
+            expect(unpacked[0]?.trades.key2).toEqual({ deviationPercent: undefined, stock: 7 });
         });
 
         test('deduplicates keys across snapshots', () => {
@@ -447,12 +476,12 @@ describe('SnapshotStore', () => {
             const unpacked = unpackSnapshots(packed);
 
             // First snapshot has 'a' but not 'b'
-            expect(unpacked[0]?.trades['a']?.stock).toBe(1);
-            expect(unpacked[0]?.trades['b']?.stock).toBe(0); // placeholder
+            expect(unpacked[0]?.trades.a?.stock).toBe(1);
+            expect(unpacked[0]?.trades.b?.stock).toBe(0); // placeholder
 
             // Second snapshot has 'b' but not 'a'
-            expect(unpacked[1]?.trades['b']?.stock).toBe(2);
-            expect(unpacked[1]?.trades['a']?.stock).toBe(0); // placeholder
+            expect(unpacked[1]?.trades.b?.stock).toBe(2);
+            expect(unpacked[1]?.trades.a?.stock).toBe(0); // placeholder
         });
 
         test('preserves null deviation through compact format', () => {
@@ -464,7 +493,7 @@ describe('SnapshotStore', () => {
             expect(packed.snapshots[0]?.v[0]?.[0]).toBeNull(); // stored as null
 
             const unpacked = unpackSnapshots(packed);
-            expect(unpacked[0]?.trades['a']?.deviationPercent).toBeUndefined(); // restored as undefined
+            expect(unpacked[0]?.trades.a?.deviationPercent).toBeUndefined(); // restored as undefined
         });
 
         test('empty snapshot array packs and unpacks', () => {

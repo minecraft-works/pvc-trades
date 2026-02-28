@@ -34,7 +34,7 @@ import { CartItemArraySchema } from '../types.js';
  */
 class CartStore {
     private _items: CartItem[] = [];
-    private _onChangeCallbacks: Array<() => void> = [];
+    private _onChangeCallbacks: (() => void)[] = [];
 
     // ========================================================================
     // Getters
@@ -42,6 +42,7 @@ class CartStore {
 
     /**
      * Get all cart items (returns a copy to prevent external mutation)
+     * @returns Shallow copy of all cart items
      */
     get items(): CartItem[] {
         return [...this._items];
@@ -49,6 +50,7 @@ class CartStore {
 
     /**
      * Get total number of items in cart (sum of quantities)
+     * @returns Sum of all item quantities
      */
     get totalQuantity(): number {
         return this._items.reduce((sum, item) => sum + item.quantity, 0);
@@ -56,6 +58,7 @@ class CartStore {
 
     /**
      * Get number of unique trades in cart
+     * @returns Count of distinct trade entries
      */
     get uniqueCount(): number {
         return this._items.length;
@@ -63,6 +66,7 @@ class CartStore {
 
     /**
      * Check if cart is empty
+     * @returns True if the cart contains no items
      */
     get isEmpty(): boolean {
         return this._items.length === 0;
@@ -74,6 +78,7 @@ class CartStore {
 
     /**
      * Add a trade to the cart (or increment quantity if exists)
+     * @param trade - Trade to add or increment
      */
     add(trade: Trade): void {
         const key = getTradeKey(trade);
@@ -91,6 +96,7 @@ class CartStore {
 
     /**
      * Remove a trade from the cart entirely
+     * @param trade - Trade to remove from the cart
      */
     remove(trade: Trade): void {
         const key = getTradeKey(trade);
@@ -117,6 +123,8 @@ class CartStore {
 
     /**
      * Set exact quantity for a cart item
+     * @param trade - Trade whose quantity to set
+     * @param quantity - New quantity (clamped to zero minimum)
      */
     setQuantity(trade: Trade, quantity: number): void {
         const key = getTradeKey(trade);
@@ -131,6 +139,8 @@ class CartStore {
 
     /**
      * Find a cart item by trade
+     * @param trade - Trade to look up in the cart
+     * @returns Matching cart item, or undefined if not in cart
      */
     find(trade: Trade): CartItem | undefined {
         const key = getTradeKey(trade);
@@ -139,6 +149,8 @@ class CartStore {
 
     /**
      * Check if a trade is in the cart
+     * @param trade - Trade to check
+     * @returns True if the trade is in the cart
      */
     has(trade: Trade): boolean {
         const key = getTradeKey(trade);
@@ -209,6 +221,7 @@ class CartStore {
 
     /**
      * Register a callback to be called when cart changes
+     * @param callback - Function invoked when cart contents change
      * @returns Unsubscribe function
      */
     onChange(callback: () => void): () => void {
@@ -237,6 +250,7 @@ class CartStore {
     /**
      * Get direct reference to items array (for testing/migration)
      * @internal
+     * @returns Direct reference to the internal cart items array
      */
     _getItemsRef(): CartItem[] {
         return this._items;
@@ -244,6 +258,7 @@ class CartStore {
 
     /**
      * Set items directly (for testing/migration)
+     * @param items - Array of cart items to set directly
      * @internal
      */
     _setItems(items: CartItem[]): void {

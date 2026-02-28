@@ -24,6 +24,7 @@ declare global {
 /**
  * Check if animations should be disabled (for testing).
  * Respects both test flag and user's `prefers-reduced-motion` preference.
+ * @returns True if animations should be suppressed
  */
 export function shouldDisableAnimations(): boolean {
     // Check if running in browser environment
@@ -129,17 +130,17 @@ export type MappingRule = z.infer<typeof MappingRuleSchema>;
 // ============================================================================
 
 export interface Item {
-    type: string;
-    name: string;
-    amount: number;
-    enchant?: Record<string, number>;
-    lore?: string[];
+    readonly type: string;
+    readonly name: string;
+    readonly amount: number;
+    readonly enchant?: Readonly<Record<string, number>>;
+    readonly lore?: readonly string[];
 }
 
 export interface ShulkerItem {
-    key: string;
-    name: string;
-    total: number;
+    readonly key: string;
+    readonly name: string;
+    readonly total: number;
 }
 
 export interface ShulkerParseResult {
@@ -174,30 +175,30 @@ export interface ShopData {
 // ============================================================================
 
 export interface Trade {
-    x: number;
-    y: number;
-    z: number;
-    world: string;
-    item1: Item;
-    item2?: Item;
-    resultItem: Item;
-    stock: number;
-    displayStock: number;
-    resultText: string;
-    costText: string;
-    loreText: string;
-    shulkerItems: ShulkerItem[] | undefined;
-    resultName: string;
-    resultAmount: number;
-    costName: string;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly world: string;
+    readonly item1: Item;
+    readonly item2?: Item;
+    readonly resultItem: Item;
+    readonly stock: number;
+    readonly displayStock: number;
+    readonly resultText: string;
+    readonly costText: string;
+    readonly loreText: string;
+    readonly shulkerItems: readonly ShulkerItem[] | undefined;
+    readonly resultName: string;
+    readonly resultAmount: number;
+    readonly costName: string;
 }
 
 export interface FilterResult {
-    trade: Trade;
-    matchResult: boolean;
-    matchCost: boolean;
-    displayName: string;
-    displayAmount: number;
+    readonly trade: Trade;
+    readonly matchResult: boolean;
+    readonly matchCost: boolean;
+    readonly displayName: string;
+    readonly displayAmount: number;
 }
 
 // ============================================================================
@@ -295,28 +296,28 @@ export type ViewWorldMode = 'auto' | 'manual';
 // ============================================================================
 
 export interface PriceEntry {
-    price: number;
-    x: number;
-    y: number;
-    z: number;
+    readonly price: number;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
 }
 
 export interface ItemValueEntry {
-    name: string;
-    buyPrices: PriceEntry[];
-    sellPrices: PriceEntry[];
+    readonly name: string;
+    readonly buyPrices: PriceEntry[];
+    readonly sellPrices: PriceEntry[];
 }
 
-export type ItemValues = Map<string, ItemValueEntry>;
+export type ItemValues = ReadonlyMap<string, ItemValueEntry>;
 
-export type RatioGraph = Map<string, number>;
+export type RatioGraph = ReadonlyMap<string, number>;
 
 /** NxN exchange rate matrix for core currencies */
 export interface ExchangeMatrix {
     /** Currency names in display order */
-    labels: string[];
+    readonly labels: readonly string[];
     /** ratios[row][col] = how many of labels[col] for 1 of labels[row], or undefined */
-    ratios: (number | undefined)[][];
+    readonly ratios: readonly (readonly (number | undefined)[])[];
 }
 
 // ============================================================================
@@ -328,8 +329,8 @@ export interface ExchangeMatrix {
 // ============================================================================
 
 export interface NormalizeResult {
-    matches: boolean;
-    amount: number;
+    readonly matches: boolean;
+    readonly amount: number;
 }
 
 export interface TrustedValueOptions {
@@ -341,15 +342,15 @@ export interface TrustedValueOptions {
 // ============================================================================
 
 export interface TradeInput {
-    resultName: string;
-    resultAmount: number;
-    costName: string;
-    costAmount: number;
-    item1Name: string;
-    item2?: Item;
-    x: number;
-    y: number;
-    z: number;
+    readonly resultName: string;
+    readonly resultAmount: number;
+    readonly costName: string;
+    readonly costAmount: number;
+    readonly item1Name: string;
+    readonly item2?: Item;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
 }
 
 // ============================================================================
@@ -362,11 +363,11 @@ export interface TradeInput {
  */
 export interface FavoriteItem {
     /** Normalized item name (lowercase) */
-    itemName: string;
+    readonly itemName: string;
     /** Optional: only highlight if deviation ≤ this value (e.g., -20 means 20% below market) */
-    maxDeviation?: number;
+    readonly maxDeviation?: number;
     /** Timestamp when added (for sort order) */
-    addedAt: number;
+    readonly addedAt: number;
 }
 
 const FavoriteItemSchema = z.object({
@@ -398,13 +399,13 @@ export interface TradeSnapshotEntry {
  */
 export interface DeviationResult {
     /** The ratio of actual price to expected price (>1 = paying more) */
-    ratio: number;
+    readonly ratio: number;
     /** Percentage deviation, clamped to [-99, 999] for display */
-    percent: number;
+    readonly percent: number;
     /** Display text like "+10%" or "−5%" */
-    text: string;
+    readonly text: string;
     /** True if good deal (negative deviation), false if bad, undefined if neutral */
-    isGood: boolean | undefined;
+    readonly isGood: boolean | undefined;
 }
 
 const TradeSnapshotEntrySchema = z.object({
@@ -502,13 +503,13 @@ export interface WatchlistHit {
  */
 export interface DashboardData {
     /** Trade keys that are new since last visit */
-    newTradeKeys: string[];
+    readonly newTradeKeys: readonly string[];
     /** Trades where deviation improved by ≥5 percentage points */
-    priceDrops: PriceDrop[];
+    readonly priceDrops: readonly PriceDrop[];
     /** Watchlist items with active deals */
-    watchlistHits: WatchlistHit[];
+    readonly watchlistHits: readonly WatchlistHit[];
     /** Timestamp of previous snapshot (for "14h ago" display) */
-    lastVisit: number | undefined;
+    readonly lastVisit: number | undefined;
 }
 
 // ============================================================================

@@ -26,6 +26,7 @@ import type { DeviationResult } from '../types.js';
 import type {
     ItemValues,
     MappingRule,
+    Shop,
     ShopData,
     Trade,
 } from '../types.js';
@@ -43,6 +44,7 @@ import type {
  */
 export interface DataLoaderDeps {
     /** Get a DOM element by id (throws if missing) */
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     /** Render table header (lazy: bound after renderer init) */
     renderHeader: () => void;
@@ -61,7 +63,7 @@ export interface DataLoaderHandler {
     /** Refresh shop data from remote API */
     refreshShopData: () => Promise<number>;
     /** Return current trade list */
-    getAllTrades: () => Trade[];
+    getAllTrades: () => readonly Trade[];
     /** Look up a trade by its unique key */
     getTradeByKey: (key: string) => Trade | undefined;
     /** Return current deviation calculator function */
@@ -69,7 +71,7 @@ export interface DataLoaderHandler {
     /** Return current item values (may be undefined before load) */
     getItemValues: () => ItemValues | undefined;
     /** Return set of new trade keys for highlighting */
-    getNewTradeKeys: () => Set<string>;
+    getNewTradeKeys: () => ReadonlySet<string>;
 }
 
 // ============================================================================
@@ -81,6 +83,8 @@ export interface DataLoaderHandler {
  *
  * Manages trade data, item values, deviation calculator, and refresh
  * interval as internal closure state.
+ * @param deps - Dependencies injected from the host module
+ * @returns Handler object with trade access and lifecycle methods
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler {
@@ -92,8 +96,12 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     const newTradeKeys = new Set<string>();
     let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
-    /** Build the item-value calculation input from current trades */
-    function buildItemValueInput(trades: Trade[]) {
+    /**
+     * Build the item-value calculation input from current trades
+     * @param trades - Current trade list to build inputs from
+     * @returns Array of trade input objects for item value calculation
+     */
+    function buildItemValueInput(trades: readonly Trade[]) {
         return trades.map(t => ({
             resultName: t.resultName,
             resultAmount: t.resultAmount,
@@ -105,7 +113,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
         }));
     }
 
-    function processShops(shops: ShopData['data']): void {
+    function processShops(shops: readonly Shop[]): void {
         allTrades = [];
         tradesByKey.clear();
         for (const shop of shops) {
@@ -120,6 +128,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     /**
      * Refresh shop data from remote API.
      * Returns the number of new trades detected and marks them for highlighting.
+     * @returns Number of new trades detected since the last load
      */
     async function refreshShopData(): Promise<number> {
         try {
@@ -134,6 +143,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             const data = (await response.json()) as ShopData;
 
             // Track existing trade keys before processing new data
+            // eslint-disable-next-line functional/prefer-tacit -- unicorn/no-array-callback-reference conflicts
             const existingTradeKeys = new Set(allTrades.map(t => getTradeKey(t)));
 
             processShops(data.data);
@@ -215,10 +225,10 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     return {
         loadShops,
         refreshShopData,
-        getAllTrades: () => allTrades,
+        getAllTrades: (): readonly Trade[] => allTrades,
         getTradeByKey: (key) => tradesByKey.get(key),
         getDeviation: () => getDeviation,
         getItemValues: () => itemValues,
-        getNewTradeKeys: () => newTradeKeys,
+        getNewTradeKeys: (): ReadonlySet<string> => newTradeKeys,
     };
 }

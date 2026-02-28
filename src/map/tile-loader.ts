@@ -22,6 +22,7 @@ import {
 import type { LoadTileOptions, ManifestEntry,TileConfig } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- CDN global, not an importable module
 declare const L: typeof import('leaflet');
 
 const debugTiles = debug('tiles');
@@ -72,7 +73,7 @@ const tileBlobCache = new Map<string, string>();
  * Key format: "world/blocksPerTile/x/z" -> true
  */
 let tileManifestCache: Set<string> | undefined;
-let manifestLoadPromise: Promise<void> | undefined;
+let manifestLoadPromise: Promise<Set<string>> | undefined;
 
 // ============================================================================
 // Manifest Functions
@@ -93,9 +94,7 @@ export async function loadTileManifest(): Promise<Set<string>> {
     // If loading is in progress, wait for it
     if (manifestLoadPromise !== undefined) {
         debugTiles('manifest: waiting for in-progress load');
-        await manifestLoadPromise;
-        debugTiles('manifest: in-progress load complete size=%d', (tileManifestCache as Set<string> | undefined)?.size ?? 0);
-        return tileManifestCache ?? new Set();
+        return manifestLoadPromise;
     }
     
     // Start loading - DON'T set tileManifestCache until fetch completes
@@ -124,10 +123,10 @@ export async function loadTileManifest(): Promise<Set<string>> {
         }
         // Only set the global cache AFTER loading completes
         tileManifestCache = newCache;
+        return newCache;
     })();
     
-    await manifestLoadPromise;
-    return tileManifestCache ?? new Set();
+    return manifestLoadPromise;
 }
 
 /**
@@ -197,14 +196,14 @@ export function loadTileToMap(options: LoadTileOptions): void {
             const blobUrl = URL.createObjectURL(blob);
             tileBlobCache.set(cacheKey, blobUrl);
             // Check map still exists before adding
-            if (map.getContainer()?.isConnected) {
+            if (map.getContainer().isConnected) {
                 debugTiles('loadTile: ADDED to map cacheKey=%s', cacheKey);
                 L.imageOverlay(blobUrl, bounds, overlayOptions).addTo(map);
             } else {
                 debugTiles('loadTile: MAP GONE cacheKey=%s (still cached)', cacheKey);
             }
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
             debugTiles('loadTile: ERROR url=%s error=%o', url, error);
         });
 }
@@ -265,6 +264,7 @@ export function setCachedTileUrl(worldId: string, level: number, tx: number, tz:
 /**
  * Get the current blob cache size (for testing)
  * @internal
+ * @returns Number of cached blob URLs currently held in memory
  */
 export function _getBlobCacheSize(): number {
     return tileBlobCache.size;

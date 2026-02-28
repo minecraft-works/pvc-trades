@@ -14,6 +14,7 @@
  * Set up a dialog to close when clicking on backdrop (outside the dialog box).
  * Only closes if both mousedown and mouseup happen outside the dialog,
  * preventing accidental closes when panning a map and releasing outside.
+ * @param dialog - The dialog element to configure for backdrop-close behavior
  */
 export function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
     let mouseDownOutside = false;

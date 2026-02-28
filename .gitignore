@@ -40,3 +40,7 @@ docs/api/
 lint-output.txt
 src/chatlog.json
 chatlog-parsed.txt
+
+eslint-out.txt
+eslint-remaining.txt
+lint-jsdoc.json

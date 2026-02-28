@@ -106,7 +106,7 @@ const MAX_STEP_MS = 100;
  * const v = estimateVelocity({ x: 0, z: 0 }, { x: 10, z: 0 }, 1000);
  * // v = { vx: 0.01, vz: 0 } (10 blocks/s → 0.01 blocks/ms)
  */
-export function estimateVelocity(previous: Position2D, current: Position2D, dtMs: number): Velocity2D {
+export function estimateVelocity(previous: Readonly<Position2D>, current: Readonly<Position2D>, dtMs: number): Readonly<Velocity2D> {
     if (dtMs <= 0) { return { vx: 0, vz: 0 }; }
 
     const vx = (current.x - previous.x) / dtMs;
@@ -155,11 +155,11 @@ export function estimateVelocity(previous: Position2D, current: Position2D, dtMs
  * // result.position.x ≈ 0.064 (pulled toward target)
  */
 export function springStep(
-    displayPos: Position2D,
-    targetPos: Position2D,
-    displayVelocity: Velocity2D,
-    config: SpringConfig
-): SpringResult {
+    displayPos: Readonly<Position2D>,
+    targetPos: Readonly<Position2D>,
+    displayVelocity: Readonly<Velocity2D>,
+    config: Readonly<SpringConfig>
+): Readonly<SpringResult> {
     const { stiffness, damping, dtMs } = config;
     // Clamp dt to prevent instability from large gaps
     const clampedDt = Math.min(Math.max(0, dtMs), MAX_STEP_MS);

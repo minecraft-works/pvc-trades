@@ -279,34 +279,34 @@ describe('applyMapping', () => {
     test('maps vote diamond correctly', () => {
         const rules: MappingRule[] = [{ item: DIAMOND, originalName: VOTES_CERTIFICATE, enchant: { [MINECRAFT_EFFICIENCY]: 1 }, customName: 'VOTE_DIAMOND' }];
         const item: Item = { type: DIAMOND, name: VOTES_CERTIFICATE, amount: 1, enchant: { [MINECRAFT_EFFICIENCY]: 1 } };
-        applyMapping(item, rules);
-        expect(item.type).toBe('VOTE_DIAMOND');
-        expect(item.name).toBe('');
+        const result = applyMapping(item, rules);
+        expect(result?.type).toBe('VOTE_DIAMOND');
+        expect(result?.name).toBe('');
     });
 
     test('does not map without matching enchant', () => {
         const rules: MappingRule[] = [{ item: DIAMOND, originalName: VOTES_CERTIFICATE, enchant: { [MINECRAFT_EFFICIENCY]: 1 }, customName: 'VOTE_DIAMOND' }];
         const item: Item = { type: DIAMOND, name: VOTES_CERTIFICATE, amount: 1, enchant: {} };
-        applyMapping(item, rules);
-        expect(item.type).toBe(DIAMOND);
+        const result = applyMapping(item, rules);
+        expect(result?.type).toBe(DIAMOND);
     });
 
     test('does not map without matching name', () => {
         const rules: MappingRule[] = [{ item: DIAMOND, originalName: VOTES_CERTIFICATE, enchant: { [MINECRAFT_EFFICIENCY]: 1 }, customName: 'VOTE_DIAMOND' }];
         const item: Item = { type: DIAMOND, name: 'Other Name', amount: 1, enchant: { [MINECRAFT_EFFICIENCY]: 1 } };
-        applyMapping(item, rules);
-        expect(item.type).toBe(DIAMOND);
+        const result = applyMapping(item, rules);
+        expect(result?.type).toBe(DIAMOND);
     });
 
     test('handles undefined item', () => {
-        expect(() => applyMapping(undefined, [])).not.toThrow();
+        expect(applyMapping(undefined, [])).toBeUndefined();
     });
 
     test('handles minecraft: prefix in type', () => {
         const rules: MappingRule[] = [{ item: 'DIAMOND', originalName: 'Test', customName: 'TEST_ITEM' }];
         const item: Item = { type: 'minecraft:diamond', name: 'Test', amount: 1, enchant: {} };
-        applyMapping(item, rules);
-        expect(item.type).toBe('TEST_ITEM');
+        const result = applyMapping(item, rules);
+        expect(result?.type).toBe('TEST_ITEM');
     });
 });
 
@@ -487,10 +487,10 @@ describe('sortResults', () => {
             { trade: createTrade(50, 1, 'B', 1), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 50 },
             { trade: createTrade(25, 1, 'C', 1), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 25 }
         ];
-        sortResults(results, 'result-amt', 'desc');
-        expect(results[0]!.trade.resultName).toBe('B');
-        expect(results[1]!.trade.resultName).toBe('C');
-        expect(results[2]!.trade.resultName).toBe('A');
+        const sorted0 = sortResults(results, 'result-amt', 'desc');
+        expect(sorted0[0]!.trade.resultName).toBe('B');
+        expect(sorted0[1]!.trade.resultName).toBe('C');
+        expect(sorted0[2]!.trade.resultName).toBe('A');
     });
 
     test('sorts by result-name ascending', () => {
@@ -499,10 +499,10 @@ describe('sortResults', () => {
             { trade: createTrade(1, 1, 'Apple', 1), matchResult: true, matchCost: false, displayName: 'Apple', displayAmount: 1 },
             { trade: createTrade(1, 1, 'Mango', 1), matchResult: true, matchCost: false, displayName: 'Mango', displayAmount: 1 }
         ];
-        sortResults(results, 'result-name', 'asc');
-        expect(results[0]!.trade.resultName).toBe('Apple');
-        expect(results[1]!.trade.resultName).toBe('Mango');
-        expect(results[2]!.trade.resultName).toBe('Zebra');
+        const sorted1 = sortResults(results, 'result-name', 'asc');
+        expect(sorted1[0]!.trade.resultName).toBe('Apple');
+        expect(sorted1[1]!.trade.resultName).toBe('Mango');
+        expect(sorted1[2]!.trade.resultName).toBe('Zebra');
     });
 
     test('sorts by world ascending', () => {
@@ -511,10 +511,10 @@ describe('sortResults', () => {
             { trade: createTrade(1, 1, 'B', 1, OVERWORLD), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 1 },
             { trade: createTrade(1, 1, 'C', 1, 'the_end'), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 1 }
         ];
-        sortResults(results, 'world', 'asc');
-        expect(results[0]!.trade.world).toBe(OVERWORLD);
-        expect(results[1]!.trade.world).toBe('the_end');
-        expect(results[2]!.trade.world).toBe(THE_NETHER);
+        const sorted2 = sortResults(results, 'world', 'asc');
+        expect(sorted2[0]!.trade.world).toBe(OVERWORLD);
+        expect(sorted2[1]!.trade.world).toBe('the_end');
+        expect(sorted2[2]!.trade.world).toBe(THE_NETHER);
     });
 
     test('sorts by distance descending', () => {
@@ -523,10 +523,10 @@ describe('sortResults', () => {
             { trade: createTradeWithCoords('Far', 1000, 1000), matchResult: true, matchCost: false, displayName: 'Far', displayAmount: 1 },
             { trade: createTradeWithCoords('Mid', 100, 100), matchResult: true, matchCost: false, displayName: 'Mid', displayAmount: 1 }
         ];
-        sortResults(results, 'distance', 'desc');
-        expect(results[0]!.trade.resultName).toBe('Far');
-        expect(results[1]!.trade.resultName).toBe('Mid');
-        expect(results[2]!.trade.resultName).toBe('Near');
+        const sorted3 = sortResults(results, 'distance', 'desc');
+        expect(sorted3[0]!.trade.resultName).toBe('Far');
+        expect(sorted3[1]!.trade.resultName).toBe('Mid');
+        expect(sorted3[2]!.trade.resultName).toBe('Near');
     });
 
     test('sorts by distance ascending', () => {
@@ -535,10 +535,10 @@ describe('sortResults', () => {
             { trade: createTradeWithCoords('Near', 10, 10), matchResult: true, matchCost: false, displayName: 'Near', displayAmount: 1 },
             { trade: createTradeWithCoords('Mid', 100, 100), matchResult: true, matchCost: false, displayName: 'Mid', displayAmount: 1 }
         ];
-        sortResults(results, 'distance', 'asc');
-        expect(results[0]!.trade.resultName).toBe('Near');
-        expect(results[1]!.trade.resultName).toBe('Mid');
-        expect(results[2]!.trade.resultName).toBe('Far');
+        const sorted4 = sortResults(results, 'distance', 'asc');
+        expect(sorted4[0]!.trade.resultName).toBe('Near');
+        expect(sorted4[1]!.trade.resultName).toBe('Mid');
+        expect(sorted4[2]!.trade.resultName).toBe('Far');
     });
 
     test('distance uses euclidean distance from origin', () => {
@@ -551,10 +551,10 @@ describe('sortResults', () => {
             { trade: createTradeWithCoords('B', 100, 100), matchResult: true, matchCost: false, displayName: 'B', displayAmount: 1 },
             { trade: createTradeWithCoords('C', 0, 600), matchResult: true, matchCost: false, displayName: 'C', displayAmount: 1 }
         ];
-        sortResults(results, 'distance', 'asc');
-        expect(results[0]!.trade.resultName).toBe('B'); // ~141
-        expect(results[1]!.trade.resultName).toBe('A'); // 500
-        expect(results[2]!.trade.resultName).toBe('C'); // 600
+        const sorted5 = sortResults(results, 'distance', 'asc');
+        expect(sorted5[0]!.trade.resultName).toBe('B'); // ~141
+        expect(sorted5[1]!.trade.resultName).toBe('A'); // 500
+        expect(sorted5[2]!.trade.resultName).toBe('C'); // 600
     });
 });
 
@@ -2348,7 +2348,11 @@ describe('formatRelativeTime', () => {
 // computeDashboardData
 // ============================================================================
 
-/** Minimal trade factory for dashboard tests */
+/**
+ * Minimal trade factory for dashboard tests
+ * @param overrides - Property overrides to merge into the default trade object
+ * @returns A Trade object with default values merged with any provided overrides
+ */
 function makeDashboardTrade(overrides: Partial<Trade> = {}): Trade {
     return {
         shopName: 'TestShop',
@@ -2367,22 +2371,39 @@ function makeDashboardTrade(overrides: Partial<Trade> = {}): Trade {
     } as Trade;
 }
 
-/** Deviation calculator returning a fixed percent */
+/**
+ * Deviation calculator returning a fixed percent
+ * @param percent - The fixed deviation percent to always return
+ * @returns A deviation calculator function that always returns the given percent
+ */
 function fixedPercent(percent: number) {
     return () => ({ percent });
 }
 
-/** Deviation calculator selecting percent by x-coordinate */
+/**
+ * Deviation calculator selecting percent by x-coordinate
+ * @param x1Percent - Percent returned for trades at x=100
+ * @param otherPercent - Percent returned for all other trades
+ * @returns A deviation calculator function that branches on the trade's x coordinate
+ */
 function percentByX(x1Percent: number, otherPercent: number) {
     return (t: Trade) => t.x === 100 ? { percent: x1Percent } : { percent: otherPercent };
 }
 
-/** Deviation calculator that returns undefined */
+/**
+ * Deviation calculator that returns undefined
+ * @returns Always undefined, simulating a trade with no computable deviation
+ */
 function noDeviationResult(): undefined {
     return undefined;
 }
 
-/** Returns deviation based on trade x-coord: x=100 gets first percent, others get second */
+/**
+ * Returns deviation based on trade x-coord: x=100 gets first percent, others get second
+ * @param atX100 - Deviation percent for trades at x=100
+ * @param other - Deviation percent for all other trades
+ * @returns A deviation calculator function that branches on trade x coordinate
+ */
 function deviationByCoord(atX100: number, other: number) {
     return (t: Trade) => t.x === 100 ? { percent: atX100 } : { percent: other };
 }

@@ -63,7 +63,7 @@ describe('escapeHtml properties', () => {
                 expect(escaped).not.toMatch(/[<>"']/);
                 // Ampersand only allowed as part of entity (e.g., &amp;)
                 const ampersands = escaped.match(/&/g) ?? [];
-                const entities = escaped.match(/&(amp|lt|gt|quot|#39);/g) ?? [];
+                const entities = escaped.match(/&(?:amp|lt|gt|quot|#39);/g) ?? [];
                 expect(ampersands.length).toBe(entities.length);
             })
         );
@@ -155,7 +155,7 @@ describe('getRegex properties', () => {
             fc.property(
                 // Filter to non-empty alphanumeric to avoid edge cases with special chars
                 // (special chars ARE escaped, but for "matches original" we keep it simple)
-                fc.string().filter((s) => s.length > 0 && /^[a-zA-Z0-9]+$/.test(s)),
+                fc.string().filter((s) => s.length > 0 && /^[a-z0-9]+$/i.test(s)),
                 (query) => {
                     const regex = getRegex(query);
                     expect(regex.test(query)).toBe(true);
@@ -167,7 +167,7 @@ describe('getRegex properties', () => {
     test('wildcard * matches any characters', () => {
         fc.assert(
             fc.property(
-                fc.string().filter((s) => s.length >= 2 && /^[a-zA-Z]+$/.test(s)),
+                fc.string().filter((s) => s.length >= 2 && /^[a-z]+$/i.test(s)),
                 (text) => {
                     const pattern = text[0] + '*' + text.at(-1);
                     const regex = getRegex(pattern);
@@ -182,7 +182,7 @@ describe('formatName properties', () => {
     test('output starts with uppercase letter', () => {
         fc.assert(
             fc.property(
-                fc.string().filter((s) => s.length > 0 && /^[a-zA-Z]/.test(s)),
+                fc.string().filter((s) => s.length > 0 && /^[a-z]/i.test(s)),
                 (name) => {
                     const item: Item = { type: name, name: '', amount: 1 };
                     const result = formatName(item);
@@ -197,7 +197,7 @@ describe('formatName properties', () => {
     test('underscores are converted to spaces', () => {
         fc.assert(
             fc.property(
-                fc.array(fc.string().filter((s) => s.length > 0 && /^[a-zA-Z]+$/.test(s)), { minLength: 2, maxLength: 4 }),
+                fc.array(fc.string().filter((s) => s.length > 0 && /^[a-z]+$/i.test(s)), { minLength: 2, maxLength: 4 }),
                 (words) => {
                     const withUnderscores = words.join('_');
                     const item: Item = { type: withUnderscores, name: '', amount: 1 };
@@ -214,7 +214,7 @@ describe('highlight properties', () => {
         fc.assert(
             fc.property(
                 fc.string().filter((s) => s.length > 0),
-                fc.string().filter((s) => s.length > 0 && /^[a-zA-Z]+$/.test(s)),
+                fc.string().filter((s) => s.length > 0 && /^[a-z]+$/i.test(s)),
                 (text, pattern) => {
                     const regex = new RegExp(pattern, 'gi');
                     const result = highlight(text, regex);
@@ -228,7 +228,7 @@ describe('highlight properties', () => {
         fc.assert(
             fc.property(
                 fc.string().filter((s) => s.length > 0),
-                fc.string().filter((s) => s.length > 0 && /^[a-zA-Z]+$/.test(s)),
+                fc.string().filter((s) => s.length > 0 && /^[a-z]+$/i.test(s)),
                 (text, pattern) => {
                     const regex = new RegExp(pattern, 'gi');
                     const result = highlight(text, regex);
@@ -898,9 +898,8 @@ describe('sortResults properties', () => {
                 fc.constantFrom('result-amt', 'cost-amt', 'stock', 'deviation'),
                 fc.constantFrom('asc', 'desc'),
                 (results, column, direction) => {
-                    const copy = [...results];
-                    sortResults(copy, column, direction);
-                    expect(copy.length).toBe(results.length);
+                    const sorted = sortResults(results, column, direction);
+                    expect(sorted.length).toBe(results.length);
                 }
             )
         );
@@ -914,9 +913,7 @@ describe('sortResults properties', () => {
                 fc.constantFrom('asc', 'desc'),
                 (results, column, direction) => {
                     const originalSet = new Set(results);
-                    const copy = [...results];
-                    sortResults(copy, column, direction);
-                    const sortedSet = new Set(copy);
+                    const sortedSet = new Set(sortResults(results, column, direction));
                     expect(sortedSet.size).toBe(originalSet.size);
                 }
             )

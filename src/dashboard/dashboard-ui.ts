@@ -41,7 +41,7 @@ const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
  */
 export interface DashboardUIDependencies {
     /** Return current trade list */
-    getAllTrades: () => Trade[];
+    getAllTrades: () => readonly Trade[];
     /** Return current deviation calculator */
     getDeviation: () => (trade: Trade) => DeviationResult | undefined;
     /** Trigger a search refresh after clicking a dashboard link */
@@ -51,7 +51,7 @@ export interface DashboardUIDependencies {
     /** Snapshot store – loadBaseline & appendIfDue */
     snapshotStore: {
         loadBaseline: () => TradeSnapshot | undefined;
-        appendIfDue: (trades: Trade[], getDeviation: (t: Trade) => DeviationResult | undefined) => void;
+        appendIfDue: (trades: readonly Trade[], getDeviation: (t: Trade) => DeviationResult | undefined) => void;
     };
     /** Favorites store – getAll */
     favoritesStore: {
@@ -78,6 +78,8 @@ export interface DashboardUIHandler {
 /**
  * Format a deviation value as a signed percentage string.
  * Uses the minus glyph (−) for negative values, matching the main trade table.
+ * @param deviation - Numeric deviation percentage to format
+ * @returns Signed percentage string, e.g. "+5%" or "−10%"
  */
 function formatDeviationText(deviation: number): string {
     if (deviation > 0) { return `+${deviation}%`; }
@@ -87,6 +89,8 @@ function formatDeviationText(deviation: number): string {
 
 /**
  * Build the delta comparison HTML for a watchlist hit.
+ * @param hit - Watchlist hit with current and optional previous deviation
+ * @returns HTML string showing deviation change, or empty string if no prior data
  */
 function buildWatchlistDelta(hit: WatchlistHit): string {
     if (hit.previousDeviation === undefined) { return ''; }
@@ -103,6 +107,8 @@ function buildWatchlistDelta(hit: WatchlistHit): string {
 
 /**
  * Render a single watchlist hit item as HTML.
+ * @param hit - Watchlist hit to render
+ * @returns HTML string for a single watchlist item
  */
 function renderWatchlistItem(hit: WatchlistHit): string {
     const deviationClass = hit.currentDeviation < 0 ? 'good' : 'bad';
@@ -121,11 +127,14 @@ function renderWatchlistItem(hit: WatchlistHit): string {
 
 /**
  * Build the watchlist hits section element.
+ * @param hits - Watchlist hits to display
+ * @returns Section element containing sorted watchlist hit items
  */
-function buildWatchlistSection(hits: WatchlistHit[]): HTMLDivElement {
+function buildWatchlistSection(hits: readonly WatchlistHit[]): HTMLDivElement {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
     const sorted = [...hits].toSorted((a, b) => a.currentDeviation - b.currentDeviation);
+    // eslint-disable-next-line functional/prefer-tacit -- unicorn/no-array-callback-reference conflicts
     const items = sorted.map(hit => renderWatchlistItem(hit)).join('');
     section.innerHTML = `
         <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>
@@ -136,6 +145,8 @@ function buildWatchlistSection(hits: WatchlistHit[]): HTMLDivElement {
 
 /**
  * Build the new trades section element.
+ * @param count - Number of new trades detected
+ * @returns Section element summarising new trade count
  */
 function buildNewTradesSection(count: number): HTMLDivElement {
     const section = document.createElement('div');
@@ -150,8 +161,10 @@ function buildNewTradesSection(count: number): HTMLDivElement {
 /**
  * Build the price drops section element.
  * Returns undefined when there are no drops below median.
+ * @param drops - All candidate price drops
+ * @returns Section element for below-median price drops, or undefined if none exist
  */
-function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined {
+function buildPriceDropsSection(drops: readonly PriceDrop[]): HTMLDivElement | undefined {
     const belowMedian = drops.filter(drop => drop.newDeviation < 0);
     if (belowMedian.length === 0) { return undefined; }
 
@@ -175,6 +188,8 @@ function buildPriceDropsSection(drops: PriceDrop[]): HTMLDivElement | undefined 
 
 /**
  * Append dashboard sections (watchlist hits, new trades, price drops).
+ * @param sectionsElement - Container element for the dashboard sections
+ * @param data - Computed dashboard data to render
  */
 function appendDashboardSections(sectionsElement: Element, data: DashboardData): void {
     sectionsElement.innerHTML = '';
@@ -200,6 +215,8 @@ function appendDashboardSections(sectionsElement: Element, data: DashboardData):
 /**
  * Create a Dashboard UI handler wired to the given dependencies.
  *
+ * @param deps - Dependencies injected from the host module
+ * @returns Handler with showDashboard, toggleDashboard, and dismissDashboard methods
  * @example
  * ```ts
  * const dashboardUI = createDashboardUIHandler({
@@ -216,6 +233,7 @@ function appendDashboardSections(sectionsElement: Element, data: DashboardData):
 export function createDashboardUIHandler(deps: DashboardUIDependencies): DashboardUIHandler {
     /**
      * Wire click handlers on dashboard item links to populate search.
+     * @param container - Container element whose links should be wired
      */
     function wireDashboardItemLinks(container: Element): void {
         for (const link of container.querySelectorAll('.dashboard-item-link')) {
@@ -237,6 +255,9 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
     /**
      * Render the dashboard banner with sections for watchlist hits, new trades,
      * and price drops.
+     * @param data - Computed dashboard data to render
+     * @param options - Rendering options
+     * @param options.autoOpen - Whether to open the dashboard automatically
      */
     function renderDashboard(data: DashboardData, options?: { autoOpen: boolean }): void {
         const { autoOpen = true } = options ?? {};

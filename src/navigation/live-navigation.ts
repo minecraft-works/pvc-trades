@@ -60,6 +60,7 @@ export interface LiveNavigationDeps {
     createTimelineStop: (stop: RouteStop, index: number, route: RouteStop[], previous: RouteStop | undefined, forNavPanel?: boolean) => HTMLElement;
     renderCartDialog: () => void;
     switchTab: (tab: 'cart' | 'navigate') => void;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     getConfig: () => { dynmap: { playerRefreshMs: number } };
     playerPositionService: {
@@ -75,20 +76,23 @@ export interface LiveNavigationDeps {
 
 /** Public API returned by the factory */
 export interface LiveNavigationHandler {
-    startNavigation(): Promise<void>;
-    stopNavigation(): void;
-    toggleNavigation(): void;
-    setupNavigationControls(): void;
-    switchToManualMode(): void;
-    initViewWorldButtons(): void;
-    renderNavigateTab(): void;
+    startNavigation: () => Promise<void>;
+    stopNavigation: () => void;
+    toggleNavigation: () => void;
+    setupNavigationControls: () => void;
+    switchToManualMode: () => void;
+    initViewWorldButtons: () => void;
+    renderNavigateTab: () => void;
 }
 
 // ============================================================================
 // Pure helpers (no closure needed)
 // ============================================================================
 
-/** Update the follow toggle button appearance */
+/**
+ * Update the follow toggle button appearance
+ * @param mode - Navigation mode: 'follow' for auto-center, 'manual' for user-controlled
+ */
 function updateFollowToggleButton(mode: 'follow' | 'manual'): void {
     const toggleButton = document.querySelector<HTMLButtonElement>('#nav-follow-toggle');
     if (!toggleButton) { return; }
@@ -96,7 +100,10 @@ function updateFollowToggleButton(mode: 'follow' | 'manual'): void {
     toggleButton.title = mode === 'follow' ? 'Auto-follow enabled' : 'Auto-follow disabled (click to re-center)';
 }
 
-/** Show "player not found" message in distance display */
+/**
+ * Show "player not found" message in distance display
+ * @param playerNameInput - The player name input element, or null if not found
+ */
 function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     const distanceDisplay = document.querySelector('#nav-dialog-distance');
     if (distanceDisplay) {
@@ -104,7 +111,11 @@ function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     }
 }
 
-/** Push a player position sample to the position service and log debug info */
+/**
+ * Push a player position sample to the position service and log debug info
+ * @param service - The live navigation player position service
+ * @param player - Player data including name and position
+ */
 function pushPlayerSampleWithDebug(service: LiveNavigationDeps['playerPositionService'], player: Player): void {
     service.pushSample(player.name, {
         x: player.position.x,
@@ -128,6 +139,7 @@ function pushPlayerSampleWithDebug(service: LiveNavigationDeps['playerPositionSe
  *
  * @param state  Shared mutable NavState
  * @param deps   Callbacks and stores from main.ts
+ * @returns Handler object with live navigation lifecycle functions
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createLiveNavigationHandler(state: NavState, deps: LiveNavigationDeps): LiveNavigationHandler {
@@ -159,11 +171,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
     }
 
     function toggleFollowMode(): void {
-        if (deps.navigationStore.mode === 'follow') {
-            switchToManualMode();
-        } else {
-            switchToFollowMode();
-        }
+        if (deps.navigationStore.mode === 'follow') { switchToManualMode(); } else { switchToFollowMode(); }
     }
 
     // ── View world controls ─────────────────────────────────────────
@@ -280,7 +288,8 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         deps.navUpdatesHandler.checkAutoAdvance();
         deps.updateNearbyShopTooltip();
 
-        const currentPos = deps.navigationStore.playerPosition!;
+        const currentPos = deps.navigationStore.playerPosition;
+        if (!currentPos) { return; }
         const positionMoved = hasPositionMoved(previousPosition, currentPos, 1);
 
         if (hasPositionMoved(previousPosition, currentPos, 10)) {
@@ -468,25 +477,30 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
     // ── Navigate tab rendering ──────────────────────────────────────
 
+    function renderTimelineStops(container: HTMLElement, route: RouteStop[]): void {
+        let previousStop: RouteStop | undefined;
+        for (let index = 0; index < route.length; index++) {
+            const stop = route[index];
+            if (!stop) { continue; }
+            container.append(deps.createTimelineStop(stop, index, route, previousStop));
+            previousStop = stop;
+        }
+    }
+
     function renderNavigateTab(): void {
         const route = deps.computeRoute();
 
         const navTimeline = document.querySelector('#nav-timeline');
         const navDistance = document.querySelector('#nav-distance');
 
-        if (navTimeline) {
+        if (navTimeline instanceof HTMLElement) {
             navTimeline.innerHTML = '';
 
             if (route.length === 0) {
                 navTimeline.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Add items to cart to see route</p>`;
             } else {
                 deps.syncNavProgressWithCart(route);
-                let previousStop: RouteStop | undefined;
-                for (let index = 0; index < route.length; index++) {
-                    const stop = route[index]!;
-                    navTimeline.append(deps.createTimelineStop(stop, index, route, previousStop));
-                    previousStop = stop;
-                }
+                renderTimelineStops(navTimeline, route);
                 navTimeline.classList.toggle('navigating', deps.navigationStore.refreshInterval !== undefined);
             }
         }

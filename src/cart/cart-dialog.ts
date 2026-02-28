@@ -23,7 +23,13 @@ import type { RouteStop, ShoppingList,Trade } from '../types.js';
 // Local DOM helper
 // ============================================================================
 
-/** @internal */
+/**
+ * Get a DOM element by ID, throwing if not found.
+ * @param id - The element's HTML id attribute (without the # prefix)
+ * @internal
+ * @returns The found element cast to the requested type
+ */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -46,6 +52,7 @@ export interface RouteOrigin {
  *
  * @param origin - Optional starting position (defaults to 0,0 in overworld)
  * @param excludeCompleted - If true, exclude items marked as collected
+ * @returns Array of RouteStop objects in optimized visit order
  */
 export function computeRoute(origin?: RouteOrigin, excludeCompleted = false): RouteStop[] {
     if (cartStore.isEmpty) { return []; }
@@ -72,7 +79,8 @@ export function computeRoute(origin?: RouteOrigin, excludeCompleted = false): Ro
     const route: RouteStop[] = [];
 
     for (const index of order) {
-        const item = activeItems[index]!;
+        const item = activeItems[index];
+        if (!item) { continue; }
         const stopIsNether = isNether(item.trade.world);
         const displayCoords = toOverworldEquivalent(item.trade.x, item.trade.z, item.trade.world);
         route.push({
@@ -94,6 +102,7 @@ export function computeRoute(origin?: RouteOrigin, excludeCompleted = false): Ro
 /**
  * Get all cart items as RouteStops (for display purposes – includes completed items).
  * Completed items are included but can be identified via navProgress.completedKeys.
+ * @returns Array of RouteStop objects for all active (non-zero) cart items
  */
 export function getAllCartStops(): RouteStop[] {
     const activeItems = cartStore.items.filter(item => item.quantity > 0);
@@ -119,7 +128,9 @@ export function getAllCartStops(): RouteStop[] {
 // Cart helper functions (no late-bound deps)
 // ============================================================================
 
-/** Aggregate cart into shopping lists */
+/** Aggregate cart into shopping lists
+ * @returns ShoppingList mapping item names to required quantities and sources
+ */
 function getShoppingList(): ShoppingList {
     return aggregateShoppingList(cartStore.items);
 }
@@ -169,13 +180,16 @@ export function clearCart(): void {
 /**
  * Sync navigation progress with current cart.
  * Removes completed keys for items no longer in cart, recalculates current index.
+ * @param route - Current ordered list of route stops
  */
 export function syncNavProgressWithCart(route: RouteStop[]): void {
     // Get keys of all shop stops in current route
     const currentShopKeys = new Set(
-        route
-            .filter(stop => stop.type === 'shop' && stop.cartItem)
-            .map(stop => getTradeKey(stop.cartItem!.trade)),
+        route.flatMap(stop =>
+            stop.type === 'shop' && stop.cartItem
+                ? [getTradeKey(stop.cartItem.trade)]
+                : []
+        ),
     );
 
     // Get currently completed keys that are still valid
@@ -208,7 +222,13 @@ export function syncNavProgressWithCart(route: RouteStop[]): void {
 // Stop status helper (pure)
 // ============================================================================
 
-/** Get status for a route stop based on navigation progress */
+/**
+ * Get status for a route stop based on navigation progress
+ * @param stop - The route stop to evaluate
+ * @param stopIndex - Index of this stop in the route array
+ * @param _route - Full route array (unused, for interface consistency)
+ * @returns 'completed', 'current', or 'pending'
+ */
 function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]): 'completed' | 'current' | 'pending' {
     if (stop.type === 'portal') {
         if (stopIndex < navigationStore.progress.currentIndex) { return 'completed'; }
@@ -216,7 +236,7 @@ function getStopStatus(stop: RouteStop, stopIndex: number, _route: RouteStop[]):
         return 'pending';
     }
 
-    if (stop.type === 'shop' && stop.cartItem) {
+    if (stop.cartItem) {
         const key = getTradeKey(stop.cartItem.trade);
         if (navigationStore.progress.completedKeys.has(key)) { return 'completed'; }
         if (stopIndex === navigationStore.progress.currentIndex) { return 'current'; }
@@ -269,6 +289,7 @@ export interface CartDialogHandler {
  * Create the cart dialog handler.
  *
  * @param deps Late-bound callbacks from main.ts
+ * @returns Handler object with cart rendering and stop management functions
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler {
@@ -296,9 +317,11 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
             </span>
         `;
 
-        const minusButton = itemElement.querySelector('.qty-minus')!;
-        const plusButton = itemElement.querySelector('.qty-plus')!;
-        const removeButton = itemElement.querySelector('.remove-btn')!;
+        const minusButton = itemElement.querySelector('.qty-minus');
+        const plusButton = itemElement.querySelector('.qty-plus');
+        const removeButton = itemElement.querySelector('.remove-btn');
+
+        if (!minusButton || !plusButton || !removeButton) { return itemElement; }
 
         minusButton.addEventListener('click', () => {
             if (quantity > 0) {
@@ -351,7 +374,12 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
     /**
      * Create a timeline stop element – compact single-line style.
      *
+     * @param stop - Route stop data (shop or portal)
+     * @param stopIndex - Index of this stop in the route array
+     * @param route - Full route array for status calculation
+     * @param _previousStop - Previous stop (unused, reserved for future use)
      * @param forNavPanel If true, hide coordinates (shown on map instead)
+     * @returns Fully rendered HTMLElement for the timeline stop
      */
     function createTimelineStop(
         stop: RouteStop,
@@ -394,7 +422,8 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
         const content = document.createElement('div');
         content.className = 'timeline-content';
 
-        const item = stop.cartItem!;
+        if (!stop.cartItem) { return element; }
+        const item = stop.cartItem;
         const isNetherShop = isNether(stop.world);
 
         let owCoords: string;

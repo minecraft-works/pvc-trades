@@ -35,7 +35,7 @@ export {
     getCachedTileUrl,
     loadTileManifest,
     loadTileToMap,
-    OVERVIEW_TILE_SIZE,    setCachedTileUrl,
+    setCachedTileUrl,
     TILE_CONFIG,
     tileExistsInManifest} from './tile-loader.js';
 

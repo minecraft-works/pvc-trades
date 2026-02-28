@@ -44,7 +44,7 @@ export interface NavUpdatesDeps {
         setPlayerMarker: (marker: L.Marker | undefined) => void;
     };
     cartStore: {
-        items: Array<{ trade: { x: number; z: number; world: string; resultName: string; item1: { amount: number }; costName: string; resultAmount: number; y: number }; quantity: number }>;
+        items: { trade: { x: number; z: number; world: string; resultName: string; item1: { amount: number }; costName: string; resultAmount: number; y: number }; quantity: number }[];
     };
     navMapHandler: NavMapHandler;
     computeRoute: (origin?: { x: number; z: number; world: string }, excludeCompleted?: boolean) => RouteStop[];
@@ -57,16 +57,16 @@ export interface NavUpdatesDeps {
 
 /** Public API returned by the factory */
 export interface NavUpdatesHandler {
-    recalculateRouteFromPlayer(): void;
-    updateRouteMarkersForCompletion(): void;
-    updatePlayerToNextLine(): void;
-    updateLiveDistance(): void;
-    checkAutoAdvance(): void;
-    updatePlayerMarker(): void;
-    updatePlayerMarkerPosition(displayX: number, displayZ: number, yaw?: number): void;
-    startNavAnimationLoop(): void;
-    stopNavAnimationLoop(): void;
-    centerMapOnPlayer(): void;
+    recalculateRouteFromPlayer: () => void;
+    updateRouteMarkersForCompletion: () => void;
+    updatePlayerToNextLine: () => void;
+    updateLiveDistance: () => void;
+    checkAutoAdvance: () => void;
+    updatePlayerMarker: () => void;
+    updatePlayerMarkerPosition: (displayX: number, displayZ: number, yaw?: number) => void;
+    startNavAnimationLoop: () => void;
+    stopNavAnimationLoop: () => void;
+    centerMapOnPlayer: () => void;
 }
 
 // ============================================================================
@@ -74,10 +74,58 @@ export interface NavUpdatesHandler {
 // ============================================================================
 
 /**
+ * Build HTML snippets for the distance-to-next-stop display.
+ *
+ * @param playerPos - Current player position
+ * @param playerPos.x - Player X coordinate
+ * @param playerPos.z - Player Z coordinate
+ * @param playerPos.world - Player world identifier
+ * @param stop - The next route stop
+ * @returns Distance HTML for inline display and expanded dialog
+ */
+function buildStopDistanceHtml(
+    playerPos: { x: number; z: number; world: string },
+    stop: RouteStop,
+): { distanceHtml: string; dialogHtml: string } {
+    const stopWorld = getWorldId(stop.world);
+    const isNetherShop = stopWorld.includes('nether');
+    const distance = calculateRouteDistance(
+        playerPos.x, playerPos.z, playerPos.world,
+        stop.x, stop.z, stop.world,
+    );
+    const itemName = stop.cartItem?.trade.resultName ?? 'Next stop';
+    const quantity = stop.cartItem?.quantity ?? 1;
+    const distanceText = Math.round(distance).toLocaleString();
+    const worldIndicator = isNetherShop ? '🔥 ' : '';
+    const distanceHtml = `<span class="distance-label">→ ${worldIndicator}${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`;
+
+    const coordsText = isNetherShop
+        ? `${stop.x}, ${stop.y}, ${stop.z} (Nether → OW: ${stop.displayX}, ${stop.displayZ})`
+        : `${stop.x}, ${stop.y}, ${stop.z}`;
+    const buyText = `${quantity}× ${itemName}`;
+    const dialogHtml = `
+        <div class="nav-info-row">
+            <span class="nav-info-label">📍</span>
+            <span class="nav-info-coords">${coordsText}</span>
+        </div>
+        <div class="nav-info-row">
+            <span class="nav-info-label">🛒</span>
+            <span class="nav-info-item">${worldIndicator}${buyText}</span>
+        </div>
+        <div class="nav-info-row">
+            <span class="nav-info-label">↗</span>
+            <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
+        </div>
+    `;
+    return { distanceHtml, dialogHtml };
+}
+
+/**
  * Create the navigation updates handler.
  *
  * @param state  Shared mutable NavState
  * @param deps   Callbacks and stores from main.ts
+ * @returns Handler object with navigation update functions
  */
 // eslint-disable-next-line max-lines-per-function -- factory function encapsulates module state via closures
 export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): NavUpdatesHandler {
@@ -95,7 +143,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         const stopsChanged = state.currentWorldRoute.length !== allStops.length ||
             allStops.some((stop, index) => {
                 const oldStop = state.currentWorldRoute[index];
-                return !oldStop || stop.x !== oldStop.x || stop.z !== oldStop.z;
+                return stop.x !== oldStop?.x || stop.z !== oldStop.z;
             });
 
         if (!stopsChanged) { return; }
@@ -204,45 +252,11 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             ? state.currentRoute
             : deps.computeRoute(deps.navigationStore.playerPosition, true);
 
-        let distanceHtml: string;
-        let dialogHtml: string;
-
-        if (route.length === 0) {
-            distanceHtml = '<span class="distance-label">Route complete! 🎉</span>';
-            dialogHtml = distanceHtml;
-        } else {
-            const currentStop = route[0]!;
-            const stopWorld = getWorldId(currentStop.world);
-            const isNetherShop = stopWorld.includes('nether');
-            const distance = calculateRouteDistance(
-                deps.navigationStore.playerPosition.x, deps.navigationStore.playerPosition.z, deps.navigationStore.playerPosition.world,
-                currentStop.x, currentStop.z, currentStop.world,
-            );
-            const itemName = currentStop.cartItem?.trade.resultName ?? 'Next stop';
-            const quantity = currentStop.cartItem?.quantity ?? 1;
-            const distanceText = Math.round(distance).toLocaleString();
-            const worldIndicator = isNetherShop ? '🔥 ' : '';
-            distanceHtml = `<span class="distance-label">→ ${worldIndicator}${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`;
-
-            const coordsText = isNetherShop
-                ? `${currentStop.x}, ${currentStop.y}, ${currentStop.z} (Nether → OW: ${currentStop.displayX}, ${currentStop.displayZ})`
-                : `${currentStop.x}, ${currentStop.y}, ${currentStop.z}`;
-            const buyText = `${quantity}× ${itemName}`;
-            dialogHtml = `
-                <div class="nav-info-row">
-                    <span class="nav-info-label">📍</span>
-                    <span class="nav-info-coords">${coordsText}</span>
-                </div>
-                <div class="nav-info-row">
-                    <span class="nav-info-label">🛒</span>
-                    <span class="nav-info-item">${worldIndicator}${buyText}</span>
-                </div>
-                <div class="nav-info-row">
-                    <span class="nav-info-label">↗</span>
-                    <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
-                </div>
-            `;
-        }
+        const COMPLETE_HTML = '<span class="distance-label">Route complete! 🎉</span>';
+        const currentStop = route[0];
+        const { distanceHtml, dialogHtml } = currentStop
+            ? buildStopDistanceHtml(deps.navigationStore.playerPosition, currentStop)
+            : { distanceHtml: COMPLETE_HTML, dialogHtml: COMPLETE_HTML };
 
         if (liveDistance) { liveDistance.innerHTML = distanceHtml; }
         if (dialogDistance) { dialogDistance.innerHTML = dialogHtml; }

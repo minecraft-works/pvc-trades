@@ -27,7 +27,7 @@ import { calculateRouteDistance } from './route-optimizer.js';
  * const list = aggregateShoppingList(cart);
  * console.log(list.costs.get('Diamond')); // Total diamonds needed
  */
-export function aggregateShoppingList(cartItems: Array<{ trade: Trade; quantity: number }>): ShoppingList {
+export function aggregateShoppingList(cartItems: readonly { readonly trade: Readonly<Trade>; readonly quantity: number }[]): Readonly<ShoppingList> {
     const costs = new Map<string, number>();
     const gains = new Map<string, number>();
 
@@ -67,7 +67,7 @@ export function aggregateShoppingList(cartItems: Array<{ trade: Trade; quantity:
  * const distance = calculateTotalRouteDistance(route, playerX, playerZ, 'overworld');
  */
 export function calculateTotalRouteDistance(
-    route: RouteStop[],
+    route: readonly RouteStop[],
     startX = 0,
     startZ = 0,
     startWorld = 'overworld'
@@ -114,7 +114,7 @@ export function buildMarkerContent(isCompleted: boolean, index: number, isNether
  * @param isCompleted - Whether the stop is marked as visited
  * @returns Multi-line tooltip string
  */
-export function buildStopTooltip(stop: RouteStop, isCompleted: boolean): string {
+export function buildStopTooltip(stop: Readonly<RouteStop>, isCompleted: boolean): string {
     let text = stop.cartItem
         ? `${stop.cartItem.quantity}× ${stop.cartItem.trade.resultName}`
         : 'Stop';
@@ -177,8 +177,8 @@ interface SimplePosition {
  * hasPositionMoved(undefined, { x: 0, z: 0 }, 10);       // true (no previous)
  */
 export function hasPositionMoved(
-    previous: SimplePosition | undefined,
-    current: SimplePosition,
+    previous: Readonly<SimplePosition> | undefined,
+    current: Readonly<SimplePosition>,
     threshold: number
 ): boolean {
     if (!previous) { return true; }

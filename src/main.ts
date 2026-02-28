@@ -104,6 +104,7 @@ let mapOpenedFromCart = false;
 const CLEAR_SEARCH_WANT_ID = 'clear-search-want';
 const CLEAR_SEARCH_GIVE_ID = 'clear-search-give';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers specify concrete element types
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
     if (!element) { throw new Error(`Element #${id} not found`); }
@@ -149,14 +150,22 @@ function setupCartTabs(): void {
     tabNavigate?.addEventListener('click', () => switchTab('navigate'));
 }
 
-/** Toggle CSS class on an element if it exists */
+/**
+ * Toggle CSS class on an element if it exists
+ * @param selector - CSS selector for the target element
+ * @param active - Whether to add (true) or remove (false) the active class
+ */
 function setActive(selector: string, active: boolean): void {
     const element = document.querySelector(selector);
     if (!element) { return; }
     element.classList.toggle('active', active);
 }
 
-/** Toggle CSS class 'hidden' on an element if it exists */
+/**
+ * Toggle CSS class 'hidden' on an element if it exists
+ * @param selector - CSS selector for the target element
+ * @param hidden - Whether to add (true) or remove (false) the hidden class
+ */
 function setHidden(selector: string, hidden: boolean): void {
     const element = document.querySelector(selector);
     if (!element) { return; }
@@ -372,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         isOpenedFromCart: () => mapOpenedFromCart,
         clearOpenedFromCart: () => { mapOpenedFromCart = false; },
+        // eslint-disable-next-line functional/prefer-tacit -- late-bound: getConfig not available at init
         getConfig: () => getConfig(),
     });
 
@@ -437,6 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNearbyShopTooltip,
         createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
         renderCartDialog: () => cartHandler.renderCartDialog(),
+        // eslint-disable-next-line functional/prefer-tacit -- late-bound: getConfig not available at init
         getConfig: () => getConfig(),
         cartStoreUniqueCount: () => cartStore.uniqueCount,
     });
@@ -460,15 +471,15 @@ function setupTradeRowClickHandler(): void {
         const row = target.closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
         if (!row) { return; }
 
-        const x = Number.parseInt(row.dataset['x'] ?? '0', 10);
-        const y = Number.parseInt(row.dataset['y'] ?? '0', 10);
-        const z = Number.parseInt(row.dataset['z'] ?? '0', 10);
-        const world = row.dataset['world'] ?? WORLDS.OVERWORLD;
+        const x = Number.parseInt(row.dataset.x ?? '0', 10);
+        const y = Number.parseInt(row.dataset.y ?? '0', 10);
+        const z = Number.parseInt(row.dataset.z ?? '0', 10);
+        const world = row.dataset.world ?? WORLDS.OVERWORLD;
 
         // Click on info icon → open trade details popover
         const infoIcon = target.closest('.info-icon');
         if (infoIcon instanceof HTMLElement) {
-            const isResult = infoIcon.dataset['info'] === 'result';
+            const isResult = infoIcon.dataset.info === 'result';
             openTradeDetailsPopover(row, isResult);
             return;
         }

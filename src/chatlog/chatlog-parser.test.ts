@@ -6,7 +6,12 @@ import { extractText, parseChatlog } from './chatlog-parser.js';
 // Helpers — build Minecraft text components matching ChatPatches format
 // ============================================================================
 
-/** Build a timestamp component like ChatPatches stores in `extra[0]`. */
+/**
+ * Build a timestamp component like ChatPatches stores in `extra[0]`.
+ * @param displayTime - Formatted time string to display (e.g. '[12:00:00] ')
+ * @param epochMs - Unix timestamp in milliseconds stored as the insertion value
+ * @returns A timestamp component object matching the ChatPatches format
+ */
 function makeTimestamp(displayTime: string, epochMs: number) {
     return {
         text: displayTime,
@@ -15,7 +20,12 @@ function makeTimestamp(displayTime: string, epochMs: number) {
     };
 }
 
-/** Wrap a content component in the full ChatPatches message envelope. */
+/**
+ * Wrap a content component in the full ChatPatches message envelope.
+ * @param content - Inner message component to wrap
+ * @param epochMs - Timestamp for the message envelope
+ * @returns A full ChatPatches message object with timestamp in extra[0]
+ */
 function makeMessage(content: Record<string, unknown>, epochMs = 1_000_000) {
     return {
         text: '',
@@ -27,7 +37,13 @@ function makeMessage(content: Record<string, unknown>, epochMs = 1_000_000) {
     };
 }
 
-/** Build a player chat message with `translate: "%s"`. */
+/**
+ * Build a player chat message with `translate: "%s"`.
+ * @param player - Player name sending the message
+ * @param message - Chat message text
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing a player chat event
+ */
 function makePlayerChat(player: string, message: string, epochMs = 1_000_000) {
     return makeMessage({
         translate: '%s',
@@ -42,12 +58,22 @@ function makePlayerChat(player: string, message: string, epochMs = 1_000_000) {
     }, epochMs);
 }
 
-/** Build a join message (plain text, no translate key). */
+/**
+ * Build a join message (plain text, no translate key).
+ * @param player - Name of the player who joined
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing a player join event
+ */
 function makeJoinMessage(player: string, epochMs = 1_000_000) {
     return makeMessage({ color: 'yellow', text: `${player} joined the game` }, epochMs);
 }
 
-/** Build a leave message with `translate: "multiplayer.player.left"`. */
+/**
+ * Build a leave message with `translate: "multiplayer.player.left"`.
+ * @param player - Name of the player who left
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing a player leave event
+ */
 function makeLeaveMessage(player: string, epochMs = 1_000_000) {
     return makeMessage({
         translate: 'multiplayer.player.left',
@@ -55,7 +81,12 @@ function makeLeaveMessage(player: string, epochMs = 1_000_000) {
     }, epochMs);
 }
 
-/** Build a death message. */
+/**
+ * Build a death message.
+ * @param player - Name of the player who died
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing a player death event
+ */
 function makeDeathMessage(player: string, epochMs = 1_000_000) {
     return makeMessage({
         translate: 'death.attack.mob',
@@ -63,7 +94,13 @@ function makeDeathMessage(player: string, epochMs = 1_000_000) {
     }, epochMs);
 }
 
-/** Build an advancement message. */
+/**
+ * Build an advancement message.
+ * @param player - Name of the player who earned the advancement
+ * @param advancement - Name of the advancement earned
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing an advancement event
+ */
 function makeAdvancementMessage(player: string, advancement: string, epochMs = 1_000_000) {
     return makeMessage({
         translate: 'chat.type.advancement.task',
@@ -71,12 +108,23 @@ function makeAdvancementMessage(player: string, advancement: string, epochMs = 1
     }, epochMs);
 }
 
-/** Build an AFK message. */
+/**
+ * Build an AFK message.
+ * @param text - The AFK notification text
+ * @param epochMs - Timestamp for the message
+ * @returns A ChatPatches message object representing an AFK event
+ */
 function makeAfkMessage(text: string, epochMs = 1_000_000): ReturnType<typeof makeMessage> {
     return makeMessage({ text: '', extra: [{ text }] }, epochMs);
 }
 
-/** Build a same-IP warning + alt-names pair. */
+/**
+ * Build a same-IP warning + alt-names pair.
+ * @param player - Player name who triggered the same-IP warning
+ * @param altNames - Comma-separated string of alternative player names
+ * @param epochMs - Timestamp for the warning message
+ * @returns A two-element array of ChatPatches messages: the warning and the alt-names message
+ */
 function makeSameIpPair(player: string, altNames: string, epochMs = 1_000_000) {
     return [
         makeMessage(

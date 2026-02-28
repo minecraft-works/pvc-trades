@@ -42,6 +42,8 @@ export async function fetchPlayers(): Promise<Player[]> {
         });
         if (response.ok) {
             const data = (await response.json()) as PlayersData;
+            // Defensive: external API may omit `players` despite typed interface
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
             return data.players ?? [];
         }
     } catch (error) {

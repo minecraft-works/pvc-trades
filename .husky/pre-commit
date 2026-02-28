@@ -1,5 +1,6 @@
 npm run typecheck
 npx lint-staged
+npm run lint:all
 npm run knip
 npm run lint:filenames
 npm run lint:lockfile

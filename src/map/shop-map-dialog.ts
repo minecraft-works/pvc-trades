@@ -155,7 +155,7 @@ function loadOverviewTileToShopMap(context: ShopMapTileContext, ovX: number, ovZ
                 L.imageOverlay(blobUrl, bounds, { pane: 'tilesOverview' }).addTo(leafletMap);
             }
         })
-        .catch(() => {});
+        .catch(() => { /* swallow overview tile fetch error */ });
 }
 
 function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
@@ -187,7 +187,7 @@ function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: nu
                 L.imageOverlay(blobUrl, bounds, { pane: 'tilesDetail' }).addTo(leafletMap);
             }
         })
-        .catch(() => {});
+        .catch(() => { /* swallow detail tile fetch error */ });
 }
 
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
@@ -226,7 +226,13 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     }
 }
 
-/** Get interpolated or raw player position in Leaflet coordinates. */
+/**
+ * Get interpolated or raw player position in Leaflet coordinates.
+ * @param player - Player object with name and position
+ * @param tileX - X tile coordinate of the center tile
+ * @param tileZ - Z tile coordinate of the center tile
+ * @returns Leaflet { lat, lng } coordinates for the player marker
+ */
 function getPlayerLeafletCoords(player: Player, tileX: number, tileZ: number): { lat: number; lng: number } {
     const interpPos = playerPositionService.getCurrentPosition(player.name);
     const posX = interpPos?.x ?? player.position.x;
@@ -245,7 +251,9 @@ function updateShopMapPlayerMarkers(
     onScreenPlayerMarkers.clear();
     for (const element of dialog.querySelectorAll('.player-edge-marker')) { element.remove(); }
     
-    if (!leafletMap || cachedPlayers.length === 0) { return; }
+    if (!leafletMap || !playerMarkersLayer || cachedPlayers.length === 0) { return; }
+    const map = leafletMap;
+    const markersLayer = playerMarkersLayer;
 
     const playersInWorld = cachedPlayers.filter(p => getPlayerWorld(p) === worldId);
 
@@ -266,7 +274,7 @@ function updateShopMapPlayerMarkers(
     shopMapTileZ = tileZ;
     
     // Classify players as on-screen or edge
-    const onScreenPlayers: Array<{ player: Player; coords: { lat: number; lng: number } }> = [];
+    const onScreenPlayers: { player: Player; coords: { lat: number; lng: number } }[] = [];
     for (const player of playersInWorld) {
         const playerCoords = getPlayerLeafletCoords(player, tileX, tileZ);
         const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
@@ -281,7 +289,7 @@ function updateShopMapPlayerMarkers(
 
     // Resolve label positions to avoid overlaps, then create Leaflet markers
     const screenMarkers = onScreenPlayers.map(({ player, coords }) => {
-        const screenPoint = leafletMap!.latLngToContainerPoint([coords.lat, coords.lng]);
+        const screenPoint = map.latLngToContainerPoint([coords.lat, coords.lng]);
         return { name: player.name, screenX: screenPoint.x, screenY: screenPoint.y };
     });
     const labelLayouts = resolvePlayerLabelPositions(screenMarkers);
@@ -296,7 +304,7 @@ function updateShopMapPlayerMarkers(
                 iconAnchor: [6, 6]
             }),
             title: player.name
-        }).addTo(playerMarkersLayer!);
+        }).addTo(markersLayer);
         onScreenPlayerMarkers.set(player.name.toLowerCase(), leafletMarker);
     }
 }
@@ -329,7 +337,9 @@ function stopShopMapAnimLoop(): void {
     playerPositionService.clear();
 }
 
-/** Create Leaflet map configuration with optional animation disabling */
+/** Create Leaflet map configuration with optional animation disabling
+ * @returns Leaflet MapOptions object with CRS.Simple and zoom settings
+ */
 function createMapConfig(): L.MapOptions {
     const animationOptions = shouldDisableAnimations() ? {
         fadeAnimation: false,
@@ -437,6 +447,8 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
 
 /**
  * Create shop map dialog handler
+ * @param deps - External dependencies injected from main.ts
+ * @returns Handler with open/close functions for the shop map dialog
  */
 export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): ShopMapDialogHandler {
     const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart, getConfig } = deps;

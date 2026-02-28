@@ -52,7 +52,7 @@ export interface Coordinates {
  * getTileCoords(511, 511) // { tileX: 0, tileZ: 0 }
  * getTileCoords(512, 512) // { tileX: 1, tileZ: 1 }
  */
-export function getTileCoords(x: number, z: number, tileSize: number = 512): SimpleTileCoords {
+export function getTileCoords(x: number, z: number, tileSize = 512): Readonly<SimpleTileCoords> {
     return {
         tileX: Math.floor(x / tileSize),
         tileZ: Math.floor(z / tileSize)
@@ -84,7 +84,7 @@ export function getTileCoordsAtZoom(
     zoom: number,
     maxZoom: number,
     tileSize: number
-): ZoomedTileCoords {
+): Readonly<ZoomedTileCoords> {
     const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
     
     return {
@@ -128,7 +128,7 @@ export function getBlocksPerTile(zoom: number, maxZoom: number, tileSize: number
  * parseLocation(null) // { x: 0, y: 0, z: 0 }
  * parseLocation('') // { x: 0, y: 0, z: 0 }
  */
-export function parseLocation(location: string | null | undefined): Coordinates {
+export function parseLocation(location: string | null | undefined): Readonly<Coordinates> {
     if (!location || typeof location !== 'string') {
         return { x: 0, y: 0, z: 0 };
     }
@@ -160,7 +160,7 @@ export function getTileBounds(
     tileX: number,
     tileZ: number,
     blocksPerTile: number
-): { west: number; east: number; north: number; south: number } {
+): Readonly<{ west: number; east: number; north: number; south: number }> {
     return {
         west: tileX * blocksPerTile,
         east: (tileX + 1) * blocksPerTile,
@@ -201,7 +201,7 @@ export function isCoordInTile(
 export function getTileNeighborhood(
     centerTileX: number,
     centerTileZ: number
-): SimpleTileCoords[] {
+): readonly SimpleTileCoords[] {
     const tiles: SimpleTileCoords[] = [];
     for (let dx = -2; dx <= 2; dx++) {
         for (let dz = -2; dz <= 2; dz++) {
