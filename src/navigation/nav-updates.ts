@@ -21,6 +21,7 @@ import {
     toLeafletCoordsRelative,
     toViewCoords,
 } from '../library.js';
+import type { LightingController } from '../lighting/lighting-controller.js';
 import { TILE_CONFIG } from '../map/index.js';
 import type { RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
@@ -53,6 +54,8 @@ export interface NavUpdatesDeps {
     playerPositionService: {
         getPositionAt: (name: string, timestamp: number) => { x: number; z: number; yaw?: number | undefined } | undefined;
     };
+    /** Optional lighting controller for GPU-accelerated terrain lighting */
+    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
@@ -404,7 +407,19 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
                 }
 
                 updatePlayerMarkerPosition(viewCoords.x, viewCoords.z, displayPos.yaw);
+
+                // Update torch light position for the lighting system
+                if (deps.lightingController?.isAttached) {
+                    deps.lightingController.updateTorch(
+                        viewCoords.x,
+                        playerPos.y,
+                        viewCoords.z,
+                    );
+                }
             }
+
+            // Render lighting overlay each frame
+            deps.lightingController?.renderFrame();
 
             state.animationFrameId = requestAnimationFrame(tick);
         }

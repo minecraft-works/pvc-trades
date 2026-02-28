@@ -24,7 +24,7 @@ import {
     detailToOverviewRatio as pyramidDetailToOverviewRatio,
     overviewLevel
 } from '../tile-pyramid.js';
-import type { LoadTileOptions, TileConfig } from './tile-types.js';
+import type { LoadTileOptions, ManifestEntry, TileConfig } from './tile-types.js';
 import { ManifestEntrySchema } from './tile-types.js';
 
 // Leaflet is loaded as a global from CDN
@@ -69,6 +69,9 @@ export const TILE_CONFIG: TileConfig = {
 let tileManifestCache: Set<string> | undefined;
 let manifestLoadPromise: Promise<Set<string>> | undefined;
 
+/** Raw parsed manifest entries (includes heightmap metadata) */
+let rawManifestEntries: ManifestEntry[] | undefined;
+
 // ============================================================================
 // Manifest Functions
 // ============================================================================
@@ -108,6 +111,8 @@ export async function loadTileManifest(): Promise<Set<string>> {
             const parsed = z.array(ManifestEntrySchema).safeParse(json);
             if (parsed.success) {
                 debugTiles('manifest: fetched %d entries', parsed.data.length);
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Zod schema matches ManifestEntry but exactOptionalPropertyTypes diverges
+                rawManifestEntries = parsed.data as ManifestEntry[];
                 for (const entry of parsed.data) {
                     // Normalize world name to match what getWorldId returns
                     const normalizedWorld = getWorldId(entry.world);
@@ -206,6 +211,22 @@ export function calculateOverviewCoords(detailTileX: number, detailTileZ: number
 // direct URL. The browser HTTP cache replaces the in-memory blob cache.
 
 // ============================================================================
+// Manifest Raw Entries
+// ============================================================================
+
+/**
+ * Get the raw parsed manifest entries (includes heightmap metadata).
+ *
+ * Returns entries only after `loadTileManifest()` has completed.
+ * If the manifest hasn't been loaded yet, returns an empty array.
+ *
+ * @returns Array of manifest entries with heightmap metadata
+ */
+export function getManifestEntries(): readonly ManifestEntry[] {
+    return rawManifestEntries ?? [];
+}
+
+// ============================================================================
 // Testing Utilities
 // ============================================================================
 
@@ -216,4 +237,5 @@ export function calculateOverviewCoords(detailTileX: number, detailTileZ: number
 export function _clearCaches(): void {
     tileManifestCache = undefined;
     manifestLoadPromise = undefined;
+    rawManifestEntries = undefined;
 }

@@ -26,6 +26,7 @@ import {
     toLeafletCoordsRelative,
     toViewCoords,
 } from '../library.js';
+import type { LightingController } from '../lighting/lighting-controller.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
 import {
     calculateOverviewCoords,
@@ -34,6 +35,7 @@ import {
     TILE_CONFIG,
     tileExistsInManifest,
 } from '../map/index.js';
+import { getManifestEntries } from '../map/index.js';
 import type { RouteStop } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 
@@ -87,6 +89,8 @@ export interface NavMapDeps {
     };
     toggleStopCompletion: (stop: RouteStop, route: RouteStop[]) => void;
     onMapDrag: () => void;
+    /** Optional lighting controller for dynamic terrain lighting */
+    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
@@ -240,6 +244,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
     // ── Map lifecycle ───────────────────────────────────────────────
 
     function cleanupNavMap(): void {
+        deps.lightingController?.detach();
         if (state.map) {
             try { state.map.remove(); } catch { /* already removed */ }
         }
@@ -442,6 +447,17 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         const addedToNavMap = new Set<string>();
         loadNavMapTiles({ manifest, tileRange, worldId: worldToShow, addedToMap: addedToNavMap });
         bindDynamicTileLoading(manifest, addedToNavMap);
+
+        // Attach lighting overlay to the map
+        if (deps.lightingController) {
+            const entries = getManifestEntries();
+            void deps.lightingController.attach(
+                state.map,
+                tileRange.centerTileX,
+                tileRange.centerTileZ,
+                entries,
+            );
+        }
     }
 
     // ── Return public API ───────────────────────────────────────────

@@ -31,6 +31,7 @@ export type {
 export {
     _clearCaches,
     calculateOverviewCoords,
+    getManifestEntries,
     loadTileManifest,
     loadTileToMap,
     TILE_CONFIG,

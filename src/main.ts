@@ -51,6 +51,7 @@ import {
     getConfig,
     getTradeKey,
 } from './library.js';
+import { createLightingController } from './lighting/lighting-controller.js';
 import type { ShopMapDialogHandler } from './map/index.js';
 import {
     createShopMapDialogHandler
@@ -417,8 +418,11 @@ document.addEventListener('DOMContentLoaded', () => {
         getPlayerPosition: () => navigationStore.playerPosition
     });
 
+    const lightingController = createLightingController();
+
     navMapHandler = createNavMapHandler(navState, {
         navigationStore,
+        lightingController,
         toggleStopCompletion: (stop, route) => cartHandler.toggleStopCompletion(stop, route),
         onMapDrag: () => liveNav.switchToManualMode(),
     });
@@ -430,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         computeRoute,
         getAllCartStops,
         playerPositionService,
+        lightingController,
         renderCartDialog: () => cartHandler.renderCartDialog(),
     });
 
@@ -444,6 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         getElement,
         playerPositionService,
         updateNearbyShopTooltip,
+        lightingController,
         createTimelineStop: (...arguments_) => cartHandler.createTimelineStop(...arguments_),
         renderCartDialog: () => cartHandler.renderCartDialog(),
         // eslint-disable-next-line functional/prefer-tacit -- late-bound: getConfig not available at init
