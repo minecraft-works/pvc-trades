@@ -51,11 +51,12 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
-      - name: Cache map tiles
-        uses: actions/cache@v4
+      - name: Restore tile cache
+        id: tile-cache-restore
+        uses: actions/cache/restore@v4
         with:
           path: public/tiles
-          key: map-tiles-v8-${{ hashFiles('config.json') }}
+          key: map-tiles-v8-${{ github.run_id }}
           restore-keys: |
             map-tiles-v8-
 
@@ -70,6 +71,13 @@ jobs:
 
       - name: Validate tile integrity
         run: npm run validate-tiles
+
+      - name: Save tile cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: public/tiles
+          key: map-tiles-v8-${{ github.run_id }}
 
       - name: Copy static JSON files to public
         run: |
