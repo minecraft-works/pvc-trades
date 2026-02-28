@@ -156,7 +156,7 @@ export interface ShulkerParseResult {
 /** Schema for validating Item from external data */
 const ItemSchema = z.object({
     type: z.string(),
-    name: z.string(),
+    name: z.string().optional().default(''),
     amount: z.number()
 }).loose();
 
