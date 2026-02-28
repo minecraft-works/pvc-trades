@@ -205,7 +205,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
     p.__manifestFilter = 'all';
     
     // Set up tile request tracking
-    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
+    await page.route('**/tiles/**/*.png', async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
         
@@ -285,7 +285,7 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     p.__detailLevelAvailable = true;
 
     // Set up tile request tracking with color-encoded tiles
-    await page.route('**/tiles/**/*.jpeg', async (route: Route) => {
+    await page.route('**/tiles/**/*.png', async (route: Route) => {
         const url = route.request().url();
         p.__tileRequests!.push(url);
 
@@ -295,9 +295,9 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
         }
 
         // Parse URL to extract tile info
-        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.jpeg
+        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.png
         // level 2 = 256 blocks per tile, level 0 = 4096 blocks per tile
-        const match = /tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/.exec(url);
+        const match = /tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/.exec(url);
 
         if (match) {
             const [, world, levelString, tileXString, tileZString] = match;
@@ -579,7 +579,7 @@ Then('only tiles near origin should be requested', async ({ page }) => {
     // Since manifest only has tiles near origin (range -5 to +5),
     // no tiles far from origin should be requested
     // For a shop at 50000, 50000, that would be tile ~195 at detail level
-    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/;
+    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     const farTileRequests = p.__tileRequests?.filter(url => {
         const match = tilePattern.exec(url);
         if (!match) {
@@ -684,8 +684,8 @@ interface TileInfo {
  */
 function parseTileRequests(requests: string[]): TileInfo[] {
     const tiles: TileInfo[] = [];
-    // URL pattern: /tiles/world/level/x/z.jpeg
-    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.jpeg/;
+    // URL pattern: /tiles/world/level/x/z.png
+    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
     for (const url of requests) {
         const match = tileUrlPattern.exec(url);
         if (match) {

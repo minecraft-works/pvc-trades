@@ -152,7 +152,7 @@ Given('the navigation map is open', async ({ page, tileRequests }) => {
     
     // Set up request listener BEFORE any navigation
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -185,7 +185,7 @@ Given('the navigation map is open at map zoom {int}', async ({ page, tileRequest
     
     // Set up request listener BEFORE any navigation
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             allRequests.push(request.url());
             tileRequests.push(request.url());
         }
@@ -303,7 +303,7 @@ Given(String.raw`a mock shop {string} exists at \({int}, {int}\) in {string}`, a
         
         // Set up request listener
         page.on('request', request => {
-            if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+            if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
                 p.__tileRequests?.push(request.url());
                 tileRequests.push(request.url());
             }
@@ -427,7 +427,7 @@ When('I navigate to shop {string}', async ({ page, tileRequests }, shopName: str
         
         // Set up request listener
         page.on('request', request => {
-            if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+            if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
                 p.__tileRequests?.push(request.url());
                 tileRequests.push(request.url());
             }
@@ -466,7 +466,7 @@ When('I navigate to the shop named {string}', async ({ page, tileRequests }, sho
     // Set up request listener BEFORE any navigation
     // Note: Background step already loaded the page with mock data at /
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -512,7 +512,7 @@ When('I navigate to a shop selling {string}', async ({ page, tileRequests }, ite
     
     // Set up request listener
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -629,11 +629,11 @@ Then(String.raw`the expected tile \({int}, {int}\) for world {string} should be 
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.jpeg
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
     const worldPath = world === 'the_nether' ? 'the_nether' : 'overworld';
     const patterns = [
-        `/${worldPath}/2/${tileX}/${tileZ}.jpeg`,
-        `/tiles/${worldPath}/2/${tileX}/${tileZ}.jpeg`,
+        `/${worldPath}/2/${tileX}/${tileZ}.png`,
+        `/tiles/${worldPath}/2/${tileX}/${tileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -660,10 +660,10 @@ Then(String.raw`a tile containing coordinates \({int}, {int}\) should be request
     const expectedTileX = Math.floor(x / blocksPerTile);
     const expectedTileZ = Math.floor(z / blocksPerTile);
     
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.jpeg
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
     const patterns = [
-        `/overworld/2/${expectedTileX}/${expectedTileZ}.jpeg`,
-        `/tiles/overworld/2/${expectedTileX}/${expectedTileZ}.jpeg`,
+        `/overworld/2/${expectedTileX}/${expectedTileZ}.png`,
+        `/tiles/overworld/2/${expectedTileX}/${expectedTileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -686,11 +686,11 @@ Then(String.raw`tile \({int}, {int}\) should be requested at detail level`, asyn
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.jpeg
+    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
     // Detail level 2 = 256 blocks per tile
     const patterns = [
-        `/overworld/2/${tileX}/${tileZ}.jpeg`,
-        `/tiles/overworld/2/${tileX}/${tileZ}.jpeg`,
+        `/overworld/2/${tileX}/${tileZ}.png`,
+        `/tiles/overworld/2/${tileX}/${tileZ}.png`,
     ];
     
     const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
@@ -865,7 +865,7 @@ Then(String.raw`overworld tile at \({int}, {int}\) should be requested`, async (
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    const expectedPattern = `/overworld/2/${tileX}/${tileZ}.jpeg`;
+    const expectedPattern = `/overworld/2/${tileX}/${tileZ}.png`;
     const found = requests.some(url => url.includes(expectedPattern));
 
     expect(found).toBe(true);
@@ -1002,7 +1002,7 @@ Then('tile URLs should contain {string}', async ({ page }, pattern: string) => {
 
 Then('tile URLs should only contain {string}', async ({ page }, pattern: string) => {
     const p = page as PageWithTileTracking;
-    const requests = p.__tileRequests?.filter(url => url.includes('.jpeg')) ?? [];
+    const requests = p.__tileRequests?.filter(url => url.includes('.png')) ?? [];
     expect(requests.length).toBeGreaterThan(0);
     
     for (const url of requests) {

@@ -50,7 +50,7 @@ Given('I open the navigation dialog with items from both worlds', async ({ page,
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
@@ -427,7 +427,7 @@ Given('I mark the nether shop as completed', async ({ page }) => {
 Given('I start navigation as {string}', async ({ page, tileRequests }, playerName: string) => {
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith('.jpeg')) {
+        if (request.url().includes('/tiles/') && request.url().endsWith('.png')) {
             const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
             tileRequests.push(world);
         }
