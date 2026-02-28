@@ -185,3 +185,19 @@ Feature: Live Navigation
     Given I have completed some shops
     When I remove a completed item from the cart
     Then that completion status should be removed
+  # ============================================================================
+  # Route Optimization Display
+  # ============================================================================
+
+  @navigation @route-order
+  Scenario: Nav map displays stops in nearest-first order not cart insertion order
+    # Regression test for bug: polyline was drawn in getAllCartStops() insertion order,
+    # not in the computeRoute() optimised order — so the "shortest path" looked longest.
+    #
+    # Setup: add the FAR shop first (800, 400), then the NEAR shop (50, 50).
+    # Insertion order would put the far shop at index 0.
+    # Optimised order (nearest-neighbour from origin 0,0) puts the near shop first.
+    Given I clear the cart and add the far shop first then the near shop
+    And player "TestPlayer" is in the overworld at (0, 0)
+    And I start navigation as "TestPlayer"
+    Then the first stop on the nav map should be the near shop at (50, 50)

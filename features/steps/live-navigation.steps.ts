@@ -9,6 +9,57 @@ import { Given, Then,When } from './fixtures';
 // GIVEN Steps
 // ============================================================================
 
+Given('I clear the cart and add the far shop first then the near shop', async ({ page }) => {
+    // Clear any items added by the Background step so we control insertion order precisely.
+    const cartDialog = page.locator('#cart-dialog[open]');
+    if (!(await cartDialog.isVisible())) {
+        await page.locator('#open-cart').click();
+        await page.waitForSelector('#cart-dialog', { state: 'visible' });
+    }
+    const clearButton = page.locator('#clear-cart');
+    if (await clearButton.isVisible()) {
+        await clearButton.click();
+        // Clear-cart closes the dialog
+        await page.waitForSelector('#cart-dialog', { state: 'hidden' });
+    } else {
+        await page.locator('#close-cart').click();
+        await page.waitForSelector('#cart-dialog', { state: 'hidden' });
+    }
+
+    // Add FAR shop FIRST: Far Overworld Shop at (800, 400) → Iron Ingot
+    // This becomes index 0 in cart insertion order.
+    const farRow = page.locator('.trade-row').filter({ hasText: 'Iron' }).first();
+    await farRow.locator('.add-to-cart-btn').click();
+
+    // Add NEAR shop SECOND: Enchanted Items Shop at (50, 50) → Diamond Sword
+    // This becomes index 1 in cart insertion order, but is closer to origin (0,0).
+    const nearRow = page.locator('.trade-row').filter({ hasText: 'Diamond Sword' }).first();
+    await nearRow.locator('.add-to-cart-btn').click();
+});
+
+Then(String.raw`the first stop on the nav map should be the near shop at \({int}, {int}\)`, async ({ page }, expectedX: number, expectedZ: number) => {
+    // __navCurrentWorldRoute is set in nav-map.ts to state.currentWorldRoute.
+    // After the fix:  state.currentWorldRoute = route (the optimised computeRoute() result)
+    //                 → first stop is the nearest shop (50, 50)
+    // Before the fix: state.currentWorldRoute = getAllCartStops() (cart insertion order)
+    //                 → first stop was the far shop (800, 400)
+    let firstStop: { x: number; z: number } | null = null;
+
+    await expect.poll(async () => {
+        firstStop = await page.evaluate(() => {
+            // @ts-expect-error — exposed for testing in nav-map.ts
+            const route: { x: number; z: number }[] | undefined = globalThis.__navCurrentWorldRoute;
+            return route?.[0] ?? null;
+        });
+        return firstStop !== null;
+    }, { timeout: 5000, intervals: [100, 200, 500] }).toBe(true);
+
+    if (firstStop === null) { throw new Error('Route not populated within timeout'); }
+    const stop: { x: number; z: number } = firstStop;
+    expect(stop.x).toBe(expectedX);
+    expect(stop.z).toBe(expectedZ);
+});
+
 Given('I have items from multiple shops in my cart', async ({ page }) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     
@@ -47,7 +98,7 @@ Given(String.raw`I am navigating as {string} at \({int}, {int})`, async ({ page,
 });
 
 Given('I am navigating as {string} with yaw {int}', async ({ page, playerMock }, playerName: string, yaw: number) => {
-    playerMock.state.rotation = { pitch: 0, yaw, roll: 0 };
+    playerMock.state.rotation = { yaw, pitch: 0, roll: 0 };
     playerMock.setPosition(0, 0, 'World');
     
     await page.locator('#open-cart').click();

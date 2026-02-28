@@ -139,17 +139,18 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         const fullRoute = deps.computeRoute(playerPos, true);
         state.currentRoute = fullRoute;
 
-        const allStops = deps.getAllCartStops();
-        const stopsChanged = state.currentWorldRoute.length !== allStops.length ||
-            allStops.some((stop, index) => {
+        // Compute all stops in optimized order for display (includes completed stops for visual context)
+        const allStopsOrdered = deps.computeRoute(playerPos, false);
+        const stopsChanged = state.currentWorldRoute.length !== allStopsOrdered.length ||
+            allStopsOrdered.some((stop, index) => {
                 const oldStop = state.currentWorldRoute[index];
                 return stop.x !== oldStop?.x || stop.z !== oldStop.z;
             });
 
         if (!stopsChanged) { return; }
 
-        state.currentWorldRoute = allStops;
-        globalThis.__navCurrentWorldRoute = allStops;
+        state.currentWorldRoute = allStopsOrdered;
+        globalThis.__navCurrentWorldRoute = allStopsOrdered;
 
         if (state.routePolyline) {
             state.map.removeLayer(state.routePolyline);
@@ -161,9 +162,9 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         }
         state.stopMarkers = [];
 
-        if (allStops.length > 0) {
+        if (allStopsOrdered.length > 0) {
             const routePoints = deps.navMapHandler.createRouteMarkersUnified(
-                allStops, state.centerTileX, state.centerTileZ,
+                allStopsOrdered, state.centerTileX, state.centerTileZ,
                 deps.navigationStore.progress.completedKeys,
             );
 
@@ -188,11 +189,15 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             state.routePolyline = undefined;
         }
 
-        const allStops = deps.getAllCartStops();
-        if (allStops.length === 0) { return; }
+        // Use optimized order for display; fall back to insertion order if no player position
+        const playerPos = deps.navigationStore.playerPosition;
+        const allStopsOrdered = playerPos
+            ? deps.computeRoute(playerPos, false)
+            : deps.getAllCartStops();
+        if (allStopsOrdered.length === 0) { return; }
 
         const routePoints = deps.navMapHandler.createRouteMarkersUnified(
-            allStops, state.centerTileX, state.centerTileZ,
+            allStopsOrdered, state.centerTileX, state.centerTileZ,
             deps.navigationStore.progress.completedKeys,
         );
 

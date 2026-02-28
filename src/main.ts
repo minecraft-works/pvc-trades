@@ -419,7 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     navMapHandler = createNavMapHandler(navState, {
         navigationStore,
-        getAllCartStops,
         toggleStopCompletion: (stop, route) => cartHandler.toggleStopCompletion(stop, route),
         onMapDrag: () => liveNav.switchToManualMode(),
     });

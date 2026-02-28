@@ -85,7 +85,6 @@ export interface NavMapDeps {
         progress: { completedKeys: Set<string> };
         setPlayerMarker: (marker: L.Marker | undefined) => void;
     };
-    getAllCartStops: () => RouteStop[];
     toggleStopCompletion: (stop: RouteStop, route: RouteStop[]) => void;
     onMapDrag: () => void;
 }
@@ -406,9 +405,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         state.currentRoute = route;
         globalThis.__navCurrentRoute = state.currentRoute;
 
-        const allStops = deps.getAllCartStops();
-
-        if (allStops.length === 0) {
+        if (route.length === 0) {
             container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
             state.currentWorldRoute = [];
             debugMap('Empty route, no map displayed');
@@ -418,10 +415,11 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         container.innerHTML = '';
         const worldToShow = targetWorld ?? deps.navigationStore.viewWorld;
         state.mapWorld = worldToShow;
-        state.currentWorldRoute = allStops;
-        globalThis.__navCurrentWorldRoute = allStops;
+        // Use optimized route order for display rather than unordered cart insertion order
+        state.currentWorldRoute = route;
+        globalThis.__navCurrentWorldRoute = route;
 
-        const tileRange = calculateTileRangeForView(allStops);
+        const tileRange = calculateTileRangeForView(route);
         state.centerTileX = tileRange.centerTileX;
         state.centerTileZ = tileRange.centerTileZ;
 
@@ -429,7 +427,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         exposeNavTestGlobals(state, tileRange);
 
         const routePoints = createRouteMarkersUnified(
-            allStops, tileRange.centerTileX, tileRange.centerTileZ,
+            route, tileRange.centerTileX, tileRange.centerTileZ,
             deps.navigationStore.progress.completedKeys,
         );
         state.routePolyline = L.polyline(routePoints, {
