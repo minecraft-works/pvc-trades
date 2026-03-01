@@ -603,10 +603,36 @@ function computeAOSample(
 export type MaterialType = 'water' | 'foliage' | 'stone' | 'sand' | 'other';
 
 /**
+ * Reference water colors sampled from a BlueMap overworld tile (water.png).
+ * Each entry is `[R, G, B]` quantized to 8-step increments.
+ *
+ * Note: these colours are biome-specific (cold/lukewarm ocean palette).
+ * Strongly tinted biomes (warm ocean, swamp) may need additional entries.
+ */
+const WATER_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
+    [56, 72, 112],   // hue≈223  most common
+    [32, 80, 104],   // hue≈200
+    [80, 104, 136],  // hue≈214
+    [80, 96, 136],   // hue≈223
+    [56, 80, 120],   // hue≈218
+    [56, 80, 128],   // hue≈220
+    [64, 88, 128],   // hue≈218
+    [72, 96, 136],   // hue≈218
+    [48, 64, 104],   // hue≈223
+    [40, 80, 112],   // hue≈207
+] as const;
+
+/** Squared Euclidean distance threshold for histogram water matching (radius = 28). */
+const WATER_REF_THRESHOLD_SQ = 28 * 28;
+
+/**
  * Classify a pixel's material based on its RGB color.
  *
- * Uses hue and saturation from the color to identify:
- * - Water: blue hue (180-260), moderate saturation
+ * Water is detected first via a histogram lookup against reference colours
+ * sampled from water.png, with a tight hue/channel-ordering fallback for
+ * tinted biome variants. Other materials use HSV hue and saturation.
+ *
+ * - Water: histogram match OR hue 195-235 with B > G > R
  * - Foliage: green hue (70-170), moderate saturation
  * - Sand: low saturation yellow/brown (30-50 hue)
  * - Stone: very low saturation (grey)
@@ -617,6 +643,12 @@ export type MaterialType = 'water' | 'foliage' | 'stone' | 'sand' | 'other';
  * @returns Classified material type
  */
 export function classifyMaterial(r: number, g: number, b: number): MaterialType {
+    // Water: histogram lookup first (data-driven, avoids HSV edge cases)
+    for (const [wr, wg, wb] of WATER_REF_COLORS) {
+        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
+        if (dSq <= WATER_REF_THRESHOLD_SQ) { return 'water'; }
+    }
+
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const delta = max - min;
@@ -638,7 +670,8 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
     }
     if (hue < 0) { hue += 360; }
 
-    if (hue >= 180 && hue <= 260 && saturation > 0.15) { return 'water'; }
+    // Hue fallback: tinted water variants outside histogram radius (B > G > R enforced)
+    if (hue >= 195 && hue <= 235 && saturation > 0.30 && b > g && b > r) { return 'water'; }
     if (hue >= 70 && hue < 170 && saturation > 0.15) { return 'foliage'; }
     if (hue >= 30 && hue < 50 && saturation > 0.12) { return 'sand'; }
     return 'other';
@@ -652,7 +685,7 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
  * - specularAdd: additive specular highlight for water
  *
  * @param colorRgba - Color buffer (4 bytes per pixel RGBA)
- * @param heights - Decoded heights for specular computation
+ * @param _heights - Decoded heights (reserved for future wave-height ripple)
  * @param width - Width in pixels
  * @param height - Height in pixels
  * @param config - Lighting configuration
@@ -661,7 +694,7 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
  */
 export function computeMaterialModifiers(
     colorRgba: Buffer | Uint8Array,
-    heights: Float32Array,
+    _heights: Float32Array,
     width: number,
     height: number,
     config: LightingConfig,
@@ -677,8 +710,6 @@ export function computeMaterialModifiers(
     }
 
     const { waterSpecular, foliageBrightness, stoneAOMultiplier } = config.materialShading;
-    const [lx, , lz] = normalizeVec3(config.sunDirection);
-    const hScale = config.heightScale;
 
     for (let z = 0; z < height; z++) {
         for (let x = 0; x < width; x++) {
@@ -692,16 +723,13 @@ export function computeMaterialModifiers(
 
             switch (material) {
                 case 'water': {
-                    // Specular highlight: approximate with height gradient dot sun
-                    const hL = sampleHeight(heights, width, height, x - 1, z, hScale);
-                    const hR = sampleHeight(heights, width, height, x + 1, z, hScale);
-                    const hU = sampleHeight(heights, width, height, x, z - 1, hScale);
-                    const hD = sampleHeight(heights, width, height, x, z + 1, hScale);
-                    const gx = hR - hL;
-                    const gz = hD - hU;
-                    // Reflection approximation: sharper falloff for specular
-                    const reflDot = Math.max(0, -(gx * lx + gz * lz));
-                    specularAdd[index] = waterSpecular * reflDot ** 4;
+                    // Positional ripple glint: Minecraft water is flat so height
+                    // gradients are ~0 and physics-based specular gives nothing.
+                    // Instead use two incommensurate sine waves across tile pixels
+                    // to simulate sun glinting off a rippled surface.
+                    const rippleA = 0.5 + 0.5 * Math.sin(x * 0.25);
+                    const rippleB = 0.5 + 0.5 * Math.sin(z * 0.17 + 1.5);
+                    specularAdd[index] = waterSpecular * rippleA * rippleB;
                     break;
                 }
                 case 'foliage': {
