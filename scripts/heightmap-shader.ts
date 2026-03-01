@@ -100,7 +100,7 @@ export interface LightingConfig {
     /**
      * Per-material shading based on color hue classification.
      * Water gets specular highlights, foliage gets brighter diffuse,
-     * stone gets stronger AO.
+     * stone gets stronger AO, snow gets brightness boost, lava glows.
      */
     readonly materialShading: {
         /** Enable material-aware shading */
@@ -111,6 +111,12 @@ export interface LightingConfig {
         readonly foliageBrightness: number;
         /** Extra AO multiplier for stone surfaces (1 = normal, 2 = double) */
         readonly stoneAOMultiplier: number;
+        /** Brightness boost for snow/ice surfaces (0-1) */
+        readonly snowBrightness: number;
+        /** Constant additive glow for lava surfaces (0-1) */
+        readonly lavaGlow: number;
+        /** AO multiplier for sand (< 1 = less crevice darkening, default 0.4) */
+        readonly sandAOMultiplier: number;
     };
     /**
      * Normal estimation kernel size.
@@ -147,7 +153,7 @@ export const DEFAULT_LIGHTING: LightingConfig = {
     shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
     ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
     unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
-    materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+    materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
     normalKernelSize: 3,
 };
 
@@ -596,46 +602,27 @@ function computeAOSample(
 }
 
 // ============================================================================
-// Per-Material Shading (hue-based classification)
+// Per-Material Shading (histogram + hue-based classification)
 // ============================================================================
 
-/** Material type classified from pixel hue */
-export type MaterialType = 'water' | 'foliage' | 'stone' | 'sand' | 'other';
+/** Material type classified from pixel color */
+export type MaterialType = 'water' | 'grass' | 'foliage' | 'snow' | 'lava' | 'stone' | 'sand' | 'other';
 
 /**
- * Reference water colors sampled from a BlueMap overworld tile (water.png).
- * Each entry is `[R, G, B]` quantized to 8-step increments.
- *
- * Note: these colours are biome-specific (cold/lukewarm ocean palette).
- * Strongly tinted biomes (warm ocean, swamp) may need additional entries.
+ * Euclidean distance threshold (squared) for histogram color matching.
+ * A radius of 28 means two colors must be within 28 units in RGB space to match.
  */
-const WATER_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
-    [56, 72, 112],   // hue≈223  most common
-    [32, 80, 104],   // hue≈200
-    [80, 104, 136],  // hue≈214
-    [80, 96, 136],   // hue≈223
-    [56, 80, 120],   // hue≈218
-    [56, 80, 128],   // hue≈220
-    [64, 88, 128],   // hue≈218
-    [72, 96, 136],   // hue≈218
-    [48, 64, 104],   // hue≈223
-    [40, 80, 112],   // hue≈207
-] as const;
-
-/** Squared Euclidean distance threshold for histogram water matching (radius = 28). */
-const WATER_REF_THRESHOLD_SQ = 28 * 28;
+const MATERIAL_MATCH_THRESHOLD_SQ = 28 * 28;
 
 /**
  * Classify a pixel's material based on its RGB color.
  *
- * Water is detected first via a histogram lookup against reference colours
- * sampled from water.png, with a tight hue/channel-ordering fallback for
- * tinted biome variants. Other materials use HSV hue and saturation.
- *
- * - Water: histogram match OR hue 195-235 with B > G > R
- * - Foliage: green hue (70-170), moderate saturation
- * - Sand: low saturation yellow/brown (30-50 hue)
- * - Stone: very low saturation (grey)
+ * Priority order:
+ * 1. Histogram lookup against imported reference tables (water, foliage, grass)
+ * 2. Snow/ice: very high brightness + very low saturation (avoids stone misclassification)
+ * 3. Lava: bright orange hue  
+ * 4. HSV hue fallback for tinted water variants + sand
+ * 5. Low saturation catch-all → stone
  *
  * @param r - Red channel (0-255)
  * @param g - Green channel (0-255)
@@ -643,21 +630,41 @@ const WATER_REF_THRESHOLD_SQ = 28 * 28;
  * @returns Classified material type
  */
 export function classifyMaterial(r: number, g: number, b: number): MaterialType {
-    // Water: histogram lookup first (data-driven, avoids HSV edge cases)
+    // --- Histogram lookups against reference color tables ---
+
+    // Water: check against all biome water_color references
     for (const [wr, wg, wb] of WATER_REF_COLORS) {
         const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
-        if (dSq <= WATER_REF_THRESHOLD_SQ) { return 'water'; }
+        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'water'; }
     }
 
+    // Foliage (tree leaves): check before grass as it's a subset of greens
+    for (const [wr, wg, wb] of FOLIAGE_REF_COLORS) {
+        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
+        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'foliage'; }
+    }
+
+    // Grass tops: check after foliage to preserve distinction
+    for (const [wr, wg, wb] of GRASS_REF_COLORS) {
+        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
+        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'grass'; }
+    }
+
+    // --- HSV-based fallbacks ---
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const delta = max - min;
     const saturation = max === 0 ? 0 : delta / max;
+    const avgBrightness = (r + g + b) / 3;
 
-    // Low saturation = stone/grey
+    // Snow / ice: near-white (very bright, very low saturation)
+    // Distinguished from stone (same low saturation, but lower brightness)
+    if (saturation < 0.12 && avgBrightness > 190) { return 'snow'; }
+
+    // Stone: low saturation grey (mid-range brightness)
     if (saturation < 0.12) { return 'stone'; }
 
-    // Compute hue in degrees
+    // Compute hue in degrees for remaining hue-based rules
     let hue: number;
     if (delta === 0) {
         hue = 0;
@@ -670,10 +677,15 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
     }
     if (hue < 0) { hue += 360; }
 
-    // Hue fallback: tinted water variants outside histogram radius (B > G > R enforced)
+    // Lava: bright orange (avoids dirt/terracotta by requiring high brightness + saturation)
+    if (hue >= 10 && hue <= 38 && saturation > 0.55 && max > 170) { return 'lava'; }
+
+    // Sand: yellow-beige (low-to-medium saturation)
+    if (hue >= 30 && hue < 55 && saturation > 0.12 && saturation < 0.5) { return 'sand'; }
+
+    // Hue fallback for tinted water variants outside histogram radius (B > G > R enforced)
     if (hue >= 195 && hue <= 235 && saturation > 0.30 && b > g && b > r) { return 'water'; }
-    if (hue >= 70 && hue < 170 && saturation > 0.15) { return 'foliage'; }
-    if (hue >= 30 && hue < 50 && saturation > 0.12) { return 'sand'; }
+
     return 'other';
 }
 
@@ -681,15 +693,21 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
  * Compute a per-pixel material modifier map.
  *
  * Returns two arrays:
- * - diffuseModifier: multiplied with the shade map (>1 = brighter foliage, <1 = darker stone with AO)
- * - specularAdd: additive specular highlight for water
+ * - diffuseModifier: multiplied with the shade map
+ *   - foliage/grass: brighter (+foliageBrightness)
+ *   - stone: extra AO amplification (stoneAOMultiplier)
+ *   - snow: brightness boost (+snowBrightness), reduced AO
+ *   - sand: reduced AO (sandAOMultiplier)
+ * - specularAdd: additive per-pixel light contribution
+ *   - water: positional ripple glint (waterSpecular)
+ *   - lava: constant warm glow (lavaGlow)
  *
  * @param colorRgba - Color buffer (4 bytes per pixel RGBA)
  * @param _heights - Decoded heights (reserved for future wave-height ripple)
  * @param width - Width in pixels
  * @param height - Height in pixels
  * @param config - Lighting configuration
- * @param aoMap - Ambient occlusion map (for stone AO enhancement)
+ * @param aoMap - Ambient occlusion map (for stone/snow AO modulation)
  * @returns diffuseModifier and specularAdd arrays
  */
 export function computeMaterialModifiers(
@@ -709,7 +727,7 @@ export function computeMaterialModifiers(
         return { diffuseModifier, specularAdd };
     }
 
-    const { waterSpecular, foliageBrightness, stoneAOMultiplier } = config.materialShading;
+    const { waterSpecular, foliageBrightness, stoneAOMultiplier, snowBrightness, lavaGlow, sandAOMultiplier } = config.materialShading;
 
     for (let z = 0; z < height; z++) {
         for (let x = 0; x < width; x++) {
@@ -723,24 +741,41 @@ export function computeMaterialModifiers(
 
             switch (material) {
                 case 'water': {
-                    // Positional ripple glint: Minecraft water is flat so height
+                    // Positional ripple glint — Minecraft water is flat so height
                     // gradients are ~0 and physics-based specular gives nothing.
-                    // Instead use two incommensurate sine waves across tile pixels
-                    // to simulate sun glinting off a rippled surface.
                     const rippleA = 0.5 + 0.5 * Math.sin(x * 0.25);
                     const rippleB = 0.5 + 0.5 * Math.sin(z * 0.17 + 1.5);
                     specularAdd[index] = waterSpecular * rippleA * rippleB;
                     break;
                 }
+                case 'grass':
                 case 'foliage': {
+                    // Foliage and grass both get a diffuse brightness boost
                     diffuseModifier[index] = 1 + foliageBrightness;
                     break;
                 }
                 case 'stone': {
-                    // Enhance AO for stone — multiply existing AO darkening
-                    const aoValue = aoMap[index];
-                    const aoDarkening = 1 - aoValue; // how dark AO makes it
-                    diffuseModifier[index] = 1 - aoDarkening * stoneAOMultiplier;
+                    // Enhance AO for stone — rocky surfaces have deeper shadow crevices
+                    const aoDarkeningStone = 1 - aoMap[index];
+                    diffuseModifier[index] = 1 - aoDarkeningStone * stoneAOMultiplier;
+                    break;
+                }
+                case 'snow': {
+                    // High albedo — reduce AO influence and add brightness boost.
+                    // Snow fills in small crevices, so use half the normal AO darkening.
+                    const aoDarkeningSnow = 1 - aoMap[index];
+                    diffuseModifier[index] = (1 + snowBrightness) - aoDarkeningSnow * 0.4;
+                    break;
+                }
+                case 'lava': {
+                    // Self-illuminating — constant additive glow regardless of sun angle
+                    specularAdd[index] = lavaGlow;
+                    break;
+                }
+                case 'sand': {
+                    // Flat terrain — reduce AO darkening (sand fills gullies)
+                    const aoDarkeningSand = 1 - aoMap[index];
+                    diffuseModifier[index] = 1 - aoDarkeningSand * sandAOMultiplier;
                     break;
                 }
                 default: {

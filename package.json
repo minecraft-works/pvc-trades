@@ -39,6 +39,7 @@
     "fetch-tiles": "tsx scripts/fetch-tiles.ts",
     "render-tiles": "tsx scripts/render-tiles.ts",
     "validate-tiles": "tsx scripts/validate-tiles.ts",
+    "extract-material-colors": "tsx scripts/extract-material-colors.ts",
     "prepare": "husky",
     "size": "size-limit"
   },
@@ -94,6 +95,7 @@
     "lint-staged": "^16.2.7",
     "lockfile-lint": "^5.0.0",
     "madge": "^8.0.0",
+    "node-stream-zip": "^1.15.0",
     "playwright": "^1.57.0",
     "playwright-bdd": "^8.4.2",
     "playwright-extra": "^4.3.6",
