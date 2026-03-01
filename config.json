@@ -12,8 +12,8 @@
       "format": "png"
     },
     "bluemap": {
-      "tileWidth": 500,
-      "tileHeight": 500,
+      "tileWidth": 1000,
+      "tileHeight": 1000,
       "levels": 3,
       "scaleFactor": 5,
       "baseBlocksPerTile": 500,
@@ -27,6 +27,7 @@
         "heightScale": 1.0,
         "normalScale": 2,
         "blockLightBoost": 0,
+        "shadingScale": 2,
         "emitHeightmapTiles": true
       }
     }

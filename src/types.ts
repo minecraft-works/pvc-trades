@@ -90,6 +90,13 @@ const TilePyramidConfigSchema = z.object({
          * 0 = disabled. 0.2 = subtle warm glow from torches/lava.
          */
         blockLightBoost: z.number().min(0).max(1).default(0),
+        /**
+         * Integer upscale factor applied before shading (1–4).
+         * Heights and block-light values are bilinearly upsampled; colors are
+         * upsampled with nearest-neighbour. Shade is computed and the tile emitted
+         * at `shadingScale × tileSize`. Set tileWidth/Height to match in the preset.
+         */
+        shadingScale: z.number().int().min(1).max(4).default(1),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
         emitHeightmapTiles: z.boolean().default(true)
     }).optional()
@@ -145,6 +152,7 @@ export const AppConfigSchema = z.object({
             heightScale: 1,
             normalScale: 2,
             blockLightBoost: 0,
+            shadingScale: 1,
             emitHeightmapTiles: true
         }
     }),
@@ -692,6 +700,7 @@ export const DEFAULT_CONFIG: AppConfig = {
             heightScale: 1,
             normalScale: 2,
             blockLightBoost: 0,
+            shadingScale: 1,
             emitHeightmapTiles: true
         }
     },

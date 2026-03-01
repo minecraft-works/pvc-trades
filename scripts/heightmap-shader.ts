@@ -48,6 +48,15 @@ export interface LightingConfig {
      * 0 = disabled, 0.2 = subtle warm glow from lit blocks (torches, lava).
      */
     readonly blockLightBoost: number;
+    /**
+     * Integer upscale factor applied before shading.
+     * Heights and block-light values are bilinearly upsampled; colors are
+     * upsampled with nearest-neighbour (preserving pixel-art edges).
+     * Shade is computed and applied at `shadingScale × tileSize` resolution,
+     * and the output tile is emitted at that larger size.
+     * 1 = no upscale (current behaviour), 2 = 2× (1000×1000 for BlueMap).
+     */
+    readonly shadingScale: number;
 }
 
 /** Quantized heightmap output for 8-bit grayscale tile */
@@ -73,6 +82,7 @@ export const DEFAULT_LIGHTING: LightingConfig = {
     heightScale: 1,
     normalScale: 2,
     blockLightBoost: 0,
+    shadingScale: 1,
 };
 
 // ============================================================================
@@ -244,6 +254,52 @@ export function computeShadeMap(
         return computeSlopeShade(heights, width, height, config);
     }
     return computeLambertianShade(heights, width, height, config);
+}
+
+// ============================================================================
+// Bilinear Upsampling
+// ============================================================================
+
+/**
+ * Bilinearly upsample a Float32Array (e.g. decoded heights or block-light
+ * values) by an integer scale factor.
+ *
+ * Destination pixel centres are mapped back to fractional source coordinates
+ * using half-pixel offsets; boundary pixels clamp-to-edge (no wrap).
+ *
+ * @param data   - Source values laid out row-major (sourceW × sourceH elements)
+ * @param sourceW  - Source width in pixels
+ * @param sourceH  - Source height in pixels
+ * @param scale  - Integer scale factor (must be ≥ 1)
+ * @returns New Float32Array of size (sourceW × scale) × (sourceH × scale)
+ */
+export function upsampleBilinear(
+    data: Float32Array,
+    sourceW: number,
+    sourceH: number,
+    scale: number,
+): Float32Array {
+    const outputW = sourceW * scale;
+    const outputH = sourceH * scale;
+    return Float32Array.from({ length: outputW * outputH }, (_, i) => {
+        const dx = i % outputW;
+        const dy = Math.floor(i / outputW);
+        // Map output pixel centre → fractional source coordinate
+        const sx = (dx + 0.5) / scale - 0.5;
+        const sy = (dy + 0.5) / scale - 0.5;
+        const sx0 = Math.max(0, Math.floor(sx));
+        const sx1 = Math.min(sourceW - 1, sx0 + 1);
+        const sy0 = Math.max(0, Math.floor(sy));
+        const sy1 = Math.min(sourceH - 1, sy0 + 1);
+        const tx = sx - sx0;
+        const ty = sy - sy0;
+        return (
+            data[sy0 * sourceW + sx0] * (1 - tx) * (1 - ty) +
+            data[sy0 * sourceW + sx1] * tx        * (1 - ty) +
+            data[sy1 * sourceW + sx0] * (1 - tx) * ty        +
+            data[sy1 * sourceW + sx1] * tx        * ty
+        );
+    });
 }
 
 // ============================================================================
