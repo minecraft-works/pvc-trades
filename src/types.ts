@@ -97,6 +97,46 @@ const TilePyramidConfigSchema = z.object({
          * at `shadingScale × tileSize`. Set tileWidth/Height to match in the preset.
          */
         shadingScale: z.number().int().min(1).max(4).default(1),
+        /** Shadow casting via heightmap ray marching */
+        shadowCasting: z.object({
+            enabled: z.boolean().default(false),
+            /** Maximum ray march distance in pixels */
+            maxDistance: z.number().int().positive().default(64),
+            /** Shadow darkness (0 = no shadow, 1 = full black) */
+            intensity: z.number().min(0).max(1).default(0.7),
+        }).default({ enabled: false, maxDistance: 64, intensity: 0.7 }),
+        /** Screen-space ambient occlusion from heightmap */
+        ambientOcclusion: z.object({
+            enabled: z.boolean().default(false),
+            /** Number of radial samples per pixel */
+            samples: z.number().int().min(4).max(64).default(16),
+            /** Sampling radius in pixels */
+            radius: z.number().int().positive().default(8),
+            /** AO darkness multiplier (0 = none, 1 = full) */
+            intensity: z.number().min(0).max(1).default(0.5),
+        }).default({ enabled: false, samples: 16, radius: 8, intensity: 0.5 }),
+        /** Post-processing unsharp mask for detail enhancement */
+        unsharpMask: z.object({
+            enabled: z.boolean().default(false),
+            /** Gaussian blur radius in pixels */
+            radius: z.number().int().positive().default(2),
+            /** Sharpening amount multiplier */
+            amount: z.number().min(0).max(5).default(0.5),
+            /** Luminance difference threshold (skip subtle changes) */
+            threshold: z.number().min(0).default(4),
+        }).default({ enabled: false, radius: 2, amount: 0.5, threshold: 4 }),
+        /** Hue-based per-material shading modifiers */
+        materialShading: z.object({
+            enabled: z.boolean().default(false),
+            /** Additive specular highlight for water surfaces */
+            waterSpecular: z.number().min(0).max(1).default(0.3),
+            /** Brightness boost for foliage (additive, 0–1) */
+            foliageBrightness: z.number().min(0).max(1).default(0.1),
+            /** AO multiplier for stone/grey surfaces */
+            stoneAOMultiplier: z.number().min(0).max(5).default(1.5),
+        }).default({ enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 }),
+        /** Normal kernel size: 3=central diff, 5=Sobel 5×5, 7=Sobel 7×7 */
+        normalKernelSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
         emitHeightmapTiles: z.boolean().default(true)
     }).optional()
@@ -153,6 +193,11 @@ export const AppConfigSchema = z.object({
             normalScale: 2,
             blockLightBoost: 0,
             shadingScale: 1,
+            shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
+            ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
+            unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
+            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+            normalKernelSize: 3 as const,
             emitHeightmapTiles: true
         }
     }),
@@ -701,6 +746,11 @@ export const DEFAULT_CONFIG: AppConfig = {
             normalScale: 2,
             blockLightBoost: 0,
             shadingScale: 1,
+            shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
+            ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
+            unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
+            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+            normalKernelSize: 3 as const,
             emitHeightmapTiles: true
         }
     },

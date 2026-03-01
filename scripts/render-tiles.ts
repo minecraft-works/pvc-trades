@@ -36,8 +36,12 @@ import {
 } from '../src/tile-pyramid';
 import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConfig } from '../src/types';
 import {
-    applyShadeToColor,
+    applyFullShading,
+    applyUnsharpMask,
+    computeAmbientOcclusion,
+    computeMaterialModifiers,
     computeShadeMap,
+    computeShadowMap,
     decodeBlockLight,
     decodeHeightmap,
     extractSubHeights,
@@ -312,9 +316,23 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         shadedBlockLights = subBlockLights;
     }
 
-    // Compute and apply shade at (potentially upscaled) resolution
+    // Compute shade, shadow, AO, and material maps at (potentially upscaled) resolution
     const shade = computeShadeMap(shadedHeights, shadedW, shadedH, lightingConfig);
-    applyShadeToColor(shadedColor, shade, shadedBlockLights, lightingConfig.blockLightBoost);
+    const shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
+    const aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
+    const { diffuseModifier, specularAdd } = computeMaterialModifiers(
+        shadedColor, shadedHeights, shadedW, shadedH, lightingConfig, aoMap,
+    );
+
+    // Apply full shading pipeline (shade × shadow × AO × material + specular + blockLight)
+    applyFullShading(
+        shadedColor, shade, shadowMap, aoMap,
+        diffuseModifier, specularAdd,
+        shadedBlockLights, lightingConfig.blockLightBoost,
+    );
+
+    // Post-processing: unsharp mask (operates on final color buffer)
+    applyUnsharpMask(shadedColor, shadedW, shadedH, lightingConfig);
 
     // Quantize from original (unscaled) heights — min/max metadata is geometric, not resolution-dependent
     const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
@@ -332,6 +350,47 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
 
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
+    // Helper to write a diagnostic tile from a Float32Array map
+    const writeDiagnosticTile = async (
+        map: Float32Array, suffix: string,
+    ): Promise<void> => {
+        const diagPath = path.join(
+            TILES_DIR, source.world,
+            String(canonLevel), String(canonTileX),
+            `${canonTileZ}.${suffix}.png`,
+        );
+        // Convert float map [0..1] to grayscale RGBA
+        const diagRgba = Buffer.alloc(map.length * 4);
+        for (const [i, mapValue] of map.entries()) {
+            const v = Math.min(255, Math.max(0, Math.round(mapValue * 255)));
+            const offset = i * 4;
+            diagRgba[offset] = v;
+            diagRgba[offset + 1] = v;
+            diagRgba[offset + 2] = v;
+            diagRgba[offset + 3] = 255;
+        }
+        let diagPipeline = sharp(diagRgba, { raw: { width: shadedW, height: shadedH, channels: 4 } });
+        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
+            diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
+        await diagPipeline.png({ compressionLevel: 9 }).toFile(diagPath);
+    };
+
+    // Write diagnostic tiles for each technique (only when that technique is enabled)
+    if (lightingConfig.shadowCasting.enabled) {
+        await writeDiagnosticTile(shadowMap, 'shadow');
+    }
+    if (lightingConfig.ambientOcclusion.enabled) {
+        await writeDiagnosticTile(aoMap, 'ao');
+    }
+    if (lightingConfig.materialShading.enabled) {
+        await writeDiagnosticTile(diffuseModifier, 'material');
+        await writeDiagnosticTile(specularAdd, 'specular');
+    }
+    if (lightingConfig.normalKernelSize > 3) {
+        await writeDiagnosticTile(shade, `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`);
+    }
+
     // Write shaded color tile at full (potentially upscaled) resolution.
     // The extract only fires when buffer dimensions differ from pyramid dims;
     // this trims the 501→500 source border pixel when shadingScale = 1.
@@ -344,6 +403,26 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     }
     pipeline = applyFormat(pipeline, pyramid.format);
     await pipeline.toFile(outputPath);
+
+    // For unsharp mask diagnostic, we need to compare the shaded tile with a non-sharpened version
+    if (lightingConfig.unsharpMask.enabled) {
+        // Re-create the color buffer without unsharp mask for comparison
+        const diagColor = await sharp(subColor, { raw: { width: cropWidth, height: cropHeight, channels: 4 } })
+            .resize(shadedW, shadedH, { kernel: 'nearest' })
+            .raw()
+            .toBuffer();
+        applyFullShading(diagColor, shade, shadowMap, aoMap, diffuseModifier, specularAdd, shadedBlockLights, lightingConfig.blockLightBoost);
+        // Compute difference between sharpened and unsharpened as diagnostic
+        const unsharpDiff = new Float32Array(shade.length);
+        for (let i = 0; i < shade.length; i++) {
+            const offset = i * 4;
+            const sharpR = shadedColor[offset];
+            const noSharpR = diagColor[offset];
+            // Normalize diff to [0..1] range (0.5 = no change, >0.5 = brighter, <0.5 = darker)
+            unsharpDiff[i] = 0.5 + (sharpR - noSharpR) / 510;
+        }
+        await writeDiagnosticTile(unsharpDiff, 'unsharp');
+    }
 
     // Write heightmap sidecar at the same output dimensions
     if (emitHeightmap) {
@@ -607,10 +686,23 @@ async function buildMosaicComposites(
             `${detailEntry.tileZ}.${pyramid.format}`,
         );
         if (!existsSync(detailPath)) { continue; }
-        const buf = await sharp(detailPath).ensureAlpha().raw().toBuffer();
+        // Guard against stale cached tiles whose dimensions no longer match the
+        // current pyramid config (e.g. a pre-shadingScale=2 run leaving 500×500
+        // tiles when tileWidth/tileHeight is now 1000). Passing a raw buffer
+        // with the wrong declared dimensions causes a libvips memory error.
+        const meta = await sharp(detailPath).metadata();
+        if (meta.width !== pyramid.tileWidth || meta.height !== pyramid.tileHeight) {
+            console.warn(
+                `  [WARN] Skipping stale tile ${detailPath}` +
+                ` (${meta.width ?? '?'}×${meta.height ?? '?'} ≠ expected` +
+                ` ${pyramid.tileWidth}×${pyramid.tileHeight}) — canonical cache may be stale`,
+            );
+            continue;
+        }
+        // Pass the file path directly so sharp reads PNG dimensions from metadata
+        // — no raw buffer spec means no possibility of a size mismatch.
         composites.push({
-            input: buf,
-            raw: { width: pyramid.tileWidth, height: pyramid.tileHeight, channels: 4 },
+            input: detailPath,
             left: localX * pyramid.tileWidth,
             top: localZ * pyramid.tileHeight,
         });
@@ -782,9 +874,19 @@ async function main(): Promise<void> {
             normalScale: lightingCfg.normalScale,
             blockLightBoost: lightingCfg.blockLightBoost,
             shadingScale: lightingCfg.shadingScale,
+            shadowCasting: lightingCfg.shadowCasting,
+            ambientOcclusion: lightingCfg.ambientOcclusion,
+            unsharpMask: lightingCfg.unsharpMask,
+            materialShading: lightingCfg.materialShading,
+            normalKernelSize: lightingCfg.normalKernelSize,
         };
         console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost})`);
         console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
+        console.log(`  Shadow casting: ${lightingConfig.shadowCasting.enabled ? 'enabled' : 'disabled'}`);
+        console.log(`  Ambient occlusion: ${lightingConfig.ambientOcclusion.enabled ? 'enabled' : 'disabled'}`);
+        console.log(`  Unsharp mask: ${lightingConfig.unsharpMask.enabled ? 'enabled' : 'disabled'}`);
+        console.log(`  Material shading: ${lightingConfig.materialShading.enabled ? 'enabled' : 'disabled'}`);
+        console.log(`  Normal kernel size: ${lightingConfig.normalKernelSize}×${lightingConfig.normalKernelSize}`);
         console.log(`  Heightmap tiles: ${lightingCfg.emitHeightmapTiles ? 'enabled' : 'disabled'}`);
     } else {
         console.log('\nLighting: disabled');

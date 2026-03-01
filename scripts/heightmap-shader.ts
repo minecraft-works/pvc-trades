@@ -54,9 +54,70 @@ export interface LightingConfig {
      * upsampled with nearest-neighbour (preserving pixel-art edges).
      * Shade is computed and applied at `shadingScale × tileSize` resolution,
      * and the output tile is emitted at that larger size.
-     * 1 = no upscale (current behaviour), 2 = 2× (1000×1000 for BlueMap).
+     * 1 = no upscale (current behaviour), 2 = 2x (1000x1000 for BlueMap).
      */
     readonly shadingScale: number;
+    /**
+     * Heightmap shadow casting configuration.
+     * Traces rays along the sun direction through the heightmap.
+     * Pixels occluded by taller terrain receive only ambient light.
+     */
+    readonly shadowCasting: {
+        /** Enable heightmap shadow casting */
+        readonly enabled: boolean;
+        /** Maximum ray march distance in pixels (higher = longer shadows, slower) */
+        readonly maxDistance: number;
+        /** Shadow intensity: 0 = no darkening, 1 = full shadow (ambient only) */
+        readonly intensity: number;
+    };
+    /**
+     * Screen-space ambient occlusion from heightmap.
+     * Samples heights radially to darken concave areas (pits, ravines, room interiors).
+     */
+    readonly ambientOcclusion: {
+        /** Enable ambient occlusion */
+        readonly enabled: boolean;
+        /** Number of radial samples (higher = smoother, slower) */
+        readonly samples: number;
+        /** Sample radius in pixels */
+        readonly radius: number;
+        /** AO strength multiplier (0-1) */
+        readonly intensity: number;
+    };
+    /**
+     * Unsharp mask applied after shading to recover texture detail.
+     */
+    readonly unsharpMask: {
+        /** Enable unsharp mask post-processing */
+        readonly enabled: boolean;
+        /** Gaussian blur radius in pixels */
+        readonly radius: number;
+        /** Amount/strength of sharpening (0-2 typical) */
+        readonly amount: number;
+        /** Minimum brightness difference to sharpen (prevents noise amplification) */
+        readonly threshold: number;
+    };
+    /**
+     * Per-material shading based on color hue classification.
+     * Water gets specular highlights, foliage gets brighter diffuse,
+     * stone gets stronger AO.
+     */
+    readonly materialShading: {
+        /** Enable material-aware shading */
+        readonly enabled: boolean;
+        /** Specular intensity for water surfaces (0-1) */
+        readonly waterSpecular: number;
+        /** Diffuse brightness boost for foliage (0-1) */
+        readonly foliageBrightness: number;
+        /** Extra AO multiplier for stone surfaces (1 = normal, 2 = double) */
+        readonly stoneAOMultiplier: number;
+    };
+    /**
+     * Normal estimation kernel size.
+     * 3 = standard central differences (current), 5 = Sobel 5x5, 7 = Sobel 7x7.
+     * Wider kernels smooth noise and produce more plausible large-scale normals.
+     */
+    readonly normalKernelSize: 3 | 5 | 7;
 }
 
 /** Quantized heightmap output for 8-bit grayscale tile */
@@ -83,6 +144,11 @@ export const DEFAULT_LIGHTING: LightingConfig = {
     normalScale: 2,
     blockLightBoost: 0,
     shadingScale: 1,
+    shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
+    ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
+    unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
+    materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+    normalKernelSize: 3,
 };
 
 // ============================================================================
@@ -182,13 +248,17 @@ export function computeSlopeShade(
  * Compute per-pixel shade intensity using Lambertian diffuse model.
  *
  * Derives a surface normal from the height gradient at each pixel using
- * central differences, then computes `I = ambient + diffuse × max(0, n̂·l̂)`.
+ * central differences (kernel size 3) or wider Sobel kernels (5 or 7),
+ * then computes `I = ambient + diffuse * max(0, n.l)`.
+ *
+ * Wider kernels smooth noise in the heightmap and produce more plausible
+ * large-scale terrain normals, especially on gradual slopes.
  *
  * @param heights - Decoded height values (from decodeHeightmap)
  * @param width - Heightmap width in pixels
  * @param height - Heightmap height in pixels
  * @param config - Lighting configuration
- * @returns Float32Array of intensity multipliers (width × height elements)
+ * @returns Float32Array of intensity multipliers (width * height elements)
  */
 export function computeLambertianShade(
     heights: Float32Array,
@@ -200,21 +270,17 @@ export function computeLambertianShade(
     const [lx, ly, lz] = normalizeVec3(config.sunDirection);
     const scale = config.heightScale;
 
+    // Compute gradient using the selected kernel size
+    const { gradX, gradZ } = computeHeightGradients(heights, width, height, scale, config.normalKernelSize);
+
     for (let z = 0; z < height; z++) {
         for (let x = 0; x < width; x++) {
             const index = z * width + x;
 
-            // Central differences for gradient (clamp at edges)
-            const hL = heights[z * width + Math.max(0, x - 1)] * scale;
-            const hR = heights[z * width + Math.min(width - 1, x + 1)] * scale;
-            const hU = heights[Math.max(0, z - 1) * width + x] * scale;
-            const hD = heights[Math.min(height - 1, z + 1) * width + x] * scale;
-
-            const dx = hR - hL;
-            const dz = hD - hU;
+            const dx = gradX[index] ?? 0;
+            const dz = gradZ[index] ?? 0;
 
             // Surface normal: n = normalize(-dx, normalScale, -dz)
-            // normalScale is the Y component — higher = flatter terrain appearance
             const nx = -dx;
             const ny = config.normalScale;
             const nz = -dz;
@@ -223,7 +289,7 @@ export function computeLambertianShade(
             const nny = ny / length;
             const nnz = nz / length;
 
-            // Lambertian: I = ambient + diffuse × max(0, n·l)
+            // Lambertian: I = ambient + diffuse * max(0, n.l)
             const dot = nnx * lx + nny * ly + nnz * lz;
             shade[index] = config.ambientIntensity
                 + config.diffuseIntensity * Math.max(0, dot);
@@ -231,6 +297,597 @@ export function computeLambertianShade(
     }
 
     return shade;
+}
+
+// ============================================================================
+// Height Gradient Computation (variable kernel size)
+// ============================================================================
+
+/**
+ * Sample a height value from the heightmap, clamped to valid bounds.
+ *
+ * @param heights - Height array (width * height elements)
+ * @param width - Width of the heightmap
+ * @param height - Height of the heightmap
+ * @param x - X coordinate (clamped if out of bounds)
+ * @param z - Z coordinate (clamped if out of bounds)
+ * @param scale - Height exaggeration factor
+ * @returns Scaled height at (x, z)
+ */
+function sampleHeight(
+    heights: Float32Array, width: number, height: number,
+    x: number, z: number, scale: number,
+): number {
+    const cx = Math.max(0, Math.min(width - 1, x));
+    const cz = Math.max(0, Math.min(height - 1, z));
+    return heights[cz * width + cx] * scale;
+}
+
+/**
+ * Convolve a separable gradient kernel at a single pixel.
+ *
+ * @returns Unnormalized gradient sums { gx, gz }
+ */
+function convolveGradientKernel(
+    heights: Float32Array, width: number, height: number,
+    x: number, z: number, scale: number,
+    derivW: number[], smoothW: number[], halfK: number,
+): { gx: number; gz: number } {
+    let gx = 0;
+    let gz = 0;
+    for (let kz = -halfK; kz <= halfK; kz++) {
+        for (let kx = -halfK; kx <= halfK; kx++) {
+            const h = sampleHeight(heights, width, height, x + kx, z + kz, scale);
+            gx += h * derivW[kx + halfK] * smoothW[kz + halfK];
+            gz += h * smoothW[kx + halfK] * derivW[kz + halfK];
+        }
+    }
+    return { gx, gz };
+}
+
+/**
+ * Compute X and Z height gradients using the specified kernel size.
+ *
+ * - kernelSize 3: standard central differences (2-pixel span)
+ * - kernelSize 5: Sobel 5x5 (Scharr-like weighted kernel)
+ * - kernelSize 7: Sobel 7x7 (wider weighted kernel)
+ *
+ * Wider kernels smooth noise in the heightmap and produce more plausible
+ * large-scale terrain normals, especially on gradual slopes.
+ *
+ * @param heights - Decoded height values
+ * @param width - Heightmap width
+ * @param height - Heightmap height
+ * @param scale - Height exaggeration factor
+ * @param kernelSize - Kernel size (3, 5, or 7)
+ * @returns Object with gradX and gradZ Float32Arrays
+ */
+export function computeHeightGradients(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    scale: number,
+    kernelSize: 3 | 5 | 7,
+): { gradX: Float32Array; gradZ: Float32Array } {
+    const count = width * height;
+    const gradX = new Float32Array(count);
+    const gradZ = new Float32Array(count);
+
+    if (kernelSize === 3) {
+        // Central differences (existing behaviour)
+        for (let z = 0; z < height; z++) {
+            for (let x = 0; x < width; x++) {
+                const index = z * width + x;
+                gradX[index] = sampleHeight(heights, width, height, x + 1, z, scale)
+                             - sampleHeight(heights, width, height, x - 1, z, scale);
+                gradZ[index] = sampleHeight(heights, width, height, x, z + 1, scale)
+                             - sampleHeight(heights, width, height, x, z - 1, scale);
+            }
+        }
+        return { gradX, gradZ };
+    }
+
+    // Separable Sobel-like kernels for 5x5 and 7x7
+    // 5x5 derivative weights (1D): [-1, -2, 0, 2, 1] / 8, smoothing: [1, 4, 6, 4, 1] / 16
+    // 7x7 derivative weights (1D): [-1, -4, -5, 0, 5, 4, 1] / 30, smoothing: [1, 6, 15, 20, 15, 6, 1] / 64
+    const derivWeights5 = [-1, -2, 0, 2, 1];
+    const smoothWeights5 = [1, 4, 6, 4, 1];
+    const derivNorm5 = 8;
+    const smoothNorm5 = 16;
+    const derivWeights7 = [-1, -4, -5, 0, 5, 4, 1];
+    const smoothWeights7 = [1, 6, 15, 20, 15, 6, 1];
+    const derivNorm7 = 30;
+    const smoothNorm7 = 64;
+
+    const derivW = kernelSize === 5 ? derivWeights5 : derivWeights7;
+    const smoothW = kernelSize === 5 ? smoothWeights5 : smoothWeights7;
+    const derivN = kernelSize === 5 ? derivNorm5 : derivNorm7;
+    const smoothN = kernelSize === 5 ? smoothNorm5 : smoothNorm7;
+    const halfK = Math.floor(kernelSize / 2);
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const index = z * width + x;
+            const { gx, gz } = convolveGradientKernel(
+                heights, width, height, x, z, scale,
+                derivW, smoothW, halfK,
+            );
+            gradX[index] = gx / (derivN * smoothN);
+            gradZ[index] = gz / (derivN * smoothN);
+        }
+    }
+
+    return { gradX, gradZ };
+}
+
+// ============================================================================
+// Heightmap Shadow Casting
+// ============================================================================
+
+/**
+ * Compute per-pixel shadow map by ray marching through the heightmap
+ * along the sun direction.
+ *
+ * For each pixel, a ray is traced horizontally in the XZ plane in the
+ * direction of the sun. At each step, the ray's theoretical height
+ * (extrapolated from the sun's elevation angle) is compared against
+ * the actual heightmap value. If the terrain is taller than the ray,
+ * the pixel is in shadow.
+ *
+ * @param heights - Decoded height values (width * height elements)
+ * @param width - Heightmap width in pixels
+ * @param height - Heightmap height in pixels
+ * @param config - Lighting configuration (uses sunDirection, heightScale, shadowCasting)
+ * @returns Float32Array where 1.0 = fully lit, 0.0 = fully shadowed
+ */
+export function computeShadowMap(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    config: LightingConfig,
+): Float32Array {
+    const shadow = new Float32Array(width * height);
+    shadow.fill(1); // Default: fully lit
+
+    if (!config.shadowCasting.enabled) { return shadow; }
+
+    const [sx, sy, sz] = normalizeVec3(config.sunDirection);
+    const hScale = config.heightScale;
+    const maxDistance = config.shadowCasting.maxDistance;
+    const intensity = config.shadowCasting.intensity;
+
+    // Horizontal step direction (XZ plane, normalized)
+    const horizLength = Math.hypot(sx, sz);
+    if (horizLength < 0.001) { return shadow; } // Sun directly overhead — no shadows
+    const stepX = sx / horizLength;
+    const stepZ = sz / horizLength;
+    // Height rise per horizontal pixel step
+    const heightRise = sy / horizLength;
+
+    const rayOptions = { stepX, stepZ, heightRise, maxDistance, intensity };
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            shadow[z * width + x] = castShadowRay(
+                heights, width, height, x, z, hScale, rayOptions,
+            );
+        }
+    }
+
+    return shadow;
+}
+
+/** Options for a single shadow ray march */
+interface ShadowRayOptions {
+    stepX: number;
+    stepZ: number;
+    heightRise: number;
+    maxDistance: number;
+    intensity: number;
+}
+
+/**
+ * Cast a single shadow ray from (x, z) along the sun direction.
+ *
+ * @returns 1.0 if lit, (1 - intensity) if shadowed
+ */
+function castShadowRay(
+    heights: Float32Array, width: number, height: number,
+    x: number, z: number, hScale: number,
+    options: ShadowRayOptions,
+): number {
+    const { stepX, stepZ, heightRise, maxDistance, intensity } = options;
+    const baseH = heights[z * width + x] * hScale;
+
+    for (let d = 1; d <= maxDistance; d++) {
+        const sampleX = Math.round(x + stepX * d);
+        const sampleZ = Math.round(z + stepZ * d);
+
+        if (sampleX < 0 || sampleX >= width || sampleZ < 0 || sampleZ >= height) {
+            return 1;
+        }
+
+        const terrainH = heights[sampleZ * width + sampleX] * hScale;
+        if (terrainH > baseH + heightRise * d) {
+            return 1 - intensity;
+        }
+    }
+    return 1;
+}
+
+// ============================================================================
+// Ambient Occlusion
+// ============================================================================
+
+/**
+ * Compute screen-space ambient occlusion from heightmap.
+ *
+ * For each pixel, samples N heights at evenly-spaced angles around the pixel
+ * at `radius` distance. The AO factor measures how much the surrounding
+ * terrain rises above the current pixel — concave areas (pits, valleys,
+ * cave entrances) get darkened.
+ *
+ * @param heights - Decoded height values (width * height elements)
+ * @param width - Heightmap width in pixels
+ * @param height - Heightmap height in pixels
+ * @param config - Lighting configuration (uses heightScale, ambientOcclusion)
+ * @returns Float32Array where 1.0 = fully unoccluded, ~0 = fully occluded
+ */
+export function computeAmbientOcclusion(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    config: LightingConfig,
+): Float32Array {
+    const aoMap = new Float32Array(width * height);
+    aoMap.fill(1);
+
+    if (!config.ambientOcclusion.enabled) { return aoMap; }
+
+    const { samples, radius, intensity } = config.ambientOcclusion;
+    const hScale = config.heightScale;
+
+    // Pre-compute sample offsets
+    const offsets: { dx: number; dz: number }[] = [];
+    for (let i = 0; i < samples; i++) {
+        const angle = (2 * Math.PI * i) / samples;
+        offsets.push({
+            dx: Math.round(Math.cos(angle) * radius),
+            dz: Math.round(Math.sin(angle) * radius),
+        });
+    }
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            aoMap[z * width + x] = computeAOSample(
+                heights, width, height, x, z, hScale, offsets, radius, samples, intensity,
+            );
+        }
+    }
+
+    return aoMap;
+}
+
+/**
+ * Compute AO for a single pixel by radial height sampling.
+ *
+ * @returns AO factor (1.0 = fully unoccluded, 0 = fully occluded)
+ */
+function computeAOSample(
+    heights: Float32Array, width: number, height: number,
+    x: number, z: number, hScale: number,
+    offsets: { dx: number; dz: number }[], radius: number,
+    samples: number, intensity: number,
+): number {
+    const centerH = heights[z * width + x] * hScale;
+    let occlusion = 0;
+
+    for (const { dx, dz } of offsets) {
+        const sx = Math.max(0, Math.min(width - 1, x + dx));
+        const sz = Math.max(0, Math.min(height - 1, z + dz));
+        const sampleH = heights[sz * width + sx] * hScale;
+        const diff = sampleH - centerH;
+        if (diff > 0) {
+            occlusion += Math.min(1, diff / radius);
+        }
+    }
+
+    return Math.max(0, 1 - intensity * (occlusion / samples));
+}
+
+// ============================================================================
+// Per-Material Shading (hue-based classification)
+// ============================================================================
+
+/** Material type classified from pixel hue */
+export type MaterialType = 'water' | 'foliage' | 'stone' | 'sand' | 'other';
+
+/**
+ * Reference water colors sampled from a BlueMap overworld tile (water.png).
+ * Each entry is `[R, G, B]` quantized to 8-step increments.
+ *
+ * Note: these colours are biome-specific (cold/lukewarm ocean palette).
+ * Strongly tinted biomes (warm ocean, swamp) may need additional entries.
+ */
+const WATER_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
+    [56, 72, 112],   // hue≈223  most common
+    [32, 80, 104],   // hue≈200
+    [80, 104, 136],  // hue≈214
+    [80, 96, 136],   // hue≈223
+    [56, 80, 120],   // hue≈218
+    [56, 80, 128],   // hue≈220
+    [64, 88, 128],   // hue≈218
+    [72, 96, 136],   // hue≈218
+    [48, 64, 104],   // hue≈223
+    [40, 80, 112],   // hue≈207
+] as const;
+
+/** Squared Euclidean distance threshold for histogram water matching (radius = 28). */
+const WATER_REF_THRESHOLD_SQ = 28 * 28;
+
+/**
+ * Classify a pixel's material based on its RGB color.
+ *
+ * Water is detected first via a histogram lookup against reference colours
+ * sampled from water.png, with a tight hue/channel-ordering fallback for
+ * tinted biome variants. Other materials use HSV hue and saturation.
+ *
+ * - Water: histogram match OR hue 195-235 with B > G > R
+ * - Foliage: green hue (70-170), moderate saturation
+ * - Sand: low saturation yellow/brown (30-50 hue)
+ * - Stone: very low saturation (grey)
+ *
+ * @param r - Red channel (0-255)
+ * @param g - Green channel (0-255)
+ * @param b - Blue channel (0-255)
+ * @returns Classified material type
+ */
+export function classifyMaterial(r: number, g: number, b: number): MaterialType {
+    // Water: histogram lookup first (data-driven, avoids HSV edge cases)
+    for (const [wr, wg, wb] of WATER_REF_COLORS) {
+        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
+        if (dSq <= WATER_REF_THRESHOLD_SQ) { return 'water'; }
+    }
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    const saturation = max === 0 ? 0 : delta / max;
+
+    // Low saturation = stone/grey
+    if (saturation < 0.12) { return 'stone'; }
+
+    // Compute hue in degrees
+    let hue: number;
+    if (delta === 0) {
+        hue = 0;
+    } else if (max === r) {
+        hue = 60 * (((g - b) / delta) % 6);
+    } else if (max === g) {
+        hue = 60 * ((b - r) / delta + 2);
+    } else {
+        hue = 60 * ((r - g) / delta + 4);
+    }
+    if (hue < 0) { hue += 360; }
+
+    // Hue fallback: tinted water variants outside histogram radius (B > G > R enforced)
+    if (hue >= 195 && hue <= 235 && saturation > 0.30 && b > g && b > r) { return 'water'; }
+    if (hue >= 70 && hue < 170 && saturation > 0.15) { return 'foliage'; }
+    if (hue >= 30 && hue < 50 && saturation > 0.12) { return 'sand'; }
+    return 'other';
+}
+
+/**
+ * Compute a per-pixel material modifier map.
+ *
+ * Returns two arrays:
+ * - diffuseModifier: multiplied with the shade map (>1 = brighter foliage, <1 = darker stone with AO)
+ * - specularAdd: additive specular highlight for water
+ *
+ * @param colorRgba - Color buffer (4 bytes per pixel RGBA)
+ * @param _heights - Decoded heights (reserved for future wave-height ripple)
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param config - Lighting configuration
+ * @param aoMap - Ambient occlusion map (for stone AO enhancement)
+ * @returns diffuseModifier and specularAdd arrays
+ */
+export function computeMaterialModifiers(
+    colorRgba: Buffer | Uint8Array,
+    _heights: Float32Array,
+    width: number,
+    height: number,
+    config: LightingConfig,
+    aoMap: Float32Array,
+): { diffuseModifier: Float32Array; specularAdd: Float32Array } {
+    const count = width * height;
+    const diffuseModifier = new Float32Array(count);
+    const specularAdd = new Float32Array(count);
+    diffuseModifier.fill(1);
+
+    if (!config.materialShading.enabled) {
+        return { diffuseModifier, specularAdd };
+    }
+
+    const { waterSpecular, foliageBrightness, stoneAOMultiplier } = config.materialShading;
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const index = z * width + x;
+            const offset = index * 4;
+            const r = colorRgba[offset];
+            const g = colorRgba[offset + 1];
+            const b = colorRgba[offset + 2];
+
+            const material = classifyMaterial(r, g, b);
+
+            switch (material) {
+                case 'water': {
+                    // Positional ripple glint: Minecraft water is flat so height
+                    // gradients are ~0 and physics-based specular gives nothing.
+                    // Instead use two incommensurate sine waves across tile pixels
+                    // to simulate sun glinting off a rippled surface.
+                    const rippleA = 0.5 + 0.5 * Math.sin(x * 0.25);
+                    const rippleB = 0.5 + 0.5 * Math.sin(z * 0.17 + 1.5);
+                    specularAdd[index] = waterSpecular * rippleA * rippleB;
+                    break;
+                }
+                case 'foliage': {
+                    diffuseModifier[index] = 1 + foliageBrightness;
+                    break;
+                }
+                case 'stone': {
+                    // Enhance AO for stone — multiply existing AO darkening
+                    const aoValue = aoMap[index];
+                    const aoDarkening = 1 - aoValue; // how dark AO makes it
+                    diffuseModifier[index] = 1 - aoDarkening * stoneAOMultiplier;
+                    break;
+                }
+                default: {
+                    break;
+                }
+            }
+        }
+    }
+
+    return { diffuseModifier, specularAdd };
+}
+
+// ============================================================================
+// Unsharp Mask
+// ============================================================================
+
+/**
+ * Apply a 1D Gaussian blur (horizontal or vertical pass).
+ *
+ * @param input - Input array (single channel, width * height)
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param radius - Kernel radius in pixels
+ * @param horizontal - true for horizontal pass, false for vertical
+ * @returns Blurred Float32Array
+ */
+function gaussianBlur1D(
+    input: Float32Array, width: number, height: number,
+    radius: number, horizontal: boolean,
+): Float32Array {
+    const output = new Float32Array(input.length);
+    const sigma = radius / 2;
+    const kernelSize = radius * 2 + 1;
+    const kernel = new Float32Array(kernelSize);
+    let sum = 0;
+    for (let i = 0; i < kernelSize; i++) {
+        const d = i - radius;
+        kernel[i] = Math.exp(-0.5 * (d * d) / (sigma * sigma));
+        sum += kernel[i];
+    }
+    for (let i = 0; i < kernelSize; i++) { kernel[i] /= sum; }
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            let value = 0;
+            for (let k = -radius; k <= radius; k++) {
+                const sx = horizontal
+                    ? Math.max(0, Math.min(width - 1, x + k))
+                    : x;
+                const sy = horizontal
+                    ? y
+                    : Math.max(0, Math.min(height - 1, y + k));
+                value += input[sy * width + sx] * kernel[k + radius];
+            }
+            output[y * width + x] = value;
+        }
+    }
+    return output;
+}
+
+/**
+ * Apply unsharp mask to an RGBA color buffer in-place.
+ *
+ * Computes a luminance channel, blurs it, then adds the high-frequency
+ * detail (original - blurred) * amount back to each RGB channel.
+ * Pixels where the luminance difference is below threshold are untouched.
+ *
+ * @param colorRgba - Mutable RGBA pixel buffer (modified in-place)
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param config - Lighting configuration (uses unsharpMask settings)
+ */
+export function applyUnsharpMask(
+    colorRgba: Buffer | Uint8Array,
+    width: number,
+    height: number,
+    config: LightingConfig,
+): void {
+    if (!config.unsharpMask.enabled) { return; }
+
+    const { radius, amount, threshold } = config.unsharpMask;
+    const count = width * height;
+
+    // Extract luminance channel
+    const luminance = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+        const offset = i * 4;
+        luminance[i] = 0.299 * colorRgba[offset]
+                     + 0.587 * colorRgba[offset + 1]
+                     + 0.114 * colorRgba[offset + 2];
+    }
+
+    // Two-pass Gaussian blur
+    const blurred1 = gaussianBlur1D(luminance, width, height, radius, true);
+    const blurred = gaussianBlur1D(blurred1, width, height, radius, false);
+
+    // Apply sharpening
+    for (let i = 0; i < count; i++) {
+        const diff = luminance[i] - blurred[i];
+        if (Math.abs(diff) < threshold) { continue; }
+
+        const sharpen = diff * amount;
+        const offset = i * 4;
+        colorRgba[offset]     = Math.min(255, Math.max(0, Math.round(colorRgba[offset]     + sharpen)));
+        colorRgba[offset + 1] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 1] + sharpen)));
+        colorRgba[offset + 2] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 2] + sharpen)));
+    }
+}
+
+// ============================================================================
+// Full Shade Pipeline
+// ============================================================================
+
+/**
+ * Apply the full shading pipeline: shade + shadow + AO + material + specular.
+ *
+ * Combines all lighting contributions into a single per-pixel operation:
+ * `finalIntensity = shadeMap * shadow * ao * materialDiffuse + specular + blockLight`
+ *
+ * @param colorRgba - Mutable RGBA buffer (modified in-place)
+ * @param shadeMap - Per-pixel Lambertian/slope shade intensity
+ * @param shadowMap - Per-pixel shadow factor (1 = lit, 0 = shadowed)
+ * @param aoMap - Per-pixel ambient occlusion (1 = open, 0 = occluded)
+ * @param materialDiffuse - Per-pixel diffuse modifier from material classification
+ * @param specularAdd - Per-pixel additive specular from material (water highlights)
+ * @param blockLights - Optional block-light values (0-1)
+ * @param blockLightBoost - Block light intensity multiplier
+ */
+export function applyFullShading(
+    colorRgba: Buffer | Uint8Array,
+    shadeMap: Float32Array,
+    shadowMap: Float32Array,
+    aoMap: Float32Array,
+    materialDiffuse: Float32Array,
+    specularAdd: Float32Array,
+    blockLights?: Float32Array,
+    blockLightBoost = 0,
+): void {
+    for (const [i, shadeIntensity] of shadeMap.entries()) {
+        const blockBoost = blockLights ? blockLights[i] * blockLightBoost : 0;
+        const shade = shadeIntensity * shadowMap[i] * aoMap[i] * materialDiffuse[i];
+        const intensity = shade + specularAdd[i] + blockBoost;
+        const offset = i * 4;
+        colorRgba[offset]     = Math.min(255, Math.max(0, Math.round(colorRgba[offset]     * intensity)));
+        colorRgba[offset + 1] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 1] * intensity)));
+        colorRgba[offset + 2] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 2] * intensity)));
+    }
 }
 
 /**
