@@ -34,7 +34,7 @@ import {
     detailLevel,
     overviewLevel,
 } from '../src/tile-pyramid';
-import { AppConfigSchema, DEFAULT_CONFIG, type TilePyramidConfig } from '../src/types';
+import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConfig } from '../src/types';
 import {
     applyShadeToColor,
     computeShadeMap,
@@ -143,7 +143,7 @@ function loadConfig() {
     let config = DEFAULT_CONFIG;
     if (existsSync(configPath)) {
         const raw: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
-        const parsed = AppConfigSchema.safeParse(raw);
+        const parsed = AppConfigSchema.safeParse(resolveRawConfig(raw));
         if (parsed.success) {
             config = parsed.data;
         } else {
