@@ -119,13 +119,63 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
     return cachedPlayers;
 }
 
+/**
+ * Check whether every intermediate tile covering an overview tile's footprint
+ * is present in the manifest.  When true, the intermediate layer fully covers
+ * the overview, so the overview tile can be skipped.
+ * @param manifest - Loaded tile manifest set
+ * @param worldId - Normalised world identifier
+ * @param ovX - Overview tile X coordinate
+ * @param ovZ - Overview tile Z coordinate
+ * @returns true if all intermediate tiles for this overview exist in the manifest
+ */
+function isOverviewCoveredByIntermediate(manifest: Set<string>, worldId: string, ovX: number, ovZ: number): boolean {
+    const scale = Math.round(TILE_CONFIG.overviewTileBlocks / TILE_CONFIG.intermediateTileBlocks);
+    const startX = ovX * scale;
+    const startZ = ovZ * scale;
+    for (let dx = 0; dx < scale; dx++) {
+        for (let dz = 0; dz < scale; dz++) {
+            if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.intermediateTileBlocks, startX + dx, startZ + dz)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
+ * Check whether every detail tile covering an intermediate tile's footprint
+ * is present in the manifest.  When true, the detail layer fully covers
+ * the intermediate, so the intermediate tile can be skipped.
+ * @param manifest - Loaded tile manifest set
+ * @param worldId - Normalised world identifier
+ * @param ix - Intermediate tile X coordinate
+ * @param iz - Intermediate tile Z coordinate
+ * @returns true if all detail tiles for this intermediate exist in the manifest
+ */
+function isIntermediateCoveredByDetail(manifest: Set<string>, worldId: string, ix: number, iz: number): boolean {
+    const scale = Math.round(TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize);
+    const startX = ix * scale;
+    const startZ = iz * scale;
+    for (let dx = 0; dx < scale; dx++) {
+        for (let dz = 0; dz < scale; dz++) {
+            if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, startX + dx, startZ + dz)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 function loadOverviewTileToShopMap(context: ShopMapTileContext, ovX: number, ovZ: number): void {
     const { worldId, centerTileX, centerTileZ, addedToMapOverview, manifest } = context;
     const mapKey = `ov:${ovX},${ovZ}`;
     if (addedToMapOverview.has(mapKey)) { return; }
     addedToMapOverview.add(mapKey);
-    
+
     if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.overviewTileBlocks, ovX, ovZ)) { return; }
+    // Skip if intermediate tiles fully cover this overview — they will hide it anyway
+    if (isOverviewCoveredByIntermediate(manifest, worldId, ovX, ovZ)) { return; }
     
     const ratio = TILE_CONFIG.detailToOverviewRatio;
     const overviewSize = TILE_CONFIG.overviewTileBlocks;
@@ -166,6 +216,8 @@ function loadIntermediateTileToShopMap(context: ShopMapTileContext, ix: number, 
     addedToMapIntermediate.add(mapKey);
 
     if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.intermediateTileBlocks, ix, iz)) { return; }
+    // Skip if detail tiles fully cover this intermediate — they will hide it anyway
+    if (isIntermediateCoveredByDetail(manifest, worldId, ix, iz)) { return; }
 
     const ratio = TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize;
     const intermediateSize = TILE_CONFIG.intermediateTileBlocks;
