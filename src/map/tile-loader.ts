@@ -47,10 +47,12 @@ export const TILE_CONFIG: TileConfig = {
     get tileSize() { return getConfig().tilePyramid.baseBlocksPerTile; },
     baseUrl: 'tiles',
     get maxZoom() { return detailLevel(getConfig().tilePyramid); },
+    get intermediateZoom() { return detailLevel(getConfig().tilePyramid) - 1; },
     get fallbackZoom() { return overviewLevel(); },
     minZoom: 1,
     playersUrl: 'players.json',
     get overviewTileBlocks() { return pyramidBlocksPerTile(overviewLevel(), getConfig().tilePyramid); },
+    get intermediateTileBlocks() { return pyramidBlocksPerTile(detailLevel(getConfig().tilePyramid) - 1, getConfig().tilePyramid); },
     get detailToOverviewRatio() {
         return pyramidDetailToOverviewRatio(getConfig().tilePyramid);
     },

@@ -58,6 +58,7 @@ interface ShopMapTileContext {
     centerTileX: number;
     centerTileZ: number;
     addedToMapOverview: Set<string>;
+    addedToMapIntermediate: Set<string>;
     addedToMapDetail: Set<string>;
     manifest: Set<string>;
 }
@@ -158,6 +159,59 @@ function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: nu
     if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesDetail' }).addTo(leafletMap); }
 }
 
+function loadIntermediateTileToShopMap(context: ShopMapTileContext, ix: number, iz: number): void {
+    const { worldId, centerTileX, centerTileZ, addedToMapIntermediate, manifest } = context;
+    const mapKey = `im:${ix},${iz}`;
+    if (addedToMapIntermediate.has(mapKey)) { return; }
+    addedToMapIntermediate.add(mapKey);
+
+    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.intermediateTileBlocks, ix, iz)) { return; }
+
+    const ratio = TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize;
+    const intermediateSize = TILE_CONFIG.intermediateTileBlocks;
+    const startDetailX = ix * ratio;
+    const startDetailZ = iz * ratio;
+    const dx = startDetailX - centerTileX;
+    const dy = startDetailZ - centerTileZ;
+    const bounds: L.LatLngBoundsExpression = [
+        [-dy * TILE_CONFIG.tileSize - intermediateSize, dx * TILE_CONFIG.tileSize],
+        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + intermediateSize]
+    ];
+
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.intermediateZoom}/${ix}/${iz}.${TILE_CONFIG.format}`;
+    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesIntermediate' }).addTo(leafletMap); }
+}
+
+/**
+ * Load all intermediate tiles that cover the given viewport range.
+ * Deduplicates by intermediate tile key so each tile URL is added once.
+ * @param context - Tile context with world and center coords
+ * @param minDx - Minimum detail-tile X offset from center
+ * @param maxDx - Maximum detail-tile X offset from center
+ * @param minDy - Minimum detail-tile Z offset from center
+ * @param maxDy - Maximum detail-tile Z offset from center
+ */
+function loadIntermediateViewportTiles(
+    context: ShopMapTileContext,
+    minDx: number, maxDx: number, minDy: number, maxDy: number,
+): void {
+    const intermediateScale = TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize;
+    const seen = new Set<string>();
+    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
+        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
+            const tx = context.centerTileX + dx;
+            const tz = context.centerTileZ + dy;
+            const ix = Math.floor(tx / intermediateScale);
+            const iz = Math.floor(tz / intermediateScale);
+            const indexKey = `${ix},${iz}`;
+            if (!seen.has(indexKey)) {
+                seen.add(indexKey);
+                loadIntermediateTileToShopMap(context, ix, iz);
+            }
+        }
+    }
+}
+
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     if (!leafletMap) { return; }
     const bounds = leafletMap.getBounds();
@@ -182,6 +236,10 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
         }
     }
     
+    // Load intermediate tiles (derived from shaded detail) — always shown when available
+    // z=355: above overview (350) but below detail (360) so detail always wins
+    loadIntermediateViewportTiles(context, minDx, maxDx, minDy, maxDy);
+
     // Load zoom 8 (detail) tiles when zoomed in enough
     if (currentZoom > -3) {
         for (let dy = minDy; dy <= maxDy; dy++) {
@@ -332,9 +390,10 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     leafletMap = L.map(container, createMapConfig());
     
-    // Create custom panes for proper z-ordering: overview below detail
-    // Default overlayPane z-index is 400, we put overview below and detail above
+    // Create custom panes for proper z-ordering: overview below intermediate below detail
+    // Default overlayPane z-index is 400; we put all three tile layers below it.
     leafletMap.createPane('tilesOverview').style.zIndex = '350';
+    leafletMap.createPane('tilesIntermediate').style.zIndex = '355';
     leafletMap.createPane('tilesDetail').style.zIndex = '360';
     
     const context: MapTileContext = {
@@ -343,6 +402,7 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         centerTileX: tileX,
         centerTileZ: tileZ,
         addedToMapOverview: new Set<string>(),
+        addedToMapIntermediate: new Set<string>(),
         addedToMapDetail: new Set<string>(),
     };
     

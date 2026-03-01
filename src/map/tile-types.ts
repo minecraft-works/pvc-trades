@@ -20,6 +20,8 @@ export interface TileConfig {
     readonly baseUrl: string;
     /** Highest detail pyramid level */
     readonly maxZoom: number;
+    /** Intermediate pyramid level (detail - 1), sitting between overview and detail */
+    readonly intermediateZoom: number;
     /** Overview pyramid level for fallback tiles */
     readonly fallbackZoom: number;
     /** Lowest detail zoom level */
@@ -28,6 +30,8 @@ export interface TileConfig {
     readonly playersUrl: string;
     /** Blocks covered by one overview tile */
     readonly overviewTileBlocks: number;
+    /** Blocks covered by one intermediate tile */
+    readonly intermediateTileBlocks: number;
     /** Number of detail tiles per overview tile per axis */
     readonly detailToOverviewRatio: number;
     /** Output tile format (png, webp, avif) */
@@ -68,6 +72,8 @@ export interface MapTileContext {
     centerTileZ: number;
     /** Set tracking overview tiles added */
     addedToMapOverview: Set<string>;
+    /** Set tracking intermediate tiles added */
+    addedToMapIntermediate: Set<string>;
     /** Set tracking detail tiles added */
     addedToMapDetail: Set<string>;
     /** Manifest of available tiles */

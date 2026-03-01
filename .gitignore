@@ -23,6 +23,12 @@ shops.zip
 public/tiles/**/*.png
 tiles/**/*.png
 
+# Raw source tiles downloaded from Dynmap/BlueMap (large binary cache)
+public/tiles-src/
+
+# Temporary tile listing files
+bluemap-files.txt
+
 # Test artifacts
 test-results/
 playwright-report/

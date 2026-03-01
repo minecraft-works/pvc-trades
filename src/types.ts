@@ -79,6 +79,24 @@ const TilePyramidConfigSchema = z.object({
         diffuseIntensity: z.number().min(0).max(1).default(0.65),
         /** Height exaggeration factor (1.0 = real height) */
         heightScale: z.number().positive().default(1),
+        /**
+         * Y component of the surface normal for Lambertian shading.
+         * Higher = flatter terrain appearance (subtler per-block shading).
+         * Default 2 = BlueMap-like (steep). Use ~20 for Minecraft pixel-art terrain.
+         */
+        normalScale: z.number().positive().default(2),
+        /**
+         * Additive brightness boost from BlueMap block-light channel (0–1).
+         * 0 = disabled. 0.2 = subtle warm glow from torches/lava.
+         */
+        blockLightBoost: z.number().min(0).max(1).default(0),
+        /**
+         * Integer upscale factor applied before shading (1–4).
+         * Heights and block-light values are bilinearly upsampled; colors are
+         * upsampled with nearest-neighbour. Shade is computed and the tile emitted
+         * at `shadingScale × tileSize`. Set tileWidth/Height to match in the preset.
+         */
+        shadingScale: z.number().int().min(1).max(4).default(1),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
         emitHeightmapTiles: z.boolean().default(true)
     }).optional()
@@ -132,6 +150,9 @@ export const AppConfigSchema = z.object({
             ambientIntensity: 0.35,
             diffuseIntensity: 0.65,
             heightScale: 1,
+            normalScale: 2,
+            blockLightBoost: 0,
+            shadingScale: 1,
             emitHeightmapTiles: true
         }
     }),
@@ -677,6 +698,9 @@ export const DEFAULT_CONFIG: AppConfig = {
             ambientIntensity: 0.35,
             diffuseIntensity: 0.65,
             heightScale: 1,
+            normalScale: 2,
+            blockLightBoost: 0,
+            shadingScale: 1,
             emitHeightmapTiles: true
         }
     },
