@@ -27,6 +27,9 @@ tiles/**/*.png
 # Raw source tiles downloaded from Dynmap/BlueMap (large binary cache)
 public/tiles-src/
 
+# Cached Minecraft client JARs used by extract-material-colors script
+.mc-jar-cache/
+
 # Temporary tile listing files
 bluemap-files.txt
 

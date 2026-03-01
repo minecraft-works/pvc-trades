@@ -134,7 +134,13 @@ const TilePyramidConfigSchema = z.object({
             foliageBrightness: z.number().min(0).max(1).default(0.1),
             /** AO multiplier for stone/grey surfaces */
             stoneAOMultiplier: z.number().min(0).max(5).default(1.5),
-        }).default({ enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 }),
+            /** Brightness boost for snow surfaces (additive, 0–1) */
+            snowBrightness: z.number().min(0).max(1).default(0.2),
+            /** Constant specular add for lava glow (0–1) */
+            lavaGlow: z.number().min(0).max(1).default(0.25),
+            /** AO multiplier for sand surfaces */
+            sandAOMultiplier: z.number().min(0).max(2).default(0.4),
+        }).default({ enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 }),
         /** Normal kernel size: 3=central diff, 5=Sobel 5×5, 7=Sobel 7×7 */
         normalKernelSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
@@ -196,7 +202,7 @@ export const AppConfigSchema = z.object({
             shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
             ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
             unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
-            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
             emitHeightmapTiles: true
         }
@@ -749,7 +755,7 @@ export const DEFAULT_CONFIG: AppConfig = {
             shadowCasting: { enabled: false, maxDistance: 64, intensity: 0.7 },
             ambientOcclusion: { enabled: false, samples: 16, radius: 8, intensity: 0.5 },
             unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
-            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5 },
+            materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
             emitHeightmapTiles: true
         }
