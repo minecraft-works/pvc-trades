@@ -7,7 +7,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 import type { TileProvider } from '../src/map/providers/tile-provider';
 import { createTileProviderFromConfig } from '../src/stores/config-store';
-import { AppConfigSchema, DEFAULT_CONFIG } from '../src/types';
+import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig } from '../src/types';
 import {
     calculateRateLimitDelay,
     type FetchResult,
@@ -38,7 +38,7 @@ function loadProviderFromConfig(): { provider: TileProvider; homepageUrl: string
     let config = DEFAULT_CONFIG;
     if (existsSync(configPath)) {
         const raw: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
-        const parsed = AppConfigSchema.safeParse(raw);
+        const parsed = AppConfigSchema.safeParse(resolveRawConfig(raw));
         if (parsed.success) {
             config = parsed.data;
         } else {

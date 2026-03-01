@@ -1,22 +1,32 @@
 {
   "dataUrl": "https://pvc-shops.minecraft-works.workers.dev/",
   "dataRefreshMs": 60000,
-  "tileSource": "dynmap",
-  "tilePyramid": {
-    "tileWidth": 256,
-    "tileHeight": 256,
-    "levels": 3,
-    "scaleFactor": 4,
-    "baseBlocksPerTile": 256,
-    "format": "png",
-    "lighting": {
-      "enabled": true,
-      "model": "lambertian",
-      "sunDirection": [0.3, 1.0, -0.3],
-      "ambientIntensity": 0.35,
-      "diffuseIntensity": 0.65,
-      "heightScale": 1.0,
-      "emitHeightmapTiles": true
+  "tileSource": "bluemap",
+  "tileSourcePresets": {
+    "dynmap": {
+      "tileWidth": 256,
+      "tileHeight": 256,
+      "levels": 3,
+      "scaleFactor": 4,
+      "baseBlocksPerTile": 256,
+      "format": "png"
+    },
+    "bluemap": {
+      "tileWidth": 500,
+      "tileHeight": 500,
+      "levels": 3,
+      "scaleFactor": 5,
+      "baseBlocksPerTile": 500,
+      "format": "png",
+      "lighting": {
+        "enabled": true,
+        "model": "lambertian",
+        "sunDirection": [0.3, 1.0, -0.3],
+        "ambientIntensity": 0.35,
+        "diffuseIntensity": 0.65,
+        "heightScale": 1.0,
+        "emitHeightmapTiles": true
+      }
     }
   },
   "dynmap": {
@@ -24,6 +34,11 @@
     "tileSize": 128,
     "defaultZoom": 4,
     "maxZoomLevel": 7,
+    "playerRefreshMs": 1000
+  },
+  "bluemap": {
+    "baseUrl": "https://web.peacefulvanilla.club/earth",
+    "mapId": "world",
     "playerRefreshMs": 1000
   },
   "analysis": {

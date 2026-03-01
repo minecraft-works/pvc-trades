@@ -86,6 +86,13 @@ const TilePyramidConfigSchema = z.object({
 
 export type TilePyramidConfig = z.infer<typeof TilePyramidConfigSchema>;
 
+/**
+ * Partial pyramid overrides stored per-source in `tileSourcePresets`.
+ * Only the fields you want to override need to be specified.
+ */
+const TilePyramidPresetSchema = TilePyramidConfigSchema.partial();
+export type TilePyramidPreset = z.infer<typeof TilePyramidPresetSchema>;
+
 const AnalysisConfigSchema = z.object({
     shopClusterDistance: z.number().positive(),
     maxTransitiveIterations: z.number().int().positive(),
@@ -100,6 +107,18 @@ export const AppConfigSchema = z.object({
     dataUrl: z.string().min(1),
     dataRefreshMs: z.number().int().positive().optional().default(60_000),
     tileSource: TileSourceSchema,
+    /**
+     * Per-source pyramid presets. When `tileSource` is set, the matching
+     * preset is merged under `tilePyramid` before Zod validation — explicit
+     * top-level `tilePyramid` fields always take precedence.
+     *
+     * Switching source (e.g. `"dynmap"` → `"bluemap"`) automatically applies
+     * the right tile dimensions without any other changes.
+     */
+    tileSourcePresets: z.object({
+        dynmap: TilePyramidPresetSchema.optional(),
+        bluemap: TilePyramidPresetSchema.optional()
+    }).optional(),
     tilePyramid: TilePyramidConfigSchema.default({
         tileWidth: 256,
         tileHeight: 256,
@@ -123,6 +142,38 @@ export const AppConfigSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
+
+// ============================================================================
+// Config Preset Resolution
+// ============================================================================
+
+/**
+ * Merge `tileSourcePresets[tileSource]` into the raw config object before
+ * Zod validation so that Zod defaults fill gaps correctly.
+ *
+ * The preset provides base values; any explicit `tilePyramid` fields in the
+ * raw JSON override them. Call this on the raw parsed JSON before passing
+ * to `AppConfigSchema.safeParse()`.
+ *
+ * @param raw - Raw parsed JSON (unknown type)
+ * @returns The same object with `tilePyramid` pre-merged from the preset
+ */
+export function resolveRawConfig(raw: unknown): unknown {
+    if (typeof raw !== 'object' || raw === null) { return raw; }
+    const obj = raw as Record<string, unknown>;
+    const source = typeof obj.tileSource === 'string' ? obj.tileSource : undefined;
+    const presets = typeof obj.tileSourcePresets === 'object' && obj.tileSourcePresets !== null
+        ? obj.tileSourcePresets as Record<string, unknown>
+        : undefined;
+    if (!source || !presets || typeof presets[source] !== 'object' || presets[source] === null) {
+        return raw;
+    }
+    const preset = presets[source] as Record<string, unknown>;
+    const explicit = typeof obj.tilePyramid === 'object' && obj.tilePyramid !== null
+        ? obj.tilePyramid as Record<string, unknown>
+        : {};
+    return { ...obj, tilePyramid: { ...preset, ...explicit } };
+}
 
 // ============================================================================
 // Block Conversions

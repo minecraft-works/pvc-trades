@@ -8,7 +8,7 @@
  */
 
 import { BlueMapTileProvider, DynmapTileProvider, setActiveTileProvider } from '../map/providers/index.js';
-import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, type TileSource } from '../types.js';
+import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TileSource } from '../types.js';
 
 // ============================================================================
 // Config Store
@@ -46,7 +46,7 @@ class ConfigStore {
                 return this.config;
             }
             const data: unknown = await response.json();
-            const parsed = AppConfigSchema.safeParse(data);
+            const parsed = AppConfigSchema.safeParse(resolveRawConfig(data));
             if (parsed.success) {
                 this.config = parsed.data;
                 
