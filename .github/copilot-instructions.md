@@ -436,6 +436,10 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-009](docs/adr/009-tile-caching-strategy.md) - Tile caching with blob URLs
 - [ADR-010](docs/adr/010-tile-loading-minimization.md) - Minimizing external tile requests
 - [ADR-011](docs/adr/011-player-position-interpolation.md) - Smooth player position interpolation
+- [ADR-012](docs/adr/012-bluemap-tile-migration.md) - BlueMap tile format and dual-layer PNG layout
+- [ADR-013](docs/adr/013-canonical-tile-pyramid.md) - Canonical tile pyramid structure
+- [ADR-014](docs/adr/014-heightmap-lighting.md) - Heightmap-based lighting (Lambertian model)
+- [ADR-015](docs/adr/015-bluemap-slope-shading.md) - BlueMap-exact slope shading (current model)
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code
