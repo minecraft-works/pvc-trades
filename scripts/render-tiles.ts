@@ -390,9 +390,8 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         await writeDiagnosticTile(diffuseModifier, 'material');
         await writeDiagnosticTile(specularAdd, 'specular');
     }
-    if (lightingConfig.normalKernelSize > 3) {
-        await writeDiagnosticTile(shade, `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`);
-    }
+    // Write shade map diagnostic for all kernel sizes
+    await writeDiagnosticTile(shade, `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`);
 
     // Write shaded color tile at full (potentially upscaled) resolution.
     // The extract only fires when buffer dimensions differ from pyramid dims;

@@ -25,7 +25,7 @@
         "ambientIntensity": 0.35,
         "diffuseIntensity": 0.65,
         "heightScale": 1.0,
-        "normalScale": 2,
+        "normalScale": 8,
         "blockLightBoost": 0,
         "shadingScale": 2,
         "shadowCasting": { "enabled": true, "maxDistance": 64, "intensity": 0.7 },
