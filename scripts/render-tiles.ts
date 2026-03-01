@@ -37,6 +37,7 @@ import {
 import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConfig } from '../src/types';
 import {
     applyFullShading,
+    applySlopeShading,
     applyUnsharpMask,
     computeAmbientOcclusion,
     computeMaterialModifiers,
@@ -319,23 +320,37 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         shadedBlockLights = subBlockLights;
     }
 
-    // Compute shade, shadow, AO, and material maps at (potentially upscaled) resolution
+    // Compute shade map and apply shading pipeline at (potentially upscaled) resolution
     const shade = computeShadeMap(shadedHeights, shadedW, shadedH, lightingConfig);
-    const shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
-    const aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
-    const { diffuseModifier, specularAdd } = computeMaterialModifiers(
-        shadedColor, shadedHeights, shadedW, shadedH, lightingConfig, aoMap,
-    );
+    let shadowMap: Float32Array;
+    let aoMap: Float32Array;
+    let diffuseModifier: Float32Array;
+    let specularAdd: Float32Array;
 
-    // Apply full shading pipeline (shade × shadow × AO × material + specular + blockLight)
-    applyFullShading(
-        shadedColor, shade, shadowMap, aoMap,
-        diffuseModifier, specularAdd,
-        shadedBlockLights, lightingConfig.blockLightBoost,
-    );
-
-    // Post-processing: unsharp mask (operates on final color buffer)
-    applyUnsharpMask(shadedColor, shadedW, shadedH, lightingConfig);
+    if (lightingConfig.model === 'slope') {
+        // BlueMap-exact: additive slope shade (color + shade × 255), no shadow/AO/material
+        applySlopeShading(shadedColor, shadedHeights, shadedW, shadedH, lightingConfig.heightScale);
+        // Stub identity maps so diagnostic paths compile cleanly
+        const n = shadedW * shadedH;
+        shadowMap = new Float32Array(n).fill(1);
+        aoMap = new Float32Array(n).fill(1);
+        diffuseModifier = new Float32Array(n).fill(1);
+        specularAdd = new Float32Array(n).fill(0);
+    } else {
+        shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
+        aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
+        ({ diffuseModifier, specularAdd } = computeMaterialModifiers(
+            shadedColor, shadedHeights, shadedW, shadedH, lightingConfig, aoMap,
+        ));
+        // Apply full shading pipeline (shade × shadow × AO × material + specular + blockLight)
+        applyFullShading(
+            shadedColor, shade, shadowMap, aoMap,
+            diffuseModifier, specularAdd,
+            shadedBlockLights, lightingConfig.blockLightBoost,
+        );
+        // Post-processing: unsharp mask (operates on final color buffer)
+        applyUnsharpMask(shadedColor, shadedW, shadedH, lightingConfig);
+    }
 
     // Quantize from original (unscaled) heights — min/max metadata is geometric, not resolution-dependent
     const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
@@ -373,35 +388,62 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
             diagRgba[offset + 3] = 255;
         }
         let diagPipeline = sharp(diagRgba, { raw: { width: shadedW, height: shadedH, channels: 4 } });
-        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
-            diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
+            if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
+                diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+            }
+        } else {
+            const scaleX = Math.ceil(pyramid.tileWidth / shadedW);
+            const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
+            const upW = shadedW * scaleX;
+            const upH = shadedH * scaleY;
+            diagPipeline = diagPipeline.resize(upW, upH, { kernel: 'nearest' });
+            if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
+                diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+            }
         }
         await diagPipeline.png({ compressionLevel: 9 }).toFile(diagPath);
     };
 
-    // Write diagnostic tiles for each technique (only when that technique is enabled)
-    if (lightingConfig.shadowCasting.enabled) {
-        await writeDiagnosticTile(shadowMap, 'shadow');
+    // Write diagnostic tiles for each technique (only when enabled; skipped in slope mode)
+    if (lightingConfig.model !== 'slope') {
+        if (lightingConfig.shadowCasting.enabled) {
+            await writeDiagnosticTile(shadowMap, 'shadow');
+        }
+        if (lightingConfig.ambientOcclusion.enabled) {
+            await writeDiagnosticTile(aoMap, 'ao');
+        }
+        if (lightingConfig.materialShading.enabled) {
+            await writeDiagnosticTile(diffuseModifier, 'material');
+            await writeDiagnosticTile(specularAdd, 'specular');
+        }
     }
-    if (lightingConfig.ambientOcclusion.enabled) {
-        await writeDiagnosticTile(aoMap, 'ao');
-    }
-    if (lightingConfig.materialShading.enabled) {
-        await writeDiagnosticTile(diffuseModifier, 'material');
-        await writeDiagnosticTile(specularAdd, 'specular');
-    }
-    // Write shade map diagnostic for all kernel sizes
-    await writeDiagnosticTile(shade, `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`);
+    // Write shade map diagnostic (slope shade as a grayscale map)
+    const diagShadeName = lightingConfig.model === 'slope' ? 'slope' : `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`;
+    await writeDiagnosticTile(shade, diagShadeName);
 
     // Write shaded color tile at full (potentially upscaled) resolution.
-    // The extract only fires when buffer dimensions differ from pyramid dims;
-    // this trims the 501→500 source border pixel when shadingScale = 1.
-    // With shadingScale > 1, shadedW === pyramid.tileWidth so no extract needed.
+    // When shadingScale > 1: shadedW ≥ tileWidth → crop the seamless border pixel.
+    // When shadingScale = 1: shadedW < tileWidth (501 < 1000) → resize up with
+    //   nearest-neighbor to the next integer multiple, then crop to tileWidth.
     let pipeline = sharp(shadedColor, {
         raw: { width: shadedW, height: shadedH, channels: 4 },
     });
-    if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
-        pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+    if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
+        // Crop seamless border pixel(s)
+        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
+            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
+    } else {
+        // Upscale to nearest integer multiple that covers tileWidth × tileHeight
+        const scaleX = Math.ceil(pyramid.tileWidth / shadedW);
+        const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
+        const upW = shadedW * scaleX;
+        const upH = shadedH * scaleY;
+        pipeline = pipeline.resize(upW, upH, { kernel: 'nearest' });
+        if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
+            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
     }
     pipeline = applyFormat(pipeline, pyramid.format);
     await pipeline.toFile(outputPath);
@@ -432,10 +474,20 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
             raw: { width: cropWidth, height: cropHeight, channels: 1 },
         });
         if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
-            // scale > 1: nearest-neighbour upscale to match tile dims; else trim border pixel
-            heightPipeline = scale > 1
-                ? heightPipeline.resize(pyramid.tileWidth, pyramid.tileHeight, { kernel: 'nearest' })
-                : heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+            if (cropWidth >= pyramid.tileWidth) {
+                // Slightly oversized (e.g. 501px with scale>1 already handled) — trim
+                heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+            } else {
+                // Under-sized (scale=1, cropWidth=501<1000) — upscale to next integer multiple then trim
+                const scaleX = Math.ceil(pyramid.tileWidth / cropWidth);
+                const scaleY = Math.ceil(pyramid.tileHeight / cropHeight);
+                const upW = cropWidth * scaleX;
+                const upH = cropHeight * scaleY;
+                heightPipeline = heightPipeline.resize(upW, upH, { kernel: 'nearest' });
+                if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
+                    heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+                }
+            }
         }
         await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
     }

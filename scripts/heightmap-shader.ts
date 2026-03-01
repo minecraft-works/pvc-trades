@@ -938,6 +938,48 @@ export function applyFullShading(
 }
 
 /**
+ * Apply BlueMap-exact slope shading to a color buffer in-place.
+ *
+ * Replicates the BlueMap `LowresFragmentShader` formula exactly:
+ *   `shade = clamp((h - hRight + h - hBelow) × 0.06 / lodScale, -0.2, 0.04)`
+ *   `color.rgb += shade`  (additive, not multiplicative)
+ *
+ * This additive formulation matches BlueMap's client-side GLSL shader, where
+ * shadow areas receive an absolute darkening regardless of base color.
+ * `lodScale` is 1 for lod=1 tiles (direct source tiles), matching heightScale=1.
+ *
+ * @param colorRgba - Mutable RGBA buffer (modified in-place, 4 bytes per pixel)
+ * @param heights - Decoded height values (width × height Float32Array)
+ * @param width - Buffer width in pixels
+ * @param height - Buffer height in pixels
+ * @param heightScale - Height exaggeration factor (1.0 = real scale, matches lodScale=1)
+ */
+export function applySlopeShading(
+    colorRgba: Buffer | Uint8Array,
+    heights: Float32Array,
+    width: number,
+    height: number,
+    heightScale = 1,
+): void {
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const i = z * width + x;
+            const h = heights[i] * heightScale;
+            const hRight = heights[z * width + Math.min(width - 1, x + 1)] * heightScale;
+            const hBelow = heights[Math.min(height - 1, z + 1) * width + x] * heightScale;
+            // BlueMap: clamp((h - hRight + h - hBelow) * 0.06, -0.2, 0.04)
+            const shade = Math.max(-0.2, Math.min(0.04, (h - hRight + h - hBelow) * 0.06));
+            // Additive: shade is in [0,1] space, convert to 0-255 additive offset
+            const add = shade * 255;
+            const offset = i * 4;
+            colorRgba[offset]     = Math.min(255, Math.max(0, Math.round(colorRgba[offset]     + add)));
+            colorRgba[offset + 1] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 1] + add)));
+            colorRgba[offset + 2] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 2] + add)));
+        }
+    }
+}
+
+/**
  * Compute per-pixel shade intensity from a heightmap.
  *
  * Dispatches to the appropriate model based on config.model.
