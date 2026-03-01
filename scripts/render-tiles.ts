@@ -401,14 +401,13 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
                 `${canonTileZ}.${pyramid.format}`,
             );
 
-            entries.push({
-                world: source.world,
-                tileX: canonTileX,
-                tileZ: canonTileZ,
-                blocksPerTile: canonBpt,
-            });
-
             if (existsSync(outputPath)) {
+                entries.push({
+                    world: source.world,
+                    tileX: canonTileX,
+                    tileZ: canonTileZ,
+                    blocksPerTile: canonBpt,
+                });
                 skipped++;
                 continue;
             }
@@ -431,6 +430,12 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
 
             pipeline = applyFormat(pipeline, pyramid.format);
             await pipeline.toFile(outputPath);
+            entries.push({
+                world: source.world,
+                tileX: canonTileX,
+                tileZ: canonTileZ,
+                blocksPerTile: canonBpt,
+            });
             rendered++;
         }
     }
@@ -638,7 +643,25 @@ async function main(): Promise<void> {
         const key = `${entry.world}/${entry.blocksPerTile}/${entry.tileX}/${entry.tileZ}`;
         entryMap.set(key, entry);
     }
-    const uniqueEntries = [...entryMap.values()];
+
+    // Prune entries whose output file no longer exists on disk (guards against
+    // stale manifest from a partial/interrupted run or missing cache restore).
+    // Derive the canonical level from the entry's blocksPerTile value.
+    const uniqueEntries = [...entryMap.values()].filter(entry => {
+        let level = detailLevel(pyramid);
+        for (let l = 0; l < pyramid.levels; l++) {
+            if (pyramidBlocksPerTile(l, pyramid) === entry.blocksPerTile) {
+                level = l;
+                break;
+            }
+        }
+        const filePath = path.join(
+            TILES_DIR, entry.world,
+            String(level), String(entry.tileX),
+            `${entry.tileZ}.${pyramid.format}`,
+        );
+        return existsSync(filePath);
+    });
 
     // Write canonical manifest
     writeFileSync(MANIFEST_PATH, JSON.stringify(uniqueEntries, null, 2));

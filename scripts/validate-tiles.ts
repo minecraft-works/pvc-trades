@@ -29,7 +29,7 @@ import {
     blocksPerTile as pyramidBlocksPerTile,
     detailLevel,
 } from '../src/tile-pyramid.js';
-import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, type TilePyramidConfig } from '../src/types.js';
+import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig,type TilePyramidConfig } from '../src/types.js';
 
 // ============================================================================
 // Configuration
@@ -49,7 +49,7 @@ function loadConfig(): AppConfig {
     let config = DEFAULT_CONFIG;
     if (existsSync(configPath)) {
         const raw: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
-        const parsed = AppConfigSchema.safeParse(raw);
+        const parsed = AppConfigSchema.safeParse(resolveRawConfig(raw));
         if (parsed.success) {
             config = parsed.data;
         } else {
