@@ -91,7 +91,6 @@ export type TilePyramidConfig = z.infer<typeof TilePyramidConfigSchema>;
  * Only the fields you want to override need to be specified.
  */
 const TilePyramidPresetSchema = TilePyramidConfigSchema.partial();
-export type TilePyramidPreset = z.infer<typeof TilePyramidPresetSchema>;
 
 const AnalysisConfigSchema = z.object({
     shopClusterDistance: z.number().positive(),
