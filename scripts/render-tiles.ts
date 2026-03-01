@@ -38,6 +38,7 @@ import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConf
 import {
     applyShadeToColor,
     computeShadeMap,
+    decodeBlockLight,
     decodeHeightmap,
     extractSubHeights,
     extractSubRegionRgba,
@@ -126,6 +127,8 @@ interface DualLayerSubTileContext {
     colorBuffer: Buffer;
     /** Decoded full-source heightmap */
     heights: Float32Array;
+    /** Decoded full-source block-light values (0–1 per pixel), or undefined when not available */
+    blockLights: Float32Array | undefined;
     /** Lighting configuration */
     lightingConfig: LightingConfig;
     /** Whether to emit heightmap sidecar tiles */
@@ -260,7 +263,7 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
 }> {
     const {
         dx, dz, source, splitFactor, canonLevel, canonBpt,
-        cropWidth, cropHeight, sourceWidth, colorBuffer, heights,
+        cropWidth, cropHeight, sourceWidth, colorBuffer, heights, blockLights,
         lightingConfig, emitHeightmap, pyramid,
     } = context;
 
@@ -282,10 +285,13 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     const startZ = dz * cropHeight;
     const subColor = extractSubRegionRgba(colorBuffer, sourceWidth, startX, startZ, cropWidth, cropHeight);
     const subHeights = extractSubHeights(heights, sourceWidth, startX, startZ, cropWidth, cropHeight);
+    const subBlockLights = blockLights
+        ? extractSubHeights(blockLights, sourceWidth, startX, startZ, cropWidth, cropHeight)
+        : undefined;
 
-    // Compute and apply shade
+    // Compute and apply shade (with optional block-light boost)
     const shade = computeShadeMap(subHeights, cropWidth, cropHeight, lightingConfig);
-    applyShadeToColor(subColor, shade);
+    applyShadeToColor(subColor, shade, subBlockLights, lightingConfig.blockLightBoost);
 
     // Quantize heightmap for metadata and optional tile
     const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
@@ -304,11 +310,15 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
     // Write shaded color tile
+    // Use pixel-exact extract (not resize) to crop the 501×501 shaded buffer to
+    // 500×500. The extra border pixel is intentionally kept in the source buffer
+    // for correct edge-neighbour lookups during shade computation, but must not
+    // be emitted to the canonical tile via interpolating resampling (Lanczos3).
     let pipeline = sharp(subColor, {
         raw: { width: cropWidth, height: cropHeight, channels: 4 },
     });
     if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
-        pipeline = pipeline.resize(pyramid.tileWidth, pyramid.tileHeight);
+        pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
     }
     pipeline = applyFormat(pipeline, pyramid.format);
     await pipeline.toFile(outputPath);
@@ -319,7 +329,7 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
             raw: { width: cropWidth, height: cropHeight, channels: 1 },
         });
         if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
-            heightPipeline = heightPipeline.resize(pyramid.tileWidth, pyramid.tileHeight);
+            heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
         }
         await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
     }
@@ -368,15 +378,18 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
         const colorBuffer = Buffer.from(fullRaw.subarray(0, colorHeight * rowBytes));
         const heightBuffer = fullRaw.subarray(colorHeight * rowBytes, colorHeight * 2 * rowBytes);
 
-        // Decode full heightmap once
+        // Decode full heightmap (heights) and block-light channel once
         const heights = decodeHeightmap(heightBuffer, sourceWidth, colorHeight);
+        const blockLights = lightingConfig.blockLightBoost > 0
+            ? decodeBlockLight(heightBuffer, sourceWidth, colorHeight)
+            : undefined;
         const emitHeightmap = pyramid.lighting?.emitHeightmapTiles ?? false;
 
         for (let dx = 0; dx < splitFactor; dx++) {
             for (let dz = 0; dz < splitFactor; dz++) {
                 const { entry, wasRendered } = await renderDualLayerSubTile({
                     dx, dz, source, splitFactor, canonLevel, canonBpt,
-                    cropWidth, cropHeight, sourceWidth, colorBuffer, heights,
+                    cropWidth, cropHeight, sourceWidth, colorBuffer, heights, blockLights,
                     lightingConfig, emitHeightmap, pyramid,
                 });
                 entries.push(entry);
@@ -588,8 +601,10 @@ async function main(): Promise<void> {
             ambientIntensity: lightingCfg.ambientIntensity,
             diffuseIntensity: lightingCfg.diffuseIntensity,
             heightScale: lightingCfg.heightScale,
+            normalScale: lightingCfg.normalScale,
+            blockLightBoost: lightingCfg.blockLightBoost,
         };
-        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale})`);
+        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost})`);
         console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
         console.log(`  Heightmap tiles: ${lightingCfg.emitHeightmapTiles ? 'enabled' : 'disabled'}`);
     } else {

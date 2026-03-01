@@ -34,6 +34,20 @@ export interface LightingConfig {
     readonly diffuseIntensity: number;
     /** Height exaggeration factor (1.0 = real height, 2.0 = double relief) */
     readonly heightScale: number;
+    /**
+     * Y component of the unnormalized surface normal used in Lambertian shading.
+     * Controls how sensitive the lighting is to slope angle — higher values
+     * flatten the response (subtler shading). Default 2 = current BlueMap-like
+     * behaviour (1-block step ≈ 26° tilt). Set to ~20 for Minecraft top-down
+     * pixel-art terrain where per-block variation should barely register.
+     */
+    readonly normalScale: number;
+    /**
+     * Additive brightness boost applied from the BlueMap block-light channel
+     * (R channel of the heightmap, range 0–15 mapped to 0–1).
+     * 0 = disabled, 0.2 = subtle warm glow from lit blocks (torches, lava).
+     */
+    readonly blockLightBoost: number;
 }
 
 /** Quantized heightmap output for 8-bit grayscale tile */
@@ -56,7 +70,9 @@ export const DEFAULT_LIGHTING: LightingConfig = {
     sunDirection: [0.3, 1, -0.3],
     ambientIntensity: 0.35,
     diffuseIntensity: 0.65,
-    heightScale: 1
+    heightScale: 1,
+    normalScale: 2,
+    blockLightBoost: 0,
 };
 
 // ============================================================================
@@ -187,9 +203,10 @@ export function computeLambertianShade(
             const dx = hR - hL;
             const dz = hD - hU;
 
-            // Surface normal: n = normalize(-dx, 2.0, -dz)
+            // Surface normal: n = normalize(-dx, normalScale, -dz)
+            // normalScale is the Y component — higher = flatter terrain appearance
             const nx = -dx;
-            const ny = 2;
+            const ny = config.normalScale;
             const nz = -dz;
             const length = Math.hypot(nx, ny, nz);
             const nnx = nx / length;
@@ -230,25 +247,57 @@ export function computeShadeMap(
 }
 
 // ============================================================================
+// Block Light Decoding
+// ============================================================================
+
+/**
+ * Decode BlueMap block-light values from the heightmap's R channel.
+ *
+ * Each pixel's R byte encodes block light in range 0–15 (stored as R×255
+ * by BlueMap). This function normalises to 0–1.
+ *
+ * @param rgba - Raw heightmap pixel data (4 bytes per pixel: R=light, G=height-hi, B=height-lo, A)
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @returns Float32Array of normalised block-light values (0–1)
+ */
+export function decodeBlockLight(
+    rgba: Buffer | Uint8Array,
+    width: number,
+    height: number
+): Float32Array {
+    const pixelCount = width * height;
+    return Float32Array.from({ length: pixelCount }, (_, i) => rgba[i * 4] / 15);
+}
+
+// ============================================================================
 // Color Application
 // ============================================================================
 
 /**
- * Apply shade map to an RGBA color buffer in-place.
+ * Apply shade map (and optional block-light boost) to an RGBA color buffer
+ * in-place.
  *
- * Multiplies each pixel's R, G, B channels by the corresponding
- * shade intensity. Alpha is preserved. Output is clamped to 0–255.
+ * Each pixel's R, G, B channels are multiplied by `shadeMap[i] + blockBoost`
+ * where `blockBoost = blockLights[i] × blockLightBoost` (0 when either arg is
+ * absent). Alpha is preserved. Output is clamped to 0–255.
  *
  * @param colorRgba - Mutable RGBA pixel buffer (modified in-place)
- * @param shadeMap - Per-pixel intensity multipliers (same length as pixel count)
+ * @param shadeMap - Per-pixel intensity multipliers
+ * @param blockLights - Optional normalised block-light values (0–1) per pixel
+ * @param blockLightBoost - Maximum additive brightness from block light (0–1)
  */
 export function applyShadeToColor(
     colorRgba: Buffer | Uint8Array,
-    shadeMap: Float32Array
+    shadeMap: Float32Array,
+    blockLights?: Float32Array,
+    blockLightBoost = 0,
 ): void {
-    for (const [i, intensity] of shadeMap.entries()) {
+    for (const [i, shadeIntensity] of shadeMap.entries()) {
+        const boost = blockLights ? blockLights[i] * blockLightBoost : 0;
+        const intensity = shadeIntensity + boost;
         const offset = i * 4;
-        colorRgba[offset] = Math.min(255, Math.max(0, Math.round(colorRgba[offset] * intensity)));
+        colorRgba[offset]     = Math.min(255, Math.max(0, Math.round(colorRgba[offset]     * intensity)));
         colorRgba[offset + 1] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 1] * intensity)));
         colorRgba[offset + 2] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 2] * intensity)));
         // Alpha (offset + 3) is preserved
