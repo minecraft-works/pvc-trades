@@ -18,6 +18,8 @@
  * @see docs/adr/014-heightmap-lighting.md
  */
 
+import { FOLIAGE_REF_COLORS, GRASS_REF_COLORS, WATER_REF_COLORS } from './material-colors.gen.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -50,8 +52,8 @@ export interface LightingConfig {
     readonly blockLightBoost: number;
     /**
      * Integer upscale factor applied before shading.
-     * Heights and block-light values are bilinearly upsampled; colors are
-     * upsampled with nearest-neighbour (preserving pixel-art edges).
+     * Heights are resampled using `heightUpsampleMode`; block-light is bilinear;
+     * colors are nearest-neighbour (preserving pixel-art edges).
      * Shade is computed and applied at `shadingScale × tileSize` resolution,
      * and the output tile is emitted at that larger size.
      * 1 = no upscale (current behaviour), 2 = 2x (1000x1000 for BlueMap).
@@ -124,6 +126,15 @@ export interface LightingConfig {
      * Wider kernels smooth noise and produce more plausible large-scale normals.
      */
     readonly normalKernelSize: 3 | 5 | 7;
+    /**
+     * Upsampling mode for height values when `shadingScale > 1`.
+     * `'nearest'` preserves sharp block-face edges and the blocky Minecraft
+     * staircase appearance in the shaded normals.
+     * `'bilinear'` blends height steps into smooth ramps, producing dome-shaped
+     * normals that look muddy on flat canopies and stepped terrain.
+     * Default: `'nearest'`.
+     */
+    readonly heightUpsampleMode: 'bilinear' | 'nearest';
 }
 
 /** Quantized heightmap output for 8-bit grayscale tile */
@@ -155,6 +166,7 @@ export const DEFAULT_LIGHTING: LightingConfig = {
     unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
     materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
     normalKernelSize: 3,
+    heightUpsampleMode: 'nearest',
 };
 
 // ============================================================================
@@ -991,6 +1003,38 @@ export function upsampleBilinear(
             data[sy1 * sourceW + sx0] * (1 - tx) * ty        +
             data[sy1 * sourceW + sx1] * tx        * ty
         );
+    });
+}
+
+/**
+ * Nearest-neighbour upsample a Float32Array by an integer scale factor.
+ *
+ * Each output pixel maps back to the closest source pixel centre, preserving
+ * sharp step edges (block faces and stair steps) in the upsampled height field.
+ * Use this instead of {@link upsampleBilinear} for height data so that normals
+ * see flat-top block faces and crisp vertical steps rather than smooth dome
+ * shapes.
+ *
+ * @param data    - Source values laid out row-major (sourceW × sourceH elements)
+ * @param sourceW - Source width in pixels
+ * @param sourceH - Source height in pixels
+ * @param scale   - Integer scale factor (must be ≥ 1)
+ * @returns New Float32Array of size (sourceW × scale) × (sourceH × scale)
+ */
+export function upsampleNearest(
+    data: Float32Array,
+    sourceW: number,
+    sourceH: number,
+    scale: number,
+): Float32Array {
+    const outputW = sourceW * scale;
+    const outputH = sourceH * scale;
+    return Float32Array.from({ length: outputW * outputH }, (_, i) => {
+        const dx = i % outputW;
+        const dy = Math.floor(i / outputW);
+        const sx = Math.floor(dx / scale);
+        const sy = Math.floor(dy / scale);
+        return data[sy * sourceW + sx];
     });
 }
 

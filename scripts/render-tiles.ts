@@ -50,6 +50,7 @@ import {
     type LightingConfig,
     quantizeHeightmap,
     upsampleBilinear,
+    upsampleNearest,
 } from './heightmap-shader';
 
 // ============================================================================
@@ -294,7 +295,7 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         ? extractSubHeights(blockLights, sourceWidth, startX, startZ, cropWidth, cropHeight)
         : undefined;
 
-    // Upscale buffers if shadingScale > 1 (bilinear for heights/block-light, nearest for color)
+    // Upscale buffers if shadingScale > 1 (heights: per heightUpsampleMode, block-light: bilinear, color: nearest)
     const scale = lightingConfig.shadingScale;
     const shadedW = cropWidth * scale;
     const shadedH = cropHeight * scale;
@@ -306,7 +307,9 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
             .resize(shadedW, shadedH, { kernel: 'nearest' })
             .raw()
             .toBuffer();
-        shadedHeights = upsampleBilinear(subHeights, cropWidth, cropHeight, scale);
+        shadedHeights = lightingConfig.heightUpsampleMode === 'nearest'
+            ? upsampleNearest(subHeights, cropWidth, cropHeight, scale)
+            : upsampleBilinear(subHeights, cropWidth, cropHeight, scale);
         shadedBlockLights = subBlockLights
             ? upsampleBilinear(subBlockLights, cropWidth, cropHeight, scale)
             : undefined;

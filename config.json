@@ -32,7 +32,8 @@
         "ambientOcclusion": { "enabled": true, "samples": 16, "radius": 8, "intensity": 0.5 },
         "unsharpMask": { "enabled": true, "radius": 2, "amount": 0.5, "threshold": 4 },
         "materialShading": { "enabled": true, "waterSpecular": 0.3, "foliageBrightness": 0.1, "stoneAOMultiplier": 1.5 },
-        "normalKernelSize": 5,
+        "normalKernelSize": 3,
+        "heightUpsampleMode": "nearest",
         "emitHeightmapTiles": true
       }
     }

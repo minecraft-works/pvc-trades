@@ -92,8 +92,8 @@ const TilePyramidConfigSchema = z.object({
         blockLightBoost: z.number().min(0).max(1).default(0),
         /**
          * Integer upscale factor applied before shading (1–4).
-         * Heights and block-light values are bilinearly upsampled; colors are
-         * upsampled with nearest-neighbour. Shade is computed and the tile emitted
+         * Heights are resampled per `heightUpsampleMode`; block-light is bilinear;
+         * colors are nearest-neighbour. Shade is computed and the tile emitted
          * at `shadingScale × tileSize`. Set tileWidth/Height to match in the preset.
          */
         shadingScale: z.number().int().min(1).max(4).default(1),
@@ -143,6 +143,8 @@ const TilePyramidConfigSchema = z.object({
         }).default({ enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 }),
         /** Normal kernel size: 3=central diff, 5=Sobel 5×5, 7=Sobel 7×7 */
         normalKernelSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
+        /** Height upsampling method when shadingScale > 1. 'nearest' preserves blocky Minecraft normals. */
+        heightUpsampleMode: z.enum(['bilinear', 'nearest']).default('nearest'),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
         emitHeightmapTiles: z.boolean().default(true)
     }).optional()
@@ -204,6 +206,7 @@ export const AppConfigSchema = z.object({
             unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
             materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
+            heightUpsampleMode: 'nearest' as const,
             emitHeightmapTiles: true
         }
     }),
@@ -757,6 +760,7 @@ export const DEFAULT_CONFIG: AppConfig = {
             unsharpMask: { enabled: false, radius: 2, amount: 0.5, threshold: 4 },
             materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
+            heightUpsampleMode: 'nearest' as const,
             emitHeightmapTiles: true
         }
     },
