@@ -686,10 +686,23 @@ async function buildMosaicComposites(
             `${detailEntry.tileZ}.${pyramid.format}`,
         );
         if (!existsSync(detailPath)) { continue; }
-        const buf = await sharp(detailPath).ensureAlpha().raw().toBuffer();
+        // Guard against stale cached tiles whose dimensions no longer match the
+        // current pyramid config (e.g. a pre-shadingScale=2 run leaving 500×500
+        // tiles when tileWidth/tileHeight is now 1000). Passing a raw buffer
+        // with the wrong declared dimensions causes a libvips memory error.
+        const meta = await sharp(detailPath).metadata();
+        if (meta.width !== pyramid.tileWidth || meta.height !== pyramid.tileHeight) {
+            console.warn(
+                `  [WARN] Skipping stale tile ${detailPath}` +
+                ` (${meta.width ?? '?'}×${meta.height ?? '?'} ≠ expected` +
+                ` ${pyramid.tileWidth}×${pyramid.tileHeight}) — canonical cache may be stale`,
+            );
+            continue;
+        }
+        // Pass the file path directly so sharp reads PNG dimensions from metadata
+        // — no raw buffer spec means no possibility of a size mismatch.
         composites.push({
-            input: buf,
-            raw: { width: pyramid.tileWidth, height: pyramid.tileHeight, channels: 4 },
+            input: detailPath,
             left: localX * pyramid.tileWidth,
             top: localZ * pyramid.tileHeight,
         });
