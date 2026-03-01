@@ -275,16 +275,36 @@ async function resolveJarUrl(requestedVersion: string | undefined): Promise<{ ur
 async function main(): Promise<void> {
     mkdirSync(JAR_CACHE_DIR, { recursive: true });
 
-    const { url: jarUrl, version: mcVersion } = await resolveJarUrl(versionArg);
+    // If a version is explicitly provided and the JAR is already cached, skip
+    // the Mojang version manifest fetch entirely (useful behind firewalls).
+    // Manually place the JAR at .mc-jar-cache/client-<version>.jar to use this.
+    let jarPath: string;
+    let mcVersion: string;
 
-    const jarPath = path.join(JAR_CACHE_DIR, `client-${mcVersion}.jar`);
-    if (existsSync(jarPath)) {
-        console.log(`Using cached JAR: ${jarPath}`);
+    if (versionArg) {
+        mcVersion = versionArg;
+        jarPath = path.join(JAR_CACHE_DIR, `client-${mcVersion}.jar`);
+        if (existsSync(jarPath)) {
+            console.log(`Using cached JAR: ${jarPath}`);
+        } else {
+            console.log(`JAR not cached — fetching from Mojang for ${mcVersion}...`);
+            const { url: jarUrl } = await resolveJarUrl(versionArg);
+            console.log(`  URL: ${jarUrl}`);
+            await downloadToFile(jarUrl, jarPath);
+            console.log('  Download complete.');
+        }
     } else {
-        console.log(`Downloading client JAR for ${mcVersion}...`);
-        console.log(`  URL: ${jarUrl}`);
-        await downloadToFile(jarUrl, jarPath);
-        console.log('  Download complete.');
+        const resolved = await resolveJarUrl(undefined);
+        mcVersion = resolved.version;
+        jarPath = path.join(JAR_CACHE_DIR, `client-${mcVersion}.jar`);
+        if (existsSync(jarPath)) {
+            console.log(`Using cached JAR: ${jarPath}`);
+        } else {
+            console.log(`Downloading client JAR for ${mcVersion}...`);
+            console.log(`  URL: ${resolved.url}`);
+            await downloadToFile(resolved.url, jarPath);
+            console.log('  Download complete.');
+        }
     }
 
     console.log('Opening JAR...');
