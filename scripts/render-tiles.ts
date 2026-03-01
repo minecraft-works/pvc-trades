@@ -45,6 +45,7 @@ import {
     isDualLayerTile,
     type LightingConfig,
     quantizeHeightmap,
+    upsampleBilinear,
 } from './heightmap-shader';
 
 // ============================================================================
@@ -289,11 +290,33 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         ? extractSubHeights(blockLights, sourceWidth, startX, startZ, cropWidth, cropHeight)
         : undefined;
 
-    // Compute and apply shade (with optional block-light boost)
-    const shade = computeShadeMap(subHeights, cropWidth, cropHeight, lightingConfig);
-    applyShadeToColor(subColor, shade, subBlockLights, lightingConfig.blockLightBoost);
+    // Upscale buffers if shadingScale > 1 (bilinear for heights/block-light, nearest for color)
+    const scale = lightingConfig.shadingScale;
+    const shadedW = cropWidth * scale;
+    const shadedH = cropHeight * scale;
+    let shadedColor: Buffer;
+    let shadedHeights: Float32Array;
+    let shadedBlockLights: Float32Array | undefined;
+    if (scale > 1) {
+        shadedColor = await sharp(subColor, { raw: { width: cropWidth, height: cropHeight, channels: 4 } })
+            .resize(shadedW, shadedH, { kernel: 'nearest' })
+            .raw()
+            .toBuffer();
+        shadedHeights = upsampleBilinear(subHeights, cropWidth, cropHeight, scale);
+        shadedBlockLights = subBlockLights
+            ? upsampleBilinear(subBlockLights, cropWidth, cropHeight, scale)
+            : undefined;
+    } else {
+        shadedColor = subColor;
+        shadedHeights = subHeights;
+        shadedBlockLights = subBlockLights;
+    }
 
-    // Quantize heightmap for metadata and optional tile
+    // Compute and apply shade at (potentially upscaled) resolution
+    const shade = computeShadeMap(shadedHeights, shadedW, shadedH, lightingConfig);
+    applyShadeToColor(shadedColor, shade, shadedBlockLights, lightingConfig.blockLightBoost);
+
+    // Quantize from original (unscaled) heights — min/max metadata is geometric, not resolution-dependent
     const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
     const entry: CanonicalEntry = {
         world: source.world,
@@ -309,27 +332,29 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
 
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
-    // Write shaded color tile
-    // Use pixel-exact extract (not resize) to crop the 501×501 shaded buffer to
-    // 500×500. The extra border pixel is intentionally kept in the source buffer
-    // for correct edge-neighbour lookups during shade computation, but must not
-    // be emitted to the canonical tile via interpolating resampling (Lanczos3).
-    let pipeline = sharp(subColor, {
-        raw: { width: cropWidth, height: cropHeight, channels: 4 },
+    // Write shaded color tile at full (potentially upscaled) resolution.
+    // The extract only fires when buffer dimensions differ from pyramid dims;
+    // this trims the 501→500 source border pixel when shadingScale = 1.
+    // With shadingScale > 1, shadedW === pyramid.tileWidth so no extract needed.
+    let pipeline = sharp(shadedColor, {
+        raw: { width: shadedW, height: shadedH, channels: 4 },
     });
-    if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
+    if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
         pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
     }
     pipeline = applyFormat(pipeline, pyramid.format);
     await pipeline.toFile(outputPath);
 
-    // Write heightmap sidecar tile
+    // Write heightmap sidecar at the same output dimensions
     if (emitHeightmap) {
         let heightPipeline = sharp(quantized.data, {
             raw: { width: cropWidth, height: cropHeight, channels: 1 },
         });
         if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
-            heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+            // scale > 1: nearest-neighbour upscale to match tile dims; else trim border pixel
+            heightPipeline = scale > 1
+                ? heightPipeline.resize(pyramid.tileWidth, pyramid.tileHeight, { kernel: 'nearest' })
+                : heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
         }
         await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
     }
@@ -549,6 +574,159 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
 }
 
 // ============================================================================
+// Intermediate Tile Derivation
+// ============================================================================
+
+/**
+ * Build the array of sharp composites for one intermediate-tile mosaic group.
+ * Reads each available shaded detail tile from disk and places it at the
+ * correct grid position within the mosaic.  Missing tiles leave that cell
+ * transparent (the parent sharp image is initialised to transparent).
+ *
+ * @param groupEntries - Detail-level entries that share the same intermediate parent
+ * @param world - Normalised world name
+ * @param detail - Detail level index
+ * @param scale - Pyramid scale factor (tiles per intermediate tile side)
+ * @param pyramid - Pyramid configuration (tile dimensions and format)
+ * @returns Array of overlay options ready for sharp.composite()
+ */
+async function buildMosaicComposites(
+    groupEntries: CanonicalEntry[],
+    world: string,
+    detail: number,
+    scale: number,
+    pyramid: TilePyramidConfig,
+): Promise<sharp.OverlayOptions[]> {
+    const composites: sharp.OverlayOptions[] = [];
+    for (const detailEntry of groupEntries) {
+        const localX = ((detailEntry.tileX % scale) + scale) % scale;
+        const localZ = ((detailEntry.tileZ % scale) + scale) % scale;
+        const detailPath = path.join(
+            TILES_DIR, world,
+            String(detail), String(detailEntry.tileX),
+            `${detailEntry.tileZ}.${pyramid.format}`,
+        );
+        if (!existsSync(detailPath)) { continue; }
+        const buf = await sharp(detailPath).ensureAlpha().raw().toBuffer();
+        composites.push({
+            input: buf,
+            raw: { width: pyramid.tileWidth, height: pyramid.tileHeight, channels: 4 },
+            left: localX * pyramid.tileWidth,
+            top: localZ * pyramid.tileHeight,
+        });
+    }
+    return composites;
+}
+
+/**
+ * Derive intermediate-level canonical tiles by downsampling a scaleFactor×scaleFactor
+ * grid of already-rendered detail tiles.
+ *
+ * For each group of detail tiles that share a parent at
+ * `detailLevel(pyramid) - 1`, the function:
+ * 1. Reads the shaded detail tile PNGs from disk.
+ * 2. Places each into a (scaleFactor x tileWidth) x (scaleFactor x tileHeight)
+ *    mosaic at the correct grid position (transparent where tiles are absent).
+ * 3. Lanczos-resizes the mosaic back to tileWidth x tileHeight.
+ * 4. Writes to `TILES_DIR/world/{intermediateLevel}/{parentX}/{parentZ}.{format}`.
+ *
+ * Tiles already present on disk are skipped (skip-if-exists).
+ * The LOD‑4 overview pass runs afterward and only writes to a different level
+ * (overviewLevel = 0), so there is no conflict.
+ *
+ * @param world - Normalised world name
+ * @param detailEntries - Canonical entries from the most-detail pass
+ * @param pyramid - Pyramid configuration
+ * @returns SplitResult with new entries and render/skip counts
+ */
+async function deriveIntermediateTiles(
+    world: string,
+    detailEntries: CanonicalEntry[],
+    pyramid: TilePyramidConfig,
+): Promise<SplitResult> {
+    const detail = detailLevel(pyramid);
+    const intermediateLevel = detail - 1;
+    if (intermediateLevel < 0) {
+        return { entries: [], rendered: 0, skipped: 0 };
+    }
+
+    const scale = pyramid.scaleFactor;
+    const intermediateBpt = pyramidBlocksPerTile(intermediateLevel, pyramid);
+
+    // Group detail entries by parent intermediate tile coordinate
+    const groups = new Map<string, CanonicalEntry[]>();
+    for (const entry of detailEntries) {
+        if (entry.world !== world) { continue; }
+        const parentX = Math.floor(entry.tileX / scale);
+        const parentZ = Math.floor(entry.tileZ / scale);
+        const key = `${parentX}/${parentZ}`;
+        const existing = groups.get(key);
+        if (existing) {
+            existing.push(entry);
+        } else {
+            groups.set(key, [entry]);
+        }
+    }
+
+    if (groups.size === 0) {
+        return { entries: [], rendered: 0, skipped: 0 };
+    }
+
+    const mosaicW = pyramid.tileWidth * scale;
+    const mosaicH = pyramid.tileHeight * scale;
+    const entries: CanonicalEntry[] = [];
+    let rendered = 0;
+    let skipped = 0;
+
+    console.log(`\n[${world}] Deriving ${groups.size} intermediate (level ${intermediateLevel}) tiles from ${detailEntries.length} detail tiles (${scale}x${scale} -> 1)`);
+
+    for (const [groupKey, groupEntries] of groups) {
+        const slashPos = groupKey.indexOf('/');
+        const parentX = Number.parseInt(groupKey.slice(0, slashPos), 10);
+        const parentZ = Number.parseInt(groupKey.slice(slashPos + 1), 10);
+
+        const outputPath = path.join(
+            TILES_DIR, world,
+            String(intermediateLevel), String(parentX),
+            `${parentZ}.${pyramid.format}`,
+        );
+
+        const entry: CanonicalEntry = {
+            world,
+            tileX: parentX,
+            tileZ: parentZ,
+            blocksPerTile: intermediateBpt,
+        };
+
+        if (existsSync(outputPath)) {
+            entries.push(entry);
+            skipped++;
+        } else {
+            const composites = await buildMosaicComposites(groupEntries, world, detail, scale, pyramid);
+            if (composites.length > 0) {
+                mkdirSync(path.dirname(outputPath), { recursive: true });
+
+                let pipeline = sharp({
+                    create: {
+                        width: mosaicW,
+                        height: mosaicH,
+                        channels: 4,
+                        background: { r: 0, g: 0, b: 0, alpha: 0 },
+                    },
+                }).composite(composites).resize(pyramid.tileWidth, pyramid.tileHeight, { kernel: 'lanczos3' });
+                pipeline = applyFormat(pipeline, pyramid.format);
+                await pipeline.toFile(outputPath);
+
+                entries.push(entry);
+                rendered++;
+            }
+        }
+    }
+
+    return { entries, rendered, skipped };
+}
+
+// ============================================================================
 // Main
 // ============================================================================
  
@@ -603,6 +781,7 @@ async function main(): Promise<void> {
             heightScale: lightingCfg.heightScale,
             normalScale: lightingCfg.normalScale,
             blockLightBoost: lightingCfg.blockLightBoost,
+            shadingScale: lightingCfg.shadingScale,
         };
         console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost})`);
         console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
@@ -637,6 +816,16 @@ async function main(): Promise<void> {
         allEntries.push(...detail.entries);
         totalRendered += detail.rendered;
         totalSkipped += detail.skipped;
+
+        // Derive intermediate level from shaded detail tiles (must run before
+        // the LOD‑4 overview pass so skip-if-exists protects any intermediate
+        // tiles that happen to share a path — in practice they don't since
+        // overview writes only to overviewLevel() = 0, but the ordering makes
+        // the intent explicit: more-detailed derivation always wins).
+        const intermediate = await deriveIntermediateTiles(world, detail.entries, pyramid);
+        allEntries.push(...intermediate.entries);
+        totalRendered += intermediate.rendered;
+        totalSkipped += intermediate.skipped;
 
         const overview = await processSourceLevel({
             levelId: provider.overviewLevel.id,
