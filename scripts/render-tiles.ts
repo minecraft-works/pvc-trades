@@ -40,7 +40,10 @@ import {
     applySlopeShading,
     applyUnsharpMask,
     computeAmbientOcclusion,
+    computeBlockLightGlow,
+    computeHardShadowMap,
     computeMaterialModifiers,
+    computeNeighborAO,
     computeShadeMap,
     computeShadowMap,
     decodeBlockLight,
@@ -258,6 +261,181 @@ function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
 }
 
 /**
+ * Upscale sub-region buffers when shadingScale > 1.
+ *
+ * @param subColor - 4-channel RGBA Buffer at source resolution
+ * @param subHeights - Height float array at source resolution
+ * @param subBlockLights - Block-light float array (or undefined)
+ * @param cropWidth - Source width in pixels
+ * @param cropHeight - Source height in pixels
+ * @param shadingScale - Scale factor (1 = no upscale)
+ * @param heightUpsampleMode - 'nearest' or any other value for bilinear
+ * @returns Upscaled buffers (same object references when scale === 1)
+ */
+async function upscaleSubRegion(
+    subColor: Buffer,
+    subHeights: Float32Array,
+    subBlockLights: Float32Array | undefined,
+    cropWidth: number,
+    cropHeight: number,
+    shadingScale: number,
+    heightUpsampleMode: string,
+): Promise<{ shadedColor: Buffer; shadedHeights: Float32Array; shadedBlockLights: Float32Array | undefined }> {
+    if (shadingScale <= 1) {
+        return { shadedColor: subColor, shadedHeights: subHeights, shadedBlockLights: subBlockLights };
+    }
+    const upW = cropWidth  * shadingScale;
+    const upH = cropHeight * shadingScale;
+    const shadedColor = await sharp(subColor, { raw: { width: cropWidth, height: cropHeight, channels: 4 } })
+        .resize(upW, upH, { kernel: 'nearest' })
+        .raw()
+        .toBuffer();
+    const shadedHeights = heightUpsampleMode === 'nearest'
+        ? upsampleNearest(subHeights, cropWidth, cropHeight, shadingScale)
+        : upsampleBilinear(subHeights, cropWidth, cropHeight, shadingScale);
+    const shadedBlockLights = subBlockLights
+        ? upsampleBilinear(subBlockLights, cropWidth, cropHeight, shadingScale)
+        : undefined;
+    return { shadedColor, shadedHeights, shadedBlockLights };
+}
+
+/**
+ * Apply BlueMap-exact slope shading and three post-pass enhancements in-place.
+ *
+ * Passes in order: additive BlueMap slope shade, multiplicative hard-shadow × neighbour-AO
+ * darkening, and additive block-light glow (if block-light data is present).
+ *
+ * @param shadedColor - RGBA pixel buffer (mutated)
+ * @param shadedHeights - Decoded height values
+ * @param shadedBlockLights - Block-light values per pixel (optional)
+ * @param shadedW - Buffer width in pixels
+ * @param shadedH - Buffer height in pixels
+ * @param heightScale - Height exaggeration for the slope-shade formula
+ * @returns Hard-shadow and AO maps for downstream diagnostic use
+ */
+function applySlopeEnhancements(
+    shadedColor: Buffer,
+    shadedHeights: Float32Array,
+    shadedBlockLights: Float32Array | undefined,
+    shadedW: number,
+    shadedH: number,
+    heightScale: number,
+): { hardShadow: Float32Array; ao: Float32Array } {
+    applySlopeShading(shadedColor, shadedHeights, shadedW, shadedH, heightScale);
+    const hardShadow = computeHardShadowMap(shadedHeights, shadedW, shadedH);
+    const ao         = computeNeighborAO(shadedHeights, shadedW, shadedH);
+    const n          = shadedW * shadedH;
+    // Multiplicative shadow × AO darkening
+    for (let i = 0; i < n; i++) {
+        const o   = i * 4;
+        const mul = hardShadow[i] * ao[i];
+        shadedColor[o]     = Math.min(255, Math.max(0, Math.round(shadedColor[o]     * mul)));
+        shadedColor[o + 1] = Math.min(255, Math.max(0, Math.round(shadedColor[o + 1] * mul)));
+        shadedColor[o + 2] = Math.min(255, Math.max(0, Math.round(shadedColor[o + 2] * mul)));
+    }
+    // Additive block-light glow
+    if (shadedBlockLights) {
+        const { r, g, b } = computeBlockLightGlow(shadedBlockLights, shadedW, shadedH);
+        for (let i = 0; i < n; i++) {
+            const o = i * 4;
+            shadedColor[o]     = Math.min(255, (shadedColor[o]     ?? 0) + Math.round(r.at(i) ?? 0));
+            shadedColor[o + 1] = Math.min(255, (shadedColor[o + 1] ?? 0) + Math.round(g.at(i) ?? 0));
+            shadedColor[o + 2] = Math.min(255, (shadedColor[o + 2] ?? 0) + Math.round(b.at(i) ?? 0));
+        }
+    }
+    return { hardShadow, ao };
+}
+
+/**
+ * Render a Float32Array map to a grayscale diagnostic PNG tile.
+ *
+ * @param map - Per-pixel float values in [0, 1] (rendered as 8-bit grey)
+ * @param suffix - Filename suffix appended to the canonical tile name
+ * @param world - Tile world directory name
+ * @param canonLevel - Canonical zoom level
+ * @param canonTileX - Canonical tile X index
+ * @param canonTileZ - Canonical tile Z index
+ * @param shadedW - Map width in pixels
+ * @param shadedH - Map height in pixels
+ * @param pyramid - Canonical tile size configuration
+ */
+async function writeFloatMapAsDiagnosticTile(
+    map: Float32Array,
+    suffix: string,
+    world: string,
+    canonLevel: number,
+    canonTileX: number,
+    canonTileZ: number,
+    shadedW: number,
+    shadedH: number,
+    pyramid: TilePyramidConfig,
+): Promise<void> {
+    const diagPath = path.join(
+        TILES_DIR, world,
+        String(canonLevel), String(canonTileX),
+        `${canonTileZ}.${suffix}.png`,
+    );
+    const diagRgba = Buffer.alloc(map.length * 4);
+    for (const [i, mapValue] of map.entries()) {
+        const v = Math.min(255, Math.max(0, Math.round(mapValue * 255)));
+        const offset = i * 4;
+        diagRgba[offset]     = v;
+        diagRgba[offset + 1] = v;
+        diagRgba[offset + 2] = v;
+        diagRgba[offset + 3] = 255;
+    }
+    let diagPipeline = sharp(diagRgba, { raw: { width: shadedW, height: shadedH, channels: 4 } });
+    if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
+        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
+            diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
+    } else {
+        const scaleX = Math.ceil(pyramid.tileWidth  / shadedW);
+        const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
+        const upW = shadedW * scaleX;
+        const upH = shadedH * scaleY;
+        diagPipeline = diagPipeline.resize(upW, upH, { kernel: 'nearest' });
+        // Always trim — when upW === tileWidth this is a no-op crop, otherwise removes border pixel.
+        diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+    }
+    await diagPipeline.png({ compressionLevel: 9 }).toFile(diagPath);
+}
+
+/**
+ * Scale a shaded RGBA buffer to canonical tile dimensions and write it to disk.
+ *
+ * @param buffer - Source RGBA buffer at bufW × bufH resolution
+ * @param bufW - Buffer width in pixels
+ * @param bufH - Buffer height in pixels
+ * @param pyramid - Tile size and format configuration
+ * @param outputPath - Destination file path
+ */
+async function writeShadedColorTile(
+    buffer: Buffer,
+    bufW: number,
+    bufH: number,
+    pyramid: TilePyramidConfig,
+    outputPath: string,
+): Promise<void> {
+    let pipeline = sharp(buffer, { raw: { width: bufW, height: bufH, channels: 4 } });
+    if (bufW >= pyramid.tileWidth && bufH >= pyramid.tileHeight) {
+        if (bufW !== pyramid.tileWidth || bufH !== pyramid.tileHeight) {
+            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
+    } else {
+        const scaleX = Math.ceil(pyramid.tileWidth  / bufW);
+        const scaleY = Math.ceil(pyramid.tileHeight / bufH);
+        const upW = bufW * scaleX;
+        const upH = bufH * scaleY;
+        pipeline = pipeline.resize(upW, upH, { kernel: 'nearest' });
+        if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
+            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
+        }
+    }
+    await applyFormat(pipeline, pyramid.format).toFile(outputPath);
+}
+
+/**
  * Render a single dual-layer sub-tile: extract sub-region, compute shade,
  * write the shaded color tile and optional heightmap sidecar.
  *
@@ -296,29 +474,13 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         ? extractSubHeights(blockLights, sourceWidth, startX, startZ, cropWidth, cropHeight)
         : undefined;
 
-    // Upscale buffers if shadingScale > 1 (heights: per heightUpsampleMode, block-light: bilinear, color: nearest)
+    // Upscale buffers when shadingScale > 1 (heights: heightUpsampleMode, block-light: bilinear, color: nearest)
     const scale = lightingConfig.shadingScale;
-    const shadedW = cropWidth * scale;
+    const shadedW = cropWidth  * scale;
     const shadedH = cropHeight * scale;
-    let shadedColor: Buffer;
-    let shadedHeights: Float32Array;
-    let shadedBlockLights: Float32Array | undefined;
-    if (scale > 1) {
-        shadedColor = await sharp(subColor, { raw: { width: cropWidth, height: cropHeight, channels: 4 } })
-            .resize(shadedW, shadedH, { kernel: 'nearest' })
-            .raw()
-            .toBuffer();
-        shadedHeights = lightingConfig.heightUpsampleMode === 'nearest'
-            ? upsampleNearest(subHeights, cropWidth, cropHeight, scale)
-            : upsampleBilinear(subHeights, cropWidth, cropHeight, scale);
-        shadedBlockLights = subBlockLights
-            ? upsampleBilinear(subBlockLights, cropWidth, cropHeight, scale)
-            : undefined;
-    } else {
-        shadedColor = subColor;
-        shadedHeights = subHeights;
-        shadedBlockLights = subBlockLights;
-    }
+    const { shadedColor, shadedHeights, shadedBlockLights } = await upscaleSubRegion(
+        subColor, subHeights, subBlockLights, cropWidth, cropHeight, scale, lightingConfig.heightUpsampleMode,
+    );
 
     // Compute shade map and apply shading pipeline at (potentially upscaled) resolution
     const shade = computeShadeMap(shadedHeights, shadedW, shadedH, lightingConfig);
@@ -328,14 +490,15 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     let specularAdd: Float32Array;
 
     if (lightingConfig.model === 'slope') {
-        // BlueMap-exact: additive slope shade (color + shade × 255), no shadow/AO/material
-        applySlopeShading(shadedColor, shadedHeights, shadedW, shadedH, lightingConfig.heightScale);
-        // Stub identity maps so diagnostic paths compile cleanly
+        // BlueMap-exact slope shading + soft shadows + neighbour AO + block-light glow
+        const { hardShadow, ao } = applySlopeEnhancements(
+            shadedColor, shadedHeights, shadedBlockLights, shadedW, shadedH, lightingConfig.heightScale,
+        );
         const n = shadedW * shadedH;
-        shadowMap = new Float32Array(n).fill(1);
-        aoMap = new Float32Array(n).fill(1);
+        shadowMap       = hardShadow;
+        aoMap           = ao;
         diffuseModifier = new Float32Array(n).fill(1);
-        specularAdd = new Float32Array(n).fill(0);
+        specularAdd     = new Float32Array(n).fill(0);
     } else {
         shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
         aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
@@ -369,41 +532,9 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
     // Helper to write a diagnostic tile from a Float32Array map
-    const writeDiagnosticTile = async (
-        map: Float32Array, suffix: string,
-    ): Promise<void> => {
-        const diagPath = path.join(
-            TILES_DIR, source.world,
-            String(canonLevel), String(canonTileX),
-            `${canonTileZ}.${suffix}.png`,
-        );
-        // Convert float map [0..1] to grayscale RGBA
-        const diagRgba = Buffer.alloc(map.length * 4);
-        for (const [i, mapValue] of map.entries()) {
-            const v = Math.min(255, Math.max(0, Math.round(mapValue * 255)));
-            const offset = i * 4;
-            diagRgba[offset] = v;
-            diagRgba[offset + 1] = v;
-            diagRgba[offset + 2] = v;
-            diagRgba[offset + 3] = 255;
-        }
-        let diagPipeline = sharp(diagRgba, { raw: { width: shadedW, height: shadedH, channels: 4 } });
-        if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
-            if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
-                diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-            }
-        } else {
-            const scaleX = Math.ceil(pyramid.tileWidth / shadedW);
-            const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
-            const upW = shadedW * scaleX;
-            const upH = shadedH * scaleY;
-            diagPipeline = diagPipeline.resize(upW, upH, { kernel: 'nearest' });
-            if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
-                diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-            }
-        }
-        await diagPipeline.png({ compressionLevel: 9 }).toFile(diagPath);
-    };
+    // Binds context so call sites remain the same as before the refactor
+    const writeDiagnosticTile = (map: Float32Array, suffix: string): Promise<void> =>
+        writeFloatMapAsDiagnosticTile(map, suffix, source.world, canonLevel, canonTileX, canonTileZ, shadedW, shadedH, pyramid);
 
     // Write diagnostic tiles for each technique (only when enabled; skipped in slope mode)
     if (lightingConfig.model !== 'slope') {
@@ -422,31 +553,8 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     const diagShadeName = lightingConfig.model === 'slope' ? 'slope' : `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`;
     await writeDiagnosticTile(shade, diagShadeName);
 
-    // Write shaded color tile at full (potentially upscaled) resolution.
-    // When shadingScale > 1: shadedW ≥ tileWidth → crop the seamless border pixel.
-    // When shadingScale = 1: shadedW < tileWidth (501 < 1000) → resize up with
-    //   nearest-neighbor to the next integer multiple, then crop to tileWidth.
-    let pipeline = sharp(shadedColor, {
-        raw: { width: shadedW, height: shadedH, channels: 4 },
-    });
-    if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
-        // Crop seamless border pixel(s)
-        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
-            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-        }
-    } else {
-        // Upscale to nearest integer multiple that covers tileWidth × tileHeight
-        const scaleX = Math.ceil(pyramid.tileWidth / shadedW);
-        const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
-        const upW = shadedW * scaleX;
-        const upH = shadedH * scaleY;
-        pipeline = pipeline.resize(upW, upH, { kernel: 'nearest' });
-        if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
-            pipeline = pipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-        }
-    }
-    pipeline = applyFormat(pipeline, pyramid.format);
-    await pipeline.toFile(outputPath);
+    // Write shaded color tile at canonical tile dimensions
+    await writeShadedColorTile(shadedColor, shadedW, shadedH, pyramid, outputPath);
 
     // For unsharp mask diagnostic, we need to compare the shaded tile with a non-sharpened version
     if (lightingConfig.unsharpMask.enabled) {
@@ -484,9 +592,9 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
                 const upW = cropWidth * scaleX;
                 const upH = cropHeight * scaleY;
                 heightPipeline = heightPipeline.resize(upW, upH, { kernel: 'nearest' });
-                if (upW !== pyramid.tileWidth || upH !== pyramid.tileHeight) {
-                    heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-                }
+                // Always trim to tileWidth×tileHeight — when upW===tileWidth this is a no-op,
+                // otherwise removes the seamless border pixel.
+                heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
             }
         }
         await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
@@ -739,27 +847,28 @@ async function buildMosaicComposites(
             String(detail), String(detailEntry.tileX),
             `${detailEntry.tileZ}.${pyramid.format}`,
         );
-        if (!existsSync(detailPath)) { continue; }
         // Guard against stale cached tiles whose dimensions no longer match the
         // current pyramid config (e.g. a pre-shadingScale=2 run leaving 500×500
         // tiles when tileWidth/tileHeight is now 1000). Passing a raw buffer
         // with the wrong declared dimensions causes a libvips memory error.
-        const meta = await sharp(detailPath).metadata();
-        if (meta.width !== pyramid.tileWidth || meta.height !== pyramid.tileHeight) {
-            console.warn(
-                `  [WARN] Skipping stale tile ${detailPath}` +
-                ` (${meta.width ?? '?'}×${meta.height ?? '?'} ≠ expected` +
-                ` ${pyramid.tileWidth}×${pyramid.tileHeight}) — canonical cache may be stale`,
-            );
-            continue;
+        if (existsSync(detailPath)) {
+            const meta = await sharp(detailPath).metadata();
+            if (meta.width === pyramid.tileWidth && meta.height === pyramid.tileHeight) {
+                // Pass the file path directly so sharp reads PNG dimensions from metadata
+                // — no raw buffer spec means no possibility of a size mismatch.
+                composites.push({
+                    input: detailPath,
+                    left: localX * pyramid.tileWidth,
+                    top: localZ * pyramid.tileHeight,
+                });
+            } else {
+                console.warn(
+                    `  [WARN] Skipping stale tile ${detailPath}` +
+                    ` (${meta.width}×${meta.height} ≠ expected` +
+                    ` ${pyramid.tileWidth}×${pyramid.tileHeight}) — canonical cache may be stale`,
+                );
+            }
         }
-        // Pass the file path directly so sharp reads PNG dimensions from metadata
-        // — no raw buffer spec means no possibility of a size mismatch.
-        composites.push({
-            input: detailPath,
-            left: localX * pyramid.tileWidth,
-            top: localZ * pyramid.tileHeight,
-        });
     }
     return composites;
 }

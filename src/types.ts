@@ -222,6 +222,15 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 // ============================================================================
 
 /**
+ * Type guard that narrows `unknown` to `Record<string, unknown>`.
+ * @param value - Value to check
+ * @returns True if value is a non-null object
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+/**
  * Merge `tileSourcePresets[tileSource]` into the raw config object before
  * Zod validation so that Zod defaults fill gaps correctly.
  *
@@ -233,20 +242,13 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
  * @returns The same object with `tilePyramid` pre-merged from the preset
  */
 export function resolveRawConfig(raw: unknown): unknown {
-    if (typeof raw !== 'object' || raw === null) { return raw; }
-    const obj = raw as Record<string, unknown>;
-    const source = typeof obj.tileSource === 'string' ? obj.tileSource : undefined;
-    const presets = typeof obj.tileSourcePresets === 'object' && obj.tileSourcePresets !== null
-        ? obj.tileSourcePresets as Record<string, unknown>
-        : undefined;
-    if (!source || !presets || typeof presets[source] !== 'object' || presets[source] === null) {
-        return raw;
-    }
-    const preset = presets[source] as Record<string, unknown>;
-    const explicit = typeof obj.tilePyramid === 'object' && obj.tilePyramid !== null
-        ? obj.tilePyramid as Record<string, unknown>
-        : {};
-    return { ...obj, tilePyramid: { ...preset, ...explicit } };
+    if (!isRecord(raw)) { return raw; }
+    const source = typeof raw.tileSource === 'string' ? raw.tileSource : undefined;
+    if (!source || !isRecord(raw.tileSourcePresets)) { return raw; }
+    const presetValue = raw.tileSourcePresets[source];
+    if (!isRecord(presetValue)) { return raw; }
+    const explicit = isRecord(raw.tilePyramid) ? raw.tilePyramid : {};
+    return { ...raw, tilePyramid: { ...presetValue, ...explicit } };
 }
 
 // ============================================================================
@@ -544,138 +546,24 @@ const FavoriteItemSchema = z.object({
 export const FavoriteItemArraySchema = z.array(FavoriteItemSchema);
 
 // ============================================================================
-// Snapshot Types (Daily Deals Dashboard)
+// Snapshot & Dashboard Types (extracted to snapshot-types.ts)
 // ============================================================================
 
-/**
- * A snapshot of a single trade's state at a point in time.
- * Used to detect price changes and new trades between sessions.
- */
-export interface TradeSnapshotEntry {
-    /** Deviation percentage from median market price (undefined if not calculable) */
-    deviationPercent?: number | undefined;
-    /** Stock level at snapshot time */
-    stock: number;
-}
-
-/**
- * Result of a deviation calculation.
- * Moved to types.ts to break circular dependency between stores and search.
- */
-export interface DeviationResult {
-    /** The ratio of actual price to expected price (>1 = paying more) */
-    readonly ratio: number;
-    /** Percentage deviation, clamped to [-99, 999] for display */
-    readonly percent: number;
-    /** Display text like "+10%" or "−5%" */
-    readonly text: string;
-    /** True if good deal (negative deviation), false if bad, undefined if neutral */
-    readonly isGood: boolean | undefined;
-}
-
-const TradeSnapshotEntrySchema = z.object({
-    deviationPercent: z.number().optional(),
-    stock: z.number().int().nonnegative()
-});
-
-/**
- * Full snapshot of all trade state, persisted between sessions.
- */
-export interface TradeSnapshot {
-    /** When this snapshot was saved (Date.now()) */
-    timestamp: number;
-    /** Trade states keyed by getTradeKey() */
-    trades: Record<string, TradeSnapshotEntry>;
-}
-
-export const TradeSnapshotSchema = z.object({
-    timestamp: z.number().positive(),
-    trades: z.record(z.string(), TradeSnapshotEntrySchema)
-});
-
-/**
- * Zod schema for v2 history format (used for migration only).
- * The SnapshotHistory interface was removed — only the schema is needed.
- */
-export const SnapshotHistorySchema = z.object({
-    snapshots: z.array(TradeSnapshotSchema)
-});
-
-// ============================================================================
-// Compact Snapshot Storage (localStorage-optimized)
-// ============================================================================
-
-/**
- * A single snapshot in compact storage form.
- * Values array is parallel to the shared keys array.
- */
-export interface CompactSnapshot {
-    /** Timestamp (ms since epoch) */
-    t: number;
-    /** Values parallel to keys: [deviationPercent | null, stock] */
-    v: [number | null, number][];
-}
-
-/**
- * Compact localStorage format: keys stored once, snapshots as parallel arrays.
- * Reduces storage from ~280 KB/snapshot to ~27 KB/snapshot for ~3400 trades.
- */
-export interface CompactSnapshotHistory {
-    /** Trade keys, stored once (shared across all snapshots) */
-    keys: string[];
-    /** Compact snapshots with values parallel to keys */
-    snapshots: CompactSnapshot[];
-}
-
-const CompactSnapshotSchema = z.object({
-    t: z.number().positive(),
-    v: z.array(z.tuple([z.number().nullable(), z.number().int().nonnegative()]))
-});
-
-export const CompactSnapshotHistorySchema = z.object({
-    keys: z.array(z.string()),
-    snapshots: z.array(CompactSnapshotSchema)
-});
-
-/**
- * A price drop detected between two snapshots.
- */
-export interface PriceDrop {
-    /** Trade key for lookup */
-    tradeKey: string;
-    /** Display name of the result item */
-    itemName: string;
-    /** Previous deviation percentage */
-    oldDeviation: number;
-    /** Current deviation percentage */
-    newDeviation: number;
-}
-
-/**
- * A watchlist item that currently has a deal.
- */
-export interface WatchlistHit {
-    /** Normalized item name */
-    itemName: string;
-    /** Current best deviation for this item */
-    currentDeviation: number;
-    /** Previous deviation for this item (undefined if new) */
-    previousDeviation: number | undefined;
-}
-
-/**
- * Computed dashboard data from comparing snapshots.
- */
-export interface DashboardData {
-    /** Trade keys that are new since last visit */
-    readonly newTradeKeys: readonly string[];
-    /** Trades where deviation improved by ≥5 percentage points */
-    readonly priceDrops: readonly PriceDrop[];
-    /** Watchlist items with active deals */
-    readonly watchlistHits: readonly WatchlistHit[];
-    /** Timestamp of previous snapshot (for "14h ago" display) */
-    readonly lastVisit: number | undefined;
-}
+export type {
+    CompactSnapshot,
+    CompactSnapshotHistory,
+    DashboardData,
+    DeviationResult,
+    PriceDrop,
+    TradeSnapshot,
+    TradeSnapshotEntry,
+    WatchlistHit,
+} from './snapshot-types.js';
+export {
+    CompactSnapshotHistorySchema,
+    SnapshotHistorySchema,
+    TradeSnapshotSchema,
+} from './snapshot-types.js';
 
 // ============================================================================
 // Player Types
@@ -707,33 +595,17 @@ export const PlayersDataSchema = z.object({
     players: z.array(PlayerSchema)
 });
 
-export interface PlayerPosition {
-    x: number;
-    y: number;
-    z: number;
-}
-
-export interface PlayerRotation {
-    pitch: number;  // Vertical look angle (-90 to 90)
-    yaw: number;    // Horizontal heading (0=south, 90=west, 180=north, 270=east in Minecraft)
-    roll: number;   // Usually 0
-}
-
-export interface Player {
-    uuid: string;
-    name: string;
-    /** Whether the player is in a "foreign" dimension (nether). true = nether, false = overworld */
-    foreign: boolean;
-    position: PlayerPosition;
-    rotation?: PlayerRotation | undefined;  // Player's look direction
-    /** Optional world name from dynmap. If absent, use `foreign` flag to determine dimension */
-    world?: string | undefined;
-}
+/**
+ * Player's look direction.
+ * pitch: vertical (-90 to 90), yaw: horizontal heading, roll: usually 0
+ */
+export type Player = z.infer<typeof PlayerSchema>;
 
 // ============================================================================
 // Default Configuration
 // ============================================================================
 
+/** Fallback configuration when config.json cannot be loaded or parsed */
 export const DEFAULT_CONFIG: AppConfig = {
     dataUrl: 'https://web.peacefulvanilla.club/shops/data.json',
     dataRefreshMs: 60_000,
@@ -777,3 +649,4 @@ export const DEFAULT_CONFIG: AppConfig = {
         minIndependentShops: 3
     }
 };
+

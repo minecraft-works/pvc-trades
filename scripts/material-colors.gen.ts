@@ -17,27 +17,26 @@
 export const MC_VERSION = '1.21 (hand-authored from documented values)';
 
 /**
- * Water surface colors across all Minecraft biomes.
- * Source: water_color field in data/minecraft/worldgen/biome/*.json
+ * Water surface colors as rendered by BlueMap.
  *
- * Note: most overworld biomes share the default #3F76E4. Distinct colors come
- * from ocean variants, swamp, and mangrove swamp.
+ * Sampled from an actual BlueMap-rendered water tile via greedy furthest-point
+ * clustering (Euclidean distance ≥ 20 in RGB). These are BlueMap post-render
+ * colours — much darker/more muted than the raw Minecraft biome water_color values.
+ * Used by the material classifier for water detection.
  */
-export const WATER_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
-    // Default water (most biomes: plains, forest, jungle, mountain, etc.)
-    [63, 118, 228],   // #3F76E4 — default
-    // Ocean variants
-    [67, 213, 238],   // #43D5EE — Warm Ocean
-    [69, 173, 242],   // #45ADF2 — Lukewarm + Deep Lukewarm Ocean
-    [61, 87, 214],    // #3D57D6 — Cold + Deep Cold Ocean
-    [57, 56, 201],    // #3938C9 — Frozen Ocean + Frozen River + Deep Frozen
-    // Swamp family
-    [97, 123, 100],   // #617B64 — Swamp + Swamp Hills
-    [58, 122, 106],   // #3A7A6A — Mangrove Swamp
-    // Nether (lava, not water — excluded; no water_color)
-    // Other dark ocean shades (partial coverage of deep/variant biomes)
-    [60, 110, 220],   // shade between default and cold
-    [64, 150, 235],   // lukewarm-to-default blend
+export const WATER_REF_COLORS: readonly (readonly [number, number, number])[] = [
+    [36,  81, 110],   // #24516e — most common; mid-ocean dark teal
+    [84, 105, 142],   // #54698e — lit surface highlight
+    [63,  76, 117],   // #3f4c75 — mid shadow
+    [70,  91, 131],   // #465b83 — mid-tone blue-grey
+    [50,  95, 120],   // #325f78 — teal-shifted mid
+    [38,  53,  83],   // #263553 — dark shadow
+    [21,  27,  42],   // #151b2a — deepest shadow / cave edge
+    [87, 129, 148],   // #578194 — bright surface lit area
+    [63, 109, 140],   // #3f6d8c — transition lit-to-shadow
+    [37,  61, 109],   // #253d6d — cold-blue shadow
+    [26,  38,  62],   // #1a263e — very dark blue-black
+    [52,  67,  93],   // #34435d — grey-blue deep
 ] as const;
 
 /**
@@ -48,7 +47,7 @@ export const WATER_REF_COLORS: ReadonlyArray<readonly [number, number, number]> 
  * Downfall axis: 0.0 (Arid) → 1.0 (Humid), clamped to temperature
  * Formula: pixel at (floor(T*255), floor(min(D,T)*T*255)) in grass.png
  */
-export const GRASS_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
+export const GRASS_REF_COLORS: readonly (readonly [number, number, number])[] = [
     // Cold / snowy biomes (T≈0.0–0.2)
     [104, 148, 123],  // Snowy Plains / Ice Spikes / Frozen Ocean shore
     [110, 152, 128],  // Snowy Taiga
@@ -100,7 +99,7 @@ export const GRASS_REF_COLORS: ReadonlyArray<readonly [number, number, number]> 
  * Note: Spruce leaves use a fixed color (#619961), birch leaves (#80A755).
  * These are not biome-dependent and are included separately below.
  */
-export const FOLIAGE_REF_COLORS: ReadonlyArray<readonly [number, number, number]> = [
+export const FOLIAGE_REF_COLORS: readonly (readonly [number, number, number])[] = [
     // Fixed non-colormap foliage
     [80, 128, 80],    // Spruce leaves (#619961 × 0.82)
     [104, 137, 69],   // Birch leaves (#80A755 × 0.82)

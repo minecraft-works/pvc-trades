@@ -344,6 +344,15 @@ function sampleHeight(
 /**
  * Convolve a separable gradient kernel at a single pixel.
  *
+ * @param heights - Decoded height array
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param x - Pixel X coordinate
+ * @param z - Pixel Z coordinate
+ * @param scale - Height exaggeration factor
+ * @param derivW - Derivative kernel weights
+ * @param smoothW - Smoothing kernel weights
+ * @param halfK - Half kernel size (kernel radius)
  * @returns Unnormalized gradient sums { gx, gz }
  */
 function convolveGradientKernel(
@@ -507,6 +516,13 @@ interface ShadowRayOptions {
 /**
  * Cast a single shadow ray from (x, z) along the sun direction.
  *
+ * @param heights - Decoded height array
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param x - Pixel X coordinate
+ * @param z - Pixel Z coordinate
+ * @param hScale - Height scale factor
+ * @param options - Ray march parameters (direction, rise, distance, intensity)
  * @returns 1.0 if lit, (1 - intensity) if shadowed
  */
 function castShadowRay(
@@ -589,6 +605,16 @@ export function computeAmbientOcclusion(
 /**
  * Compute AO for a single pixel by radial height sampling.
  *
+ * @param heights - Decoded height array
+ * @param width - Width in pixels
+ * @param height - Height in pixels
+ * @param x - Pixel X coordinate
+ * @param z - Pixel Z coordinate
+ * @param hScale - Height scale factor
+ * @param offsets - Sample direction offsets (dx, dz per sample)
+ * @param radius - Contribution radius: diffs are normalised against this value
+ * @param samples - Number of samples (offsets.length, used for normalisation)
+ * @param intensity - Maximum occlusion strength (1.0 = fully black at full occlusion)
  * @returns AO factor (1.0 = fully unoccluded, 0 = fully occluded)
  */
 function computeAOSample(
@@ -627,6 +653,31 @@ export type MaterialType = 'water' | 'grass' | 'foliage' | 'snow' | 'lava' | 'st
 const MATERIAL_MATCH_THRESHOLD_SQ = 28 * 28;
 
 /**
+ * Returns true when the pixel (r, g, b) is within the Euclidean distance
+ * threshold of any reference color in `refs`.
+ *
+ * Extracted from classifyMaterial to keep that function's cyclomatic
+ * complexity within the configured limit.
+ *
+ * @param r - Red channel (0-255)
+ * @param g - Green channel (0-255)
+ * @param b - Blue channel (0-255)
+ * @param references - Reference color table to match against
+ * @returns `true` when any reference color is within the threshold distance
+ */
+function matchesColor(
+    r: number,
+    g: number,
+    b: number,
+    references: readonly (readonly [number, number, number])[],
+): boolean {
+    for (const [wr, wg, wb] of references) {
+        if ((r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2 <= MATERIAL_MATCH_THRESHOLD_SQ) { return true; }
+    }
+    return false;
+}
+
+/**
  * Classify a pixel's material based on its RGB color.
  *
  * Priority order:
@@ -643,24 +694,9 @@ const MATERIAL_MATCH_THRESHOLD_SQ = 28 * 28;
  */
 export function classifyMaterial(r: number, g: number, b: number): MaterialType {
     // --- Histogram lookups against reference color tables ---
-
-    // Water: check against all biome water_color references
-    for (const [wr, wg, wb] of WATER_REF_COLORS) {
-        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
-        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'water'; }
-    }
-
-    // Foliage (tree leaves): check before grass as it's a subset of greens
-    for (const [wr, wg, wb] of FOLIAGE_REF_COLORS) {
-        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
-        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'foliage'; }
-    }
-
-    // Grass tops: check after foliage to preserve distinction
-    for (const [wr, wg, wb] of GRASS_REF_COLORS) {
-        const dSq = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2;
-        if (dSq <= MATERIAL_MATCH_THRESHOLD_SQ) { return 'grass'; }
-    }
+    if (matchesColor(r, g, b, WATER_REF_COLORS))   { return 'water'; }
+    if (matchesColor(r, g, b, FOLIAGE_REF_COLORS)) { return 'foliage'; }
+    if (matchesColor(r, g, b, GRASS_REF_COLORS))   { return 'grass'; }
 
     // --- HSV-based fallbacks ---
     const max = Math.max(r, g, b);
@@ -696,7 +732,7 @@ export function classifyMaterial(r: number, g: number, b: number): MaterialType 
     if (hue >= 30 && hue < 55 && saturation > 0.12 && saturation < 0.5) { return 'sand'; }
 
     // Hue fallback for tinted water variants outside histogram radius (B > G > R enforced)
-    if (hue >= 195 && hue <= 235 && saturation > 0.30 && b > g && b > r) { return 'water'; }
+    if (hue >= 195 && hue <= 235 && saturation > 0.3 && b > g && b > r) { return 'water'; }
 
     return 'other';
 }
@@ -1136,6 +1172,266 @@ export function applyShadeToColor(
         colorRgba[offset + 2] = Math.min(255, Math.max(0, Math.round(colorRgba[offset + 2] * intensity)));
         // Alpha (offset + 3) is preserved
     }
+}
+
+// ============================================================================
+// Enhancement Effects
+// ============================================================================
+
+/**
+ * Warm block-light glow — radial spread with inverse-square falloff.
+ *
+ * Rather than reading each pixel's own block-light value in isolation, this
+ * function performs a proper circular light spread:
+ *
+ *  1. Treat every pixel whose block-light value exceeds `emitThreshold` as a
+ *     point light source with strength proportional to its block-light level.
+ *  2. For every output pixel, accumulate contributions from all emitters within
+ *     `maxRadius` pixels using inverse-square falloff:
+ *       contribution = emitter_strength / (1 + falloff × dist²)
+ *     This gives a natural circular halo that is brightest at the source and
+ *     fades smoothly — not a rectangular pattern.
+ *  3. The warm tint (R > G > B) is applied once to the final accumulated value.
+ *
+ * @param blockLights - Normalised block-light values (0–1) per pixel
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param strength - Peak additive brightness at an emitter pixel (default 0.30)
+ * @param maxRadius - Maximum spread radius in pixels (default 40)
+ * @param falloff - Inverse-square steepness: higher = tighter halo (default 0.008)
+ * @param emitThreshold - Minimum block-light to be treated as an emitter (default 0.15)
+ * @returns Per-channel additive values {r, g, b} and a grayscale {intensity} for visualization
+ */
+export function computeBlockLightGlow(
+    blockLights: Float32Array,
+    width: number,
+    height: number,
+    strength = 0.004,
+    maxRadius = 20,
+    falloff = 0.15,
+    emitThreshold = 0.15,
+): { r: Float32Array; g: Float32Array; b: Float32Array; intensity: Float32Array } {
+    const n = width * height;
+    const accumulated = new Float32Array(n);
+
+    // Collect emitter pixels to avoid iterating the full grid for every output pixel
+    const emitters: { x: number; z: number; strength: number }[] = [];
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const bl = blockLights[z * width + x];
+            if (bl >= emitThreshold) {
+                emitters.push({ x, z, strength: bl });
+            }
+        }
+    }
+
+    // Spread each emitter circularly using per-row chord width so no inside-circle
+    // guard is needed in the innermost loop, keeping nesting depth ≤ 3.
+    const r2max = maxRadius * maxRadius;
+    for (const em of emitters) {
+        for (let dz = -maxRadius; dz <= maxRadius; dz++) {
+            const pz = em.z + dz;
+            if (pz < 0 || pz >= height) { continue; }
+            const maxDx = Math.floor(Math.sqrt(r2max - dz * dz));
+            const xStart = Math.max(0, em.x - maxDx);
+            const xEnd   = Math.min(width - 1, em.x + maxDx);
+            for (let px = xStart; px <= xEnd; px++) {
+                const dx = px - em.x;
+                accumulated[pz * width + px] += em.strength / (1 + falloff * (dx * dx + dz * dz));
+            }
+        }
+    }
+
+    // Normalise and apply warm tint
+    const r         = new Float32Array(n);
+    const g         = new Float32Array(n);
+    const b         = new Float32Array(n);
+    const intensity = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+        // Exponential tonemapping: naturally bounded at 1.0, gradual even with many overlapping emitters
+        const accumulator = accumulated[i] ?? 0;
+        const v = 1 - Math.exp(-accumulator * strength);
+        intensity[i] = v;
+        r[i] = v * 255;
+        g[i] = v * 0.85 * 255;
+        b[i] = v * 0.7 * 255;
+    }
+    return { r, g, b, intensity };
+}
+
+/**
+ * Discrete hard-shadow map — cast shadows from cliffs toward the SE.
+ *
+ * Marches from each pixel toward the BlueMap light direction (upper-left of
+ * the tile, i.e. decreasing x and z). A pixel is in shadow when a neighbour
+ * along the ray is strictly higher than the current pixel plus a per-step
+ * height tolerance.
+ *
+ * Soft-shadow with penumbra via multi-ray sun-disc sampling.
+ *
+ * Casts `numRays` rays from the pixel toward the NW light source, each at a
+ * slightly different sun elevation (slopeThreshold ± sunSpread). Where only
+ * some rays are blocked the pixel lies in the penumbra and receives a partial
+ * shadow. Where all rays are blocked it is in the umbra (full shadow). This
+ * matches how real-world shadow edges soften with distance from the caster.
+ *
+ * @param heights - Decoded height values (width × height)
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param maxDistance - Maximum ray-march distance in pixels (default 32)
+ * @param slopeThreshold - Central sun elevation as tan(angle): higher = higher sun = shorter shadows (default 2.5)
+ * @param shadowStrength - Umbra depth: values close to 0 are darker (default 0.55)
+ * @param sunSpread - Angular half-spread of the sun disc as a fraction of slopeThreshold.
+ *   Controls penumbra width; 0.2 = ±20 % of the central angle (default 0.2)
+ * @param numberOfRays - Number of sample rays (odd numbers give a symmetric distribution; default 5)
+ * @returns Float32Array where 1.0 = fully lit, shadowStrength = full umbra
+ */
+
+/**
+ * Returns true when a single NW-diagonal ray from (startX, startZ) is blocked
+ * by terrain within maxDistance steps.
+ *
+ * @param heights - Decoded height map
+ * @param width - Image width
+ * @param startX - Ray origin X
+ * @param startZ - Ray origin Z
+ * @param maxDistance - Maximum ray length
+ * @param baseH - Height at the ray origin
+ * @param thresh - Slope threshold for this ray (tan of sun elevation)
+ * @returns `true` when any caster along the ray is taller than the origin
+ */
+function marchRayBlocked(
+    heights: Float32Array,
+    width: number,
+    startX: number,
+    startZ: number,
+    maxDistance: number,
+    baseH: number,
+    thresh: number,
+): boolean {
+    for (let d = 1; d <= maxDistance; d++) {
+        const sx = startX - d;
+        const sz = startZ - d;
+        if (sx < 0 || sz < 0) { return false; }
+        const marchH = heights[sz * width + sx];
+        if (marchH > baseH + d * thresh) { return true; }
+    }
+    return false;
+}
+
+/**
+ * Count how many rays in `rayThresholds` are blocked for the pixel at (x, z).
+ * Extracted to keep `computeHardShadowMap`'s loop nesting depth within the limit.
+ *
+ * @param heights - Decoded height map
+ * @param width - Image width
+ * @param x - Pixel X coordinate
+ * @param z - Pixel Z coordinate
+ * @param maxDistance - Maximum ray length in pixels
+ * @param baseH - Height at the pixel
+ * @param rayThresholds - Per-ray slope thresholds
+ * @returns Number of blocked rays (0 to rayThresholds.length)
+ */
+function countBlockedRays(
+    heights: Float32Array,
+    width: number,
+    x: number,
+    z: number,
+    maxDistance: number,
+    baseH: number,
+    rayThresholds: readonly number[],
+): number {
+    let count = 0;
+    for (const thresh of rayThresholds) {
+        if (marchRayBlocked(heights, width, x, z, maxDistance, baseH, thresh)) { count++; }
+    }
+    return count;
+}
+
+export function computeHardShadowMap(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    maxDistance = 32,
+    slopeThreshold = 2.5,
+    shadowStrength = 0.55,
+    sunSpread = 0.2,
+    numberOfRays = 5,
+): Float32Array {
+    const shadow = new Float32Array(width * height).fill(1);
+    const halfSpread = slopeThreshold * sunSpread;
+    // Pre-compute per-ray slope thresholds (evenly spaced across sun disc)
+    const rayThresholds: number[] = [];
+    for (let r = 0; r < numberOfRays; r++) {
+        const t = numberOfRays === 1 ? 0 : (r / (numberOfRays - 1)) * 2 - 1; // -1..+1
+        rayThresholds.push(slopeThreshold + t * halfSpread);
+    }
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const baseH = heights[z * width + x];
+            const blockedCount = countBlockedRays(heights, width, x, z, maxDistance, baseH, rayThresholds);
+            if (blockedCount > 0) {
+                const fraction = blockedCount / numberOfRays; // 0..1: penumbra blend
+                shadow[z * width + x] = 1 - fraction * (1 - shadowStrength);
+            }
+        }
+    }
+    return shadow;
+}
+
+/**
+ * Neighbour-count ambient occlusion — integer 8-neighbour height comparison.
+ *
+ * For each pixel, counts how many of its 8 cardinal + diagonal neighbours
+ * are strictly higher. More higher neighbours → more occlusion → darker.
+ * Produces subtle darkening in corners, crevices and concave valleys near
+ * block edges without the blobby halo artefacts of radius-based SSAO.
+ *
+ * @param heights - Decoded height values (width × height)
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param strength - Maximum darkening when all 8 neighbours are higher (default 0.35)
+ * @returns Float32Array where 1.0 = fully open, (1 - strength) = maximally occluded
+ */
+export function computeNeighborAO(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    strength = 0.35,
+): Float32Array {
+    const ao = new Float32Array(width * height).fill(1);
+    const neighbors: readonly (readonly [number, number])[] = [
+        [-1, -1], [0, -1], [1, -1],
+        [-1,  0],           [1,  0],
+        [-1,  1], [0,  1], [1,  1],
+    ];
+
+    /**
+     * Count neighbours (from the pre-built offsets list) that are strictly higher
+     * than `h`. Extracted to keep outer loop nesting depth within the 3-level limit.
+     *
+     * @param x - Pixel X coordinate
+     * @param z - Pixel Z coordinate
+     * @param h - Height baseline to compare neighbours against
+     * @returns Number of neighbours strictly higher than `h` (0–8)
+     */
+    const countHigher = (x: number, z: number, h: number): number => {
+        let count = 0;
+        for (const [dx, dz] of neighbors) {
+            const nx = x + dx;
+            const nz = z + dz;
+            if (nx < 0 || nx >= width || nz < 0 || nz >= height) { continue; }
+            if (heights[nz * width + nx] > h) { count++; }
+        }
+        return count;
+    };
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const h = heights[z * width + x];
+            ao[z * width + x] = 1 - (countHigher(x, z, h) / 8) * strength;
+        }
+    }
+    return ao;
 }
 
 // ============================================================================

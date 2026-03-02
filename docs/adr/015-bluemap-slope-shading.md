@@ -2,9 +2,13 @@
 
 ## Status
 
-Accepted — implemented in `scripts/heightmap-shader.ts` (`applySlopeShading`),
-active via `config.json` (`model: "slope"`, `shadingScale: 1`, all extra effects
-disabled).
+Accepted — implemented in `scripts/heightmap-shader.ts` (`applySlopeShading`).
+Active via `config.json` (`model: "slope"`, `shadingScale: 2`).
+Three enhancement effects are layered on top of the base slope pass:
+`computeHardShadowMap` (soft cast shadows with penumbra),
+`computeNeighborAO` (8-neighbour ambient occlusion),
+and `computeBlockLightGlow` (circular radial block-light glow).
+All enhancement shaders run at the full 1000×1000 resolution after upsampling.
 
 ## Context
 
@@ -115,32 +119,82 @@ Constants are taken verbatim from BlueMap's GLSL source, unchanged.
 // config.json — tileSourcePresets.bluemap.lighting
 {
   "model": "slope",
-  "shadingScale": 1,
-  "shadowCasting":   { "enabled": false },
-  "ambientOcclusion":{ "enabled": false },
-  "unsharpMask":     { "enabled": false },
-  "materialShading": { "enabled": false }
+  "shadingScale": 2
 }
 ```
 
-All extra techniques (shadow, AO, unsharp, material) are disabled. They are
-preserved in the codebase for `model: "lambertian"` but should not be layered on
-top of slope shading — they operate on fundamentally different assumptions.
+The extra effects (shadow, AO, glow) are implemented as unconditional post-passes
+inside `render-tiles.ts` for the slope branch, not as config flags. They always
+run at `shadingScale: 2` (1000×1000). The legacy Lambertian flags (`shadowCasting`,
+`ambientOcclusion`, `unsharpMask`, `materialShading`) remain in config for
+`model: "lambertian"` only.
+
+### Enhancement Effects
+
+Three effects are applied in order after `applySlopeShading`:
+
+#### 1. Soft Cast Shadows — `computeHardShadowMap`
+
+Ray marches from each pixel in the sun direction (NW diagonal, `slopeThreshold = 2.5` ≈ 68°
+elevation) casting 5 rays spread ±20% around the central angle (sun-disc spread).
+Each ray returns blocked/unblocked; `blockedCount / numRays` gives a partial shadow fraction
+for penumbra at cliff edges. Applied multiplicatively: `shadow × aoFactor`.
+
+- `shadowStrength = 0.55` — maximum darkening at full occlusion
+- `sunSpread = 0.2` — ±20% angular spread across the 5 rays (penumbra width)
+- `numRays = 5` — rays sampled across the sun disc
+- `maxDistance = 32` — maximum shadow ray length in pixels
+
+#### 2. Neighbour Ambient Occlusion — `computeNeighborAO`
+
+Counts how many of the 8 immediate neighbours are strictly higher than the
+current pixel. More raised neighbours → darker pixel (recessed in a hollow).
+Combined multiplicatively with the shadow map.
+
+- `strength = 0.35` — AO darkening per raised neighbour
+
+#### 3. Block-Light Glow — `computeBlockLightGlow`
+
+Radial emitter pass. Each pixel whose decoded block-light value exceeds `emitThreshold`
+becomes an emitter. Contribution at distance `r` follows inverse-square falloff:
+`emitterStrength / (1 + falloff × r²)`. Accumulated contributions are tonemapped
+exponentially: `v = 1 − exp(−accumulation × strength)` to prevent blowout from
+overlapping emitters. Applied additively after the shadow/AO pass.
+
+- `strength = 0.004` — global intensity scale before tonemapping
+- `maxRadius = 20 px` — cutoff radius for the emitter spread
+- `falloff = 0.15` — inverse-square coefficient
+- `emitThreshold = 0.15` — minimum decoded block-light value to act as emitter
+- Tint: `R × 1.00 / G × 0.85 / B × 0.70` — near-white warm light
+
+#### Pipeline Order
+
+```
+upsample 501→1000 (nearest-neighbour)
+  └─ decode heights + blockLights at 1000×1000
+       └─ applySlopeShading
+            └─ computeHardShadowMap × computeNeighborAO  (multiplicative)
+                 └─ + computeBlockLightGlow              (additive)
+```
 
 ### Scale and Pixel Geometry
 
-With `shadingScale: 1`:
+With `shadingScale: 2`:
 
-- **Shading runs on the 501×501 source buffer** (one shade computation per
-  source pixel = one Minecraft block).
-- **Output resize**: `501 → 1002 (nearest) → extract 1000`. Each source pixel
-  becomes an exact **2×2 solid-color square** in the output tile.
-- No sub-pixel variation exists within a block. This matches the BlueMap client
-  exactly — one fragment shader invocation per pixel, each pixel = one block.
+- **Source 501×501 is upsampled to 1000×1000** (nearest-neighbour) before any
+  shader runs. This gives the enhancement effects (shadow rays, AO, glow spread)
+  sub-pixel precision within each Minecraft block.
+- **Base slope shading** (`applySlopeShading`) runs at 1000×1000. Adjacent height
+  differences are still integer per-block jumps, but the enhancement passes benefit
+  from the larger canvas: shadow penumbra transitions span multiple pixels, glow
+  radii are expressed in sub-block distances.
+- The extra resolution over `shadingScale: 1` slightly departs from the BlueMap
+  reference (which computes one shade per block), but the base additive formula
+  is unchanged. The departure is intentional and limited to the enhancement layers.
 
-If sub-pixel variation is ever desired, `shadingScale: 2` would compute shading
-at 1002×1002 resolution before the resize (shade gradients would span half-blocks
-at source resolution), but this departs from the reference implementation.
+At `shadingScale: 1` (original):  each source pixel → exact 2×2 solid-color
+square in output; no sub-pixel variation. Still valid for `model: "lambertian"`
+or for a zero-enhancement slope render.
 
 ### Resize Fix
 
@@ -210,10 +264,10 @@ const height = unsigned >= 32_768 ? -(65_535 - unsigned) : unsigned;
 
 - **NW fixed sun** — shadow direction is always NW→SE (checks E and S neighbors).
   There is no way to change sun angle without departing from the BlueMap formula.
-- **No ambient occlusion** — ravines, caves under overhangs, and dense
-  structures do not darken. BlueMap's GLSL AO is view-angle and distance gated
-  (only at low LODs, only when camera is near-top-down), so this is an acceptable
-  omission for a static baked tile.
+- **Baked AO approximation** — `computeNeighborAO` darkens pixels with raised
+  neighbours, but it is a single-pixel radius pass, not a view-angle-gated SSAO.
+  Deep ravines and cave overhangs are not replicated. This is a deliberate
+  simplification acceptable for a top-down static tile.
 - **No specular / water shimmer** — BlueMap's client has no specular pass either.
 - **2×2 block pixels** — at `shadingScale: 1` the output tile is 500 logical
   blocks at 2 px/block. Leafy terrain looks slightly chunky at close zoom.
@@ -228,14 +282,12 @@ Rejected for the blobby / dome effect on flat block tops (see root cause analysi
 above). Remains available in the codebase as `model: "lambertian"` for scenarios
 where smooth terrain gradients are preferred over pixel-accurate block rendering.
 
-### shadingScale: 2 with Slope Model
+### shadingScale: 1 (no upsampling)
 
-Would compute shade at 1002×1002, introducing sub-pixel variation: the shade
-transition at a cliff edge would be split across two output pixels instead of one.
-Visually slightly smoother. Decided against it because:
-1. Departs from the reference (BlueMap computes one shade per pixel per block).
-2. Doubles memory and CPU usage.
-3. The visual difference is imperceptible at the zoom levels the map is viewed at.
+The original default. Shade runs at 501×501; each source block becomes a 2×2
+solid-color square in output. Shadow and AO cast at block resolution only —
+penumbra transitions are 1 pixel wide, glow radii are coarse. Acceptable for
+pure slope-reference matching but visually flatter than the current approach.
 
 ### Replicate BlueMap's GLSL AO Pass
 
