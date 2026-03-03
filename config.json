@@ -27,7 +27,7 @@
         "heightScale": 1.0,
         "normalScale": 8,
         "blockLightBoost": 0,
-        "shadingScale": 1,
+        "shadingScale": 2,
         "shadowCasting": { "enabled": false, "maxDistance": 64, "intensity": 0.7 },
         "ambientOcclusion": { "enabled": false, "samples": 16, "radius": 8, "intensity": 0.5 },
         "unsharpMask": { "enabled": false, "radius": 2, "amount": 0.5, "threshold": 4 },

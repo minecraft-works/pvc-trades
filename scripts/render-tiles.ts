@@ -1043,7 +1043,7 @@ async function main(): Promise<void> {
             materialShading: lightingCfg.materialShading,
             normalKernelSize: lightingCfg.normalKernelSize,
         };
-        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost})`);
+        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost}, shadingScale=${lightingConfig.shadingScale})`);
         console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
         console.log(`  Shadow casting: ${lightingConfig.shadowCasting.enabled ? 'enabled' : 'disabled'}`);
         console.log(`  Ambient occlusion: ${lightingConfig.ambientOcclusion.enabled ? 'enabled' : 'disabled'}`);
