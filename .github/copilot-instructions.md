@@ -440,6 +440,7 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-013](docs/adr/013-canonical-tile-pyramid.md) - Canonical tile pyramid structure
 - [ADR-014](docs/adr/014-heightmap-lighting.md) - Heightmap-based lighting (Lambertian model)
 - [ADR-015](docs/adr/015-bluemap-slope-shading.md) - BlueMap-exact slope shading (current model)
+- [ADR-016](docs/adr/016-single-tile-render-pipeline.md) - Single-tile render pipeline
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code
