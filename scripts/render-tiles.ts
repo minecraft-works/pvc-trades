@@ -36,12 +36,14 @@ import {
 } from '../src/tile-pyramid';
 import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConfig } from '../src/types';
 import {
+    applyCoolShadowTint,
     applyFullShading,
     applySlopeShading,
     applyUnsharpMask,
+    boostSaturation,
     computeAmbientOcclusion,
-    computeBlockLightGlow,
     computeHardShadowMap,
+    computeHeightAwareLightGlowParallel,
     computeMaterialModifiers,
     computeNeighborAO,
     computeShadeMap,
@@ -300,10 +302,11 @@ async function upscaleSubRegion(
 }
 
 /**
- * Apply BlueMap-exact slope shading and three post-pass enhancements in-place.
+ * Apply BlueMap-exact slope shading and post-processing enhancements in-place.
  *
- * Passes in order: additive BlueMap slope shade, multiplicative hard-shadow × neighbour-AO
- * darkening, and additive block-light glow (if block-light data is present).
+ * Passes in order: additive BlueMap slope shade, cool-tinted shadow × AO
+ * darkening, height-aware block-light glow (parallel worker threads), and
+ * saturation boost.
  *
  * @param shadedColor - RGBA pixel buffer (mutated)
  * @param shadedHeights - Decoded height values
@@ -313,36 +316,43 @@ async function upscaleSubRegion(
  * @param heightScale - Height exaggeration for the slope-shade formula
  * @returns Hard-shadow and AO maps for downstream diagnostic use
  */
-function applySlopeEnhancements(
+async function applySlopeEnhancements(
     shadedColor: Buffer,
     shadedHeights: Float32Array,
     shadedBlockLights: Float32Array | undefined,
     shadedW: number,
     shadedH: number,
     heightScale: number,
-): { hardShadow: Float32Array; ao: Float32Array } {
+): Promise<{ hardShadow: Float32Array; ao: Float32Array }> {
     applySlopeShading(shadedColor, shadedHeights, shadedW, shadedH, heightScale);
     const hardShadow = computeHardShadowMap(shadedHeights, shadedW, shadedH);
     const ao         = computeNeighborAO(shadedHeights, shadedW, shadedH);
     const n          = shadedW * shadedH;
-    // Multiplicative shadow × AO darkening
-    for (let i = 0; i < n; i++) {
-        const o   = i * 4;
-        const mul = hardShadow[i] * ao[i];
-        shadedColor[o]     = Math.min(255, Math.max(0, Math.round(shadedColor[o]     * mul)));
-        shadedColor[o + 1] = Math.min(255, Math.max(0, Math.round(shadedColor[o + 1] * mul)));
-        shadedColor[o + 2] = Math.min(255, Math.max(0, Math.round(shadedColor[o + 2] * mul)));
-    }
-    // Additive block-light glow
+
+    // Cool-tinted shadow × AO (blue-shifted darken instead of plain multiply)
+    applyCoolShadowTint(shadedColor, hardShadow, ao, shadedW, shadedH);
+
+    // Height-aware block-light glow with terrain occlusion (parallel workers)
     if (shadedBlockLights) {
-        const { r, g, b } = computeBlockLightGlow(shadedBlockLights, shadedW, shadedH);
+        const { r, g, b } = await computeHeightAwareLightGlowParallel(
+            shadedBlockLights, shadedHeights, shadedW, shadedH,
+            /* strength */         0.03,
+            /* maxRadius */        48,
+            /* falloff */          0.008,
+            /* emitThreshold */    0.5,
+            /* lightSourceOffset */ 2,
+        );
         for (let i = 0; i < n; i++) {
             const o = i * 4;
-            shadedColor[o]     = Math.min(255, (shadedColor[o]     ?? 0) + Math.round(r.at(i) ?? 0));
-            shadedColor[o + 1] = Math.min(255, (shadedColor[o + 1] ?? 0) + Math.round(g.at(i) ?? 0));
-            shadedColor[o + 2] = Math.min(255, (shadedColor[o + 2] ?? 0) + Math.round(b.at(i) ?? 0));
+            shadedColor[o]     = Math.min(255, (shadedColor[o]     ?? 0) + Math.round(r[i] ?? 0));
+            shadedColor[o + 1] = Math.min(255, (shadedColor[o + 1] ?? 0) + Math.round(g[i] ?? 0));
+            shadedColor[o + 2] = Math.min(255, (shadedColor[o + 2] ?? 0) + Math.round(b[i] ?? 0));
         }
     }
+
+    // Saturation boost — recover vibrancy lost from shadow darkening
+    boostSaturation(shadedColor, shadedW, shadedH, 1.3);
+
     return { hardShadow, ao };
 }
 
@@ -490,8 +500,8 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     let specularAdd: Float32Array;
 
     if (lightingConfig.model === 'slope') {
-        // BlueMap-exact slope shading + soft shadows + neighbour AO + block-light glow
-        const { hardShadow, ao } = applySlopeEnhancements(
+        // BlueMap-exact slope shading + cool shadows + height-aware glow + saturation boost
+        const { hardShadow, ao } = await applySlopeEnhancements(
             shadedColor, shadedHeights, shadedBlockLights, shadedW, shadedH, lightingConfig.heightScale,
         );
         const n = shadedW * shadedH;
@@ -1043,7 +1053,7 @@ async function main(): Promise<void> {
             materialShading: lightingCfg.materialShading,
             normalKernelSize: lightingCfg.normalKernelSize,
         };
-        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost})`);
+        console.log(`\nLighting: ${lightingConfig.model} model (ambient=${lightingConfig.ambientIntensity}, diffuse=${lightingConfig.diffuseIntensity}, heightScale=${lightingConfig.heightScale}, normalScale=${lightingConfig.normalScale}, blockLightBoost=${lightingConfig.blockLightBoost}, shadingScale=${lightingConfig.shadingScale})`);
         console.log(`  Sun direction: [${lightingConfig.sunDirection.join(', ')}]`);
         console.log(`  Shadow casting: ${lightingConfig.shadowCasting.enabled ? 'enabled' : 'disabled'}`);
         console.log(`  Ambient occlusion: ${lightingConfig.ambientOcclusion.enabled ? 'enabled' : 'disabled'}`);
