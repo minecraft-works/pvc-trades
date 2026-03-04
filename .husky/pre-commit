@@ -6,6 +6,7 @@ npm run lint:filenames
 npm run lint:lockfile
 npm run lint:deps
 npm run lint:parse-safety
+npm audit --audit-level=high
 npm run docs
 npm run test:coverage
 npm run test:load
