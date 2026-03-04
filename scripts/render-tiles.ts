@@ -316,6 +316,14 @@ async function upscaleSubRegion(
  * @param heightScale - Height exaggeration for the slope-shade formula
  * @returns Hard-shadow and AO maps for downstream diagnostic use
  */
+// Block-space lighting constants (scale-invariant) — see _render-single-tile.ts for rationale.
+// Pixel values = blockValue × shadingScale; falloff = blockFalloff / shadingScale².
+const SHADOW_REACH_BLOCKS        = 16;    // hard-shadow ray reach [blocks]
+const SHADOW_SLOPE_BLOCKS        = 2.0;   // sun angle [blocks/block]: 2.0 ≈ 63° elevation
+const HEIGHT_GLOW_RADIUS_BLOCKS  = 24;    // height-aware glow radius [blocks]
+const HEIGHT_GLOW_FALLOFF_BLOCKS = 0.032; // falloff coefficient [blocks⁻²] (= 0.008 × 2²)
+const HEIGHT_GLOW_OFFSET_BLOCKS  = 1;     // light source height above terrain [blocks]
+
 async function applySlopeEnhancements(
     shadedColor: Buffer,
     shadedHeights: Float32Array,
@@ -323,9 +331,14 @@ async function applySlopeEnhancements(
     shadedW: number,
     shadedH: number,
     heightScale: number,
+    scale: number,
 ): Promise<{ hardShadow: Float32Array; ao: Float32Array }> {
     applySlopeShading(shadedColor, shadedHeights, shadedW, shadedH, heightScale);
-    const hardShadow = computeHardShadowMap(shadedHeights, shadedW, shadedH);
+    const hardShadow = computeHardShadowMap(
+        shadedHeights, shadedW, shadedH,
+        SHADOW_REACH_BLOCKS * scale,
+        SHADOW_SLOPE_BLOCKS / scale,
+    );
     const ao         = computeNeighborAO(shadedHeights, shadedW, shadedH);
     const n          = shadedW * shadedH;
 
@@ -337,10 +350,10 @@ async function applySlopeEnhancements(
         const { r, g, b } = await computeHeightAwareLightGlowParallel(
             shadedBlockLights, shadedHeights, shadedW, shadedH,
             /* strength */         0.03,
-            /* maxRadius */        48,
-            /* falloff */          0.008,
+            /* maxRadius */        HEIGHT_GLOW_RADIUS_BLOCKS  * scale,
+            /* falloff */          HEIGHT_GLOW_FALLOFF_BLOCKS / (scale * scale),
             /* emitThreshold */    0.5,
-            /* lightSourceOffset */ 2,
+            /* lightSourceOffset */ HEIGHT_GLOW_OFFSET_BLOCKS * scale,
         );
         for (let i = 0; i < n; i++) {
             const o = i * 4;
@@ -502,7 +515,8 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     if (lightingConfig.model === 'slope') {
         // BlueMap-exact slope shading + cool shadows + height-aware glow + saturation boost
         const { hardShadow, ao } = await applySlopeEnhancements(
-            shadedColor, shadedHeights, shadedBlockLights, shadedW, shadedH, lightingConfig.heightScale,
+            shadedColor, shadedHeights, shadedBlockLights, shadedW, shadedH,
+            lightingConfig.heightScale, lightingConfig.shadingScale,
         );
         const n = shadedW * shadedH;
         shadowMap       = hardShadow;

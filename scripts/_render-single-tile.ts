@@ -8,10 +8,11 @@
  *   3. height-lit:  slope + shadow + AO + height-aware light emission
  *
  * Usage:
- *   npx tsx scripts/_render-single-tile.ts <input.png> [outputDir]
+ *   npx tsx scripts/_render-single-tile.ts <input.png> [outputDir] [shadingScale]
  *
  * Defaults:
- *   outputDir = same directory as input
+ *   outputDir    = same directory as input
+ *   shadingScale = 4 (pass 2 for half-resolution shading)
  */
 
 import { existsSync, mkdirSync } from 'node:fs';
@@ -41,7 +42,32 @@ import {
 
 const inputPath = process.argv[2] ?? 'C:/Users/310251331/Downloads/bluemap/z0.png';
 const outputDir = process.argv[3] ?? path.dirname(inputPath);
+const shadingScale = Number.parseInt(process.argv[4] ?? '4', 10);
 const baseName = path.basename(inputPath, path.extname(inputPath));
+
+// ============================================================================
+// Block-space lighting constants (scale-invariant)
+//
+// All distance/radius values are in Minecraft blocks (1 source pixel ≈ 1 block).
+// Multiply by shadingScale to get pixel distances; divide falloff by scale² because
+// it is applied to squared pixel distances (falloff_px = falloff_blocks / scale²).
+// ============================================================================
+
+/** Hard-shadow NW-ray maximum reach [blocks] */
+const SHADOW_REACH_BLOCKS = 16;           // original default: 32px at scale=2
+/** Sun angle expressed as rise-over-run in block space [blocks/block].
+ *  2.0 ≈ 63° sun elevation: a 5-block tree casts a 2.5-block shadow. */
+const SHADOW_SLOPE_BLOCKS = 2.0;
+/** Simple block-light glow maximum radius [blocks] */
+const SIMPLE_GLOW_RADIUS_BLOCKS = 10;     // original default: 20px at scale=2
+/** Simple block-light glow inverse-square falloff coefficient [blocks⁻²] */
+const SIMPLE_GLOW_FALLOFF_BLOCKS = 0.6;   // original default: 0.15 × 2² = 0.6
+/** Height-aware glow maximum light radius [blocks] */
+const HEIGHT_GLOW_RADIUS_BLOCKS = 24;     // original default: 48px at scale=2
+/** Height-aware glow inverse-square falloff coefficient [blocks⁻²] */
+const HEIGHT_GLOW_FALLOFF_BLOCKS = 0.032; // original default: 0.008 × 2² = 0.032
+/** Height of light source above terrain surface [blocks] */
+const HEIGHT_GLOW_OFFSET_BLOCKS = 1;      // original default: 2px at scale=2
 
 if (!existsSync(inputPath)) {
     console.error(`Input file not found: ${inputPath}`);
@@ -115,7 +141,7 @@ async function decodeTile(): Promise<TileContext> {
 
     logStats(heights, blockLights);
 
-    const scale = 2;
+    const scale = shadingScale;
     const upW = sourceWidth * scale;
     const upH = colorHeight * scale;
 
@@ -138,8 +164,10 @@ async function decodeTile(): Promise<TileContext> {
         colorBuffer,
         sourceWidth,
         colorHeight,
-        tileW: 1000,
-        tileH: 1000,
+        // Trim the 1-pixel seamless border added by BlueMap on each side,
+        // scaled by the shading scale. At scale=2: (501-1)*2=1000; scale=4: (501-1)*4=2000.
+        tileW: (sourceWidth - 1) * scale,
+        tileH: (colorHeight - 1) * scale,
     };
 }
 
@@ -225,7 +253,11 @@ async function renderPass2(context: TileContext): Promise<void> {
     const color = Buffer.from(context.upColor);
 
     applySlopeShading(color, context.upHeights, context.upW, context.upH, 1);
-    const hardShadow = computeHardShadowMap(context.upHeights, context.upW, context.upH);
+    const hardShadow = computeHardShadowMap(
+        context.upHeights, context.upW, context.upH,
+        SHADOW_REACH_BLOCKS * shadingScale,
+        SHADOW_SLOPE_BLOCKS / shadingScale,
+    );
     const ao = computeNeighborAO(context.upHeights, context.upW, context.upH);
 
     const n = context.upW * context.upH;
@@ -237,7 +269,12 @@ async function renderPass2(context: TileContext): Promise<void> {
         color[o + 2] = Math.min(255, Math.max(0, Math.round(color[o + 2] * mul)));
     }
 
-    const { r, g, b } = computeBlockLightGlow(context.upBlockLights, context.upW, context.upH);
+    const { r, g, b } = computeBlockLightGlow(
+        context.upBlockLights, context.upW, context.upH,
+        0.004,
+        SIMPLE_GLOW_RADIUS_BLOCKS * shadingScale,
+        SIMPLE_GLOW_FALLOFF_BLOCKS / (shadingScale * shadingScale),
+    );
     applyGlow(color, r, g, b, n);
 
     const outPath = path.join(outputDir, `${baseName}_full.png`);
@@ -255,7 +292,11 @@ async function renderPass3(context: TileContext): Promise<void> {
     const color = Buffer.from(context.upColor);
 
     applySlopeShading(color, context.upHeights, context.upW, context.upH, 1);
-    const hardShadow = computeHardShadowMap(context.upHeights, context.upW, context.upH);
+    const hardShadow = computeHardShadowMap(
+        context.upHeights, context.upW, context.upH,
+        SHADOW_REACH_BLOCKS * shadingScale,
+        SHADOW_SLOPE_BLOCKS / shadingScale,
+    );
     const ao = computeNeighborAO(context.upHeights, context.upW, context.upH);
     applyCoolShadowTint(color, hardShadow, ao, context.upW, context.upH);
 
@@ -263,9 +304,13 @@ async function renderPass3(context: TileContext): Promise<void> {
     const t0 = performance.now();
     const { r, g, b, intensity } = await computeHeightAwareLightGlowParallel(
         context.upBlockLights, context.upHeights, context.upW, context.upH,
-        0.03, 48, 0.008, 0.5, 2,
+        0.03,
+        HEIGHT_GLOW_RADIUS_BLOCKS  * shadingScale,
+        HEIGHT_GLOW_FALLOFF_BLOCKS / (shadingScale * shadingScale),
+        0.5,
+        HEIGHT_GLOW_OFFSET_BLOCKS  * shadingScale,
     );
-    console.log(`  Glow computed at 2× in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
+    console.log(`  Glow computed at ${shadingScale}× in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
     applyGlow(color, r, g, b, n);
 
     boostSaturation(color, context.upW, context.upH, 1.3);
