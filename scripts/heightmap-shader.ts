@@ -2217,6 +2217,351 @@ export function quantizeHeightmap(
     return { data, min: Math.round(min), max: Math.round(max) };
 }
 
+// ============================================================================
+// Hollowness Detection (ADR-017)
+// ============================================================================
+
+/** Options for the hollowness detection algorithm */
+export interface HollownessOptions {
+    /** Pixel distances for multi-scale bilateral ridge check (default [2, 4, 8, 16]) */
+    readonly ridgeRadii?: readonly number[];
+    /** Neighborhood radius for height isolation median (default 12) */
+    readonly isolationRadius?: number;
+    /** Minimum height drop (blocks) to count as significant (default 3) */
+    readonly heightThreshold?: number;
+    /** Weight for block-light anomaly in composite (default 0.25) */
+    readonly lightWeight?: number;
+    /** Weight for ridge score in composite (default 0.50) */
+    readonly ridgeWeight?: number;
+    /** Weight for isolation score in composite (default 0.20) */
+    readonly isolationWeight?: number;
+    /** Weight for edge proximity in composite (default 0.05) */
+    readonly edgeWeight?: number;
+}
+
+/** Result of hollowness detection — one Float32Array per signal, all in [0,1]. */
+export interface HollownessResult {
+    /** Thin ridge score: high where height drops sharply on opposing sides */
+    readonly ridge: Float32Array;
+    /** Height isolation: high where pixel is elevated above local neighborhood */
+    readonly isolation: Float32Array;
+    /** Block light anomaly: high where block-light exceeds local average */
+    readonly lightAnomaly: Float32Array;
+    /** Weighted composite hollowness confidence */
+    readonly composite: Float32Array;
+}
+
+/**
+ * Compute thin-ridge score for each pixel using bilateral height drop.
+ *
+ * For each of 4 axis pairs (N-S, E-W, NE-SW, NW-SE), measures the minimum
+ * height drop on opposing sides. A high score means the pixel is elevated
+ * above terrain on BOTH sides — the geometric fingerprint of a bridge/tube.
+ *
+ * Multi-scale: checks at each radius in `radii` and takes the maximum,
+ * catching structures from 2-block walkways to 32-block platforms.
+ *
+ * @param heights - Decoded height values
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param radii - Pixel distances to check (default [2, 4, 8, 16])
+ * @param threshold - Minimum height drop to count (default 3)
+ * @returns Float32Array of ridge scores normalised to [0, 1]
+ */
+export function computeRidgeScore(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    radii: readonly number[] = [2, 4, 8, 16],
+    threshold = 3,
+): Float32Array {
+    const n = width * height;
+    const ridge = new Float32Array(n);
+
+    // 4 axis pairs: [dx, dz] for positive direction
+    const axes: readonly (readonly [number, number])[] = [
+        [1, 0],   // E-W
+        [0, 1],   // N-S
+        [1, 1],   // NE-SW diagonal
+        [1, -1],  // NW-SE diagonal
+    ];
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const idx = z * width + x;
+            const h = heights[idx];
+            let maxRidge = 0;
+
+            for (const d of radii) {
+                for (const [ax, az] of axes) {
+                    const bilateralDrop = computeBilateralDrop({
+                        heights, w: width, h: height, x, z, baseH: h, dx: ax * d, dz: az * d,
+                    });
+                    if (bilateralDrop > maxRidge) { maxRidge = bilateralDrop; }
+                }
+            }
+
+            // Normalise: threshold is the minimum useful drop; 20 blocks is a very strong signal
+            ridge[idx] = Math.min(1, Math.max(0, (maxRidge - threshold) / 17));
+        }
+    }
+
+    return ridge;
+}
+
+/** Parameters for bilateral height-drop computation at a single pixel. */
+interface BilateralDropInput {
+    readonly heights: Float32Array;
+    readonly w: number;
+    readonly h: number;
+    readonly x: number;
+    readonly z: number;
+    readonly baseH: number;
+    readonly dx: number;
+    readonly dz: number;
+}
+
+/**
+ * Compute the bilateral height drop for one axis at one pixel.
+ * Returns min(drop_positive, drop_negative) — both sides must drop.
+ *
+ * @param input - Pixel coordinates, grid dimensions, and offset
+ * @returns Minimum height drop across both directions (0 if either side is not lower)
+ */
+function computeBilateralDrop(input: BilateralDropInput): number {
+    const { heights, w, h, x, z, baseH, dx, dz } = input;
+    const px = x + dx;
+    const pz = z + dz;
+    const nx = x - dx;
+    const nz = z - dz;
+
+    // Clamp to bounds
+    const posH = (px >= 0 && px < w && pz >= 0 && pz < h)
+        ? heights[pz * w + px] : baseH;
+    const negH = (nx >= 0 && nx < w && nz >= 0 && nz < h)
+        ? heights[nz * w + nx] : baseH;
+
+    const dropPos = baseH - posH;
+    const dropNeg = baseH - negH;
+
+    // Both must be positive (both sides lower)
+    if (dropPos <= 0 || dropNeg <= 0) { return 0; }
+    return Math.min(dropPos, dropNeg);
+}
+
+/**
+ * Compute height isolation score: how much each pixel's height exceeds the
+ * local neighbourhood mean.
+ *
+ * Uses a prefix-sum (integral image) approach for O(1) per-pixel mean
+ * computation within the given radius, making this very efficient.
+ *
+ * @param heights - Decoded height values
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param radius - Neighbourhood radius in pixels (default 12)
+ * @param threshold - Minimum excess height to register (default 3)
+ * @returns Float32Array of isolation scores normalised to [0, 1]
+ */
+export function computeHeightIsolation(
+    heights: Float32Array,
+    width: number,
+    height: number,
+    radius = 12,
+    threshold = 3,
+): Float32Array {
+    const n = width * height;
+    const isolation = new Float32Array(n);
+
+    // Build prefix sum for O(1) rectangular mean queries
+    const prefix = new Float64Array((width + 1) * (height + 1));
+    const pw = width + 1;
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            prefix[(z + 1) * pw + (x + 1)] =
+                heights[z * width + x]
+                + prefix[z * pw + (x + 1)]
+                + prefix[(z + 1) * pw + x]
+                - prefix[z * pw + x];
+        }
+    }
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const x0 = Math.max(0, x - radius);
+            const z0 = Math.max(0, z - radius);
+            const x1 = Math.min(width - 1, x + radius);
+            const z1 = Math.min(height - 1, z + radius);
+
+            const count = (x1 - x0 + 1) * (z1 - z0 + 1);
+            const sum = prefix[(z1 + 1) * pw + (x1 + 1)]
+                      - prefix[z0 * pw + (x1 + 1)]
+                      - prefix[(z1 + 1) * pw + x0]
+                      + prefix[z0 * pw + x0];
+
+            const localMean = sum / count;
+            const excess = heights[z * width + x] - localMean;
+
+            // Normalise: threshold to 25 blocks above neighbourhood
+            isolation[z * width + x] = Math.min(1, Math.max(0, (excess - threshold) / 22));
+        }
+    }
+
+    return isolation;
+}
+
+/**
+ * Compute block-light anomaly score.
+ *
+ * Pixels with nonzero block light that exceeds the local neighbourhood
+ * average score higher. The "sweet spot" range (3–12) — indicating light
+ * that has propagated through air — scores highest.
+ *
+ * Uses the same prefix-sum technique for the local mean.
+ *
+ * @param blockLights - Normalised block-light values (0–1)
+ * @param width - Image width
+ * @param height - Image height
+ * @param radius - Neighbourhood radius for local mean (default 8)
+ * @returns Float32Array of anomaly scores normalised to [0, 1]
+ */
+export function computeBlockLightAnomaly(
+    blockLights: Float32Array,
+    width: number,
+    height: number,
+    radius = 8,
+): Float32Array {
+    const n = width * height;
+    const anomaly = new Float32Array(n);
+
+    // Prefix sum for block-light
+    const prefix = new Float64Array((width + 1) * (height + 1));
+    const pw = width + 1;
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            prefix[(z + 1) * pw + (x + 1)] =
+                blockLights[z * width + x]
+                + prefix[z * pw + (x + 1)]
+                + prefix[(z + 1) * pw + x]
+                - prefix[z * pw + x];
+        }
+    }
+
+    for (let z = 0; z < height; z++) {
+        for (let x = 0; x < width; x++) {
+            const bl = blockLights[z * width + x];
+            if (bl < 0.01) { continue; } // no light → no anomaly
+
+            const x0 = Math.max(0, x - radius);
+            const z0 = Math.max(0, z - radius);
+            const x1 = Math.min(width - 1, x + radius);
+            const z1 = Math.min(height - 1, z + radius);
+
+            const count = (x1 - x0 + 1) * (z1 - z0 + 1);
+            const sum = prefix[(z1 + 1) * pw + (x1 + 1)]
+                      - prefix[z0 * pw + (x1 + 1)]
+                      - prefix[(z1 + 1) * pw + x0]
+                      + prefix[z0 * pw + x0];
+
+            const localMean = sum / count;
+            const excess = bl - localMean;
+
+            // Raw anomaly: positive excess, boosted in the 3–12 range (propagated light)
+            const blLevel = bl * 15; // back to 0–15 scale
+            const sweetSpot = (blLevel >= 3 && blLevel <= 12) ? 1.5 : 1;
+
+            anomaly[z * width + x] = Math.min(1, Math.max(0, excess * sweetSpot * 3));
+        }
+    }
+
+    return anomaly;
+}
+
+/**
+ * Compute height gradient magnitude (Sobel edge detection).
+ *
+ * @param heights - Decoded height values
+ * @param width - Image width
+ * @param height - Image height
+ * @returns Float32Array of gradient magnitudes normalised to [0, 1]
+ */
+export function computeHeightEdges(
+    heights: Float32Array,
+    width: number,
+    height: number,
+): Float32Array {
+    const n = width * height;
+    const edges = new Float32Array(n);
+
+    for (let z = 1; z < height - 1; z++) {
+        for (let x = 1; x < width - 1; x++) {
+            const dx = heights[z * width + (x + 1)] - heights[z * width + (x - 1)];
+            const dz = heights[(z + 1) * width + x] - heights[(z - 1) * width + x];
+            // Normalise: 10 blocks difference = max edge
+            edges[z * width + x] = Math.min(1, Math.hypot(dx, dz) / 10);
+        }
+    }
+
+    return edges;
+}
+
+/**
+ * Compute composite hollowness map from height and block-light data.
+ *
+ * Combines four signals:
+ * 1. **Thin ridge score** — bilateral height drop on opposing sides (bridges/tubes)
+ * 2. **Height isolation** — pixel elevated above local neighbourhood mean
+ * 3. **Block light anomaly** — nonzero light exceeding local average (lit interiors)
+ * 4. **Height edges** — gradient magnitude at structure boundaries
+ *
+ * Returns individual channels for diagnostic inspection plus the weighted composite.
+ *
+ * @param heights - Decoded height values (width × height)
+ * @param blockLights - Normalised block-light values (0–1), same dimensions
+ * @param width - Image width in pixels
+ * @param height - Image height in pixels
+ * @param options - Tuning parameters (see {@link HollownessOptions})
+ * @returns Per-signal Float32Arrays and weighted composite, all in [0, 1]
+ */
+export function computeHollownessMap(
+    heights: Float32Array,
+    blockLights: Float32Array,
+    width: number,
+    height: number,
+    options: HollownessOptions = {},
+): HollownessResult {
+    const {
+        ridgeRadii = [2, 4, 8, 16],
+        isolationRadius = 12,
+        heightThreshold = 3,
+        lightWeight = 0.25,
+        ridgeWeight = 0.5,
+        isolationWeight = 0.2,
+        edgeWeight = 0.05,
+    } = options;
+
+    const ridge = computeRidgeScore(heights, width, height, ridgeRadii, heightThreshold);
+    const isolation = computeHeightIsolation(heights, width, height, isolationRadius, heightThreshold);
+    const lightAnomaly = computeBlockLightAnomaly(blockLights, width, height);
+    const edges = computeHeightEdges(heights, width, height);
+
+    const n = width * height;
+    const composite = new Float32Array(n);
+
+    for (let i = 0; i < n; i++) {
+        composite[i] = Math.min(1,
+            ridgeWeight     * ridge[i]
+            + isolationWeight * isolation[i]
+            + lightWeight     * lightAnomaly[i]
+            + edgeWeight      * edges[i],
+        );
+    }
+
+    return { ridge, isolation, lightAnomaly, composite };
+}
+
 /**
  * Check if a source tile image dimensions indicate a BlueMap dual-layer tile.
  *
