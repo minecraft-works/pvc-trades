@@ -27,7 +27,6 @@ import {
     computeBlockLightGlow,
     computeHardShadowMap,
     computeHeightAwareLightGlowParallel,
-    computeHollownessMap,
     computeNeighborAO,
     decodeBlockLight,
     decodeHeightmap,
@@ -41,7 +40,11 @@ import {
 // CLI arguments
 // ============================================================================
 
-const inputPath = process.argv[2] ?? 'C:/Users/310251331/Downloads/bluemap/z0.png';
+const inputPath = process.argv[2];
+if (!inputPath) {
+    console.error('Usage: npx tsx scripts/_render-single-tile.ts <input.png> [outputDir] [shadingScale]');
+    process.exit(1);
+}
 const outputDir = process.argv[3] ?? path.dirname(inputPath);
 const shadingScale = Number.parseInt(process.argv[4] ?? '4', 10);
 const baseName = path.basename(inputPath, path.extname(inputPath));
@@ -334,79 +337,6 @@ async function renderPass3(context: TileContext): Promise<void> {
 }
 
 /**
- * Pass 4: hollowness detection — diagnostic RGBA + false-color heatmap overlay.
- *
- * Generates two diagnostic images:
- *   - `_hollowness-rgba.png` — 4-channel diagnostic (R=ridge, G=lightAnomaly, B=isolation, A=composite)
- *   - `_hollowness-heatmap.png` — false-color composite overlaid on the raw color tile
- *
- * @param context - Decoded tile context
- */
-async function renderPass4(context: TileContext): Promise<void> {
-    console.log('\n--- Pass 4: Hollowness detection ---');
-    const t0 = performance.now();
-
-    const { ridge, isolation, lightAnomaly, composite } = computeHollownessMap(
-        context.upHeights, context.upBlockLights, context.upW, context.upH,
-    );
-    console.log(`  Hollowness computed in ${((performance.now() - t0) / 1000).toFixed(2)}s`);
-
-    const n = context.upW * context.upH;
-
-    // --- RGBA diagnostic: R=ridge, G=lightAnomaly, B=isolation, A=composite ---
-    const rgba = Buffer.alloc(n * 4);
-    for (let i = 0; i < n; i++) {
-        const o = i * 4;
-        rgba[o]     = Math.min(255, Math.round(ridge[i] * 255));
-        rgba[o + 1] = Math.min(255, Math.round(lightAnomaly[i] * 255));
-        rgba[o + 2] = Math.min(255, Math.round(isolation[i] * 255));
-        rgba[o + 3] = Math.min(255, Math.round(composite[i] * 255));
-    }
-
-    const rgbaPath = path.join(outputDir, `${baseName}_hollowness-rgba.png`);
-    await writeTrimmedPng(rgba, context, rgbaPath, 9);
-    console.log(`  RGBA diagnostic: ${rgbaPath}`);
-
-    // --- Heatmap overlay: composite → red-yellow gradient blended onto raw color ---
-    const heatmap = Buffer.from(context.upColor);
-    for (let i = 0; i < n; i++) {
-        const c = composite[i];
-        if (c < 0.05) { continue; } // skip negligible pixels
-
-        const o = i * 4;
-        // Heatmap: black → red → yellow → white
-        let hR: number, hG: number, hB: number;
-        if (c < 0.33) {
-            const t = c / 0.33;
-            hR = Math.round(t * 255);
-            hG = 0;
-            hB = 0;
-        } else if (c < 0.66) {
-            const t = (c - 0.33) / 0.33;
-            hR = 255;
-            hG = Math.round(t * 255);
-            hB = 0;
-        } else {
-            const t = (c - 0.66) / 0.34;
-            hR = 255;
-            hG = 255;
-            hB = Math.round(t * 255);
-        }
-
-        // Alpha blend: 60% heatmap over original at composite > 0.05
-        const alpha = Math.min(1, c * 1.5) * 0.6;
-        const invA = 1 - alpha;
-        heatmap[o]     = Math.min(255, Math.round(heatmap[o] * invA + hR * alpha));
-        heatmap[o + 1] = Math.min(255, Math.round(heatmap[o + 1] * invA + hG * alpha));
-        heatmap[o + 2] = Math.min(255, Math.round(heatmap[o + 2] * invA + hB * alpha));
-    }
-
-    const heatmapPath = path.join(outputDir, `${baseName}_hollowness-heatmap.png`);
-    await writeTrimmedPng(heatmap, context, heatmapPath, 6);
-    console.log(`  Heatmap overlay: ${heatmapPath}`);
-}
-
-/**
  * Write diagnostic images (heightmap, block-light, raw color).
  *
  * @param context - Decoded tile context
@@ -450,7 +380,6 @@ async function main(): Promise<void> {
     await renderPass1(context);
     await renderPass2(context);
     await renderPass3(context);
-    await renderPass4(context);
     await writeDiagnostics(context);
     console.log('\nDone!');
 }
