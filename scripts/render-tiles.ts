@@ -838,9 +838,11 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
     let rendered = 0;
     let skipped = 0;
 
-    for (const tile of tiles) {
-        try {
-            const result = await splitSourceTile({
+    const concurrency = Math.max(1, Number.parseInt(process.env.RENDER_CONCURRENCY ?? '1', 10));
+    for (let i = 0; i < tiles.length; i += concurrency) {
+        const batch = tiles.slice(i, i + concurrency);
+        const outcomes = await Promise.allSettled(
+            batch.map(tile => splitSourceTile({
                 source: tile,
                 cropWidth: crop.cropWidth,
                 cropHeight: crop.cropHeight,
@@ -849,13 +851,17 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
                 splitFactor,
                 pyramid,
                 lightingConfig,
-            });
-            entries.push(...result.entries);
-            rendered += result.rendered;
-            skipped += result.skipped;
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.warn(`  [WARN] Failed to render ${tile.sourcePath}: ${message}`);
+            }))
+        );
+        for (const [index, outcome] of outcomes.entries()) {
+            if (outcome.status === 'fulfilled') {
+                entries.push(...outcome.value.entries);
+                rendered += outcome.value.rendered;
+                skipped += outcome.value.skipped;
+            } else {
+                const message = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+                console.warn(`  [WARN] Failed to render ${batch[index].sourcePath}: ${message}`);
+            }
         }
     }
 
