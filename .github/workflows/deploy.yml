@@ -66,6 +66,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       # Source tiles: fetched from Dynmap — stable key, only busted if fetch structure changes
       - name: Restore source tile cache
         id: source-tile-cache-restore
