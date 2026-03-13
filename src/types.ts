@@ -146,7 +146,9 @@ const TilePyramidConfigSchema = z.object({
         /** Height upsampling method when shadingScale > 1. 'nearest' preserves blocky Minecraft normals. */
         heightUpsampleMode: z.enum(['bilinear', 'nearest']).default('nearest'),
         /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
-        emitHeightmapTiles: z.boolean().default(true)
+        emitHeightmapTiles: z.boolean().default(true),
+        /** Optional block-coordinate bounding box to limit rendering (build-time only). */
+        renderBounds: z.object({ minX: z.number(), minZ: z.number(), maxX: z.number(), maxZ: z.number() }).optional()
     }).optional()
 });
 
