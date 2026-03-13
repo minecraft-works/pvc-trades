@@ -1886,6 +1886,7 @@ export async function computeHeightAwareLightGlowParallel(
 
         const promise = new Promise<Float32Array>((resolve, reject) => {
             const worker = new Worker(workerPath, {
+                execArgv: ['--import', 'tsx'],
                 workerData: {
                     heightsBuf,
                     width,
