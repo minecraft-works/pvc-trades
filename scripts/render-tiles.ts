@@ -319,7 +319,7 @@ async function upscaleSubRegion(
 // Block-space lighting constants (scale-invariant) — see _render-single-tile.ts for rationale.
 // Pixel values = blockValue × shadingScale; falloff = blockFalloff / shadingScale².
 const SHADOW_REACH_BLOCKS        = 16;    // hard-shadow ray reach [blocks]
-const SHADOW_SLOPE_BLOCKS        = 2.0;   // sun angle [blocks/block]: 2.0 ≈ 63° elevation
+const SHADOW_SLOPE_BLOCKS        = 2;   // sun angle [blocks/block]: 2.0 ≈ 63° elevation
 const HEIGHT_GLOW_RADIUS_BLOCKS  = 24;    // height-aware glow radius [blocks]
 const HEIGHT_GLOW_FALLOFF_BLOCKS = 0.032; // falloff coefficient [blocks⁻²] (= 0.008 × 2²)
 const HEIGHT_GLOW_OFFSET_BLOCKS  = 1;     // light source height above terrain [blocks]
@@ -796,10 +796,34 @@ interface LevelProcessOptions {
  */
 async function processSourceLevel(options: LevelProcessOptions): Promise<SplitResult> {
     const { world, levelId, canonLevel, splitFactor, pyramid, label, lightingConfig } = options;
-    const tiles = findSourceTilesInWorld(world, levelId);
+    let tiles = findSourceTilesInWorld(world, levelId);
 
     if (tiles.length === 0) {
         return { entries: [], rendered: 0, skipped: 0 };
+    }
+
+    // Filter tiles to renderBounds when configured (block-coordinate bounding box)
+    const bounds = pyramid.lighting?.renderBounds;
+    if (bounds) {
+        const sourceBpt = tiles[0].levelId === 0 ? pyramid.baseBlocksPerTile : (
+            // Derive source blocks-per-tile from the first tile's level metadata.
+            // For the active provider, levelId maps to a known bpt. Use the
+            // canonical bpt × splitFactor as the source tile's block coverage.
+            pyramidBlocksPerTile(canonLevel, pyramid) * splitFactor
+        );
+        const before = tiles.length;
+        tiles = tiles.filter(t => {
+            const blockMinX = t.tileX * sourceBpt;
+            const blockMaxX = blockMinX + sourceBpt;
+            const blockMinZ = t.tileZ * sourceBpt;
+            const blockMaxZ = blockMinZ + sourceBpt;
+            // AABB overlap test
+            return blockMaxX > bounds.minX && blockMinX < bounds.maxX
+                && blockMaxZ > bounds.minZ && blockMinZ < bounds.maxZ;
+        });
+        if (tiles.length < before) {
+            console.log(`  renderBounds filter: ${before} → ${tiles.length} tiles (${bounds.minX},${bounds.minZ} to ${bounds.maxX},${bounds.maxZ})`);
+        }
     }
 
     const crop = await getSourceCropDimensions(tiles, splitFactor);
