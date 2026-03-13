@@ -1187,6 +1187,7 @@ async function main(): Promise<void> {
     });
 
     // Write canonical manifest
+    mkdirSync(TILES_DIR, { recursive: true });
     writeFileSync(MANIFEST_PATH, JSON.stringify(uniqueEntries, null, 2));
 
     console.log('\n=== Render Summary ===');
