@@ -8,8 +8,9 @@
  * Run with: npx playwright test
  */
 
-import { test, expect } from './helpers/global-setup';
 import type { Page } from '@playwright/test';
+
+import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // Test configuration
@@ -299,7 +300,7 @@ test.describe('CSS Layout - Trade Rows', () => {
             const count = await columns.count();
 
             // Get bounding boxes for visible columns with actual width
-            const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
+            const boxes: { index: number; box: { x: number; width: number } }[] = [];
             for (let index = 0; index < count; index++) {
                 const col = columns.nth(index);
                 
@@ -550,7 +551,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
             const count = await columns.count();
 
             // Get bounding boxes for visible columns with actual width
-            const boxes: Array<{ index: number; box: { x: number; width: number } }> = [];
+            const boxes: { index: number; box: { x: number; width: number } }[] = [];
             for (let index = 0; index < count; index++) {
                 const col = columns.nth(index);
                 
@@ -819,10 +820,8 @@ test.describe('CSS Layout - Map Dialog', () => {
         const coords = page.locator('#map-coords');
         await expect(coords).toBeVisible();
         
-        // Should show world and coordinates - pattern: "world: X, Y, Z"
         const text = await coords.textContent();
-        // eslint-disable-next-line sonarjs/slow-regex -- simple coordinate pattern, no backtracking risk
-        expect(text).toMatch(/[a-z]+: ?-?\d+, ?-?\d+, ?-?\d+/i);
+        expect(text).toMatch(/[A-Z][a-z]+: -?\d+, -?\d+, -?\d+/);
     });
 
     test('map dialog closes via close button', async ({ page }) => {
