@@ -14,10 +14,11 @@
     "bluemap": {
       "tileWidth": 2000,
       "tileHeight": 2000,
-      "levels": 3,
-      "scaleFactor": 5,
+      "levels": 5,
+      "scaleFactor": 2,
       "baseBlocksPerTile": 500,
       "format": "png",
+      "renderBounds": { "minX": -1000, "minZ": -1000, "maxX": 1000, "maxZ": 1000 },
       "lighting": {
         "enabled": true,
         "model": "slope",
@@ -33,9 +34,7 @@
         "unsharpMask": { "enabled": false, "radius": 2, "amount": 0.5, "threshold": 4 },
         "materialShading": { "enabled": false, "waterSpecular": 0.3, "foliageBrightness": 0.1, "stoneAOMultiplier": 1.5 },
         "normalKernelSize": 3,
-        "heightUpsampleMode": "nearest",
-        "emitHeightmapTiles": true,
-        "renderBounds": { "minX": -500, "minZ": -500, "maxX": 500, "maxZ": 500 }
+        "heightUpsampleMode": "nearest"
       }
     }
   },

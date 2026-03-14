@@ -65,6 +65,8 @@ const TilePyramidConfigSchema = z.object({
     baseBlocksPerTile: z.number().int().positive().default(256),
     /** Output tile format */
     format: z.enum(['png', 'webp', 'avif', 'jpeg']).default('png'),
+    /** Optional block-coordinate bounding box to limit tile rendering within an ROI */
+    renderBounds: z.object({ minX: z.number(), minZ: z.number(), maxX: z.number(), maxZ: z.number() }).optional(),
     /** Heightmap-based lighting configuration (BlueMap sources only) */
     lighting: z.object({
         /** Enable baked lighting at build time */
@@ -145,10 +147,6 @@ const TilePyramidConfigSchema = z.object({
         normalKernelSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
         /** Height upsampling method when shadingScale > 1. 'nearest' preserves blocky Minecraft normals. */
         heightUpsampleMode: z.enum(['bilinear', 'nearest']).default('nearest'),
-        /** Emit separate 8-bit grayscale heightmap tiles alongside color tiles */
-        emitHeightmapTiles: z.boolean().default(true),
-        /** Optional block-coordinate bounding box to limit rendering (build-time only). */
-        renderBounds: z.object({ minX: z.number(), minZ: z.number(), maxX: z.number(), maxZ: z.number() }).optional()
     }).optional()
 });
 
@@ -209,7 +207,6 @@ export const AppConfigSchema = z.object({
             materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
             heightUpsampleMode: 'nearest' as const,
-            emitHeightmapTiles: true
         }
     }),
     dynmap: DynmapConfigSchema,
@@ -233,12 +230,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Merge `tileSourcePresets[tileSource]` into the raw config object before
- * Zod validation so that Zod defaults fill gaps correctly.
- *
- * The preset provides base values; any explicit `tilePyramid` fields in the
- * raw JSON override them. Call this on the raw parsed JSON before passing
- * to `AppConfigSchema.safeParse()`.
+ * Merge `tileSourcePresets[tileSource]` into the raw config before Zod validation.
+ * Preset provides base values; explicit `tilePyramid` fields override them.
  *
  * @param raw - Raw parsed JSON (unknown type)
  * @returns The same object with `tilePyramid` pre-merged from the preset
@@ -253,10 +246,6 @@ export function resolveRawConfig(raw: unknown): unknown {
     return { ...raw, tilePyramid: { ...presetValue, ...explicit } };
 }
 
-// ============================================================================
-// Block Conversions
-// ============================================================================
-
 const BlockConversionSchema = z.object({
     base: z.string(),
     multiplier: z.number().positive()
@@ -266,9 +255,7 @@ export const BlockConversionsSchema = z.record(z.string(), BlockConversionSchema
 
 export type BlockConversions = z.infer<typeof BlockConversionsSchema>;
 
-// ============================================================================
 // Trade Mapping Rules
-// ============================================================================
 
 export const MappingRuleSchema = z.object({
     item: z.string(),
@@ -280,9 +267,7 @@ export const MappingRuleSchema = z.object({
 
 export type MappingRule = z.infer<typeof MappingRuleSchema>;
 
-// ============================================================================
 // Item Types
-// ============================================================================
 
 export interface Item {
     readonly type: string;
@@ -304,9 +289,7 @@ export interface ShulkerParseResult {
     defaultTotal: number;
 }
 
-// ============================================================================
 // Shop & Recipe Types
-// ============================================================================
 
 /** Schema for validating Item from external data */
 const ItemSchema = z.object({
@@ -635,7 +618,6 @@ export const DEFAULT_CONFIG: AppConfig = {
             materialShading: { enabled: false, waterSpecular: 0.3, foliageBrightness: 0.1, stoneAOMultiplier: 1.5, snowBrightness: 0.2, lavaGlow: 0.25, sandAOMultiplier: 0.4 },
             normalKernelSize: 3 as const,
             heightUpsampleMode: 'nearest' as const,
-            emitHeightmapTiles: true
         }
     },
     dynmap: {

@@ -70,12 +70,8 @@ export interface MapTileContext {
     centerTileX: number;
     /** Center tile Z coordinate for positioning */
     centerTileZ: number;
-    /** Set tracking overview tiles added */
-    addedToMapOverview: Set<string>;
-    /** Set tracking intermediate tiles added */
-    addedToMapIntermediate: Set<string>;
-    /** Set tracking detail tiles added */
-    addedToMapDetail: Set<string>;
+    /** Dedup sets keyed by pyramid level — prevents the same URL being added twice */
+    addedToMap: Map<number, Set<string>>;
     /** Manifest of available tiles */
     manifest: Set<string>;
 }
