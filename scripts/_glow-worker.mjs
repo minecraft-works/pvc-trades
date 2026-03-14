@@ -3,32 +3,19 @@
  *
  * Receives a chunk of emitters and a shared heightmap, accumulates light
  * contributions, and posts back the result buffer.
+ *
+ * Plain JS to avoid needing tsx/ts-node loader in worker threads across
+ * different Node.js versions.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-
-interface Emitter {
-    x: number;
-    z: number;
-    strength: number;
-    height: number;
-}
-
-interface WorkerInput {
-    heightsBuf: SharedArrayBuffer;
-    width: number;
-    height: number;
-    emitters: Emitter[];
-    maxRadius: number;
-    falloff: number;
-}
 
 /**
  * Type guard to validate worker input structure at runtime.
  *
- * @param data - Raw worker data from parent thread
- * @returns Whether the data matches WorkerInput shape
+ * @param {unknown} data - Raw worker data from parent thread
+ * @returns {boolean} Whether the data matches WorkerInput shape
  */
-function isWorkerInput(data: unknown): data is WorkerInput {
+function isWorkerInput(data) {
     if (typeof data !== 'object' || data === null) { return false; }
     return (
         'heightsBuf' in data && data.heightsBuf instanceof SharedArrayBuffer
@@ -47,22 +34,17 @@ function isWorkerInput(data: unknown): data is WorkerInput {
 /**
  * Check line-of-sight between emitter and target via stride-2 ray march.
  *
- * @param heights - Decoded heightmap
- * @param width - Image width
- * @param ex - Emitter X
- * @param ez - Emitter Z
- * @param emitterH - Emitter height
- * @param tx - Target X
- * @param tz - Target Z
- * @param targetH - Target terrain height
- * @returns True if line-of-sight is clear
+ * @param {Float32Array} heights - Decoded heightmap
+ * @param {number} width - Image width
+ * @param {number} ex - Emitter X
+ * @param {number} ez - Emitter Z
+ * @param {number} emitterH - Emitter height
+ * @param {number} tx - Target X
+ * @param {number} tz - Target Z
+ * @param {number} targetH - Target terrain height
+ * @returns {boolean} True if line-of-sight is clear
  */
-function hasLineOfSight(
-    heights: Float32Array,
-    width: number,
-    ex: number, ez: number, emitterH: number,
-    tx: number, tz: number, targetH: number,
-): boolean {
+function hasLineOfSight(heights, width, ex, ez, emitterH, tx, tz, targetH) {
     const dx = tx - ex;
     const dz = tz - ez;
     const steps = Math.max(Math.abs(dx), Math.abs(dz));
@@ -85,25 +67,16 @@ function hasLineOfSight(
 /**
  * Test and accumulate light for a single target pixel from an emitter.
  *
- * @param em - Emitter metadata
- * @param accumulated - Light accumulation buffer (mutated)
- * @param heights - Decoded heightmap
- * @param width - Image width
- * @param px - Target pixel X
- * @param pz - Target pixel Z
- * @param dz - Vertical offset from emitter
- * @param falloff - Inverse-square falloff coefficient
+ * @param {{ x: number, z: number, strength: number, height: number }} em - Emitter metadata
+ * @param {Float32Array} accumulated - Light accumulation buffer (mutated)
+ * @param {Float32Array} heights - Decoded heightmap
+ * @param {number} width - Image width
+ * @param {number} px - Target pixel X
+ * @param {number} pz - Target pixel Z
+ * @param {number} dz - Vertical offset from emitter
+ * @param {number} falloff - Inverse-square falloff coefficient
  */
-function accumulatePixel(
-    em: Emitter,
-    accumulated: Float32Array,
-    heights: Float32Array,
-    width: number,
-    px: number,
-    pz: number,
-    dz: number,
-    falloff: number,
-): void {
+function accumulatePixel(em, accumulated, heights, width, px, pz, dz, falloff) {
     const dx = px - em.x;
     const d2 = dx * dx + dz * dz;
     const targetH = heights[pz * width + px];
@@ -117,23 +90,15 @@ function accumulatePixel(
 /**
  * Spread light from all emitters with terrain occlusion.
  *
- * @param emitters - Array of emitter clusters
- * @param accumulated - Light accumulation buffer (mutated)
- * @param heights - Decoded heightmap
- * @param width - Image width
- * @param height - Image height
- * @param maxRadius - Maximum spread radius
- * @param falloff - Inverse-square falloff coefficient
+ * @param {Array<{ x: number, z: number, strength: number, height: number }>} emitters - Array of emitter clusters
+ * @param {Float32Array} accumulated - Light accumulation buffer (mutated)
+ * @param {Float32Array} heights - Decoded heightmap
+ * @param {number} width - Image width
+ * @param {number} height - Image height
+ * @param {number} maxRadius - Maximum spread radius
+ * @param {number} falloff - Inverse-square falloff coefficient
  */
-function spreadEmitters(
-    emitters: Emitter[],
-    accumulated: Float32Array,
-    heights: Float32Array,
-    width: number,
-    height: number,
-    maxRadius: number,
-    falloff: number,
-): void {
+function spreadEmitters(emitters, accumulated, heights, width, height, maxRadius, falloff) {
     const r2max = maxRadius * maxRadius;
     for (const em of emitters) {
         for (let dz = -maxRadius; dz <= maxRadius; dz++) {

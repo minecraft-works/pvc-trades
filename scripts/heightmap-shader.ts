@@ -1876,7 +1876,7 @@ export async function computeHeightAwareLightGlowParallel(
     const chunkSize = Math.ceil(emitters.length / workerCount);
     const workerPath = nodePath.join(
         nodePath.dirname(fileURLToPath(import.meta.url)),
-        '_glow-worker.ts',
+        '_glow-worker.mjs',
     );
 
     const promises: Promise<Float32Array>[] = [];
@@ -1886,7 +1886,6 @@ export async function computeHeightAwareLightGlowParallel(
 
         const promise = new Promise<Float32Array>((resolve, reject) => {
             const worker = new Worker(workerPath, {
-                execArgv: ['--import', import.meta.resolve('tsx/esm')],
                 workerData: {
                     heightsBuf,
                     width,
