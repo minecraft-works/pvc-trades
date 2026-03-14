@@ -189,7 +189,7 @@ distribute the emitter spread across multiple CPU cores:
 1. **Main thread** clusters emitters (fast O(n) union-find).
 2. Heights are shared via `SharedArrayBuffer` (zero-copy read).
 3. Emitter array is split into `min(cpuCount, 8)` chunks.
-4. Each worker (`_glow-worker.ts`) receives its chunk of emitters plus
+4. Each worker (`_glow-worker.mjs`) receives its chunk of emitters plus
    the shared height buffer, spreads light with full LOS checks, and
    posts back its `Float32Array` accumulation buffer (transferred,
    zero-copy).
@@ -277,6 +277,6 @@ npx tsx scripts/_render-single-tile.ts <input.png> [outputDir]
 - [ADR-012](012-bluemap-tile-migration.md) — BlueMap tile format and dual-layer PNG layout
 - [ADR-015](015-bluemap-slope-shading.md) — BlueMap-exact slope shading formula and enhancements
 - `scripts/_render-single-tile.ts` — Implementation
-- `scripts/_glow-worker.ts` — Worker thread for parallel emitter spread
+- `scripts/_glow-worker.mjs` — Worker thread for parallel emitter spread (plain JS for Node.js compatibility)
 - `scripts/heightmap-shader.ts` — All shading functions
 - `scripts/render-tiles.ts` — Full batch pipeline
