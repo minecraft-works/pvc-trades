@@ -16,7 +16,6 @@ import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } fr
 import {
     calculateFitZoom,
     clampToCircle,
-    fromLeafletCoordsRelative,
     getTileCoords,
     getWorldId,
     toLeafletCoords,
@@ -56,19 +55,6 @@ let shopMapTileZ = 0;
  * With a factor-2 pyramid, each coarser level activates 1 zoom unit lower.
  */
 const ZOOM_SHOW_DETAIL = 1;
-
-/**
- * Human-readable label for a pyramid level.
- *
- * @param level - Pyramid level index
- * @param detail - Detail (highest) pyramid level index
- * @returns Display name like 'detail', 'overview', or 'level2'
- */
-function getLodName(level: number, detail: number): string {
-    if (level === detail) { return 'detail'; }
-    if (level === 0) { return 'overview'; }
-    return `level${level}`;
-}
 
 /**
  * Returns the pyramid level that should be displayed at the given Leaflet zoom.
@@ -113,12 +99,9 @@ interface ShopMapTileContext {
 /** Parameters for setting up shop map */
 interface ShopMapSetupParameters {
     container: HTMLElement;
-    coordinatesElement: HTMLElement;
     dialog: HTMLDialogElement;
     worldId: string;
-    worldDisplay: string;
     x: number;
-    y: number;
     z: number;
     tileX: number;
     tileZ: number;
@@ -407,7 +390,7 @@ function createMapConfig(): L.MapOptions {
 }
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, coordinatesElement, dialog, worldId, worldDisplay, x, y, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
+    const { container, dialog, worldId, x, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
     
     leafletMap = L.map(container, createMapConfig());
     
@@ -443,37 +426,6 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     playerMarkersLayer = L.layerGroup().addTo(leafletMap);
     
-    const updateCoordsLabel = (): void => {
-        if (!leafletMap) { return; }
-        const mapCenter = leafletMap.getCenter();
-        const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, TILE_CONFIG.tileSize);
-        const zoom = leafletMap.getZoom();
-        const zoomString = zoom.toFixed(1);
-
-        // Determine active LOD info
-        const lodLevel = getActivePyramidLevel(zoom);
-        const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
-        const lodName = getLodName(lodLevel, detail);
-        const lodBlocks = pyramidBlocksPerTile(lodLevel, getStoreConfig().tilePyramid);
-        const px = getStoreConfig().tilePyramid.tileWidth;
-        const bpp = (lodBlocks / px).toFixed(2);
-
-        // Pixel position within the active LOD tile
-        const activeTileX = Math.floor(mcCoords.x / lodBlocks);
-        const activeTileZ = Math.floor(mcCoords.z / lodBlocks);
-        const blockInTileX = mcCoords.x - activeTileX * lodBlocks;
-        const blockInTileZ = mcCoords.z - activeTileZ * lodBlocks;
-        const pixelX = Math.round(blockInTileX / lodBlocks * px);
-        const pixelZ = Math.round(blockInTileZ / lodBlocks * px);
-
-        coordinatesElement.innerHTML =
-            `<li>world: ${worldDisplay} ${mcCoords.x}, ${y}, ${mcCoords.z}</li>` +
-            `<li>leaflet: lng=${mapCenter.lng.toFixed(1)} lat=${mapCenter.lat.toFixed(1)}</li>` +
-            `<li>tile: [${activeTileX},${activeTileZ}] pixel: ${pixelX},${pixelZ}</li>` +
-            `<li>zoom: ${zoomString} · level: ${lodLevel} (${lodName})</li>` +
-            `<li>${lodBlocks} blk/tile · ${px} px · ${bpp} blk/px</li>`;
-    };
-    
     const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
     
     const updateZoomClass = () => {
@@ -495,41 +447,9 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         });
     }, playerRefreshMs);
     
-    leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
-    leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
+    leafletMap.on('move', () => { updatePlayerMarkers(); });
+    leafletMap.on('zoomend', () => { updatePlayerMarkers(); updateZoomClass(); });
 
-    const mouseCoordElement = document.querySelector<HTMLElement>('#map-mouse-coords');
-    if (mouseCoordElement) {
-        leafletMap.on('mousemove', (event: L.LeafletMouseEvent) => {
-            if (!leafletMap) { return; }
-            const zoom = leafletMap.getZoom();
-            const lodLevel = getActivePyramidLevel(zoom);
-            const lodBlocks = pyramidBlocksPerTile(lodLevel, getStoreConfig().tilePyramid);
-            const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
-            const lodName = getLodName(lodLevel, detail);
-            const mc = fromLeafletCoordsRelative(event.latlng.lat, event.latlng.lng, tileX, tileZ, TILE_CONFIG.tileSize);
-            const tilePx = getStoreConfig().tilePyramid.tileWidth;
-            const atx = Math.floor(mc.x / lodBlocks);
-            const atz = Math.floor(mc.z / lodBlocks);
-            const pxX = Math.round(((mc.x - atx * lodBlocks) / lodBlocks) * tilePx);
-            const pxZ = Math.round(((mc.z - atz * lodBlocks) / lodBlocks) * tilePx);
-            const tilePath = `tiles/${worldId}/${lodLevel}/${atx}/${atz}.png`;
-            // Pixel within the tile as rendered on screen at current zoom: blockInTile × 2^zoom
-            const scale = Math.pow(2, zoom);
-            const screenPxX = Math.round((mc.x - atx * lodBlocks) * scale);
-            const screenPxZ = Math.round((mc.z - atz * lodBlocks) * scale);
-            const renderedSize = Math.round(lodBlocks * scale);
-            mouseCoordElement.innerHTML =
-                `<li>world: ${mc.x}, ${y}, ${mc.z}</li>` +
-                `<li>leaflet: lng=${event.latlng.lng.toFixed(1)} lat=${event.latlng.lat.toFixed(1)}</li>` +
-                `<li>L${lodLevel} (${lodName}) tile: ${atx}, ${atz}</li>` +
-                `<li>tile img px (0–${tilePx}): ${pxX}, ${pxZ}</li>` +
-                `<li>screen px (0–${renderedSize}): ${screenPxX}, ${screenPxZ}</li>` +
-                `<li>${tilePath}</li>`;
-        });
-        leafletMap.on('mouseout', () => { mouseCoordElement.innerHTML = ''; });
-    }
-    
     leafletMap.invalidateSize();
     const containerSize = leafletMap.getSize();
     const visibleSize = TILE_CONFIG.tileSize * 3;
@@ -606,11 +526,9 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             
             void loadTileManifest().then(manifest => {
                 setupShopMap({
-                    coordinatesElement: coordsElement,
                     playerRefreshMs: getConfig().dynmap.playerRefreshMs,
                     worldId,
-                    worldDisplay,
-                    x, y, z,
+                    x, z,
                     tileX, tileZ,
                     container,
                     dialog,
