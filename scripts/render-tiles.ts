@@ -195,32 +195,49 @@ function normalizeWorld(world: string): string {
  * @param levelId - Provider-specific level ID (e.g., 8 for Dynmap detail)
  * @returns Array of discovered source tiles
  */
+/** Pattern matching both fetched ({z}.png) and pre-rendered ({z}_height-lit.png) tiles. */
+const SOURCE_TILE_PATTERN = /^(?<z>-?\d+)(?<suffix>_height-lit)?\.png$/u;
+
+/**
+ * Scan a single tileX directory and collect source tiles into the map.
+ * Prefers `_height-lit` variant when both plain and pre-rendered exist.
+ *
+ * @param txDirPath - Path to the tileX directory on disk
+ * @param world - Normalised world name
+ * @param tileX - Parsed X coordinate
+ * @param levelId - Provider-specific level ID
+ * @param tileMap - Accumulator map keyed by "tileX/tileZ"
+ */
+function collectTilesFromDirectory(
+    txDirPath: string, world: string, tileX: number, levelId: number,
+    tileMap: Map<string, SourceTile>,
+): void {
+    for (const file of readdirSync(txDirPath)) {
+        const match = SOURCE_TILE_PATTERN.exec(file);
+        if (match?.groups && (!tileMap.has(`${tileX}/${match.groups.z}`) || match.groups.suffix)) {
+            const tileZ = Number.parseInt(match.groups.z, 10);
+            tileMap.set(`${tileX}/${tileZ}`, {
+                world, tileX, tileZ, levelId,
+                sourcePath: path.join(txDirPath, file),
+            });
+        }
+    }
+}
+
 function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
     const levelDir = path.join(SOURCE_TILES_DIR, world, String(levelId));
     if (!existsSync(levelDir)) { return []; }
 
-    const tiles: SourceTile[] = [];
+    const tileMap = new Map<string, SourceTile>();
     for (const txDirName of readdirSync(levelDir)) {
         const txDirPath = path.join(levelDir, txDirName);
         const tileX = Number.parseInt(txDirName, 10);
         if (!statSync(txDirPath).isDirectory() || Number.isNaN(tileX)) { continue; }
 
-        for (const file of readdirSync(txDirPath)) {
-            const match = /^(?<z>-?\d+)_height-lit\.png$/u.exec(file);
-            if (match?.groups) {
-                const tileZ = Number.parseInt(match.groups.z, 10);
-                tiles.push({
-                    world,
-                    tileX,
-                    tileZ,
-                    levelId,
-                    sourcePath: path.join(levelDir, txDirName, file),
-                });
-            }
-        }
+        collectTilesFromDirectory(txDirPath, world, tileX, levelId, tileMap);
     }
 
-    return tiles;
+    return [...tileMap.values()];
 }
 
 /**

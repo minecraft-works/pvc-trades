@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: TypeScript type check
+        run: npm run typecheck
+
       - name: Lint TypeScript
         run: npm run lint
 
@@ -39,8 +42,48 @@ jobs:
       - name: Lint HTML
         run: npm run lint:html
 
+      - name: Lint file naming conventions
+        run: npm run lint:filenames
+
+      - name: Lint lockfile security
+        run: npm run lint:lockfile
+
+      - name: Check dependency architecture
+        run: npm run lint:deps
+
+      - name: Check circular dependencies
+        run: npm run lint:circular
+
+      - name: Parse safety check
+        run: npm run lint:parse-safety
+
+      - name: Check eslint-disable budget
+        run: |
+          COUNT=$(grep -rc 'eslint-disable' src/ --include='*.ts' | awk -F: '{s+=$2}END{print s}')
+          BUDGET=0
+          echo "eslint-disable count: $COUNT (budget: $BUDGET)"
+          if [ "$COUNT" -gt "$BUDGET" ]; then
+            echo "::error::eslint-disable budget exceeded: $COUNT > $BUDGET"
+            exit 1
+          fi
+
       - name: Check for dead code
         run: npm run knip
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run unit tests
         run: npm test
@@ -141,7 +184,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: [check, build]
+    needs: [lint, test, build]
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
