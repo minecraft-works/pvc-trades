@@ -7,14 +7,13 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 import type { TileProvider } from '../src/map/providers/tile-provider';
 import { createTileProviderFromConfig } from '../src/stores/config-store';
-import { AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig } from '../src/types';
+import { blocksPerTile as pyramidBlocksPerTile, detailLevel } from '../src/tile-pyramid';
+import { type AppConfig, AppConfigSchema, DEFAULT_CONFIG, resolveRawConfig, type TilePyramidConfig } from '../src/types';
 import {
     calculateRateLimitDelay,
     type FetchResult,
-    getBaseMapTiles,
     getNormalizedWorld,
     getTilePath,
-    getUniqueTiles,
     type TileInfo,
     type TileUrlBuilder} from './tile-utils';
 
@@ -32,8 +31,10 @@ const FETCH_CONFIG = {
 
 /**
  * Load config.json from disk and create the matching tile provider.
+ *
+ * @returns The tile provider, parsed config, and homepage URL for stealth browsing.
  */
-function loadProviderFromConfig(): { provider: TileProvider; homepageUrl: string } {
+function loadProviderFromConfig(): { provider: TileProvider; config: AppConfig; homepageUrl: string } {
     const configPath = 'config.json';
     let config = DEFAULT_CONFIG;
     if (existsSync(configPath)) {
@@ -50,11 +51,59 @@ function loadProviderFromConfig(): { provider: TileProvider; homepageUrl: string
     const provider = createTileProviderFromConfig(config);
     // Derive homepage from baseUrl (strip path after host)
     const homepageUrl = new URL(config.dynmap.baseUrl).origin + '/';
-    return { provider, homepageUrl };
+    return { provider, config, homepageUrl };
+}
+
+/**
+ * Enumerate all detail-level tiles within the ROI bounding box.
+ * Uses the canonical pyramid config to compute tile coordinates from block bounds.
+ *
+ * @param pyramid - Tile pyramid configuration with renderBounds
+ * @param provider - Tile provider for detail level metadata
+ * @param urlBuilder - Builds tile URLs from world/x/z coordinates
+ * @returns Array of tile descriptors covering the ROI at detail level
+ */
+function getDetailTilesInRoi(
+    pyramid: TilePyramidConfig,
+    provider: TileProvider,
+    urlBuilder: TileUrlBuilder,
+): TileInfo[] {
+    const bounds = pyramid.renderBounds;
+    if (!bounds) {
+        console.warn('No renderBounds configured — cannot determine ROI. Skipping detail tiles.');
+        return [];
+    }
+
+    const level = detailLevel(pyramid);
+    const bpt = pyramidBlocksPerTile(level, pyramid);
+    const minTX = Math.floor(bounds.minX / bpt);
+    const maxTX = Math.floor((bounds.maxX - 1) / bpt);
+    const minTZ = Math.floor(bounds.minZ / bpt);
+    const maxTZ = Math.floor((bounds.maxZ - 1) / bpt);
+
+    const tiles: TileInfo[] = [];
+    for (let tx = minTX; tx <= maxTX; tx++) {
+        for (let tz = minTZ; tz <= maxTZ; tz++) {
+            tiles.push({
+                world: 'overworld',
+                tileX: tx,
+                tileZ: tz,
+                blocksPerTile: provider.detailLevel.blocksPerTile,
+                levelId: provider.detailLevel.id,
+                url: urlBuilder('overworld', tx, tz),
+                shops: [],
+            });
+        }
+    }
+    return tiles;
 }
 
 /**
  * Create a TileUrlBuilder from a provider for a specific detail level.
+ *
+ * @param provider - Tile provider used to resolve URLs
+ * @param level - The detail level to build URLs for
+ * @returns A function that maps (world, tileX, tileZ) to a tile URL
  */
 function createUrlBuilder(provider: TileProvider, level: TileProvider['detailLevel']): TileUrlBuilder {
     return (world: string, tileX: number, tileZ: number) => {
@@ -68,8 +117,13 @@ interface FetchTileResult extends FetchResult {
 }
 
 /**
- * Fetch a single tile by navigating to it (like fetch-data.ts does)
+ * Fetch a single tile by navigating to it (like fetch-data.ts does).
  * Saves in pyramid structure: {world}/{levelId}/{x}/{y}.png
+ *
+ * @param page - Playwright page instance for navigation
+ * @param tile - Tile descriptor with URL and coordinate metadata
+ * @param outputDir - Root output directory for saved tiles
+ * @returns Fetch result with success/cached status and optional error message
  */
 async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise<FetchTileResult> {
     const tilePath = getTilePath(tile.levelId, tile.tileX, tile.tileZ);
@@ -126,7 +180,10 @@ async function fetchTile(page: Page, tile: TileInfo, outputDir: string): Promise
 }
 
 /**
- * Sleep utility
+ * Sleep utility.
+ *
+ * @param ms - Duration to sleep in milliseconds
+ * @returns Promise that resolves after the specified delay
  */
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -137,54 +194,21 @@ async function main() {
     console.log(`Timestamp: ${new Date().toISOString()}`);
     
     // Load config and create provider
-    const { provider, homepageUrl } = loadProviderFromConfig();
+    const { provider, config, homepageUrl } = loadProviderFromConfig();
+    const pyramid = config.tilePyramid;
     console.log(`Tile provider: ${provider.name}`);
     console.log(`Detail level: ${provider.detailLevel.label} (${provider.detailLevel.blocksPerTile} blocks/tile)`);
-    console.log(`Overview level: ${provider.overviewLevel.label} (${provider.overviewLevel.blocksPerTile} blocks/tile)`);
     
-    // Create URL builders for each level
+    // Create URL builder for detail level
     const detailUrlBuilder = createUrlBuilder(provider, provider.detailLevel);
-    const overviewUrlBuilder = createUrlBuilder(provider, provider.overviewLevel);
     
-    // Read shop data
-    const dataPath = 'public/data.json';
-    if (!existsSync(dataPath)) {
-        console.error(`Error: ${dataPath} not found. Run fetch-data.js first.`);
-        process.exit(1);
+    // Get all detail tiles within the ROI
+    const tiles = getDetailTilesInRoi(pyramid, provider, detailUrlBuilder);
+    const bounds = pyramid.renderBounds;
+    if (bounds) {
+        console.log(`\nROI: ${bounds.minX},${bounds.minZ} → ${bounds.maxX},${bounds.maxZ}`);
     }
-    
-    const shopData = JSON.parse(readFileSync(dataPath, 'utf8'));
-    console.log(`Loaded ${shopData.data.length} shops`);
-    
-    // Get detail tiles around shops (5x5 grid per shop)
-    const shopTiles = getUniqueTiles(
-        shopData.data,
-        provider.detailLevel.blocksPerTile,
-        provider.detailLevel.id,
-        detailUrlBuilder
-    );
-    console.log(`\nShop tiles (${provider.detailLevel.label}): ${shopTiles.length}`);
-    
-    // Get overview base map tiles (range -5 to 4, which is 10x10 = 100 tiles)
-    const baseMapTiles = getBaseMapTiles(
-        -5, 4, -5, 4,
-        provider.overviewLevel.blocksPerTile,
-        provider.overviewLevel.id,
-        overviewUrlBuilder,
-        'overworld'
-    );
-    console.log(`Base map tiles (${provider.overviewLevel.label}): ${baseMapTiles.length}`);
-    
-    // Combine both sets, removing duplicates
-    const tilesMap = new Map<string, TileInfo>();
-    for (const tile of [...shopTiles, ...baseMapTiles]) {
-        const key = `${tile.world}/${tile.tileX}/${tile.tileZ}/${tile.blocksPerTile}`;
-        if (!tilesMap.has(key)) {
-            tilesMap.set(key, tile);
-        }
-    }
-    const tiles = [...tilesMap.values()];
-    console.log(`\nTotal unique tiles: ${tiles.length}`);
+    console.log(`Detail tiles to fetch: ${tiles.length}`);
     
     // Group by world and level for summary
     const byWorldLevel: Record<string, Record<string, number>> = {};
@@ -315,11 +339,10 @@ async function main() {
     
     console.log('\n=== Complete ===');
     console.log(`Provider: ${provider.name}`);
-    console.log(`Detail: ${provider.detailLevel.label} around shops`);
-    console.log(`Overview: ${provider.overviewLevel.label} base map coverage`);
+    console.log(`Detail: ${provider.detailLevel.label} within ROI`);
 }
 
-main().catch(error => {
+main().catch((error: unknown) => {
     console.error('Fatal error:', error);
     process.exit(1);
 });

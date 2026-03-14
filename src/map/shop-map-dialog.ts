@@ -21,16 +21,18 @@ import {
     getWorldId,
     toLeafletCoords,
     toLeafletCoordsRelative} from '../library.js';
+import { getConfig as getStoreConfig } from '../stores/config-store.js';
 import { playerPositionService } from '../stores/player-position-service.js';
+import {
+    blocksPerTile as pyramidBlocksPerTile,
+    detailLevel as pyramidDetailLevel} from '../tile-pyramid.js';
 import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
 import {
-    calculateOverviewCoords,
     loadTileManifest,
     TILE_CONFIG,
     tileExistsInManifest} from './tile-loader.js';
-import type { MapTileContext } from './tile-types.js';
 
 // ============================================================================
 // Module State
@@ -48,18 +50,63 @@ const onScreenPlayerMarkers = new Map<string, L.Marker>();
 let shopMapTileX = 0;
 let shopMapTileZ = 0;
 
+// Leaflet zoom thresholds for LOD switching
+/**
+ * Leaflet zoom level at which the detail (highest-resolution) tile level activates.
+ * With a factor-2 pyramid, each coarser level activates 1 zoom unit lower.
+ */
+const ZOOM_SHOW_DETAIL = 1;
+
+/**
+ * Human-readable label for a pyramid level.
+ *
+ * @param level - Pyramid level index
+ * @param detail - Detail (highest) pyramid level index
+ * @returns Display name like 'detail', 'overview', or 'level2'
+ */
+function getLodName(level: number, detail: number): string {
+    if (level === detail) { return 'detail'; }
+    if (level === 0) { return 'overview'; }
+    return `level${level}`;
+}
+
+/**
+ * Returns the pyramid level that should be displayed at the given Leaflet zoom.
+ * With a factor-2 pyramid, each level is 1 zoom unit apart.
+ *
+ * @param zoom - Current Leaflet zoom level
+ * @returns Active pyramid level index
+ */
+function getActivePyramidLevel(zoom: number): number {
+    const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
+    for (let l = detail; l > 0; l--) {
+        if (zoom >= ZOOM_SHOW_DETAIL - (detail - l)) { return l; }
+    }
+    return 0;
+}
+
+/**\n * Show only the pane for the active pyramid level, hide all others.\n *\n * @param zoom - Current Leaflet zoom level\n */
+function updateTilePaneVisibility(zoom: number): void {
+    if (!leafletMap) { return; }
+    const activeLevel = getActivePyramidLevel(zoom);
+    const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
+    for (let l = 0; l <= detail; l++) {
+        const pane = leafletMap.getPane(`tilesLevel${l}`);
+        if (pane) { pane.style.display = l === activeLevel ? '' : 'none'; }
+    }
+}
+
 // ============================================================================
 // Types
 // ============================================================================
 
-/** Tile context for shop map (different from navigation map) */
+/** Tile context for shop map */
 interface ShopMapTileContext {
     worldId: string;
     centerTileX: number;
     centerTileZ: number;
-    addedToMapOverview: Set<string>;
-    addedToMapIntermediate: Set<string>;
-    addedToMapDetail: Set<string>;
+    /** Dedup sets keyed by pyramid level — prevents the same URL being added twice */
+    addedToMap: Map<number, Set<string>>;
     manifest: Set<string>;
 }
 
@@ -120,22 +167,33 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
 }
 
 /**
- * Check whether every intermediate tile covering an overview tile's footprint
- * is present in the manifest.  When true, the intermediate layer fully covers
- * the overview, so the overview tile can be skipped.
- * @param manifest - Loaded tile manifest set
- * @param worldId - Normalised world identifier
- * @param ovX - Overview tile X coordinate
- * @param ovZ - Overview tile Z coordinate
- * @returns true if all intermediate tiles for this overview exist in the manifest
+ * Returns true if every finer-level tile that covers this tile's footprint
+ * exists in the manifest. When true this tile can be skipped — the finer
+ * layer will fully cover it (and is preferentially shown at lower zoom).
+ *
+ * @param manifest - Set of manifest keys for available tiles
+ * @param worldId - World identifier
+ * @param level - Pyramid level to check
+ * @param lx - Tile X coordinate
+ * @param lz - Tile Z coordinate
+ * @returns True if all finer tiles covering this footprint exist
  */
-function isOverviewCoveredByIntermediate(manifest: Set<string>, worldId: string, ovX: number, ovZ: number): boolean {
-    const scale = Math.round(TILE_CONFIG.overviewTileBlocks / TILE_CONFIG.intermediateTileBlocks);
-    const startX = ovX * scale;
-    const startZ = ovZ * scale;
+function isLevelCoveredByFiner(
+    manifest: Set<string>,
+    worldId: string,
+    level: number,
+    lx: number,
+    lz: number,
+): boolean {
+    const pyramid = getStoreConfig().tilePyramid;
+    const finerLevel = level + 1;
+    if (finerLevel > pyramidDetailLevel(pyramid)) { return false; }
+    const bpt = pyramidBlocksPerTile(level, pyramid);
+    const finerBpt = pyramidBlocksPerTile(finerLevel, pyramid);
+    const scale = Math.round(bpt / finerBpt);
     for (let dx = 0; dx < scale; dx++) {
         for (let dz = 0; dz < scale; dz++) {
-            if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.intermediateTileBlocks, startX + dx, startZ + dz)) {
+            if (!tileExistsInManifest(manifest, worldId, finerBpt, lx * scale + dx, lz * scale + dz)) {
                 return false;
             }
         }
@@ -144,161 +202,72 @@ function isOverviewCoveredByIntermediate(manifest: Set<string>, worldId: string,
 }
 
 /**
- * Check whether every detail tile covering an intermediate tile's footprint
- * is present in the manifest.  When true, the detail layer fully covers
- * the intermediate, so the intermediate tile can be skipped.
- * @param manifest - Loaded tile manifest set
- * @param worldId - Normalised world identifier
- * @param ix - Intermediate tile X coordinate
- * @param iz - Intermediate tile Z coordinate
- * @returns true if all detail tiles for this intermediate exist in the manifest
+ * Load one tile at a given pyramid level onto the map.
+ * Deduplication is handled via context.addedToMap.
+ *
+ * @param context - Tile context with manifest and dedup sets
+ * @param level - Pyramid level to load
+ * @param lx - Tile X coordinate
+ * @param lz - Tile Z coordinate
  */
-function isIntermediateCoveredByDetail(manifest: Set<string>, worldId: string, ix: number, iz: number): boolean {
-    const scale = Math.round(TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize);
-    const startX = ix * scale;
-    const startZ = iz * scale;
-    for (let dx = 0; dx < scale; dx++) {
-        for (let dz = 0; dz < scale; dz++) {
-            if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, startX + dx, startZ + dz)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function loadOverviewTileToShopMap(context: ShopMapTileContext, ovX: number, ovZ: number): void {
-    const { worldId, centerTileX, centerTileZ, addedToMapOverview, manifest } = context;
-    const mapKey = `ov:${ovX},${ovZ}`;
-    if (addedToMapOverview.has(mapKey)) { return; }
-    addedToMapOverview.add(mapKey);
-
-    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.overviewTileBlocks, ovX, ovZ)) { return; }
-    // Skip if intermediate tiles fully cover this overview — they will hide it anyway
-    if (isOverviewCoveredByIntermediate(manifest, worldId, ovX, ovZ)) { return; }
-    
-    const ratio = TILE_CONFIG.detailToOverviewRatio;
-    const overviewSize = TILE_CONFIG.overviewTileBlocks;
-    const startZ8X = ovX * ratio;
-    const startZ8Z = ovZ * ratio;
-    const dx = startZ8X - centerTileX;
-    const dy = startZ8Z - centerTileZ;
-    const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - overviewSize, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize]
-    ];
-    
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.fallbackZoom}/${ovX}/${ovZ}.${TILE_CONFIG.format}`;
-    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesOverview' }).addTo(leafletMap); }
-}
-
-function loadDetailTileToShopMap(context: ShopMapTileContext, tx: number, tz: number, dx: number, dy: number): void {
-    const { worldId, addedToMapDetail, manifest } = context;
-    const mapKey = `dt:${tx},${tz}`;
-    if (addedToMapDetail.has(mapKey)) { return; }
-    addedToMapDetail.add(mapKey);
-    
-    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, tx, tz)) { return; }
-    
-    const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize]
-    ];
-    
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.maxZoom}/${tx}/${tz}.${TILE_CONFIG.format}`;
-    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesDetail' }).addTo(leafletMap); }
-}
-
-function loadIntermediateTileToShopMap(context: ShopMapTileContext, ix: number, iz: number): void {
-    const { worldId, centerTileX, centerTileZ, addedToMapIntermediate, manifest } = context;
-    const mapKey = `im:${ix},${iz}`;
-    if (addedToMapIntermediate.has(mapKey)) { return; }
-    addedToMapIntermediate.add(mapKey);
-
-    if (!tileExistsInManifest(manifest, worldId, TILE_CONFIG.intermediateTileBlocks, ix, iz)) { return; }
-    // Skip if detail tiles fully cover this intermediate — they will hide it anyway
-    if (isIntermediateCoveredByDetail(manifest, worldId, ix, iz)) { return; }
-
-    const ratio = TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize;
-    const intermediateSize = TILE_CONFIG.intermediateTileBlocks;
-    const startDetailX = ix * ratio;
-    const startDetailZ = iz * ratio;
-    const dx = startDetailX - centerTileX;
-    const dy = startDetailZ - centerTileZ;
-    const bounds: L.LatLngBoundsExpression = [
-        [-dy * TILE_CONFIG.tileSize - intermediateSize, dx * TILE_CONFIG.tileSize],
-        [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + intermediateSize]
-    ];
-
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${TILE_CONFIG.intermediateZoom}/${ix}/${iz}.${TILE_CONFIG.format}`;
-    if (leafletMap) { L.imageOverlay(url, bounds, { pane: 'tilesIntermediate' }).addTo(leafletMap); }
-}
-
-/**
- * Load all intermediate tiles that cover the given viewport range.
- * Deduplicates by intermediate tile key so each tile URL is added once.
- * @param context - Tile context with world and center coords
- * @param minDx - Minimum detail-tile X offset from center
- * @param maxDx - Maximum detail-tile X offset from center
- * @param minDy - Minimum detail-tile Z offset from center
- * @param maxDy - Maximum detail-tile Z offset from center
- */
-function loadIntermediateViewportTiles(
+function loadTileAtLevel(
     context: ShopMapTileContext,
-    minDx: number, maxDx: number, minDy: number, maxDy: number,
+    level: number,
+    lx: number,
+    lz: number,
 ): void {
-    const intermediateScale = TILE_CONFIG.intermediateTileBlocks / TILE_CONFIG.tileSize;
-    const seen = new Set<string>();
-    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
-        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
-            const tx = context.centerTileX + dx;
-            const tz = context.centerTileZ + dy;
-            const ix = Math.floor(tx / intermediateScale);
-            const iz = Math.floor(tz / intermediateScale);
-            const indexKey = `${ix},${iz}`;
-            if (!seen.has(indexKey)) {
-                seen.add(indexKey);
-                loadIntermediateTileToShopMap(context, ix, iz);
-            }
-        }
-    }
+    const { worldId, centerTileX, centerTileZ, addedToMap, manifest } = context;
+    const pyramid = getStoreConfig().tilePyramid;
+    const bpt = pyramidBlocksPerTile(level, pyramid);
+
+    let seen = addedToMap.get(level);
+    if (!seen) { seen = new Set<string>(); addedToMap.set(level, seen); }
+    const mapKey = `${lx},${lz}`;
+    if (seen.has(mapKey)) { return; }
+    seen.add(mapKey);
+
+    if (!tileExistsInManifest(manifest, worldId, bpt, lx, lz)) { return; }
+    if (isLevelCoveredByFiner(manifest, worldId, level, lx, lz)) { return; }
+
+    // Compute Leaflet bounds from world block coords relative to center
+    const centerX = centerTileX * TILE_CONFIG.tileSize;
+    const centerZ = centerTileZ * TILE_CONFIG.tileSize;
+    const worldX = lx * bpt;
+    const worldZ = lz * bpt;
+    const dX = worldX - centerX;
+    const dZ = worldZ - centerZ;
+    const bounds: L.LatLngBoundsExpression = [
+        [-(dZ + bpt), dX],
+        [-dZ, dX + bpt],
+    ];
+
+    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${level}/${lx}/${lz}.${TILE_CONFIG.format}`;
+    if (leafletMap) { L.imageOverlay(url, bounds, { pane: `tilesLevel${level}` }).addTo(leafletMap); }
 }
 
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     if (!leafletMap) { return; }
-    const bounds = leafletMap.getBounds();
+    const mapBounds = leafletMap.getBounds();
     const currentZoom = leafletMap.getZoom();
-    
-    const minDx = Math.floor(bounds.getWest() / TILE_CONFIG.tileSize);
-    const maxDx = Math.ceil(bounds.getEast() / TILE_CONFIG.tileSize);
-    const minDy = -Math.ceil(bounds.getNorth() / TILE_CONFIG.tileSize);
-    const maxDy = -Math.floor(bounds.getSouth() / TILE_CONFIG.tileSize);
-    
-    const overviewTiles = new Set<string>();
-    for (let dy = minDy - 1; dy <= maxDy + 1; dy++) {
-        for (let dx = minDx - 1; dx <= maxDx + 1; dx++) {
-            const tx = context.centerTileX + dx;
-            const tz = context.centerTileZ + dy;
-            const ov = calculateOverviewCoords(tx, tz);
-            const key = `${ov.x},${ov.z}`;
-            if (!overviewTiles.has(key)) {
-                overviewTiles.add(key);
-                loadOverviewTileToShopMap(context, ov.x, ov.z);
-            }
-        }
-    }
-    
-    // Load intermediate tiles (derived from shaded detail) — always shown when available
-    // z=355: above overview (350) but below detail (360) so detail always wins
-    loadIntermediateViewportTiles(context, minDx, maxDx, minDy, maxDy);
 
-    // Load zoom 8 (detail) tiles when zoomed in enough
-    if (currentZoom > -3) {
-        for (let dy = minDy; dy <= maxDy; dy++) {
-            for (let dx = minDx; dx <= maxDx; dx++) {
-                const tx = context.centerTileX + dx;
-                const tz = context.centerTileZ + dy;
-                loadDetailTileToShopMap(context, tx, tz, dx, dy);
+    updateTilePaneVisibility(currentZoom);
+
+    const pyramid = getStoreConfig().tilePyramid;
+    const detail = pyramidDetailLevel(pyramid);
+    const centerX = context.centerTileX * TILE_CONFIG.tileSize;
+    const centerZ = context.centerTileZ * TILE_CONFIG.tileSize;
+
+    // Load tiles for every pyramid level lazily — dedup prevents re-fetching.
+    // Pane visibility controls which level is shown at each zoom.
+    for (let level = 0; level <= detail; level++) {
+        const bpt = pyramidBlocksPerTile(level, pyramid);
+        const minLx = Math.floor((centerX + mapBounds.getWest()) / bpt);
+        const maxLx = Math.floor((centerX + mapBounds.getEast()) / bpt);
+        const minLz = Math.floor((centerZ - mapBounds.getNorth()) / bpt);
+        const maxLz = Math.floor((centerZ - mapBounds.getSouth()) / bpt);
+        for (let lz = minLz; lz <= maxLz; lz++) {
+            for (let lx = minLx; lx <= maxLx; lx++) {
+                loadTileAtLevel(context, level, lx, lz);
             }
         }
     }
@@ -428,7 +397,7 @@ function createMapConfig(): L.MapOptions {
     return {
         crs: L.CRS.Simple,
         minZoom: -5,
-        maxZoom: 2,
+        maxZoom: 6,
         zoomControl: true,
         attributionControl: false,
         zoomSnap: 0,
@@ -442,20 +411,21 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     leafletMap = L.map(container, createMapConfig());
     
-    // Create custom panes for proper z-ordering: overview below intermediate below detail
-    // Default overlayPane z-index is 400; we put all three tile layers below it.
-    leafletMap.createPane('tilesOverview').style.zIndex = '350';
-    leafletMap.createPane('tilesIntermediate').style.zIndex = '355';
-    leafletMap.createPane('tilesDetail').style.zIndex = '360';
-    
-    const context: MapTileContext = {
+    // Create one pane per pyramid level for proper z-ordering.
+    // Level 0 (coarsest) has the lowest z-index; detail is on top.
+    // Default overlayPane z-index is 400; all tile panes go below it.
+    const pyramidForPanes = getStoreConfig().tilePyramid;
+    const detailLevelForPanes = pyramidDetailLevel(pyramidForPanes);
+    for (let l = 0; l <= detailLevelForPanes; l++) {
+        leafletMap.createPane(`tilesLevel${l}`).style.zIndex = String(350 + l);
+    }
+
+    const context: ShopMapTileContext = {
         worldId,
         manifest,
         centerTileX: tileX,
         centerTileZ: tileZ,
-        addedToMapOverview: new Set<string>(),
-        addedToMapIntermediate: new Set<string>(),
-        addedToMapDetail: new Set<string>(),
+        addedToMap: new Map<number, Set<string>>(),
     };
     
     const loadTiles = () => loadVisibleShopMapTiles(context);
@@ -477,7 +447,31 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         if (!leafletMap) { return; }
         const mapCenter = leafletMap.getCenter();
         const mcCoords = fromLeafletCoordsRelative(mapCenter.lat, mapCenter.lng, tileX, tileZ, TILE_CONFIG.tileSize);
-        coordinatesElement.textContent = `${worldDisplay}: ${mcCoords.x}, ${y}, ${mcCoords.z}`;
+        const zoom = leafletMap.getZoom();
+        const zoomString = zoom.toFixed(1);
+
+        // Determine active LOD info
+        const lodLevel = getActivePyramidLevel(zoom);
+        const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
+        const lodName = getLodName(lodLevel, detail);
+        const lodBlocks = pyramidBlocksPerTile(lodLevel, getStoreConfig().tilePyramid);
+        const px = getStoreConfig().tilePyramid.tileWidth;
+        const bpp = (lodBlocks / px).toFixed(2);
+
+        // Pixel position within the active LOD tile
+        const activeTileX = Math.floor(mcCoords.x / lodBlocks);
+        const activeTileZ = Math.floor(mcCoords.z / lodBlocks);
+        const blockInTileX = mcCoords.x - activeTileX * lodBlocks;
+        const blockInTileZ = mcCoords.z - activeTileZ * lodBlocks;
+        const pixelX = Math.round(blockInTileX / lodBlocks * px);
+        const pixelZ = Math.round(blockInTileZ / lodBlocks * px);
+
+        coordinatesElement.innerHTML =
+            `<li>world: ${worldDisplay} ${mcCoords.x}, ${y}, ${mcCoords.z}</li>` +
+            `<li>leaflet: lng=${mapCenter.lng.toFixed(1)} lat=${mapCenter.lat.toFixed(1)}</li>` +
+            `<li>tile: [${activeTileX},${activeTileZ}] pixel: ${pixelX},${pixelZ}</li>` +
+            `<li>zoom: ${zoomString} · level: ${lodLevel} (${lodName})</li>` +
+            `<li>${lodBlocks} blk/tile · ${px} px · ${bpp} blk/px</li>`;
     };
     
     const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
@@ -503,6 +497,38 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     leafletMap.on('move', () => { updateCoordsLabel(); updatePlayerMarkers(); });
     leafletMap.on('zoomend', () => { updateCoordsLabel(); updatePlayerMarkers(); updateZoomClass(); });
+
+    const mouseCoordElement = document.querySelector<HTMLElement>('#map-mouse-coords');
+    if (mouseCoordElement) {
+        leafletMap.on('mousemove', (event: L.LeafletMouseEvent) => {
+            if (!leafletMap) { return; }
+            const zoom = leafletMap.getZoom();
+            const lodLevel = getActivePyramidLevel(zoom);
+            const lodBlocks = pyramidBlocksPerTile(lodLevel, getStoreConfig().tilePyramid);
+            const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
+            const lodName = getLodName(lodLevel, detail);
+            const mc = fromLeafletCoordsRelative(event.latlng.lat, event.latlng.lng, tileX, tileZ, TILE_CONFIG.tileSize);
+            const tilePx = getStoreConfig().tilePyramid.tileWidth;
+            const atx = Math.floor(mc.x / lodBlocks);
+            const atz = Math.floor(mc.z / lodBlocks);
+            const pxX = Math.round(((mc.x - atx * lodBlocks) / lodBlocks) * tilePx);
+            const pxZ = Math.round(((mc.z - atz * lodBlocks) / lodBlocks) * tilePx);
+            const tilePath = `tiles/${worldId}/${lodLevel}/${atx}/${atz}.png`;
+            // Pixel within the tile as rendered on screen at current zoom: blockInTile × 2^zoom
+            const scale = Math.pow(2, zoom);
+            const screenPxX = Math.round((mc.x - atx * lodBlocks) * scale);
+            const screenPxZ = Math.round((mc.z - atz * lodBlocks) * scale);
+            const renderedSize = Math.round(lodBlocks * scale);
+            mouseCoordElement.innerHTML =
+                `<li>world: ${mc.x}, ${y}, ${mc.z}</li>` +
+                `<li>leaflet: lng=${event.latlng.lng.toFixed(1)} lat=${event.latlng.lat.toFixed(1)}</li>` +
+                `<li>L${lodLevel} (${lodName}) tile: ${atx}, ${atz}</li>` +
+                `<li>tile img px (0–${tilePx}): ${pxX}, ${pxZ}</li>` +
+                `<li>screen px (0–${renderedSize}): ${screenPxX}, ${screenPxZ}</li>` +
+                `<li>${tilePath}</li>`;
+        });
+        leafletMap.on('mouseout', () => { mouseCoordElement.innerHTML = ''; });
+    }
     
     leafletMap.invalidateSize();
     const containerSize = leafletMap.getSize();

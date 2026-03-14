@@ -54,7 +54,6 @@ import {
     extractSubRegionRgba,
     isDualLayerTile,
     type LightingConfig,
-    quantizeHeightmap,
     upsampleBilinear,
     upsampleNearest,
 } from './heightmap-shader';
@@ -86,7 +85,6 @@ interface CanonicalEntry {
     tileX: number;
     tileZ: number;
     blocksPerTile: number;
-    heightmap?: { min: number; max: number };
 }
 
 interface SplitResult {
@@ -143,8 +141,6 @@ interface DualLayerSubTileContext {
     blockLights: Float32Array | undefined;
     /** Lighting configuration */
     lightingConfig: LightingConfig;
-    /** Whether to emit heightmap sidecar tiles */
-    emitHeightmap: boolean;
     /** Pyramid configuration */
     pyramid: TilePyramidConfig;
 }
@@ -210,7 +206,7 @@ function findSourceTilesInWorld(world: string, levelId: number): SourceTile[] {
         if (!statSync(txDirPath).isDirectory() || Number.isNaN(tileX)) { continue; }
 
         for (const file of readdirSync(txDirPath)) {
-            const match = /^(?<z>-?\d+)\.png$/u.exec(file);
+            const match = /^(?<z>-?\d+)_height-lit\.png$/u.exec(file);
             if (match?.groups) {
                 const tileZ = Number.parseInt(match.groups.z, 10);
                 tiles.push({
@@ -254,11 +250,17 @@ function findWorlds(): string[] {
  * @returns The pipeline with the format encoder applied
  */
 function applyFormat(pipeline: sharp.Sharp, format: string): sharp.Sharp {
+    // Flatten alpha before encoding — all canonical tiles are opaque terrain.
+    // Unexplored areas in sparse mosaics render as black rather than transparent,
+    // which is acceptable and avoids the overhead of an extra alpha channel.
+    const flat = pipeline.flatten({ background: { r: 0, g: 0, b: 0 } });
     switch (format) {
-        case 'webp': { return pipeline.webp({ lossless: true }); }
-        case 'avif': { return pipeline.avif(); }
-        case 'jpeg': { return pipeline.jpeg({ progressive: true, quality: 92, mozjpeg: true }); }
-        default: { return pipeline.png({ progressive: true }); }
+        // lossless=true + effort=6 (max) gives best compression without quality loss.
+        // nearLossless + quality 100 not used — true lossless is smaller for pixel-art terrain.
+        case 'webp': { return flat.webp({ lossless: true, effort: 6 }); }
+        case 'avif': { return flat.avif(); }
+        case 'jpeg': { return flat.jpeg({ progressive: true, quality: 92, mozjpeg: true }); }
+        default: { return flat.png({ compressionLevel: 9, effort: 10 }); }
     }
 }
 
@@ -382,48 +384,6 @@ async function applySlopeEnhancements(
  * @param shadedH - Map height in pixels
  * @param pyramid - Canonical tile size configuration
  */
-async function writeFloatMapAsDiagnosticTile(
-    map: Float32Array,
-    suffix: string,
-    world: string,
-    canonLevel: number,
-    canonTileX: number,
-    canonTileZ: number,
-    shadedW: number,
-    shadedH: number,
-    pyramid: TilePyramidConfig,
-): Promise<void> {
-    const diagPath = path.join(
-        TILES_DIR, world,
-        String(canonLevel), String(canonTileX),
-        `${canonTileZ}.${suffix}.png`,
-    );
-    const diagRgba = Buffer.alloc(map.length * 4);
-    for (const [i, mapValue] of map.entries()) {
-        const v = Math.min(255, Math.max(0, Math.round(mapValue * 255)));
-        const offset = i * 4;
-        diagRgba[offset]     = v;
-        diagRgba[offset + 1] = v;
-        diagRgba[offset + 2] = v;
-        diagRgba[offset + 3] = 255;
-    }
-    let diagPipeline = sharp(diagRgba, { raw: { width: shadedW, height: shadedH, channels: 4 } });
-    if (shadedW >= pyramid.tileWidth && shadedH >= pyramid.tileHeight) {
-        if (shadedW !== pyramid.tileWidth || shadedH !== pyramid.tileHeight) {
-            diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-        }
-    } else {
-        const scaleX = Math.ceil(pyramid.tileWidth  / shadedW);
-        const scaleY = Math.ceil(pyramid.tileHeight / shadedH);
-        const upW = shadedW * scaleX;
-        const upH = shadedH * scaleY;
-        diagPipeline = diagPipeline.resize(upW, upH, { kernel: 'nearest' });
-        // Always trim — when upW === tileWidth this is a no-op crop, otherwise removes border pixel.
-        diagPipeline = diagPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-    }
-    await diagPipeline.png({ compressionLevel: 9 }).toFile(diagPath);
-}
-
 /**
  * Scale a shaded RGBA buffer to canonical tile dimensions and write it to disk.
  *
@@ -472,7 +432,7 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
     const {
         dx, dz, source, splitFactor, canonLevel, canonBpt,
         cropWidth, cropHeight, sourceWidth, colorBuffer, heights, blockLights,
-        lightingConfig, emitHeightmap, pyramid,
+        lightingConfig, pyramid,
     } = context;
 
     const canonTileX = source.tileX * splitFactor + dx;
@@ -482,12 +442,6 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         String(canonLevel), String(canonTileX),
         `${canonTileZ}.${pyramid.format}`,
     );
-    const heightmapPath = path.join(
-        TILES_DIR, source.world,
-        String(canonLevel), String(canonTileX),
-        `${canonTileZ}.height.png`,
-    );
-
     // Extract sub-regions
     const startX = dx * cropWidth;
     const startZ = dz * cropHeight;
@@ -507,28 +461,18 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
 
     // Compute shade map and apply shading pipeline at (potentially upscaled) resolution
     const shade = computeShadeMap(shadedHeights, shadedW, shadedH, lightingConfig);
-    let shadowMap: Float32Array;
-    let aoMap: Float32Array;
-    let diffuseModifier: Float32Array;
-    let specularAdd: Float32Array;
-
     if (lightingConfig.model === 'slope') {
         // BlueMap-exact slope shading + cool shadows + height-aware glow + saturation boost
-        const { hardShadow, ao } = await applySlopeEnhancements(
+        await applySlopeEnhancements(
             shadedColor, shadedHeights, shadedBlockLights, shadedW, shadedH,
             lightingConfig.heightScale, lightingConfig.shadingScale,
         );
-        const n = shadedW * shadedH;
-        shadowMap       = hardShadow;
-        aoMap           = ao;
-        diffuseModifier = new Float32Array(n).fill(1);
-        specularAdd     = new Float32Array(n).fill(0);
     } else {
-        shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
-        aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
-        ({ diffuseModifier, specularAdd } = computeMaterialModifiers(
+        const shadowMap = computeShadowMap(shadedHeights, shadedW, shadedH, lightingConfig);
+        const aoMap = computeAmbientOcclusion(shadedHeights, shadedW, shadedH, lightingConfig);
+        const { diffuseModifier, specularAdd } = computeMaterialModifiers(
             shadedColor, shadedHeights, shadedW, shadedH, lightingConfig, aoMap,
-        ));
+        );
         // Apply full shading pipeline (shade × shadow × AO × material + specular + blockLight)
         applyFullShading(
             shadedColor, shade, shadowMap, aoMap,
@@ -539,14 +483,11 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
         applyUnsharpMask(shadedColor, shadedW, shadedH, lightingConfig);
     }
 
-    // Quantize from original (unscaled) heights — min/max metadata is geometric, not resolution-dependent
-    const quantized = quantizeHeightmap(subHeights, cropWidth, cropHeight);
     const entry: CanonicalEntry = {
         world: source.world,
         tileX: canonTileX,
         tileZ: canonTileZ,
         blocksPerTile: canonBpt,
-        heightmap: { min: quantized.min, max: quantized.max },
     };
 
     if (existsSync(outputPath)) {
@@ -555,74 +496,8 @@ async function renderDualLayerSubTile(context: DualLayerSubTileContext): Promise
 
     mkdirSync(path.dirname(outputPath), { recursive: true });
 
-    // Helper to write a diagnostic tile from a Float32Array map
-    // Binds context so call sites remain the same as before the refactor
-    const writeDiagnosticTile = (map: Float32Array, suffix: string): Promise<void> =>
-        writeFloatMapAsDiagnosticTile(map, suffix, source.world, canonLevel, canonTileX, canonTileZ, shadedW, shadedH, pyramid);
-
-    // Write diagnostic tiles for each technique (only when enabled; skipped in slope mode)
-    if (lightingConfig.model !== 'slope') {
-        if (lightingConfig.shadowCasting.enabled) {
-            await writeDiagnosticTile(shadowMap, 'shadow');
-        }
-        if (lightingConfig.ambientOcclusion.enabled) {
-            await writeDiagnosticTile(aoMap, 'ao');
-        }
-        if (lightingConfig.materialShading.enabled) {
-            await writeDiagnosticTile(diffuseModifier, 'material');
-            await writeDiagnosticTile(specularAdd, 'specular');
-        }
-    }
-    // Write shade map diagnostic (slope shade as a grayscale map)
-    const diagShadeName = lightingConfig.model === 'slope' ? 'slope' : `normals${lightingConfig.normalKernelSize}x${lightingConfig.normalKernelSize}`;
-    await writeDiagnosticTile(shade, diagShadeName);
-
     // Write shaded color tile at canonical tile dimensions
     await writeShadedColorTile(shadedColor, shadedW, shadedH, pyramid, outputPath);
-
-    // For unsharp mask diagnostic, we need to compare the shaded tile with a non-sharpened version
-    if (lightingConfig.unsharpMask.enabled) {
-        // Re-create the color buffer without unsharp mask for comparison
-        const diagColor = await sharp(subColor, { raw: { width: cropWidth, height: cropHeight, channels: 4 } })
-            .resize(shadedW, shadedH, { kernel: 'nearest' })
-            .raw()
-            .toBuffer();
-        applyFullShading(diagColor, shade, shadowMap, aoMap, diffuseModifier, specularAdd, shadedBlockLights, lightingConfig.blockLightBoost);
-        // Compute difference between sharpened and unsharpened as diagnostic
-        const unsharpDiff = new Float32Array(shade.length);
-        for (let i = 0; i < shade.length; i++) {
-            const offset = i * 4;
-            const sharpR = shadedColor[offset];
-            const noSharpR = diagColor[offset];
-            // Normalize diff to [0..1] range (0.5 = no change, >0.5 = brighter, <0.5 = darker)
-            unsharpDiff[i] = 0.5 + (sharpR - noSharpR) / 510;
-        }
-        await writeDiagnosticTile(unsharpDiff, 'unsharp');
-    }
-
-    // Write heightmap sidecar at the same output dimensions
-    if (emitHeightmap) {
-        let heightPipeline = sharp(quantized.data, {
-            raw: { width: cropWidth, height: cropHeight, channels: 1 },
-        });
-        if (cropWidth !== pyramid.tileWidth || cropHeight !== pyramid.tileHeight) {
-            if (cropWidth >= pyramid.tileWidth) {
-                // Slightly oversized (e.g. 501px with scale>1 already handled) — trim
-                heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-            } else {
-                // Under-sized (scale=1, cropWidth=501<1000) — upscale to next integer multiple then trim
-                const scaleX = Math.ceil(pyramid.tileWidth / cropWidth);
-                const scaleY = Math.ceil(pyramid.tileHeight / cropHeight);
-                const upW = cropWidth * scaleX;
-                const upH = cropHeight * scaleY;
-                heightPipeline = heightPipeline.resize(upW, upH, { kernel: 'nearest' });
-                // Always trim to tileWidth×tileHeight — when upW===tileWidth this is a no-op,
-                // otherwise removes the seamless border pixel.
-                heightPipeline = heightPipeline.extract({ left: 0, top: 0, width: pyramid.tileWidth, height: pyramid.tileHeight });
-            }
-        }
-        await heightPipeline.png({ compressionLevel: 9 }).toFile(heightmapPath);
-    }
 
     return { entry, wasRendered: true };
 }
@@ -673,14 +548,12 @@ async function splitSourceTile(options: SplitOptions): Promise<SplitResult> {
         const blockLights = lightingConfig.blockLightBoost > 0
             ? decodeBlockLight(heightBuffer, sourceWidth, colorHeight)
             : undefined;
-        const emitHeightmap = pyramid.lighting?.emitHeightmapTiles ?? false;
-
         for (let dx = 0; dx < splitFactor; dx++) {
             for (let dz = 0; dz < splitFactor; dz++) {
                 const { entry, wasRendered } = await renderDualLayerSubTile({
                     dx, dz, source, splitFactor, canonLevel, canonBpt,
                     cropWidth, cropHeight, sourceWidth, colorBuffer, heights, blockLights,
-                    lightingConfig, emitHeightmap, pyramid,
+                    lightingConfig, pyramid,
                 });
                 entries.push(entry);
                 rendered += wasRendered ? 1 : 0;
@@ -803,7 +676,7 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
     }
 
     // Filter tiles to renderBounds when configured (block-coordinate bounding box)
-    const bounds = pyramid.lighting?.renderBounds;
+    const bounds = pyramid.renderBounds;
     if (bounds) {
         const sourceBpt = tiles[0].levelId === 0 ? pyramid.baseBlocksPerTile : (
             // Derive source blocks-per-tile from the first tile's level metadata.
@@ -838,11 +711,9 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
     let rendered = 0;
     let skipped = 0;
 
-    const concurrency = Math.max(1, Number.parseInt(process.env.RENDER_CONCURRENCY ?? '1', 10));
-    for (let i = 0; i < tiles.length; i += concurrency) {
-        const batch = tiles.slice(i, i + concurrency);
-        const outcomes = await Promise.allSettled(
-            batch.map(tile => splitSourceTile({
+    for (const tile of tiles) {
+        try {
+            const result = await splitSourceTile({
                 source: tile,
                 cropWidth: crop.cropWidth,
                 cropHeight: crop.cropHeight,
@@ -851,17 +722,13 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
                 splitFactor,
                 pyramid,
                 lightingConfig,
-            }))
-        );
-        for (const [index, outcome] of outcomes.entries()) {
-            if (outcome.status === 'fulfilled') {
-                entries.push(...outcome.value.entries);
-                rendered += outcome.value.rendered;
-                skipped += outcome.value.skipped;
-            } else {
-                const message = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
-                console.warn(`  [WARN] Failed to render ${batch[index].sourcePath}: ${message}`);
-            }
+            });
+            entries.push(...result.entries);
+            rendered += result.rendered;
+            skipped += result.skipped;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn(`  [WARN] Failed to render ${tile.sourcePath}: ${message}`);
         }
     }
 
@@ -880,7 +747,7 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
  *
  * @param groupEntries - Detail-level entries that share the same intermediate parent
  * @param world - Normalised world name
- * @param detail - Detail level index
+ * @param sourceLevel - Level index of the source (detail) tiles
  * @param scale - Pyramid scale factor (tiles per intermediate tile side)
  * @param pyramid - Pyramid configuration (tile dimensions and format)
  * @returns Array of overlay options ready for sharp.composite()
@@ -888,7 +755,7 @@ async function processSourceLevel(options: LevelProcessOptions): Promise<SplitRe
 async function buildMosaicComposites(
     groupEntries: CanonicalEntry[],
     world: string,
-    detail: number,
+    sourceLevel: number,
     scale: number,
     pyramid: TilePyramidConfig,
 ): Promise<sharp.OverlayOptions[]> {
@@ -898,7 +765,7 @@ async function buildMosaicComposites(
         const localZ = ((detailEntry.tileZ % scale) + scale) % scale;
         const detailPath = path.join(
             TILES_DIR, world,
-            String(detail), String(detailEntry.tileX),
+            String(sourceLevel), String(detailEntry.tileX),
             `${detailEntry.tileZ}.${pyramid.format}`,
         );
         // Guard against stale cached tiles whose dimensions no longer match the
@@ -944,27 +811,28 @@ async function buildMosaicComposites(
  * (overviewLevel = 0), so there is no conflict.
  *
  * @param world - Normalised world name
- * @param detailEntries - Canonical entries from the most-detail pass
+ * @param sourceEntries - Canonical entries from the source level to derive from
+ * @param sourceLevel - Level index of the source tiles
  * @param pyramid - Pyramid configuration
  * @returns SplitResult with new entries and render/skip counts
  */
 async function deriveIntermediateTiles(
     world: string,
-    detailEntries: CanonicalEntry[],
+    sourceEntries: CanonicalEntry[],
+    sourceLevel: number,
     pyramid: TilePyramidConfig,
 ): Promise<SplitResult> {
-    const detail = detailLevel(pyramid);
-    const intermediateLevel = detail - 1;
-    if (intermediateLevel < 0) {
+    const targetLevel = sourceLevel - 1;
+    if (targetLevel < 0) {
         return { entries: [], rendered: 0, skipped: 0 };
     }
 
     const scale = pyramid.scaleFactor;
-    const intermediateBpt = pyramidBlocksPerTile(intermediateLevel, pyramid);
+    const targetBpt = pyramidBlocksPerTile(targetLevel, pyramid);
 
-    // Group detail entries by parent intermediate tile coordinate
+    // Group source entries by parent tile coordinate at the target level
     const groups = new Map<string, CanonicalEntry[]>();
-    for (const entry of detailEntries) {
+    for (const entry of sourceEntries) {
         if (entry.world !== world) { continue; }
         const parentX = Math.floor(entry.tileX / scale);
         const parentZ = Math.floor(entry.tileZ / scale);
@@ -987,7 +855,7 @@ async function deriveIntermediateTiles(
     let rendered = 0;
     let skipped = 0;
 
-    console.log(`\n[${world}] Deriving ${groups.size} intermediate (level ${intermediateLevel}) tiles from ${detailEntries.length} detail tiles (${scale}x${scale} -> 1)`);
+    console.log(`\n[${world}] Deriving ${groups.size} level-${targetLevel} tiles from ${sourceEntries.length} level-${sourceLevel} tiles (${scale}x${scale} -> 1)`);
 
     for (const [groupKey, groupEntries] of groups) {
         const slashPos = groupKey.indexOf('/');
@@ -996,7 +864,7 @@ async function deriveIntermediateTiles(
 
         const outputPath = path.join(
             TILES_DIR, world,
-            String(intermediateLevel), String(parentX),
+            String(targetLevel), String(parentX),
             `${parentZ}.${pyramid.format}`,
         );
 
@@ -1004,25 +872,33 @@ async function deriveIntermediateTiles(
             world,
             tileX: parentX,
             tileZ: parentZ,
-            blocksPerTile: intermediateBpt,
+            blocksPerTile: targetBpt,
         };
 
         if (existsSync(outputPath)) {
             entries.push(entry);
             skipped++;
         } else {
-            const composites = await buildMosaicComposites(groupEntries, world, detail, scale, pyramid);
+            const composites = await buildMosaicComposites(groupEntries, world, sourceLevel, scale, pyramid);
             if (composites.length > 0) {
                 mkdirSync(path.dirname(outputPath), { recursive: true });
 
-                let pipeline = sharp({
+                // Sharp's chained .composite().resize() pipeline bleeds content from
+                // opaque source tiles across the transparent mosaic background when
+                // resizing. Buffer the composite first, then resize in a separate pass
+                // to get correct alpha-aware downsampling.
+                const mosaicBuffer = await sharp({
                     create: {
                         width: mosaicW,
                         height: mosaicH,
                         channels: 4,
                         background: { r: 0, g: 0, b: 0, alpha: 0 },
                     },
-                }).composite(composites).resize(pyramid.tileWidth, pyramid.tileHeight, { kernel: 'lanczos3' });
+                }).composite(composites).raw().ensureAlpha().toBuffer();
+
+                let pipeline = sharp(mosaicBuffer, {
+                    raw: { width: mosaicW, height: mosaicH, channels: 4 },
+                }).resize(pyramid.tileWidth, pyramid.tileHeight, { kernel: 'lanczos3' });
                 pipeline = applyFormat(pipeline, pyramid.format);
                 await pipeline.toFile(outputPath);
 
@@ -1059,10 +935,8 @@ async function main(): Promise<void> {
 
     // Validate split factors (must be integer for simple splitting)
     const canonDetailBpt = pyramidBlocksPerTile(detailLevel(pyramid), pyramid);
-    const canonOverviewBpt = pyramidBlocksPerTile(overviewLevel(), pyramid);
 
     const detailSplit = provider.detailLevel.blocksPerTile / canonDetailBpt;
-    const overviewSplit = provider.overviewLevel.blocksPerTile / canonOverviewBpt;
 
     if (!Number.isInteger(detailSplit)) {
         console.error(`\nERROR: Source detail blocks/tile (${provider.detailLevel.blocksPerTile}) is not a multiple of canonical (${canonDetailBpt}).`);
@@ -1070,13 +944,7 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    if (!Number.isInteger(overviewSplit)) {
-        console.error(`\nERROR: Source overview blocks/tile (${provider.overviewLevel.blocksPerTile}) is not a multiple of canonical (${canonOverviewBpt}).`);
-        console.error('Non-aligned grid compositing is not yet supported.');
-        process.exit(1);
-    }
-
-    console.log(`\nSplit factors: detail=${detailSplit}×${detailSplit}, overview=${overviewSplit}×${overviewSplit}`);
+    console.log(`\nSplit factors: detail=${detailSplit}×${detailSplit}`);
 
     // Resolve lighting configuration (only for BlueMap sources with lighting enabled)
     const lightingCfg = pyramid.lighting;
@@ -1104,7 +972,6 @@ async function main(): Promise<void> {
         console.log(`  Unsharp mask: ${lightingConfig.unsharpMask.enabled ? 'enabled' : 'disabled'}`);
         console.log(`  Material shading: ${lightingConfig.materialShading.enabled ? 'enabled' : 'disabled'}`);
         console.log(`  Normal kernel size: ${lightingConfig.normalKernelSize}×${lightingConfig.normalKernelSize}`);
-        console.log(`  Heightmap tiles: ${lightingCfg.emitHeightmapTiles ? 'enabled' : 'disabled'}`);
     } else {
         console.log('\nLighting: disabled');
     }
@@ -1136,28 +1003,17 @@ async function main(): Promise<void> {
         totalRendered += detail.rendered;
         totalSkipped += detail.skipped;
 
-        // Derive intermediate level from shaded detail tiles (must run before
-        // the LOD‑4 overview pass so skip-if-exists protects any intermediate
-        // tiles that happen to share a path — in practice they don't since
-        // overview writes only to overviewLevel() = 0, but the ordering makes
-        // the intent explicit: more-detailed derivation always wins).
-        const intermediate = await deriveIntermediateTiles(world, detail.entries, pyramid);
-        allEntries.push(...intermediate.entries);
-        totalRendered += intermediate.rendered;
-        totalSkipped += intermediate.skipped;
-
-        const overview = await processSourceLevel({
-            levelId: provider.overviewLevel.id,
-            canonLevel: overviewLevel(),
-            splitFactor: overviewSplit,
-            label: 'overview',
-            world,
-            pyramid,
-            lightingConfig,
-        });
-        allEntries.push(...overview.entries);
-        totalRendered += overview.rendered;
-        totalSkipped += overview.skipped;
+        // Cascade downsampling from detail-1 down to 0 — each level is derived
+        // purely from the level above it, so lighting calculations run only once
+        // at the detail level.
+        let currentEntries = detail.entries;
+        for (let sourceLevel = detailLevel(pyramid); sourceLevel > 0; sourceLevel--) {
+            const derived = await deriveIntermediateTiles(world, currentEntries, sourceLevel, pyramid);
+            allEntries.push(...derived.entries);
+            totalRendered += derived.rendered;
+            totalSkipped += derived.skipped;
+            currentEntries = derived.entries;
+        }
     }
 
     // Deduplicate entries (same canonical tile from different source tiles)
@@ -1187,7 +1043,6 @@ async function main(): Promise<void> {
     });
 
     // Write canonical manifest
-    mkdirSync(TILES_DIR, { recursive: true });
     writeFileSync(MANIFEST_PATH, JSON.stringify(uniqueEntries, null, 2));
 
     console.log('\n=== Render Summary ===');
