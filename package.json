@@ -114,8 +114,8 @@
   "dependencies": {
     "debug": "^4.4.3",
     "leaflet": "^1.9.4",
-    "virtual-scroller": "^1.15.3",
-    "zod": "^4.3.5"
+    "virtual-scroller": "^1.16.4",
+    "zod": "^4.4.3"
   },
   "overrides": {
     "minimatch": ">=10.2.3"
