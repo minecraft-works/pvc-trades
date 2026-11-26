@@ -190,7 +190,7 @@ Given('I am navigating with {int} shops in my route', async ({ page }, shopCount
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
 });
 
-Given('I am navigating with {int} shop remaining', async ({ page }) => {
+Given('I am navigating with {int} shop remaining', async ({ page }, _count: number) => {
     // Clear existing cart items first - use correct storage keys
     await page.evaluate(() => {
         localStorage.removeItem('shop-trades-cart');  // Correct key!

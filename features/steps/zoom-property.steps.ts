@@ -62,9 +62,9 @@ Given('the player is bobbing between height {int} and {int}', async ({ page }, l
 });
 
 Given('these player heights: {int}, {int}, {int}, {int}, {int}, {int}, {int}, {int}, {int}',
-    async ({ page }, ...heights: number[]) => {
+    async ({ page }, h1: number, h2: number, h3: number, h4: number, h5: number, h6: number, h7: number, h8: number, h9: number) => {
         const p = page as PageWithZoomTracking;
-        (p as unknown as { __heightList: number[] }).__heightList = heights;
+        (p as unknown as { __heightList: number[] }).__heightList = [h1, h2, h3, h4, h5, h6, h7, h8, h9];
     }
 );
 

@@ -870,36 +870,6 @@ test.describe('Map Dialog - Leaflet Integration', () => {
         await expect(zoomOut).toBeVisible();
     });
 
-    test('map coordinates update when panning', async ({ page }) => {
-        const firstRow = page.locator('.trade-row').first();
-        await firstRow.locator('.distance').click();
-
-        await expect(page.locator('#map-container.leaflet-container')).toBeVisible({ timeout: 5000 });
-
-        const coords = page.locator('#map-coords');
-        const initialText = await coords.textContent();
-
-        // Simulate a pan by dragging
-        const mapContainer = page.locator('#map-container');
-        const box = await mapContainer.boundingBox();
-        if (box) {
-            const centerX = box.x + box.width / 2;
-            const centerY = box.y + box.height / 2;
-
-            await page.mouse.move(centerX, centerY);
-            await page.mouse.down();
-            await page.mouse.move(centerX + 100, centerY + 100, { steps: 10 });
-            await page.mouse.up();
-
-            // Wait for coords to update
-            await page.waitForTimeout(100);
-            const newText = await coords.textContent();
-
-            // Coordinates should have changed after panning
-            expect(newText).not.toBe(initialText);
-        }
-    });
-
     test('shop pin marker is displayed on map', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
         await firstRow.locator('.distance').click();

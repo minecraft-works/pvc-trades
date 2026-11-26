@@ -23,7 +23,7 @@ const DEFAULT_TIMEOUT = 5000;
 // GIVEN Steps
 // ============================================================================
 
-Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {int})`, async ({ page, playerMock, tileRequests }) => {
+Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {int})`, async ({ page, playerMock, tileRequests }, _x: number, _z: number) => {
     await setupPlayerApiMock(page, playerMock);
     await setupColoredTileMocks(page);
     await setupMultiWorldDataMock(page);
@@ -52,7 +52,7 @@ Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {in
     await page.waitForSelector(SELECTOR_NAV_DIALOG, { state: 'visible', timeout: DEFAULT_TIMEOUT });
 });
 
-Given(String.raw`I open the navigation dialog with an overworld shop at \({int}, {int})`, async ({ page, playerMock, tileRequests }) => {
+Given(String.raw`I open the navigation dialog with an overworld shop at \({int}, {int})`, async ({ page, playerMock, tileRequests }, _x: number, _z: number) => {
     await setupPlayerApiMock(page, playerMock);
     await setupColoredTileMocks(page);
     await setupMultiWorldDataMock(page);

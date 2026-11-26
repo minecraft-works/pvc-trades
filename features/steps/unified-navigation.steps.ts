@@ -23,12 +23,12 @@ const SELECTOR_TAB_NAVIGATE = '#tab-navigate';
 // GIVEN Steps
 // ============================================================================
 
-Given(String.raw`there is a nether shop at \({int}, {int}\)`, async ({ page }) => {
+Given(String.raw`there is a nether shop at \({int}, {int}\)`, async ({ page }, _x: number, _z: number) => {
     // The mock data already has nether shops - this step documents the setup
     await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: DEFAULT_TIMEOUT });
 });
 
-Given(String.raw`there is an overworld shop at \({int}, {int}\)`, async ({ page }) => {
+Given(String.raw`there is an overworld shop at \({int}, {int}\)`, async ({ page }, _x: number, _z: number) => {
     // The mock data already has overworld shops - this step documents the setup
     await page.waitForSelector(SELECTOR_TRADE_ROW, { state: 'visible', timeout: DEFAULT_TIMEOUT });
 });
@@ -125,7 +125,7 @@ Then('the nether shop marker should be positioned at 8x nether coordinates', asy
     // Get the nether shop's raw and display coordinates from the route
     const coords = await page.evaluate(() => {
         // @ts-expect-error - exposed for testing
-        const route = globalThis.__navCurrentWorldRoute as Array<{ world: string; x: number; z: number; displayX: number; displayZ: number }> | undefined;
+        const route = globalThis.__navCurrentWorldRoute as { world: string; x: number; z: number; displayX: number; displayZ: number }[] | undefined;
         if (!route) { return; }
         // Find nether shop
         const netherStop = route.find((s) => s.world.toLowerCase().includes('nether'));
@@ -286,8 +286,9 @@ Then('the player marker should stay at approximately the same map position', asy
 // ============================================================================
 
 Then('the route line should connect all stops', async ({ page }) => {
+    // In follow mode the map is centered on the player, so the line may be outside the viewport
     const polyline = page.locator('path.leaflet-interactive');
-    await expect(polyline.first()).toBeVisible();
+    await expect(polyline.first()).toBeAttached();
 });
 
 Then('the route should go from player to nearest shop', async ({ page }) => {
@@ -464,10 +465,10 @@ When('I hover over the nether shop marker', async ({ page }) => {
     // Dispatch mouseover/mouseenter directly to trigger the Leaflet tooltip without
     // requiring the element to be within browser viewport bounds.
     await page.evaluate((selector) => {
-        const el = document.querySelector(selector);
-        if (el) {
-            el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
-            el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        const element = document.querySelector(selector);
+        if (element) {
+            element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+            element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
         }
     }, SELECTOR_NETHER_MARKER);
 
