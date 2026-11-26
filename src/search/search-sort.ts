@@ -11,6 +11,7 @@
 
 import {
     COLUMNS,
+    QUICK_SEARCH,
     SORT,
 } from '../constants.js';
 import { isFavoritesFilterActive } from '../favorites/index.js';
@@ -28,6 +29,10 @@ import type {
     SortDirection,
     Trade,
 } from '../types.js';
+import { parseExactQuery, pickBestPerItem } from './query.js';
+
+/** "Deals only" shows trades at least this much below market */
+const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -61,6 +66,10 @@ export interface SearchSortDeps {
     isFilterNewOnly: () => boolean;
     /** Whether "cart only" filter is active (lazy) */
     isFilterCartOnly: () => boolean;
+    /** Quick-bar toggles: only good deals, and only the best offer per item (lazy) */
+    getQuickFilters: () => { readonly dealsOnly: boolean; readonly bestPerItem: boolean };
+    /** Called after every search, e.g. to sync the URL and quick-bar state */
+    onSearched: () => void;
 }
 
 /**
@@ -168,24 +177,44 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         return count;
     }
 
+    /**
+     * Whether header toggles or quick filters exclude a trade before text matching
+     * @param trade - Trade to check
+     * @returns True if the trade should be hidden
+     */
+    function isExcludedByFilters(trade: Trade): boolean {
+        if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
+        if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
+        if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }
+        if (!deps.getQuickFilters().dealsOnly) { return false; }
+        const deviation = deps.getDeviation()(trade);
+        return deviation === undefined || deviation.percent > DEALS_ONLY_MAX_PERCENT;
+    }
+
     function search(): void {
         const wantQuery = deps.getInputValue('searchWant');
         const giveQuery = deps.getInputValue('searchGive');
 
-        const wantRegex = wantQuery ? getCachedRegex(wantQuery) : undefined;
-        const giveRegex = giveQuery ? getCachedRegex(giveQuery) : undefined;
-        const results: FilterResult[] = [];
+        // Exact queries ("emerald") highlight the name inside the quotes
+        const wantRegex = wantQuery ? getCachedRegex(parseExactQuery(wantQuery) ?? wantQuery) : undefined;
+        const giveRegex = giveQuery ? getCachedRegex(parseExactQuery(giveQuery) ?? giveQuery) : undefined;
+        let results: FilterResult[] = [];
 
         for (const trade of deps.getAllTrades()) {
-            const isFilteredOut =
-                (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) ||
-                (deps.isFilterCartOnly() && !cartStore.has(trade)) ||
-                (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase()));
-
-            if (isFilteredOut) { continue; }
+            if (isExcludedByFilters(trade)) { continue; }
 
             const result = filterTrade(trade, wantQuery, giveQuery);
             if (result) { results.push(result); }
+        }
+
+        if (deps.getQuickFilters().bestPerItem) {
+            const deviationCalc = deps.getDeviation();
+            results = [...pickBestPerItem(
+                results,
+                r => r.displayName.toLowerCase(),
+                r => deviationCalc(r.trade)?.percent,
+                r => r.trade.displayStock
+            )];
         }
 
         const sortedResults = sortResults(results);
@@ -194,6 +223,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         // Update deals badge with count of trades meeting thresholds
         const dealsCount = countDeals(sortedResults);
         deps.updateDealsBadge(dealsCount);
+        deps.onSearched();
     }
 
     function compareDeviation(ta: Trade, tb: Trade, multiplier: number): number {

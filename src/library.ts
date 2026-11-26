@@ -35,6 +35,7 @@
 
 import { formatName } from './formatting.js';
 import { getOverworldDistanceFromOrigin } from './routing/route-optimizer.js';
+import { parseExactQuery } from './search/query.js';
 import {
     type Coordinates,
     type FilterResult,
@@ -382,13 +383,30 @@ interface ShulkerMatchResult {
     amount: number;
 }
 
+/**
+ * Match a name against a query; a quoted query ("emerald") must match the whole name
+ * @param name - Item name (any case)
+ * @param query - Search query
+ * @returns True if the name matches
+ */
+function nameMatches(name: string, query: string): boolean {
+    const exact = parseExactQuery(query);
+    return exact === undefined ? matchesQuery(name, query) : name.toLowerCase() === exact;
+}
+
+function costMatches(trade: Readonly<Trade>, query: string): boolean {
+    if (parseExactQuery(query) === undefined) { return matchesQuery(trade.costText, query); }
+    return nameMatches(formatName(trade.item1), query) || (trade.item2 !== undefined && nameMatches(formatName(trade.item2), query));
+}
+
 function findMatchingShulkerItem(
     shulkerItems: readonly ShulkerItem[] | undefined,
     query: string
 ): Readonly<ShulkerMatchResult> | undefined {
     if (!shulkerItems) { return undefined; }
+    const isExact = parseExactQuery(query) !== undefined;
     const matched = shulkerItems.find(
-        item => matchesQuery(item.key, query) || matchesQuery(item.name.toLowerCase(), query)
+        item => nameMatches(item.name, query) || (!isExact && matchesQuery(item.key, query))
     );
     if (matched) {
         return { matched: true, name: matched.name, amount: matched.total };
@@ -403,7 +421,7 @@ function checkWantQueryMatch(
     if (!wantQuery) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
-    if (matchesQuery(trade.resultText, wantQuery)) {
+    if (nameMatches(trade.resultText, wantQuery)) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
     const shulkerMatch = findMatchingShulkerItem(trade.shulkerItems, wantQuery);
@@ -416,6 +434,7 @@ function checkWantQueryMatch(
 /**
  * Filter a trade based on "want" (result) and "give" (cost) queries.
  * Returns undefined if trade doesn't match or has zero stock.
+ * A query in double quotes ("emerald") matches the whole item name only.
  * 
  * @param trade - Trade to filter
  * @param wantQuery - Filter for items you want to receive (empty = any)
@@ -430,7 +449,7 @@ export function filterTrade(trade: Readonly<Trade>, wantQuery: string, giveQuery
     if (trade.stock === 0) { return undefined; }
 
     const { matchResult, displayName, displayAmount } = checkWantQueryMatch(trade, wantQuery);
-    const matchCost = !giveQuery || matchesQuery(trade.costText, giveQuery);
+    const matchCost = !giveQuery || costMatches(trade, giveQuery);
 
     if (wantQuery && !matchResult) { return undefined; }
     if (giveQuery && !matchCost) { return undefined; }

@@ -451,6 +451,23 @@ describe('highlight', () => {
     });
 });
 
+describe('filterTrade exact queries', () => {
+    const emeraldBlockCost: Trade = { ...createTrade(1, 1, DIAMOND_TITLE, 5), item1: plainItem('EMERALD_BLOCK', 1), costText: EMERALD_BLOCK, costName: 'Emerald block' };
+    const emeraldCost: Trade = createTrade(1, 9, DIAMOND_TITLE, 5);
+
+    test('a quoted cost query matches the whole item name only', () => {
+        expect(filterTrade(emeraldCost, '', '"emerald"')).toBeDefined();
+        expect(filterTrade(emeraldBlockCost, '', '"emerald"')).toBeUndefined();
+        expect(filterTrade(emeraldBlockCost, '', 'emerald')).toBeDefined();
+    });
+
+    test('a quoted result query matches the whole item name only', () => {
+        const pickaxe = createTrade(1, 9, 'Diamond pickaxe', 5);
+        expect(filterTrade(emeraldCost, '"diamond"', '')).toBeDefined();
+        expect(filterTrade(pickaxe, '"diamond"', '')).toBeUndefined();
+    });
+});
+
 describe('formatTradeCost', () => {
     test('single-item cost includes amount', () => {
         expect(formatTradeCost({ item1: plainItem(EMERALD, 64) })).toBe('64× Emerald');

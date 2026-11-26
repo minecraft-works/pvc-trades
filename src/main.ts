@@ -57,11 +57,19 @@ import {
 } from './map/index.js';
 import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
 import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
+import type { Autocomplete } from './quick-search/autocomplete.js';
+import { createAutocomplete } from './quick-search/autocomplete.js';
+import type { QuickBar } from './quick-search/quick-bar.js';
+import { createQuickBar } from './quick-search/quick-bar.js';
+import type { UrlSync } from './quick-search/url-sync.js';
+import { createUrlSync } from './quick-search/url-sync.js';
 import type { TradeRendererHandler } from './rendering/index.js';
 import { createTradeRendererHandler } from './rendering/index.js';
 import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
+import { collectItemNames } from './search/query.js';
 import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
+import type { Trade } from './types.js';
 
 // ============================================================================
 // State
@@ -93,6 +101,13 @@ let renderer: TradeRendererHandler;
 
 // Search/sort handler (initialized in DOMContentLoaded)
 let searchHandler: SearchSortHandler;
+
+// Quick search helpers (initialized in DOMContentLoaded)
+let quickBar: QuickBar;
+let urlSync: UrlSync;
+let wantAutocomplete: Autocomplete;
+let giveAutocomplete: Autocomplete;
+let suggestionSource: { trades: readonly Trade[]; names: ReturnType<typeof collectItemNames> } | undefined;
 
 // Flag to track if map was opened from cart (for back navigation)
 let mapOpenedFromCart = false;
@@ -263,14 +278,16 @@ function focusSearchField(input: HTMLInputElement): void {
 
 /**
  * Keyboard accelerators inside a search field for fast probing:
- * Esc clears the field, ↓ jumps into the results, and Tab in Buying goes
- * straight to Paying (skipping the clear/watchlist/swap buttons).
+ * the suggestion list gets first pick, then Esc clears the field, ↓ jumps
+ * into the results, and Tab in Buying goes straight to Paying (skipping the
+ * clear/watchlist/swap buttons).
  * @param event - Keydown event from the search field
  * @param input - The search field
  * @param clearButtonId - ID of the field's clear button
+ * @param autocomplete - The field's suggestion list
  */
-function handleSearchFieldKeydown(event: KeyboardEvent, input: HTMLInputElement, clearButtonId: string): void {
-    if (event.isComposing) { return; }
+function handleSearchFieldKeydown(event: KeyboardEvent, input: HTMLInputElement, clearButtonId: string, autocomplete: Autocomplete): void {
+    if (event.isComposing || autocomplete.handleKeydown(event)) { return; }
 
     if (event.key === 'Escape' && input.value) {
         event.preventDefault();
@@ -290,6 +307,57 @@ function handleSearchFieldKeydown(event: KeyboardEvent, input: HTMLInputElement,
     }
 }
 
+/**
+ * Item names for autocomplete, recomputed only when the trade list changes
+ * @param kind - "want" for Buying names, "give" for Paying names
+ * @returns Unique item names
+ */
+function getSuggestionNames(kind: 'want' | 'give'): readonly string[] {
+    const trades = dataLoader.getAllTrades();
+    if (suggestionSource?.trades !== trades) {
+        suggestionSource = { trades, names: collectItemNames(trades) };
+    }
+    return suggestionSource.names[kind];
+}
+
+/**
+ * Put search terms into both fields, e.g. from the URL or a quick-bar chip
+ * @param buy - Buying term
+ * @param pay - Paying term
+ * @param runSearch - Whether to re-run the search
+ */
+function applySearchTerms(buy: string, pay: string, runSearch: boolean): void {
+    const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+    const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
+    wantInput.value = buy;
+    giveInput.value = pay;
+    updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+    updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
+    wantAutocomplete.close();
+    giveAutocomplete.close();
+    if (runSearch) { searchHandler.search(); }
+}
+
+/** Set up autocomplete, the quick bar and URL sync (must run before data loads) */
+function setupQuickSearch(): void {
+    const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+    const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
+
+    wantAutocomplete = createAutocomplete(wantInput, () => getSuggestionNames('want'));
+    giveAutocomplete = createAutocomplete(giveInput, () => getSuggestionNames('give'));
+
+    quickBar = createQuickBar(getElement('quick-bar'), {
+        giveInput,
+        setGiveValue: (value) => { applySearchTerms(wantInput.value, value, true); },
+        search: () => { searchHandler.search(); },
+    });
+
+    urlSync = createUrlSync({
+        getTerms: () => ({ buy: wantInput.value, pay: giveInput.value }),
+        applyTerms: applySearchTerms,
+    });
+}
+
 /** Wire up search input fields, clear buttons, and swap button */
 function setupSearchInputHandlers(): void {
     const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
@@ -303,8 +371,8 @@ function setupSearchInputHandlers(): void {
         updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
         searchHandler.debouncedSearch();
     });
-    wantInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, wantInput, CLEAR_SEARCH_WANT_ID); });
-    giveInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, giveInput, CLEAR_SEARCH_GIVE_ID); });
+    wantInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, wantInput, CLEAR_SEARCH_WANT_ID, wantAutocomplete); });
+    giveInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, giveInput, CLEAR_SEARCH_GIVE_ID, giveAutocomplete); });
     getElement(CLEAR_SEARCH_WANT_ID).addEventListener('click', () => {
         searchHandler.clearSearchInput(SEARCH_WANT_ID, CLEAR_SEARCH_WANT_ID);
     });
@@ -349,9 +417,13 @@ function isSlashSearchShortcut(event: KeyboardEvent): boolean {
         && !isTextEntryTarget(event.target) && !document.querySelector('dialog[open]');
 }
 
-/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap) */
+/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1…6 quick bar) */
 function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
+        if (!document.querySelector('dialog[open]') && quickBar.handleShortcut(event)) {
+            event.preventDefault();
+            return;
+        }
         const searchInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
         const withCommandKey = event.ctrlKey || event.metaKey;
 
@@ -473,6 +545,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDealsBadge: (count) => favoritesUI.updateDealsBadge(count),
         isFilterNewOnly: () => renderer.isFilterNewOnly(),
         isFilterCartOnly: () => renderer.isFilterCartOnly(),
+        getQuickFilters: () => quickBar.getFilters(),
+        onSearched: () => {
+            quickBar.syncState();
+            urlSync.record();
+        },
     });
 
     // Initialize favorites
@@ -571,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cartStoreUniqueCount: () => cartStore.uniqueCount,
     });
 
+    setupQuickSearch();
     setupSearchInputHandlers();
     setupKeyboardShortcuts();
     setupAllDialogs();
@@ -623,6 +701,11 @@ function setupTradeRowClickHandler(): void {
         if (event.key === 'Enter') {
             event.preventDefault();
             row.click();
+            return;
+        }
+        if (event.key === '+') {
+            event.preventDefault();
+            row.querySelector<HTMLElement>('.add-to-cart-btn')?.click();
             return;
         }
         const target = getRowKeyTarget(row, event.key);

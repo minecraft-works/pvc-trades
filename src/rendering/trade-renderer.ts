@@ -25,6 +25,7 @@ import {
     isNether,
 } from '../library.js';
 import type { DeviationResult } from '../search/index.js';
+import { formatUnitPrice } from '../search/query.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
     FilterResult,
@@ -100,6 +101,20 @@ function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
 function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
     const costAmt = t.item2 ? `${t.item1.amount}+${t.item2.amount}` : String(t.item1.amount);
     return { costAmt, costName: formatTradeCostNames(t) };
+}
+
+/**
+ * Per-item price badge for the cost cell. Only shown for single-item,
+ * non-shulker costs when more than one item is received (otherwise the
+ * cost column already is the per-item price).
+ * @param t - Trade
+ * @param displayAmount - Number of items received (shulker contents counted)
+ * @returns HTML for the badge, or an empty string
+ */
+function getUnitPriceHtml(t: Trade, displayAmount: number): string {
+    if (t.item2 || displayAmount <= 1 || (t.item1.lore?.length ?? 0) > 0) { return ''; }
+    const text = formatUnitPrice(t.item1.amount, displayAmount);
+    return text ? `<span class="unit-price" title="Price per item">${text}</span>` : '';
 }
 
 /**
@@ -357,15 +372,15 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         return `
             <button class="col ${info.starClass}" role="gridcell" data-item="${safeName}" title="${starTitle}" aria-label="${starTitle}: ${safeName}">★</button>
             <span class="col result-amt" role="gridcell">${displayAmount}</span>
-            <span class="col result-name" role="gridcell" title="${escapeHtml(displayName)}">${resultDisplay}${resultInfoIcon}</span>
+            <span class="col result-name" role="gridcell" title="${escapeHtml(displayName)}"><span class="name-text">${resultDisplay}</span>${resultInfoIcon}</span>
             <span class="col cost-amt" role="gridcell">${costAmt}</span>
-            <span class="col cost-name" role="gridcell" title="${escapeHtml(costName)}">${costDisplay}${costInfoIcon}</span>
+            <span class="col cost-name" role="gridcell" title="${escapeHtml(costName)}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPriceHtml(t, displayAmount)}</span>
             <span class="col dev ${devClass}" role="gridcell" title="${escapeHtml(dealTitle)}">${devText}</span>
             <span class="col stock ${stockClass}" role="gridcell">${t.displayStock}</span>
             <span class="col coord distance" role="gridcell" title="${distanceTitle}">${Math.round(getOverworldDistanceFromOrigin(t))}</span>
             <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
             <span class="col new-col" role="gridcell"></span>
-            <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${escapeHtml(info.tradeKey)}" title="Add to cart" aria-label="Add ${safeName} to cart">+</button>
+            <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${escapeHtml(info.tradeKey)}" title="Add to cart (+ on a focused row)" aria-label="Add ${safeName} to cart">+</button>
         `;
     }
 

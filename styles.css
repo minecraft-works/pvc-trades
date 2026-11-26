@@ -92,10 +92,101 @@ body {
 }
 
 .data-freshness {
-    margin: 2px 8px 0;
+    margin: 0 8px 0 auto;
     font-size: 0.7rem;
     color: var(--color-text-muted);
     text-align: right;
+    white-space: nowrap;
+}
+
+.search-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 0 4px;
+}
+
+.quick-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.quick-bar-label {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
+.quick-bar-separator {
+    width: 1px;
+    height: 14px;
+    margin: 0 4px;
+    background: var(--color-border);
+}
+
+.quick-chip,
+.quick-toggle {
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.quick-chip:hover,
+.quick-toggle:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+}
+
+.quick-chip[aria-pressed="true"],
+.quick-toggle[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.search-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 110;
+    max-height: 260px;
+    margin: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+}
+
+.search-suggestions li {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.search-suggestions li:hover,
+.search-suggestions li[aria-selected="true"] {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.unit-price {
+    margin-left: auto;
+    padding-left: 6px;
+    flex-shrink: 0;
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
 }
 
 .data-freshness:empty {
@@ -127,6 +218,7 @@ body {
 
 /* Search input wrapper - contains input and add-to-watchlist button */
 .search-input-wrapper {
+    position: relative;
     display: flex;
     align-items: center;
     flex: 1 1 0;
@@ -367,6 +459,14 @@ body {
 }
 
 .col.cost-name, .col.result-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* One flex item per name, so spaces around highlights are kept and long names truncate */
+.name-text {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2303,6 +2403,36 @@ mark {
 
     .trade-row[data-world*="nether" i] > .col.distance {
         color: var(--color-nether);
+    }
+
+    /* No room for per-item prices; quick bar scrolls sideways in one row */
+    .unit-price {
+        display: none;
+    }
+
+    .search-meta {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+
+    .quick-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .quick-bar-label {
+        display: none;
+    }
+
+    .quick-chip,
+    .quick-toggle {
+        flex-shrink: 0;
+    }
+
+    /* Only worth the space when a refresh failed */
+    .data-freshness:not(.stale) {
+        display: none;
     }
 
     /* Smaller add button on mobile */

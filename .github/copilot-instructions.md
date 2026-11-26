@@ -30,7 +30,10 @@ src/
 ├── navigation/          # Live navigation modules
 │   └── shop-tooltip.ts     # Proximity-based shop info
 ├── search/              # Search and deviation modules
-│   └── deviation.ts         # Deviation calculation helpers
+│   ├── deviation.ts         # Deviation calculation helpers
+│   └── query.ts             # Pure fast-search helpers (exact queries, URL terms, suggestions)
+├── quick-search/        # Fast-probing UI: autocomplete, quick bar, URL history
+├── valuation/           # Item values, item identity (variants, shulkers), statistics
 └── stores/              # Class-based state stores
     ├── cart-store.ts         # Cart items, quantities, persistence
     ├── navigation-store.ts   # Nav state, progress, player position
@@ -61,7 +64,8 @@ features/
 | Favorites UI | `src/favorites/` | `renderFavoritesDialog()` |
 | Map/tile logic | `src/map/` | `TileLoader`, `fetchPlayers()` |
 | Navigation modules | `src/navigation/` | `createShopTooltipHandler()` |
-| Search/deviation | `src/search/` | `calculateDeviation()` |
+| Search/deviation | `src/search/` | `createDeviationCalculator()`, `rankSuggestions()` |
+| Fast-probing UI | `src/quick-search/` | `createAutocomplete()`, `createQuickBar()` |
 | Shared coordinates | `tile-coords.ts` | `blockToTile()`, `tileToBlock()` |
 | BDD scenarios | `features/*.feature` | Browser integration tests |
 | Unit tests | `src/*.test.ts` | Pure function tests |

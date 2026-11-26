@@ -92,6 +92,24 @@ export const DASHBOARD = {
 } as const;
 
 // ============================================================================
+// Quick Search
+// ============================================================================
+
+/** Fast-probing helpers: quick bar, autocomplete and URL history */
+export const QUICK_SEARCH = {
+    /** "Deals only" keeps trades at or below this deviation */
+    DEALS_ONLY_MAX_PERCENT: -20,
+    /** Currencies offered as one-click "Paying" chips (Alt+1…4) */
+    CURRENCIES: ['Emerald', 'Emerald block', 'Diamond', 'Diamond block'],
+    /** Maximum autocomplete suggestions */
+    MAX_SUGGESTIONS: 8,
+    /** Minimum typed characters before suggestions appear */
+    MIN_SUGGESTION_CHARS: 2,
+    /** A search that stays unchanged this long becomes a browser history entry */
+    HISTORY_SETTLE_MS: 800,
+} as const;
+
+// ============================================================================
 // CSS Classes
 // ============================================================================
 

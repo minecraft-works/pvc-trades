@@ -11,6 +11,26 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Route Optimization**: Compute optimal visiting order using nearest-neighbor + 2-opt
 - **Live Navigation**: Track your position on the server map and navigate to shops
 - **Price Intelligence**: Automatic clustering of nearby shops to prevent price manipulation
+- **Fast Probing**: Item-name autocomplete, one-click currency chips, "Deals only" and "Best per item" filters, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
+
+### Keyboard Shortcuts
+
+| Key | Where | Action |
+|-----|-------|--------|
+| `/` or `Ctrl+F` | Anywhere | Jump to the Buying field (a second `Ctrl+F` opens the browser's find) |
+| `Tab` | Buying field | Go straight to the Paying field (accepts a highlighted suggestion first) |
+| `Esc` | Search field | Clear the field |
+| `↓` / `↑` | Search field | Move through suggestions, or into the results when there are none |
+| `Enter` | Suggestion list | Accept the highlighted suggestion |
+| `↓` / `↑` | Result row | Next / previous trade (`↑` on the top row returns to search) |
+| `Enter` | Result row | Open the shop on the map |
+| `+` | Result row | Add the trade to the cart |
+| `Esc` | Result row | Back to the Buying field |
+| `Alt+1`…`Alt+4` | Anywhere | Pay with Emerald / Emerald block / Diamond / Diamond block |
+| `Alt+5` / `Alt+6` | Anywhere | Toggle "Deals only" (≤ −20%) / "Best per item" |
+| `Ctrl+Shift+X` | Anywhere | Swap the Buying and Paying terms |
+
+Put a name in double quotes (`"emerald"`) for an exact match: it matches Emerald but not Emerald block.
 
 ## Tech Stack
 
