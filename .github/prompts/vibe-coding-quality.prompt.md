@@ -77,7 +77,7 @@ return result.success ? result.data : DEFAULT_CONFIG;
 
 - **NEVER** use `--no-verify`, `-n`, or `HUSKY=0` to bypass hooks
 - If hooks fail, **fix the issue** — don't work around it
-- The hook runs: typecheck → lint-staged → knip → docs → test:coverage → test:load
+- The hook runs: typecheck → lint-staged → lint:all → knip → lint:filenames/lockfile/deps/parse-safety → test:coverage (docs, audit and E2E run in CI)
 
 ---
 

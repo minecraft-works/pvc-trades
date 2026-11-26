@@ -5,9 +5,9 @@
 import { expect } from '@playwright/test';
 
 import { Given, Then,When } from './fixtures';
-import { NETHER_RATIO } from './test-math-utilities';
 
 // Constants
+const NETHER_RATIO = 8;
 const SELECTOR_NAV_ROUTE_MARKER = '.nav-route-marker';
 const SELECTOR_NAV_PLAYER_MARKER = '.nav-player-marker';
 const SELECTOR_NETHER_MARKER = '.nav-route-marker--nether';

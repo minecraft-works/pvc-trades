@@ -16,7 +16,6 @@ export default defineConfig({
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
-    workers: process.env.CI ? 1 : undefined,
     
     reporter: [
         ['list'],
@@ -47,6 +46,14 @@ export default defineConfig({
             name: 'chromium-spec',
             testDir: './tests',
             testMatch: '**/*.spec.ts',
+            // Timing benchmarks run on demand via `npm run test:load`
+            testIgnore: '**/tile-load-testing.spec.ts',
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'perf',
+            testDir: './tests',
+            testMatch: '**/tile-load-testing.spec.ts',
             use: { ...devices['Desktop Chrome'] },
         },
     ],

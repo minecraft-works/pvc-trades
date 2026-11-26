@@ -88,22 +88,4 @@ export const test = base.extend<BddFixtures>({
  */
 export const { Given, When, Then } = createBdd(test);
 
-// ============================================================================
-// Base tracking interfaces for property tests
-// ============================================================================
-
-/**
- * Base interface for page tracking in property tests
- * Step files can extend this with additional fields as needed
- */
-export interface BasePageTracking {
-    __playerX?: number;
-    __playerZ?: number;
-    __playerWorld?: string;
-    __playerYaw?: number;
-    __shopX?: number;
-    __shopZ?: number;
-    __shopWorld?: string;
-}
-
 export {TILE_FORMAT, TILE_ROUTE_PATTERN} from '../../tests/helpers/test-config';

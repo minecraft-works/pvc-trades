@@ -2,6 +2,7 @@
  * Search and filter step definitions
  */
 import { expect } from '@playwright/test';
+import type { DataTable } from 'playwright-bdd';
 
 import { setupColoredTileMocks,setupMultiWorldDataMock } from '../../tests/helpers/navigation-mocks';
 import { Given, Then,When } from './fixtures';
@@ -212,102 +213,57 @@ Then('results should be sorted by result amount ascending', async ({ page }) => 
 });
 
 // ============================================================================
-// Scenario Outline Steps (Search Variations)
+// Search Variations (one page load, many queries)
 // ============================================================================
 
-Then('I should see results containing {string}', async ({ page }, expectedText: string) => {
-    // Wait for search to filter
-    await page.waitForTimeout(300);
-    
+const NO_MATCH_QUERY = 'zzzz-no-such-item';
+const INJECTED_ELEMENT_SELECTOR = 'body img[src="x"], body [onerror], body [onload], body [onmouseover], body [onfocus], body script:not([src])';
+
+/**
+ * Wait until the debounced (requestAnimationFrame) search has rendered.
+ * @param page - Playwright page
+ */
+async function waitForSearchRender(page: import('@playwright/test').Page): Promise<void> {
+    await page.evaluate(() => new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+}
+
+Then('each of these searches should find a matching trade:', async ({ page }, table: DataTable) => {
+    const input = page.locator('#searchWant');
     const rows = page.locator(SELECTOR_TRADE_ROW);
-    const count = await rows.count();
-    
-    // Should have at least one result
-    expect(count).toBeGreaterThan(0);
-    
-    // Check that at least one row contains the expected text (case insensitive)
-    let found = false;
-    for (let index = 0; index < count; index++) {
-        const rowText = await rows.nth(index).textContent();
-        if (rowText?.toLowerCase().includes(expectedText.toLowerCase())) {
-            found = true;
-            break;
-        }
+
+    for (const { query = '', expected = '' } of table.hashes()) {
+        // Reset to an empty result so stale rows can't satisfy the next check
+        await input.fill(NO_MATCH_QUERY);
+        await expect(rows).toHaveCount(0);
+
+        await input.fill(query);
+        await expect(rows.filter({ hasText: expected }).first(), `search "${query}"`).toBeVisible();
     }
-    expect(found).toBe(true);
 });
 
-Then('the app should not crash', async ({ page }) => {
-    // Verify the app is still responsive - core elements should be present
-    await expect(page.locator('.search-container')).toBeVisible({ timeout: 2000 });
-    
-    // No uncaught errors should be visible
-    const errorDialog = page.locator('.error-dialog, [role="alert"]');
-    const errorCount = await errorDialog.count();
-    expect(errorCount).toBe(0);
-});
-
-// ============================================================================
-// Security and XSS Steps
-// ============================================================================
-
-Then('no script should execute', async ({ page }) => {
-    // Set up a flag that would be set if any script executes
-    const scriptExecuted = await page.evaluate(() => {
-        // Check if window.__xssTest was set (would be set by injected scripts)
-        return (globalThis as unknown as { __xssTest?: boolean }).__xssTest === true;
+Then('none of these searches should run injected code or break the page:', async ({ page }, table: DataTable) => {
+    const problems: string[] = [];
+    page.on('dialog', dialog => {
+        problems.push(`dialog opened: ${dialog.message()}`);
+        void dialog.dismiss();
     });
-    
-    expect(scriptExecuted).toBe(false);
-});
-
-Then('the search input should be sanitized', async ({ page }) => {
-    // Check that no raw HTML was rendered in the results OR the page is empty
-    const tradeRows = page.locator('.trade-row');
-    const rowCount = await tradeRows.count();
-    
-    if (rowCount === 0) {
-        // No results - that's fine, the injection text didn't match anything
-        // The key is that the page didn't execute any scripts
-        return;
-    }
-    
-    const resultsHtml = await tradeRows.first().innerHTML();
-    
-    // Should not contain unescaped script tags
-    expect(resultsHtml).not.toMatch(/<script[^>]*>/i);
-    expect(resultsHtml).not.toMatch(/onerror\s*=/i);
-    expect(resultsHtml).not.toMatch(/onload\s*=/i);
-    expect(resultsHtml).not.toMatch(/javascript:/i);
-});
-
-Then('the search should complete safely', async ({ page }) => {
-    // Verify the app is still responsive after potentially dangerous input
-    await expect(page.locator('.search-container')).toBeVisible({ timeout: 2000 });
-    
-    // Verify no JavaScript errors occurred (would crash the app)
-    const pageErrors: string[] = [];
-    page.on('pageerror', (error) => {
-        pageErrors.push(error.message);
+    page.on('pageerror', error => {
+        problems.push(`page error: ${error.message}`);
     });
-    
-    // Wait a moment for any delayed errors
-    await page.waitForTimeout(100);
-    
-    // If there were errors, they should not be from our injection attempts
-    for (const error of pageErrors) {
-        expect(error).not.toMatch(/xss|injection|alert/i);
-    }
-});
 
-Then('results should appear within {int}ms', async ({ page }, maxMs: number) => {
-    const startTime = Date.now();
-    
-    // Wait for results to be visible or search to complete
-    await page.waitForSelector('.trade-row, .no-results', { state: 'visible', timeout: maxMs + 1000 });
-    
-    const elapsed = Date.now() - startTime;
-    expect(elapsed).toBeLessThan(maxMs);
+    const input = page.locator('#searchWant');
+    for (const { query = '' } of table.hashes()) {
+        await input.fill(query);
+        await waitForSearchRender(page);
+        expect(problems, `after searching ${JSON.stringify(query)}`).toEqual([]);
+        await expect(page.locator(INJECTED_ELEMENT_SELECTOR), `after searching ${JSON.stringify(query)}`).toHaveCount(0);
+    }
+
+    // The app still works after all of that
+    await input.fill('diamond');
+    await expect(page.locator(SELECTOR_TRADE_ROW).first()).toBeVisible();
 });
 
 // ============================================================================

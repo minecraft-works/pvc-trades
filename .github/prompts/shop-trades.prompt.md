@@ -603,7 +603,11 @@ await page.route('https://external-api.com/**', route => route.abort());
 
 ### Property-Based Tests
 
-Files ending in `-properties.feature` use generative testing:
+Files ending in `-properties.feature` run example tables through the **real UI**.
+Every step must drive or read the page; a browser test that only does math in
+Node (or checks a copy of the logic) belongs in Vitest, where it runs ~1000×
+faster. Prefer one scenario with a data table that loops in a single page load
+over a Scenario Outline that reloads the app for every row.
 
 ```gherkin
 # cart-quantity-properties.feature
