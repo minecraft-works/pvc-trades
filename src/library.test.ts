@@ -14,6 +14,7 @@ import {
     buildRatioGraph,
     calculateFitZoom,
     calculateItemValues,
+    calculatePairPrices,
     clampToCircle,
     computeDashboardData,
     countIndependentShops,
@@ -22,14 +23,18 @@ import {
     filterTrade,
     formatName,
     formatRelativeTime,
+    formatTradeCost,
+    formatTradeCostNames,
     fromLeafletCoordsRelative,
     getConfig,
+    getItemComponents,
     getRatio,
     getRegex,
     getTileCoords,
     getTileOffset,
     getTradeKey,
     getTrustedItemValue,
+    getValuationName,
     getWorldId,
     getZoomForHeight,
     hasEnoughIndependentData,
@@ -46,7 +51,9 @@ import {
     shouldSwitchMapWorld,
     sortResults,
     toLeafletCoords,
-    toLeafletCoordsRelative} from './library.js';
+    toLeafletCoordsRelative,
+    toValuationInput} from './library.js';
+import { createDeviationCalculator } from './search/deviation.js';
 import type { AppConfig, BlockConversions, FavoriteItem,FilterResult, Item, ItemValues, MappingRule, Recipe, Shop, Trade, TradeInput, TradeSnapshot } from './types.js';
 import { AppConfigSchema, DEFAULT_CONFIG } from './types.js';
 
@@ -117,6 +124,28 @@ const createTradeWithCoords = (name: string, x: number, z: number): Trade => ({
     resultAmount: 1,
     costName: EMERALD_TITLE
 });
+
+// Helper to create an unnamed item stack
+const plainItem = (type: string, amount: number): Item => ({ type, amount, name: '' });
+
+// Helper: one cooked beef sold for `costAmount` of `costType` at (x, 64, 0)
+const beefTrade = (costType: string, costAmount: number, x: number): Trade => ({
+    ...createTrade(1, costAmount, COOKED_BEEF_TITLE, 1),
+    x,
+    y: 64,
+    resultItem: plainItem('COOKED_BEEF', 1),
+    item1: plainItem(costType, costAmount),
+});
+
+// Helper: deviation calculator built from the given trades, as the data loader does
+const calculatorFor = (trades: readonly Trade[]) => {
+    const inputs: TradeInput[] = [];
+    for (const trade of trades) {
+        const input = toValuationInput(trade);
+        if (input) { inputs.push(input); }
+    }
+    return createDeviationCalculator(calculateItemValues(inputs, EMERALD_LOWER), calculatePairPrices(inputs));
+};
 
 // Test fixtures
 const TEST_BLOCK_CONVERSIONS: BlockConversions = {
@@ -411,6 +440,45 @@ describe('highlight', () => {
         const regex = /test/i;
         expect(highlight('<script>test</script>', regex)).toBe('&lt;script&gt;<mark>test</mark>&lt;/script&gt;');
     });
+
+    test('never matches inside escaped entities', () => {
+        expect(highlight('Bert & Ernie', /amp/i)).toBe('Bert &amp; Ernie');
+        expect(highlight('<<Sponsor Token>>', /lt/i)).toBe('&lt;&lt;Sponsor Token&gt;&gt;');
+    });
+
+    test('escapes the highlighted match itself', () => {
+        expect(highlight('Bert & Ernie', /&/)).toBe('Bert <mark>&amp;</mark> Ernie');
+    });
+});
+
+describe('filterTrade exact queries', () => {
+    const emeraldBlockCost: Trade = { ...createTrade(1, 1, DIAMOND_TITLE, 5), item1: plainItem('EMERALD_BLOCK', 1), costText: EMERALD_BLOCK, costName: 'Emerald block' };
+    const emeraldCost: Trade = createTrade(1, 9, DIAMOND_TITLE, 5);
+
+    test('a quoted cost query matches the whole item name only', () => {
+        expect(filterTrade(emeraldCost, '', '"emerald"')).toBeDefined();
+        expect(filterTrade(emeraldBlockCost, '', '"emerald"')).toBeUndefined();
+        expect(filterTrade(emeraldBlockCost, '', 'emerald')).toBeDefined();
+    });
+
+    test('a quoted result query matches the whole item name only', () => {
+        const pickaxe = createTrade(1, 9, 'Diamond pickaxe', 5);
+        expect(filterTrade(emeraldCost, '"diamond"', '')).toBeDefined();
+        expect(filterTrade(pickaxe, '"diamond"', '')).toBeUndefined();
+    });
+});
+
+describe('formatTradeCost', () => {
+    test('single-item cost includes amount', () => {
+        expect(formatTradeCost({ item1: plainItem(EMERALD, 64) })).toBe('64× Emerald');
+    });
+
+    test('two-item cost lists each item once with its own amount', () => {
+        expect(formatTradeCost({ item1: plainItem('DIAMOND_BLOCK', 5), item2: plainItem('EMERALD_BLOCK', 3) }))
+            .toBe('5× Diamond block + 3× Emerald block');
+        expect(formatTradeCostNames({ item1: plainItem('DIAMOND_BLOCK', 5), item2: plainItem('EMERALD_BLOCK', 3) }))
+            .toBe('Diamond block + Emerald block');
+    });
 });
 
 describe('escapeHtml', () => {
@@ -556,6 +624,18 @@ describe('sortResults', () => {
         expect(sorted5[1]!.trade.resultName).toBe('A'); // 500
         expect(sorted5[2]!.trade.resultName).toBe('C'); // 600
     });
+
+    test('distance normalizes nether coordinates to overworld blocks', () => {
+        const nether = { ...createTradeWithCoords('Nether', 100, 0), world: 'World_nether' };
+        const overworld = createTradeWithCoords('Overworld', 500, 0);
+        const results: FilterResult[] = [
+            { trade: nether, matchResult: true, matchCost: false, displayName: 'Nether', displayAmount: 1 },
+            { trade: overworld, matchResult: true, matchCost: false, displayName: 'Overworld', displayAmount: 1 },
+        ];
+        // Nether (100, 0) is 800 overworld blocks away, farther than overworld (500, 0)
+        const sorted = sortResults(results, 'distance', 'asc');
+        expect(sorted.map(r => r.trade.resultName)).toEqual(['Overworld', 'Nether']);
+    });
 });
 
 describe('countIndependentShops', () => {
@@ -645,6 +725,98 @@ describe('getTrustedItemValue', () => {
             sellPrices: []
         }]]);
         expect(getTrustedItemValue('diamond', values)).toBe(11);
+    });
+
+    test('non-core item from a single shop has no trusted value', () => {
+        const values: ItemValues = new Map([[COOKED_BEEF, {
+            name: COOKED_BEEF_TITLE,
+            buyPrices: [{ price: 2, x: 0, y: 64, z: 0 }, { price: 3, x: 5, y: 64, z: 5 }],
+            sellPrices: []
+        }]]);
+        // Both listings are within the cluster distance: one independent shop
+        expect(getTrustedItemValue(COOKED_BEEF, values)).toBeUndefined();
+        expect(getTrustedItemValue(COOKED_BEEF, values, { minItemShops: 1 })).toBe(2.5);
+    });
+
+    test('non-core item from two independent shops is trusted', () => {
+        const values: ItemValues = new Map([[COOKED_BEEF, {
+            name: COOKED_BEEF_TITLE,
+            buyPrices: [{ price: 2, x: 0, y: 64, z: 0 }],
+            sellPrices: [{ price: 1, x: 500, y: 64, z: 0 }]
+        }]]);
+        expect(getTrustedItemValue(COOKED_BEEF, values)).toBe(1.5);
+    });
+});
+
+describe('item identity for valuation', () => {
+    test('plain items are priced under their display name', () => {
+        expect(getValuationName({ type: 'DIAMOND_PICKAXE', name: '', amount: 1 })).toBe('Diamond pickaxe');
+    });
+
+    test('enchanted variants get their own sorted enchantment signature', () => {
+        const item = { type: 'DIAMOND_PICKAXE', name: '', amount: 1, enchant: { unbreaking: 3, [MINECRAFT_EFFICIENCY]: 5 } };
+        expect(getValuationName(item)).toBe('Diamond pickaxe [efficiency 5, unbreaking 3]');
+    });
+
+    test('items whose variant is not in the data cannot be priced', () => {
+        expect(getValuationName({ type: 'POTION', name: '', amount: 1, enchant: {} })).toBeUndefined();
+        expect(getValuationName({ type: 'ENCHANTED_BOOK', name: '', amount: 1, enchant: {} })).toBeUndefined();
+        expect(getValuationName({ type: 'POTION', name: 'Berry Juice', amount: 1 })).toBe('Berry juice');
+    });
+
+    test('filled shulker boxes are broken down into their contents', () => {
+        const shulker = { type: 'SHULKER_BOX', name: '', amount: 2, lore: [LORE_GUNPOWDER, LORE_GUNPOWDER, '- 10x SAND'] };
+        expect(getItemComponents(shulker)).toEqual([
+            { name: 'Gunpowder', amount: 256 },
+            { name: 'Sand', amount: 20 },
+        ]);
+    });
+
+    test('toValuationInput maps a single-content shulker cost to its contents', () => {
+        const trade = {
+            ...createTrade(14, 1, DIAMOND_BLOCK_TITLE, 1),
+            resultItem: { type: 'DIAMOND_BLOCK', name: '', amount: 14 },
+            item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: [LORE_GUNPOWDER, LORE_GUNPOWDER] },
+        };
+        expect(toValuationInput(trade)).toMatchObject({
+            resultName: 'Diamond block', resultAmount: 14, item1Name: 'Gunpowder', costAmount: 128,
+        });
+    });
+
+    test('toValuationInput skips trades that cannot be attributed to one item', () => {
+        const potionTrade = { ...createTrade(1, 5, 'Potion', 1), resultItem: { type: 'POTION', name: '', amount: 1 } };
+        const mixedShulker = { ...createTrade(1, 5, 'Gunpowder', 1), resultItem: { type: 'SHULKER_BOX', name: '', amount: 1, lore: [LORE_GUNPOWDER, '- 10x SAND'] } };
+        expect(toValuationInput(potionTrade)).toBeUndefined();
+        expect(toValuationInput(mixedShulker)).toBeUndefined();
+    });
+});
+
+describe('deviation calculator', () => {
+    test('compares with other listings in the same currency first', () => {
+        const cheap = beefTrade('GOLD_INGOT', 1, 0);
+        const expensive = beefTrade('GOLD_INGOT', 3, 1000);
+        const getDeviation = calculatorFor([cheap, expensive]);
+        // Median gold price is 2 per beef
+        expect(getDeviation(cheap)).toMatchObject({ percent: -50, basis: 'same-currency' });
+        expect(getDeviation(expensive)).toMatchObject({ percent: 50, basis: 'same-currency' });
+    });
+
+    test('gives no deviation without trusted data on either basis', () => {
+        const getDeviation = calculatorFor([beefTrade(EMERALD, 2, 0), beefTrade(EMERALD, 2, 1000)]);
+        // Gold has no trusted value and no other gold-priced beef exists
+        expect(getDeviation(beefTrade('GOLD_INGOT', 1, 2000))).toBeUndefined();
+    });
+
+    test('values a mixed shulker cost by its contents in emeralds', () => {
+        const getDeviation = calculatorFor([beefTrade(EMERALD, 2, 0), beefTrade(EMERALD, 2, 1000)]);
+        const shulkerTrade: Trade = {
+            ...beefTrade(EMERALD, 1, 2000),
+            resultItem: { type: 'COOKED_BEEF', name: '', amount: 64 },
+            resultAmount: 64,
+            item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 28x EMERALD', '- 4x EMERALD_BLOCK'] },
+        };
+        // 28 + 4×9 = 64 emeralds for 64 beef worth 128 emeralds
+        expect(getDeviation(shulkerTrade)).toMatchObject({ percent: -50, basis: 'emerald' });
     });
 });
 

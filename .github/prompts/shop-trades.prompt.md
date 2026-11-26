@@ -337,7 +337,7 @@ NAVIGATION.NEARBY_THRESHOLD   // 100 blocks - show tooltip
 
 // localStorage keys (prevents typos)
 STORAGE_KEYS.CART             // 'shop-trades-cart'
-STORAGE_KEYS.SNAPSHOT         // 'shop-trades-snapshot'
+STORAGE_KEYS.SNAPSHOT         // 'shop-trades-snapshot-dev2'
 STORAGE_KEYS.NAV_PROGRESS     // 'shop-trades-nav-progress'
 
 // Dashboard thresholds

@@ -63,7 +63,10 @@ export const SORT = {
 export const STORAGE_KEYS = {
     CART: 'shop-trades-cart',
     FAVORITES: 'shop-trades-favorites',
-    SNAPSHOT: 'shop-trades-snapshot',
+    /** Versioned with the deviation model: baselines from an older model are not comparable */
+    SNAPSHOT: 'shop-trades-snapshot-dev2',
+    /** Snapshot key used before the same-currency deviation model; removed on load */
+    SNAPSHOT_LEGACY: 'shop-trades-snapshot',
     NAV_PROGRESS: 'shop-trades-nav-progress',
     NAV_PLAYER: 'shop-trades-nav-player',
     NAV_TAB: 'shop-trades-nav-tab',
@@ -86,6 +89,24 @@ export const DASHBOARD = {
     SNAPSHOT_INTERVAL_MS: 1 * 60 * 60 * 1000,
     /** Maximum snapshot age before pruning (30 hours) */
     SNAPSHOT_MAX_AGE_MS: 30 * 60 * 60 * 1000,
+} as const;
+
+// ============================================================================
+// Quick Search
+// ============================================================================
+
+/** Fast-probing helpers: quick bar, autocomplete and URL history */
+export const QUICK_SEARCH = {
+    /** "Deals only" keeps trades at or below this deviation */
+    DEALS_ONLY_MAX_PERCENT: -20,
+    /** Currencies offered as one-click "Paying" chips (Alt+1…4) */
+    CURRENCIES: ['Emerald', 'Emerald block', 'Diamond', 'Diamond block'],
+    /** Maximum autocomplete suggestions */
+    MAX_SUGGESTIONS: 8,
+    /** Minimum typed characters before suggestions appear */
+    MIN_SUGGESTION_CHARS: 2,
+    /** A search that stays unchanged this long becomes a browser history entry */
+    HISTORY_SETTLE_MS: 800,
 } as const;
 
 // ============================================================================

@@ -7,7 +7,7 @@
  * @module navigation/shop-tooltip
  */
 
-import { calculateRouteDistance } from '../library.js';
+import { calculateRouteDistance, escapeHtml } from '../library.js';
 import type { PlayerPosition } from '../stores/navigation-store.js';
 import type { CartItem,RouteStop } from '../types.js';
 
@@ -97,7 +97,7 @@ function findNearestShop(
  */
 function renderTooltipContent(items: CartItem[]): string {
     const itemsHtml = items.map(cartItem =>
-        `<li><span class="item-name">${cartItem.trade.resultName}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
+        `<li><span class="item-name">${escapeHtml(cartItem.trade.resultName)}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
     ).join('');
 
     return `

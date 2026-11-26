@@ -15,13 +15,14 @@ import { z } from 'zod';
 
 import {
     calculateItemValues,
-    formatName,
+    calculatePairPrices,
     getConfig,
     getTradeKey,
     loadBaseItems,
     loadConfig,
     loadFixedRatios,
     processTrade,
+    toValuationInput,
 } from '../library.js';
 import { createDeviationCalculator } from '../search/index.js';
 import type {
@@ -30,6 +31,7 @@ import type {
     MappingRule,
     Shop,
     Trade,
+    TradeInput,
 } from '../types.js';
 import {
     MappingRuleSchema,
@@ -98,22 +100,18 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     let getDeviation = createDeviationCalculator(itemValues);
     const newTradeKeys = new Set<string>();
     let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let lastUpdated: Date | undefined;
 
     /**
-     * Build the item-value calculation input from current trades
+     * Build the item-value calculation input from current trades. Trades that
+     * cannot be attributed to a single item price are skipped.
      * @param trades - Current trade list to build inputs from
      * @returns Array of trade input objects for item value calculation
      */
-    function buildItemValueInput(trades: readonly Trade[]) {
-        return trades.map(t => ({
-            resultName: t.resultName,
-            resultAmount: t.resultAmount,
-            costName: t.costName,
-            costAmount: t.item1.amount,
-            item1Name: formatName(t.item1),
-            item2: t.item2,
-            x: t.x, y: t.y, z: t.z,
-        }));
+    function buildItemValueInput(trades: readonly Trade[]): readonly TradeInput[] {
+        return trades
+            .map(t => toValuationInput(t))
+            .filter((input): input is TradeInput => input !== undefined);
     }
 
     function processShops(shops: readonly Shop[]): void {
@@ -128,6 +126,27 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
         }
     }
 
+    /** Recalculate item values and the deviation calculator from the current trades */
+    function recalculateValues(): void {
+        const inputs = buildItemValueInput(allTrades);
+        itemValues = calculateItemValues(inputs, 'emerald');
+        getDeviation = createDeviationCalculator(itemValues, calculatePairPrices(inputs));
+    }
+
+    /**
+     * Show when the shop data was last updated, and whether the latest refresh failed
+     * @param stale - True when the latest refresh failed and older data is shown
+     */
+    function showFreshness(stale: boolean): void {
+        const element = document.querySelector('#data-freshness');
+        if (!element || !lastUpdated) { return; }
+        const time = lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        element.textContent = stale
+            ? `Shop data from ${time} · refresh failed, retrying`
+            : `Shop data updated ${time}`;
+        element.classList.toggle('stale', stale);
+    }
+
     /**
      * Refresh shop data from remote API.
      * Returns the number of new trades detected and marks them for highlighting.
@@ -140,6 +159,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
 
             if (!response.ok) {
                 console.warn('Failed to refresh shop data:', response.status);
+                showFreshness(true);
                 return 0;
             }
 
@@ -147,6 +167,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             const parsed = ShopDataSchema.safeParse(json);
             if (!parsed.success) {
                 console.warn('Invalid shop data format');
+                showFreshness(true);
                 return 0;
             }
 
@@ -166,11 +187,13 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             }
 
             // Recalculate item values
-            itemValues = calculateItemValues(buildItemValueInput(allTrades), 'emerald');
-            getDeviation = createDeviationCalculator(itemValues);
+            recalculateValues();
 
             // Refresh the search results
             deps.search();
+
+            lastUpdated = new Date();
+            showFreshness(false);
 
             const newTradeCount = newTradeKeys.size;
             if (newTradeCount > 0) {
@@ -180,8 +203,24 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             return newTradeCount;
         } catch (error) {
             console.warn('Error refreshing shop data:', error);
+            showFreshness(true);
             return 0;
         }
+    }
+
+    /** Replace the results with a load error and a retry button */
+    function showLoadError(): void {
+        const results = deps.getElement('results');
+        results.innerHTML = `
+            <div class="no-results" role="alert">
+                <h2>Couldn't load shop data</h2>
+                <p>Check your connection and try again.</p>
+                <button type="button" class="retry-load-btn">Retry</button>
+            </div>`;
+        results.querySelector('.retry-load-btn')?.addEventListener('click', () => {
+            results.innerHTML = '<div class="no-results"><p>Loading…</p></div>';
+            void loadShops();
+        });
     }
 
     async function loadShops(): Promise<void> {
@@ -218,8 +257,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             processShops(data.data);
 
             // Calculate item values for deviation column
-            itemValues = calculateItemValues(buildItemValueInput(allTrades), 'emerald');
-            getDeviation = createDeviationCalculator(itemValues);
+            recalculateValues();
 
             deps.renderHeader();
             deps.search(); // Show all trades on load
@@ -227,17 +265,22 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             // Show daily deals dashboard (compare with previous session)
             deps.showDashboard();
 
+            lastUpdated = new Date();
+            showFreshness(false);
+
             // Start background refresh interval
             if (config.dataRefreshMs && config.dataRefreshMs > 0) {
+                clearInterval(_shopRefreshInterval);
                 _shopRefreshInterval = setInterval(() => void refreshShopData(), config.dataRefreshMs);
             }
 
-            // Expose refreshShopData for E2E testing
-            globalThis.refreshShopData = refreshShopData;
+            // Expose refreshShopData for E2E tests (dev server only)
+            if (import.meta.env.DEV) {
+                globalThis.refreshShopData = refreshShopData;
+            }
         } catch (error) {
             console.error('Failed to load shop data:', error);
-            deps.getElement('results').innerHTML =
-                '<div class="no-results"><h2>Error loading data</h2><p>Please refresh the page</p></div>';
+            showLoadError();
         }
     }
 

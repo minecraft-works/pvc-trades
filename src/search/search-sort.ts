@@ -11,11 +11,13 @@
 
 import {
     COLUMNS,
+    QUICK_SEARCH,
     SORT,
 } from '../constants.js';
 import { isFavoritesFilterActive } from '../favorites/index.js';
 import {
     filterTrade,
+    getOverworldDistanceFromOrigin,
     getRegex,
     getTradeKey,
 } from '../library.js';
@@ -27,6 +29,10 @@ import type {
     SortDirection,
     Trade,
 } from '../types.js';
+import { parseExactQuery, pickBestPerItem } from './query.js';
+
+/** "Deals only" shows trades at least this much below market */
+const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -60,6 +66,10 @@ export interface SearchSortDeps {
     isFilterNewOnly: () => boolean;
     /** Whether "cart only" filter is active (lazy) */
     isFilterCartOnly: () => boolean;
+    /** Quick-bar toggles: only good deals, and only the best offer per item (lazy) */
+    getQuickFilters: () => { readonly dealsOnly: boolean; readonly bestPerItem: boolean };
+    /** Called after every search, e.g. to sync the URL and quick-bar state */
+    onSearched: () => void;
 }
 
 /**
@@ -103,9 +113,6 @@ export function updateClearButtonVisibility(input: Readonly<HTMLInputElement>, c
     if (!button) { return; }
     button.classList.toggle('hidden', input.value.length === 0);
 }
-
-// Column order for sort priority (left to right)
-const COLUMN_ORDER: readonly SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
 
 // ============================================================================
 // Factory
@@ -170,24 +177,44 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         return count;
     }
 
+    /**
+     * Whether header toggles or quick filters exclude a trade before text matching
+     * @param trade - Trade to check
+     * @returns True if the trade should be hidden
+     */
+    function isExcludedByFilters(trade: Trade): boolean {
+        if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
+        if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
+        if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }
+        if (!deps.getQuickFilters().dealsOnly) { return false; }
+        const deviation = deps.getDeviation()(trade);
+        return deviation === undefined || deviation.percent > DEALS_ONLY_MAX_PERCENT;
+    }
+
     function search(): void {
         const wantQuery = deps.getInputValue('searchWant');
         const giveQuery = deps.getInputValue('searchGive');
 
-        const wantRegex = wantQuery ? getCachedRegex(wantQuery) : undefined;
-        const giveRegex = giveQuery ? getCachedRegex(giveQuery) : undefined;
-        const results: FilterResult[] = [];
+        // Exact queries ("emerald") highlight the name inside the quotes
+        const wantRegex = wantQuery ? getCachedRegex(parseExactQuery(wantQuery) ?? wantQuery) : undefined;
+        const giveRegex = giveQuery ? getCachedRegex(parseExactQuery(giveQuery) ?? giveQuery) : undefined;
+        let results: FilterResult[] = [];
 
         for (const trade of deps.getAllTrades()) {
-            const isFilteredOut =
-                (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) ||
-                (deps.isFilterCartOnly() && !cartStore.has(trade)) ||
-                (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase()));
-
-            if (isFilteredOut) { continue; }
+            if (isExcludedByFilters(trade)) { continue; }
 
             const result = filterTrade(trade, wantQuery, giveQuery);
             if (result) { results.push(result); }
+        }
+
+        if (deps.getQuickFilters().bestPerItem) {
+            const deviationCalc = deps.getDeviation();
+            results = [...pickBestPerItem(
+                results,
+                r => r.displayName.toLowerCase(),
+                r => deviationCalc(r.trade)?.percent,
+                r => r.trade.displayStock
+            )];
         }
 
         const sortedResults = sortResults(results);
@@ -196,16 +223,18 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         // Update deals badge with count of trades meeting thresholds
         const dealsCount = countDeals(sortedResults);
         deps.updateDealsBadge(dealsCount);
+        deps.onSearched();
     }
 
-    function compareDeviation(ta: Trade, tb: Trade): number {
+    function compareDeviation(ta: Trade, tb: Trade, multiplier: number): number {
         const deviationCalc = deps.getDeviation();
         const deviationA = deviationCalc(ta);
         const deviationB = deviationCalc(tb);
+        // Trades without a deviation always sink to the bottom, regardless of direction
         if (!deviationA && !deviationB) { return 0; }
         if (!deviationA) { return 1; }
         if (!deviationB) { return -1; }
-        return deviationA.percent - deviationB.percent;
+        return multiplier * (deviationA.percent - deviationB.percent);
     }
 
     function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
@@ -215,7 +244,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
         switch (column) {
             case 'dev': {
-                return multiplier * compareDeviation(ta, tb);
+                return compareDeviation(ta, tb, multiplier);
             }
             case COLUMNS.COST_AMT: {
                 return multiplier * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
@@ -236,7 +265,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
                 return multiplier * ta.world.localeCompare(tb.world);
             }
             case 'distance': {
-                return multiplier * (Math.hypot(ta.x, ta.z) - Math.hypot(tb.x, tb.z));
+                return multiplier * (getOverworldDistanceFromOrigin(ta) - getOverworldDistanceFromOrigin(tb));
             }
             default: {
                 return 0;
@@ -249,18 +278,28 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
             return results; // No sorting applied
         }
 
-        // Get active columns in left-to-right order
-        const sortColumns = COLUMN_ORDER.filter(col => activeSorts.has(col));
+        // Map insertion order is the sort priority (most recently clicked first)
+        const sortColumns = [...activeSorts.entries()];
 
         return results.toSorted((a, b) => {
-            for (const column of sortColumns) {
-                const direction = activeSorts.get(column);
-                if (direction === undefined) { continue; }
+            for (const [column, direction] of sortColumns) {
                 const cmp = compareByColumn(a, b, column, direction);
                 if (cmp !== 0) { return cmp; }
             }
             return 0;
         });
+    }
+
+    /**
+     * Set a column's sort direction and make it the primary sort key.
+     * @param column - Column to promote
+     * @param direction - Sort direction to apply
+     */
+    function promoteSort(column: SortColumn, direction: SortDirection): void {
+        const previous = [...activeSorts.entries()].filter(([col]) => col !== column);
+        activeSorts.clear();
+        activeSorts.set(column, direction);
+        for (const [col, direction] of previous) { activeSorts.set(col, direction); }
     }
 
     function sortByColumn(column: SortColumn): void {
@@ -269,13 +308,13 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
         if (currentDirection === undefined) {
             // First click: set initial direction based on column type
-            activeSorts.set(column, startsAsc ? SORT.ASC : SORT.DESC);
+            promoteSort(column, startsAsc ? SORT.ASC : SORT.DESC);
         } else if (startsAsc && currentDirection === SORT.ASC) {
             // Name columns: asc -> desc -> none
-            activeSorts.set(column, SORT.DESC);
+            promoteSort(column, SORT.DESC);
         } else if (!startsAsc && currentDirection === SORT.DESC) {
             // Numeric columns: desc -> asc -> none
-            activeSorts.set(column, SORT.ASC);
+            promoteSort(column, SORT.ASC);
         } else {
             // Third click: remove sort
             activeSorts.delete(column);

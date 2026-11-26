@@ -12,6 +12,8 @@ import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
 import {
     aggregateShoppingList,
     computeOptimalOrder,
+    escapeHtml,
+    formatTradeCost,
     getTradeKey,
     isNether,
     toOverworldEquivalent,
@@ -304,8 +306,8 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
 
         itemElement.innerHTML = `
             <span class="cart-item-info">
-                <strong>${trade.resultAmount}× ${trade.resultName}</strong>
-                <span class="cart-item-cost">← ${trade.item1.amount}× ${trade.costName}</span>
+                <strong>${trade.resultAmount}× ${escapeHtml(trade.resultName)}</strong>
+                <span class="cart-item-cost">← ${escapeHtml(formatTradeCost(trade))}</span>
             </span>
             <span class="cart-item-controls">
                 <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
@@ -434,9 +436,10 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
             netherCoords = `${Math.round(stop.x / 8)}, ${Math.round(stop.z / 8)}`;
         }
 
+        const stopText = `<span class="stop-text">${item.quantity}× ${escapeHtml(item.trade.resultName)}</span>`;
         content.innerHTML = forNavPanel
-            ? `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span>`
-            : `<span class="stop-text">${item.quantity}× ${item.trade.resultName}</span><span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+            ? stopText
+            : `${stopText}<span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
 
         content.classList.add('clickable');
         content.addEventListener('click', () => {

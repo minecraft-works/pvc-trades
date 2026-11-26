@@ -16,6 +16,7 @@ import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } fr
 import {
     calculateFitZoom,
     clampToCircle,
+    escapeHtml,
     getTileCoords,
     getWorldId,
     toLeafletCoords,
@@ -277,7 +278,7 @@ function updateShopMapPlayerMarkers(
         const leafletMarker = L.marker([coords.lat, coords.lng], {
             icon: L.divIcon({
                 className: 'leaflet-player-marker',
-                html: `<span class="player-name${labelClass}">${player.name}</span>`,
+                html: `<span class="player-name${labelClass}">${escapeHtml(player.name)}</span>`,
                 iconSize: [12, 12],
                 iconAnchor: [6, 6]
             }),

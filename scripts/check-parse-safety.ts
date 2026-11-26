@@ -3,15 +3,15 @@
  * Scans src/ directory for Zod .parse() calls, excluding test files.
  * Exit code 1 if unsafe .parse() calls found.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 function walkDirectory(directory: string, results: string[] = []): string[] {
     for (const entry of readdirSync(directory)) {
-        const fullPath = join(directory, entry);
+        const fullPath = path.join(directory, entry);
         if (statSync(fullPath).isDirectory() && !entry.includes('node_modules')) {
             walkDirectory(fullPath, results);
-        } else if (extname(fullPath) === '.ts' && !fullPath.includes('.test.')) {
+        } else if (path.extname(fullPath) === '.ts' && !fullPath.includes('.test.')) {
             results.push(fullPath);
         }
     }
@@ -34,6 +34,5 @@ for (const filePath of files) {
 if (found) {
     console.error('\n.parse() found in production code — use .safeParse() instead');
     process.exit(1);
-} else {
-    console.log('No unsafe .parse() calls found');
 }
+console.log('No unsafe .parse() calls found');

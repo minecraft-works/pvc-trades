@@ -23,11 +23,11 @@
     "test:mutation": "stryker run",
     "test:load": "playwright test --project=chromium-spec tests/tile-load-testing.spec.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\"",
     "lint:css": "stylelint styles.css",
     "lint:html": "htmlhint index.html",
     "lint:all": "npm run lint && npm run lint:css && npm run lint:html",
-    "lint:fix": "eslint src/**/*.ts --fix && stylelint styles.css --fix",
+    "lint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\" --fix && stylelint styles.css --fix",
     "knip": "knip",
     "knip:fix": "knip --fix",
     "docs": "typedoc",
@@ -51,6 +51,7 @@
       "eslint --fix"
     ],
     "scripts/**/*.ts": "eslint --fix",
+    "workers/**/*.ts": "eslint --fix",
     "tests/**/*.spec.ts": [
       "eslint --fix"
     ],

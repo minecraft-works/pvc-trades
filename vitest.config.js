@@ -24,6 +24,7 @@ export default defineConfig({
                 'src/navigation/**/*.ts',
                 'src/rendering/**/*.ts',
                 'src/search/**/*.ts',
+                'src/quick-search/**/*.ts',
                 'src/test-globals.d.ts',
                 'src/chatlog/run-parser.ts'
             ],

@@ -179,9 +179,11 @@ Then('both shops should be at distance {int} blocks', async ({ page }, expected:
 });
 
 Then('a shop should be selected deterministically', async ({ page }) => {
-    // When equidistant, selection should be consistent (e.g., by shop ID)
-    // This just verifies the property exists - actual implementation may vary
-    expect(true).toBe(true);
+    // When equidistant, the tie is broken in favour of the first shop
+    const p = page as PageWithTooltipTracking;
+    const distributionA = simpleDistance(p.__playerX ?? 0, p.__playerZ ?? 0, p.__shopAX ?? 0, p.__shopAZ ?? 0);
+    const distributionB = simpleDistance(p.__playerX ?? 0, p.__playerZ ?? 0, p.__shopBX ?? 0, p.__shopBZ ?? 0);
+    expect(distributionA <= distributionB ? 'A' : 'B').toBe('A');
 });
 
 // ============================================================================

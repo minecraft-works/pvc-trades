@@ -97,6 +97,19 @@ async function showAllTrades(page: Page): Promise<void> {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 10_000 });
 }
 
+/**
+ * Recipe selling one cooked beef for emeralds
+ * @param amount - Emerald price
+ * @returns Raw recipe for mock shop data
+ */
+function beefForEmeralds(amount: number) {
+    return {
+        resultItem: { type: 'COOKED_BEEF', name: '', amount: 1 },
+        item1: { type: 'EMERALD', name: '', amount },
+        stock: 5
+    };
+}
+
 test.describe('CSS Layout - Table Structure', () => {
     test.beforeEach(async ({ page }) => {
         await setupMockRoutes(page);
@@ -735,6 +748,21 @@ test.describe('CSS Layout - Map Dialog', () => {
         await expect(dialog).toBeVisible();
     });
 
+    test('map dialog opens when pressing Enter on a focused trade row', async ({ page }) => {
+        await page.locator('.trade-row').first().focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#map-dialog')).toBeVisible();
+    });
+
+    test('arrow keys move focus between trade rows', async ({ page }) => {
+        const rows = page.locator('.trade-row');
+        await rows.first().focus();
+        await page.keyboard.press('ArrowDown');
+        await expect(rows.nth(1)).toBeFocused();
+        await page.keyboard.press('ArrowUp');
+        await expect(rows.first()).toBeFocused();
+    });
+
     test('map dialog closes when pressing Escape', async ({ page }) => {
         const firstRow = page.locator('.trade-row').first();
         await firstRow.locator('.distance').click();
@@ -1202,6 +1230,13 @@ test.describe('CSS Layout - Distance Column', () => {
             expect(title).toMatch(/Z:/);
         }
     });
+
+    test('nether shop distance is shown in overworld blocks', async ({ page }) => {
+        const netherRow = page.locator('.trade-row[data-world="world_nether"]').first();
+        const distance = Number(await netherRow.locator('.col.distance').textContent());
+        // Nether (-19950, -21636) × 8 → overworld (-159600, -173088)
+        expect(distance).toBe(Math.round(Math.hypot(-19_950 * 8, -21_636 * 8)));
+    });
 });
 
 // =============================================================================
@@ -1257,6 +1292,36 @@ test.describe('CSS Layout - Sorting', () => {
         expect(stockText).toMatch(/[↑↓]/);
     });
 
+    test('most recently clicked column becomes the primary sort key', async ({ page }) => {
+        await page.locator('#table-header .col.stock-header').click();
+        await expect(page.locator('#table-header .col.dev-header')).toHaveClass(/active-sort/);
+
+        const stockTexts = await page.locator('.trade-row .col.stock').allTextContents();
+        const stocks = stockTexts.map(Number);
+        expect(stocks).toEqual(stocks.toSorted((a, b) => b - a));
+    });
+
+    test('trades without a deal value stay last when sorting deal descending', async ({ page }) => {
+        const potion = { resultItem: { type: 'POTION', name: '', amount: 1 }, item1: { type: 'EMERALD', name: '', amount: 1 }, stock: 5 };
+        await page.route('**/data.json', route => route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ data: [
+                { location: '0.0, 64.0, 0.0', world: 'world', recipes: [potion, beefForEmeralds(2)] },
+                { location: '1000.0, 64.0, 0.0', world: 'world', recipes: [beefForEmeralds(4)] },
+            ] })
+        }));
+        await page.reload();
+        await showAllTrades(page);
+
+        const dealHeader = page.locator('#table-header .col.dev-header');
+        await dealHeader.click(); // asc → none
+        await dealHeader.click(); // none → desc
+        await expect(dealHeader).toHaveText('↓Deal');
+
+        await expect(page.locator('.trade-row .col.dev')).toHaveText(['+33%', '−33%', '—']);
+    });
+
     test('sort arrow appears before label for right-aligned columns', async ({ page }) => {
         const stockHeader = page.locator('#table-header .col.stock-header');
         
@@ -1266,6 +1331,20 @@ test.describe('CSS Layout - Sorting', () => {
         
         // Arrow should be at the start (right-aligned column)
         expect(text?.charAt(0)).toMatch(/[↑↓]/);
+    });
+
+    test('sortable headers work from the keyboard and expose aria-sort', async ({ page }) => {
+        const stockHeader = page.locator('#table-header .col.stock-header');
+        await stockHeader.focus();
+        await page.keyboard.press('Enter');
+
+        await expect(stockHeader).toHaveClass(/active-sort/);
+        await expect(stockHeader).toHaveAttribute('aria-sort', 'descending');
+        // Only the primary sort column carries aria-sort
+        await expect(page.locator('#table-header .col.dev-header')).not.toHaveAttribute('aria-sort', /.+/);
+
+        await page.keyboard.press(' ');
+        await expect(stockHeader).toHaveAttribute('aria-sort', 'ascending');
     });
 
     test('sort arrow appears after label for left-aligned columns', async ({ page }) => {

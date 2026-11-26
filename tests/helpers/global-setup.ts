@@ -24,7 +24,7 @@ export const test = base.extend({
             // This avoids buggy flyTo behavior with duration 0
             const patchLeafletFlyTo = () => {
                 const L = (globalThis as unknown as { L?: { Map?: { prototype: { flyTo?: unknown; setView?: unknown } } } }).L;
-                if (!L?.Map?.prototype?.flyTo) { return; }
+                if (!L?.Map?.prototype.flyTo) { return; }
                 L.Map.prototype.flyTo = function(this: unknown, latlng: unknown, zoom?: number, _options?: unknown) {
                     // When animations disabled, use setView which is more reliable
                     const setView = (this as { setView: (latlng: unknown, zoom?: number, options?: { animate: boolean }) => unknown }).setView;

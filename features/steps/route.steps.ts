@@ -43,7 +43,7 @@ Given('I add a trade for {string} quantity {int} to my cart', async ({ page }, i
     for (let index = 0; index < count; index++) {
         const row = rows.nth(index);
         const resultName = await row.locator('.result-name').textContent();
-        if (resultName && resultName.toLowerCase().includes(item.toLowerCase())) {
+        if (resultName?.toLowerCase().includes(item.toLowerCase())) {
             await row.locator('.add-to-cart-btn').click();
             return;
         }

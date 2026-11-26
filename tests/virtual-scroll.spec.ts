@@ -10,8 +10,9 @@
  * Run with: npx playwright test virtual-scroll.spec.ts
  */
 
-import { test, expect } from './helpers/global-setup';
 import type { Page } from '@playwright/test';
+
+import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // Test configuration

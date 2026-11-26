@@ -19,6 +19,8 @@ Given('I clear the cart and add the far shop first then the near shop', async ({
     }
     const clearButton = page.locator('#clear-cart');
     if (await clearButton.isVisible()) {
+        // First click asks for confirmation, second click clears
+        await clearButton.click();
         await clearButton.click();
         // Clear-cart closes the dialog
         await page.waitForSelector('#cart-dialog', { state: 'hidden' });
@@ -141,6 +143,8 @@ Given('I am navigating as {string} in the overworld', async ({ page, playerMock 
     // Click clear cart if there are items (this will also close the dialog)
     const clearButton = page.locator('#clear-cart');
     if (await clearButton.isVisible()) {
+        // First click asks for confirmation, second click clears (and closes the dialog)
+        await clearButton.click();
         await clearButton.click();
         // Cart is cleared and dialog is closed
         await page.waitForSelector('#cart-dialog', { state: 'hidden' });

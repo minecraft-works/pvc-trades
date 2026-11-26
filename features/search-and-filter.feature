@@ -86,3 +86,45 @@ Feature: Search and Filter
     When I click the swap search button
     Then the want field clear button should not be visible
     And the give field clear button should be visible
+
+  # ============================================================================
+  # Keyboard probing
+  # ============================================================================
+
+  @search @keyboard
+  Scenario: Tab from the want field goes straight to the give field
+    Given I search for "emerald" in the want field
+    When I press "Tab"
+    Then the give field should be focused
+
+  @search @keyboard
+  Scenario: Escape clears the want field immediately
+    Given I search for "emerald" in the want field
+    When I press "Escape"
+    Then the want field should contain ""
+    And the want field clear button should not be visible
+    And the want field should be focused
+    And trades other than "emerald" should be displayed
+
+  @search @keyboard
+  Scenario: Escape clears the give field immediately
+    Given I search for "diamond" in the give field
+    When I press "Escape"
+    Then the give field should contain ""
+    And the give field should be focused
+
+  @search @keyboard
+  Scenario: Arrow down browses results and Escape returns to the search
+    Given I search for "emerald" in the want field
+    When I press "ArrowDown"
+    Then the first trade row should be focused
+    When I press "Escape"
+    Then the want field should be focused
+    And the want field should contain "emerald"
+
+  @search @keyboard
+  Scenario: Slash focuses the search from anywhere
+    Given I search for "emerald" in the want field
+    And I press "ArrowDown"
+    When I press "/"
+    Then the want field should be focused
