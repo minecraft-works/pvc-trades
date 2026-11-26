@@ -21,7 +21,7 @@ import {
     type TradeInput,
 } from '../types.js';
 import { getPairKey } from './item-identity.js';
-import { getTrustedItemValue } from './statistics.js';
+import { countIndependentShops,getTrustedItemValue } from './statistics.js';
 
 // ============================================================================
 // Public API
@@ -49,6 +49,7 @@ export function calculateItemValues(trades: readonly TradeInput[], baseCurrency:
     }
 
     // Phase 2: Extend using known item values as intermediaries
+    const applied = new Set<TradeInput>();
     let changed = true;
     let iterations = 0;
 
@@ -56,14 +57,18 @@ export function calculateItemValues(trades: readonly TradeInput[], baseCurrency:
         changed = false;
         iterations++;
 
-        // Snapshot which items have entries BEFORE this iteration so all trades
-        // in one pass see consistent state. Without this, the first trade adding
-        // a value for an item prevents subsequent trades from contributing more
-        // data points, which starves core-block trust filters.
-        const knownKeys = new Set(values.keys());
+        // Snapshot which items have well-covered buy/sell sides BEFORE this
+        // iteration so all trades in one pass see consistent state. Without this,
+        // the first trade adding a value for an item prevents subsequent trades
+        // from contributing more data points, which starves core-block trust
+        // filters. Tracked per side so an item with only sell data can still gain
+        // buy data (and vice versa).
+        const known = snapshotKnownSides(values, config.analysis.minIndependentShops);
 
         for (const trade of trades) {
-            if (deriveTransitiveValue(trade, baseCurrency, values, knownKeys)) {
+            // Each trade contributes at most one derived price across all iterations
+            if (!applied.has(trade) && deriveTransitiveValue(trade, baseCurrency, values, known)) {
+                applied.add(trade);
                 changed = true;
             }
         }
@@ -203,54 +208,71 @@ function deriveTransitiveValue(
     trade: TradeInput,
     baseCurrency: string,
     values: Map<string, ItemValueEntry>,
-    knownKeys: ReadonlySet<string>
+    known: KnownSides
 ): boolean {
     // For trades with item2, we need different handling
     if (trade.item2) {
-        return deriveTransitiveValueWithItem2(trade, baseCurrency, values, knownKeys);
+        return deriveTransitiveValueWithItem2(trade, baseCurrency, values, known);
     }
 
-    const item1Name = trade.item1Name;
-    const costKey = item1Name.toLowerCase();
-    const resultKey = trade.resultName.toLowerCase();
-
-    const costIsBase = normalizeToBaseCurrency(item1Name, 1, baseCurrency).matches;
+    const costIsBase = normalizeToBaseCurrency(trade.item1Name, 1, baseCurrency).matches;
     const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
     if (costIsBase || resultIsBase) { return false; }
 
-    // Use the snapshot to decide which direction to derive. This ensures all
-    // trades in one iteration contribute values for newly-discovered items,
-    // so core blocks can accumulate enough independent shops to pass trust filters.
-    const costKnown = knownKeys.has(costKey);
-    const resultKnown = knownKeys.has(resultKey);
-    let changed = false;
-
-    if (costKnown && !resultKnown) {
-        const costValue = getTrustedItemValue(item1Name, values);
-        if (costValue !== undefined) {
-            const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
-            addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
-            changed = true;
-        }
+    for (const direction of getDerivationOrder(trade, known)) {
+        const derived = direction === 'buy'
+            ? deriveBuyPrice(trade, values)
+            : deriveSellPrice(trade, values);
+        if (derived) { return true; }
     }
+    return false;
+}
 
-    if (resultKnown && !costKnown) {
-        const resultValue = getTrustedItemValue(trade.resultName, values);
-        if (resultValue !== undefined) {
-            const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
-            addValue(values, item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
-            changed = true;
-        }
+/**
+ * Decide which price(s) a trade may derive, based on the start-of-iteration snapshot.
+ * A trade yields one derived price, flowing from the better-covered item into the
+ * less-covered one; deriving both ways would be circular.
+ * @param trade - Trade to derive from
+ * @param known - Snapshot of covered item sides
+ * @returns Directions to try, in order of preference
+ */
+function getDerivationOrder(trade: TradeInput, known: KnownSides): readonly ('buy' | 'sell')[] {
+    const costKey = trade.item1Name.toLowerCase();
+    const resultKey = trade.resultName.toLowerCase();
+    const canBuy = known.any.has(costKey) && !known.buy.has(resultKey);
+    const canSell = known.any.has(resultKey) && !known.sell.has(costKey);
+
+    if (canBuy && canSell) {
+        const costCoverage = known.coverage.get(costKey) ?? 0;
+        const resultCoverage = known.coverage.get(resultKey) ?? 0;
+        return resultCoverage <= costCoverage ? ['buy', 'sell'] : ['sell', 'buy'];
     }
+    if (canBuy) { return ['buy']; }
+    if (canSell) { return ['sell']; }
+    return [];
+}
 
-    return changed;
+function deriveBuyPrice(trade: TradeInput, values: Map<string, ItemValueEntry>): boolean {
+    const costValue = getTrustedItemValue(trade.item1Name, values);
+    if (costValue === undefined) { return false; }
+    const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
+    addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+    return true;
+}
+
+function deriveSellPrice(trade: TradeInput, values: Map<string, ItemValueEntry>): boolean {
+    const resultValue = getTrustedItemValue(trade.resultName, values);
+    if (resultValue === undefined) { return false; }
+    const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
+    addValue(values, trade.item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+    return true;
 }
 
 function deriveTransitiveValueWithItem2(
     trade: TradeInput,
     baseCurrency: string,
     values: Map<string, ItemValueEntry>,
-    knownKeys: ReadonlySet<string>
+    known: KnownSides
 ): boolean {
     if (!trade.item2) { return false; }
 
@@ -264,13 +286,13 @@ function deriveTransitiveValueWithItem2(
 
     // If already handled in direct phase, skip
     if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
+    if (known.buy.has(resultKey)) { return false; }
 
     const item1Value = getTrustedItemValue(item1Name, values);
     const item2Value = getTrustedItemValue(item2Name, values);
-    const resultKnown = knownKeys.has(resultKey);
 
-    // If we know both input values but result was unknown at start of iteration
-    if (item1Value !== undefined && item2Value !== undefined && !resultKnown) {
+    // If we know both input values but the result's buy side was not yet covered
+    if (item1Value !== undefined && item2Value !== undefined) {
         const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
         const pricePerResult = totalCostValue / trade.resultAmount;
         addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
@@ -279,3 +301,34 @@ function deriveTransitiveValueWithItem2(
 
     return false;
 }
+
+interface KnownSides {
+    readonly any: ReadonlySet<string>;
+    readonly buy: ReadonlySet<string>;
+    readonly sell: ReadonlySet<string>;
+    /** Independent shop count (buy + sell) per item, to rank how well-covered an item is */
+    readonly coverage: ReadonlyMap<string, number>;
+}
+
+/**
+ * Snapshot which items have a value, and which sides are already well covered.
+ * A side counts as covered only once it has enough independent shops, so a
+ * single stray price does not stop further trades from contributing.
+ * @param values - Current item values
+ * @param minShops - Independent shops needed for a side to count as covered
+ * @returns Item keys that have any data, plus those with covered buy / sell sides
+ */
+function snapshotKnownSides(values: ReadonlyMap<string, ItemValueEntry>, minShops: number): KnownSides {
+    const buy = new Set<string>();
+    const sell = new Set<string>();
+    const coverage = new Map<string, number>();
+    for (const [key, entry] of values) {
+        const buyShops = countIndependentShops(entry.buyPrices);
+        const sellShops = countIndependentShops(entry.sellPrices);
+        if (buyShops >= minShops) { buy.add(key); }
+        if (sellShops >= minShops) { sell.add(key); }
+        coverage.set(key, buyShops + sellShops);
+    }
+    return { any: new Set(values.keys()), buy, sell, coverage };
+}
+

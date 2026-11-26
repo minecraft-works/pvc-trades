@@ -211,15 +211,28 @@ function buildDirectionalEmeraldValues(
     const config = configStore.get();
     const coreBlocks = coreBlocksStore.get();
     const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
+    const blockConversions = blockConversionsStore.get();
+    const minShops = config.analysis.minIndependentShops;
+
+    const shopCount = (key: string): number => {
+        const entry = itemValues.get(key);
+        if (!entry) { return 0; }
+        return countIndependentShops(side === 'buy' ? entry.buyPrices : entry.sellPrices);
+    };
+    const isTrusted = (key: string): boolean => !coreBlocksLower.has(key) || shopCount(key) >= minShops;
 
     for (const [key, entry] of itemValues.entries()) {
         const prices = side === 'buy' ? entry.buyPrices : entry.sellPrices;
+        const shops = shopCount(key);
 
         // Trust is judged on the same side that supplies the value, otherwise a
         // single outlier shop on one side passes thanks to the other side's data.
-        if (coreBlocksLower.has(key) && countIndependentShops(prices) < config.analysis.minIndependentShops) {
-            continue;
-        }
+        // Blocks and their base item are tied by the fixed craft ratio, so also
+        // defer to a partner that is clearly better backed (2x the independent
+        // shops) on this side.
+        const deferToPartner = getConversionPartners(key, blockConversions)
+            .some(p => isTrusted(p) && shopCount(p) >= 2 * shops);
+        if (!isTrusted(key) || deferToPartner) { continue; }
 
         const value = median(prices);
         if (value !== undefined) {
@@ -228,6 +241,21 @@ function buildDirectionalEmeraldValues(
     }
 
     emeraldValues.set('emerald', 1);
-    const blockConversions = blockConversionsStore.get();
     return applyBlockConversions(emeraldValues, blockConversions);
+}
+
+/**
+ * Find the items linked to `key` by a block conversion (its base item, or the blocks built from it).
+ * @param key - Lowercase item name
+ * @param blockConversions - Block-to-ingot conversion rates
+ * @returns Lowercase names of the conversion partners
+ */
+function getConversionPartners(key: string, blockConversions: Readonly<BlockConversions>): readonly string[] {
+    const partners: string[] = [];
+    const own = blockConversions[key];
+    if (own) { partners.push(own.base.toLowerCase()); }
+    for (const [blockName, { base }] of Object.entries(blockConversions)) {
+        if (base.toLowerCase() === key) { partners.push(blockName.toLowerCase()); }
+    }
+    return partners;
 }

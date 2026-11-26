@@ -148,20 +148,19 @@ export function getTrustedItemValue(
 
     const coreBlocksLower: readonly string[] = coreBlocks.map(b => b.toLowerCase());
     const isCoreBlock = coreBlocksLower.includes(itemKey);
-    const isTrusted = (entry: ItemValueEntry): boolean => isCoreBlock
-        ? hasEnoughIndependentData(entry, minShops)
-        : countIndependentShops([...entry.buyPrices, ...entry.sellPrices]) >= minItemShops;
+    const valueOf = (entry: ItemValueEntry): number | undefined =>
+        getEntryValue(entry, isCoreBlock, minShops, minItemShops);
 
     // Try direct value from trades
-    const directValue = getDirectTradeValue(itemValues.get(itemKey), isTrusted);
+    const directValue = getDirectTradeValue(itemValues.get(itemKey), valueOf);
     if (directValue !== undefined) { return directValue; }
 
     // Try block conversion (block = ingot × multiplier)
-    const conversionValue = getBlockConversionValue(itemKey, itemValues, blockConversions, isTrusted);
+    const conversionValue = getBlockConversionValue(itemKey, itemValues, blockConversions, valueOf);
     if (conversionValue !== undefined) { return conversionValue; }
 
     // Try reverse conversion (ingot from block)
-    return getReverseConversionValue(itemKey, itemValues, blockConversions, isTrusted);
+    return getReverseConversionValue(itemKey, itemValues, blockConversions, valueOf);
 }
 
 /**
@@ -211,27 +210,54 @@ function getMedianValue(
     return buy ?? sell;
 }
 
+/**
+ * Median value of an entry, if the entry has enough independent evidence.
+ * For core blocks only sides backed by enough independent shops contribute,
+ * so a lone outlier on one side cannot skew the average with the
+ * well-supported side. Other items need `minItemShops` independent shops
+ * across both sides (ADR-018).
+ * @param entry - Item value entry with buy/sell prices
+ * @param isCoreBlock - Whether the item is a core block subject to per-side trust rules
+ * @param minShops - Minimum independent shops required per side for core blocks
+ * @param minItemShops - Minimum independent shops required for other items
+ * @returns Emerald value, or undefined if not trusted
+ */
+function getEntryValue(
+    entry: ItemValueEntry,
+    isCoreBlock: boolean,
+    minShops: number,
+    minItemShops: number
+): number | undefined {
+    if (!isCoreBlock) {
+        if (countIndependentShops([...entry.buyPrices, ...entry.sellPrices]) < minItemShops) { return undefined; }
+        return getMedianValue(entry.buyPrices, entry.sellPrices);
+    }
+    return getMedianValue(
+        countIndependentShops(entry.buyPrices) >= minShops ? entry.buyPrices : [],
+        countIndependentShops(entry.sellPrices) >= minShops ? entry.sellPrices : []
+    );
+}
+
 function getDirectTradeValue(
     entry: ItemValueEntry | undefined,
-    isTrusted: (entry: ItemValueEntry) => boolean
+    valueOf: (entry: ItemValueEntry) => number | undefined
 ): number | undefined {
-    if (!entry || !isTrusted(entry)) { return undefined; }
-    return getMedianValue(entry.buyPrices, entry.sellPrices);
+    return entry ? valueOf(entry) : undefined;
 }
 
 function getBlockConversionValue(
     itemKey: string,
     itemValues: ItemValues,
     blockConversions: Readonly<BlockConversions>,
-    isTrusted: (entry: ItemValueEntry) => boolean
+    valueOf: (entry: ItemValueEntry) => number | undefined
 ): number | undefined {
     const blockInfo = blockConversions[itemKey];
     if (!blockInfo) { return undefined; }
 
     const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
-    if (!baseEntry || !isTrusted(baseEntry)) { return undefined; }
+    if (!baseEntry) { return undefined; }
 
-    const baseValue = getMedianValue(baseEntry.buyPrices, baseEntry.sellPrices);
+    const baseValue = valueOf(baseEntry);
     if (baseValue === undefined) { return undefined; }
     return baseValue * blockInfo.multiplier;
 }
@@ -240,14 +266,14 @@ function getReverseConversionValue(
     itemKey: string,
     itemValues: ItemValues,
     blockConversions: Readonly<BlockConversions>,
-    isTrusted: (entry: ItemValueEntry) => boolean
+    valueOf: (entry: ItemValueEntry) => number | undefined
 ): number | undefined {
     for (const [blockKey, conversion] of Object.entries(blockConversions)) {
         if (conversion.base.toLowerCase() !== itemKey) { continue; }
 
         const blockEntry = itemValues.get(blockKey);
-        if (blockEntry && isTrusted(blockEntry)) {
-            const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
+        if (blockEntry) {
+            const blockValue = valueOf(blockEntry);
             if (blockValue !== undefined) {
                 return blockValue / conversion.multiplier;
             }
