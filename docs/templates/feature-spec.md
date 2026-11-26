@@ -129,7 +129,7 @@ So that I can quickly find my preferred trading locations.
 
 #### State Changes
 - New state: `favorites: Set<string>` - shop coordinates as keys
-- localStorage key: `pvc-trades-favorites` - serialized array of shop keys
+- localStorage key: `shop-trades-favorites` - serialized array of shop keys
 
 ### UI/UX Specification
 

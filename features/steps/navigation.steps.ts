@@ -7,7 +7,8 @@ import {
     setupColoredTileMocks,
     setupMultiWorldDataMock,
     setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
-import { Given, Then,When, TILE_URL_EXTENSION } from './fixtures';
+import { isTileRequestUrl, tileWorldLabel } from '../../tests/helpers/tile-url';
+import { Given, Then,When } from './fixtures';
 
 // Constants for selectors and timeouts
 const SELECTOR_NAV_DIALOG_OPEN = '#nav-dialog[open]';
@@ -50,8 +51,8 @@ Given('I open the navigation dialog with items from both worlds', async ({ page,
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
-            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+        if (isTileRequestUrl(request.url())) {
+            const world = tileWorldLabel(request.url());
             tileRequests.push(world);
         }
     });
@@ -137,7 +138,7 @@ When(String.raw`player moves to the overworld at \({int}, {int})`, async ({ page
     // Wait one polling cycle to make sure the current world is registered
     const pollInterval = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
+        return globalThis.__appConfig?.squaremap?.playerRefreshMs ?? 500;
     }) as number;
     await page.waitForTimeout(pollInterval + 200);
     
@@ -349,7 +350,7 @@ Given('I wait for at least {int} polling cycles', async ({ page }, cycles: numbe
     // Get the polling interval from config (default 500ms)
     const pollIntervalMs = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
+        return globalThis.__appConfig?.squaremap?.playerRefreshMs ?? 500;
     }) as number;
     
     // Wait for the specified number of polling cycles plus a buffer
@@ -427,8 +428,8 @@ Given('I mark the nether shop as completed', async ({ page }) => {
 Given('I start navigation as {string}', async ({ page, tileRequests }, playerName: string) => {
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
-            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+        if (isTileRequestUrl(request.url())) {
+            const world = tileWorldLabel(request.url());
             tileRequests.push(world);
         }
     });

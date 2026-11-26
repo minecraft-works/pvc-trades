@@ -347,7 +347,7 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
     let resultAmount: number;
     let loreText = '';
     let isShulker = false;
-    let shulkerItems: readonly ShulkerItem[] | undefined = undefined;
+    let shulkerItems: readonly ShulkerItem[] | undefined;
 
     if (lore.length > 0 && resultItem.type.includes('SHULKER')) {
         const parsed = parseShulkerContents(lore);
@@ -439,7 +439,7 @@ export function filterTrade(trade: Readonly<Trade>, wantQuery: string, giveQuery
     if (trade.stock === 0) { return undefined; }
 
     const { matchResult, displayName, displayAmount } = checkWantQueryMatch(trade, wantQuery);
-    const matchCost = giveQuery ? matchesQuery(trade.costText, giveQuery) : true;
+    const matchCost = !giveQuery || matchesQuery(trade.costText, giveQuery);
 
     if (wantQuery && !matchResult) { return undefined; }
     if (giveQuery && !matchCost) { return undefined; }

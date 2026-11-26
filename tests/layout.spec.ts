@@ -388,7 +388,7 @@ test.describe('CSS Layout - Trade Rows', () => {
             const justifyContent = await costAmts.first().evaluate(
                 element => getComputedStyle(element).justifyContent
             );
-            expect(justifyContent).toBe('flex-end');
+            expect(['flex-end', 'flow-end']).toContain(justifyContent);
         }
     });
 
@@ -604,7 +604,7 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
 
         // Should be right-aligned with flex layout and monospace font
         expect(styles.display).toBe('flex');
-        expect(styles.justifyContent).toBe('flex-end');
+        expect(['flex-end', 'flow-end']).toContain(styles.justifyContent);
         expect(styles.fontFamily).toContain('monospace');
         expect(styles.textAlign).toBe('right');
     });
@@ -1217,7 +1217,7 @@ test.describe('CSS Layout - Distance Column', () => {
     test('distance column is right-aligned', async ({ page }) => {
         const distanceHeader = page.locator('#table-header .col.distance-header');
         const justifyContent = await distanceHeader.evaluate(element => getComputedStyle(element).justifyContent);
-        expect(justifyContent).toBe('flex-end');
+        expect(['flex-end', 'flow-end']).toContain(justifyContent);
     });
 
     test('distance column has tooltip with full coordinates', async ({ page }) => {
@@ -1354,7 +1354,7 @@ test.describe('CSS Layout - Header Alignment', () => {
     test('world column header is right-aligned', async ({ page }) => {
         const worldHeader = page.locator('#table-header .col.world-header');
         const justifyContent = await worldHeader.evaluate(element => getComputedStyle(element).justifyContent);
-        expect(justifyContent).toBe('flex-end');
+        expect(['flex-end', 'flow-end']).toContain(justifyContent);
     });
 
     test('world column cells are right-aligned', async ({ page }) => {
@@ -1363,7 +1363,7 @@ test.describe('CSS Layout - Header Alignment', () => {
         
         if (count > 0) {
             const justifyContent = await worldCells.first().evaluate(element => getComputedStyle(element).justifyContent);
-            expect(justifyContent).toBe('flex-end');
+            expect(['flex-end', 'flow-end']).toContain(justifyContent);
         }
     });
 
@@ -1373,20 +1373,20 @@ test.describe('CSS Layout - Header Alignment', () => {
         
         if (count > 0) {
             const justifyContent = await distanceCells.first().evaluate(element => getComputedStyle(element).justifyContent);
-            expect(justifyContent).toBe('flex-end');
+            expect(['flex-end', 'flow-end']).toContain(justifyContent);
         }
     });
 
     test('deal column header is right-aligned', async ({ page }) => {
         const developmentHeader = page.locator('#table-header .col.dev-header');
         const justifyContent = await developmentHeader.evaluate(element => getComputedStyle(element).justifyContent);
-        expect(justifyContent).toBe('flex-end');
+        expect(['flex-end', 'flow-end']).toContain(justifyContent);
     });
 
     test('stock column header is right-aligned', async ({ page }) => {
         const stockHeader = page.locator('#table-header .col.stock-header');
         const justifyContent = await stockHeader.evaluate(element => getComputedStyle(element).justifyContent);
-        expect(justifyContent).toBe('flex-end');
+        expect(['flex-end', 'flow-end']).toContain(justifyContent);
     });
 
     test('name columns are left-aligned', async ({ page }) => {

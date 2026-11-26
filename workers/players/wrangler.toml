@@ -1,0 +1,8 @@
+name = "pvc-players"
+main = "index.ts"
+compatibility_date = "2024-11-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+PLAYERS_UPSTREAM_URL = "https://web.peacefulvanilla.club/maps/tiles/players.json"

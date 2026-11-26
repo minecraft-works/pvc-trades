@@ -5,12 +5,12 @@
 
 ## Context
 
-The application polls the Dynmap API for player positions at 1000ms intervals (navigation) and 5000ms intervals (shop map dialog). Between polls, player markers remain static, causing visible "jumps" when new positions arrive — especially jarring during live navigation where the map follows the player.
+The application polls the player feed for player positions at 1000ms intervals (navigation) and 5000ms intervals (shop map dialog). Between polls, player markers remain static, causing visible "jumps" when new positions arrive — especially jarring during live navigation where the map follows the player.
 
 ### Constraints
 
-1. **Cannot increase poll frequency** — the Dynmap server is a community resource not under our control; 1000ms is already aggressive
-2. **No measurement noise** — Dynmap reports exact server positions, unlike GPS/sensor data
+1. **Cannot increase poll frequency** — the map server is a community resource not under our control; 1000ms is already aggressive
+2. **No measurement noise** — the map server reports exact server positions, unlike GPS/sensor data
 3. **Cross-dimension teleports** — players entering Nether portals appear to "jump" hundreds of blocks (Nether 1:8 ratio)
 4. **Variable player behavior** — players walk, sprint, ride horses, stand still, change direction unpredictably
 5. **Multiple simultaneous players** — shop map shows all online players, not just the navigating one

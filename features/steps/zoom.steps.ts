@@ -22,8 +22,8 @@ const SELECTOR_RECENTER_BUTTON = '#nav-dialog-recenter, #recenter-map';
 Given('the app is loaded with shops in the overworld', async ({ page, playerMock }) => {
     // Clear localStorage before loading to ensure clean state
     await page.addInitScript(() => {
-        localStorage.removeItem('pvc-trades-cart');
-        localStorage.removeItem('pvc-trades-nav-progress');
+        localStorage.removeItem('shop-trades-cart');
+        localStorage.removeItem('shop-trades-nav-progress');
     });
     
     await setupPlayerApiMock(page, playerMock);
@@ -37,8 +37,8 @@ Given('the app is loaded with shops in the overworld', async ({ page, playerMock
 Given('the app is loaded with shops in the nether', async ({ page, playerMock }) => {
     // Clear localStorage before loading to ensure clean state
     await page.addInitScript(() => {
-        localStorage.removeItem('pvc-trades-cart');
-        localStorage.removeItem('pvc-trades-nav-progress');
+        localStorage.removeItem('shop-trades-cart');
+        localStorage.removeItem('shop-trades-nav-progress');
     });
     
     // Start player in the nether

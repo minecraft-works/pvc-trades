@@ -8,49 +8,39 @@ import type { Page, Route } from '@playwright/test';
 
 import { BLUE_PIXEL_PNG, RED_PIXEL_PNG } from './png-utilities.js';
 import { mockConfigRoute, TILE_ROUTE_PATTERN } from './test-config.js';
+import { tileWorldLabel } from './tile-url.js';
+
+/** Colour of the plain overworld mock tile (see {@link BLUE_PIXEL_PNG}) */
+const OVERWORLD_MOCK_COLOR = { r: 0, g: 100, b: 255 };
+
+/** Colour of the plain nether mock tile (see {@link RED_PIXEL_PNG}) */
+const NETHER_MOCK_COLOR = { r: 255, g: 50, b: 50 };
+
+/**
+ * Answer a tile request the way the map server does for tiles it has not
+ * rendered: HTTP 200 with an empty body, which the browser cannot decode.
+ * @param route
+ */
+export async function fulfillMissingTile(route: Route): Promise<void> {
+    await route.fulfill({ status: 200, contentType: 'image/png', body: '' });
+}
 
 /**
  * Sets up colored tile mocks based on world in URL
  * - Overworld tiles: Blue
  * - Nether tiles: Red
+ *
+ * Mocks the map server for every tile, so no availability list is needed.
  * @param page
  */
 export async function setupColoredTileMocks(page: Page): Promise<void> {
     await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
-        const url = route.request().url();
-        const isNether = url.includes('/the_nether/');
-        
+        const isNether = tileWorldLabel(route.request().url()) === 'nether';
+
         await route.fulfill({
             status: 200,
             contentType: 'image/png',
             body: isNether ? RED_PIXEL_PNG : BLUE_PIXEL_PNG
-        });
-    });
-
-    // Mock the manifest with entries for common tile coordinates
-    // This ensures tiles will be loaded by the app
-    await page.route('**/tiles/manifest.json', async (route: Route) => {
-        const manifestEntries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
-        
-        // Generate manifest entries for a range of tiles around 0,0 and nether shop location
-        const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = [256, 4096]; // detail level 2 and overview level 0
-        
-        for (const world of worlds) {
-            for (const blocksPerTile of blocksPerTileOptions) {
-                // Cover tiles around origin and common test locations
-                for (let tx = -10; tx <= 10; tx++) {
-                    for (let tz = -10; tz <= 10; tz++) {
-                        manifestEntries.push({ world, tileX: tx, tileZ: tz, blocksPerTile });
-                    }
-                }
-            }
-        }
-        
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(manifestEntries)
         });
     });
 }
@@ -191,69 +181,34 @@ export interface RGB {
 }
 
 /**
- * Sample a pixel color from the navigation map canvas
- * Leaflet renders to a container with multiple image overlays
- * Note: Leaflet uses blob URLs, so we can't filter by original URL path
+ * Get the colour of a tile that is actually displayed on the navigation map.
+ *
+ * Tiles come from another origin than the app, so their pixels cannot be read
+ * back through a canvas. Instead the decoded overlay images are located in the
+ * DOM and the colour is that of the mock tile served for their URL.
  * @param page
  */
-export async function sampleMapColor(page: Page): Promise<RGB | null> {
-    // Wait for the map container to be visible
+export async function sampleMapColor(page: Page): Promise<RGB | undefined> {
     const container = page.locator('#nav-dialog-map-container');
     await container.waitFor({ state: 'visible', timeout: 5000 });
 
-    // Sample color from the center of any loaded tile image
-    return await page.evaluate(() => {
-        const container = document.querySelector('#nav-dialog-map-container');
-        if (!container) {
-            console.log('[sampleMapColor] No container found');
-            return null; // eslint-disable-line unicorn/no-null -- browser context
-        }
-
-        // Find any image overlay in the Leaflet pane
-        const images = container.querySelectorAll('.leaflet-image-layer');
-        console.log(`[sampleMapColor] Found ${images.length} image layers`);
-        
-        if (images.length === 0) {
-            return null; // eslint-disable-line unicorn/no-null -- browser context
-        }
-        
-        // Find a loaded image
-        for (const img of images) {
-            if (!img.complete || img.naturalWidth === 0) {
-                continue;
-            }
-            
-            // Create canvas to sample the image
-            const canvas = document.createElement('canvas');
-            canvas.width = 1;
-            canvas.height = 1;
-            const context = canvas.getContext('2d');
-            if (!context) {
-                continue;
-            }
-
-            try {
-                context.drawImage(img, 0, 0, 1, 1);
-                const pixel = context.getImageData(0, 0, 1, 1).data;
-                console.log(`[sampleMapColor] Sampled pixel: R=${pixel[0]}, G=${pixel[1]}, B=${pixel[2]}`);
-                return { r: pixel[0], g: pixel[1], b: pixel[2] };
-            } catch (error) {
-                console.log('[sampleMapColor] Error sampling image:', error);
-                // CORS or other error, try next image
-                continue;
-            }
-        }
-        
-        console.log('[sampleMapColor] No valid image found to sample');
-        return null; // eslint-disable-line unicorn/no-null -- browser context
+    const loadedSources = await page.evaluate(() => {
+        const images = document.querySelectorAll<HTMLImageElement>('#nav-dialog-map-container .leaflet-image-layer');
+        return [...images]
+            .filter(img => img.complete && img.naturalWidth > 0)
+            .map(img => img.src);
     });
+
+    const source = loadedSources[0];
+    if (source === undefined) { return undefined; }
+    return tileWorldLabel(source) === 'nether' ? NETHER_MOCK_COLOR : OVERWORLD_MOCK_COLOR;
 }
 
 /**
  * Check if the map is showing overworld (blue-ish color)
  * @param color
  */
-export function isBlueColor(color: RGB | null): boolean {
+export function isBlueColor(color: RGB | undefined): boolean {
     if (!color) {
         return false;
     }
@@ -265,7 +220,7 @@ export function isBlueColor(color: RGB | null): boolean {
  * Check if the map is showing nether (red-ish color)
  * @param color
  */
-export function isRedColor(color: RGB | null): boolean {
+export function isRedColor(color: RGB | undefined): boolean {
     if (!color) {
         return false;
     }
@@ -275,8 +230,6 @@ export function isRedColor(color: RGB | null): boolean {
 
 /**
  * Wait for map to show a specific world color
- * Since Leaflet uses blob URLs, we can't filter by world URL
- * Instead, we just sample the color and check if it matches expectations
  * @param page
  * @param expectedWorld
  * @param timeout
@@ -290,7 +243,6 @@ export async function waitForMapWorld(
     const startTime = Date.now();
     
     while (Date.now() - startTime < timeout) {
-        // Don't filter by world since blob URLs don't preserve the original path
         const color = await sampleMapColor(page);
         if (checkColor(color)) {
             return true;

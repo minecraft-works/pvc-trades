@@ -16,7 +16,7 @@ import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } fro
 // Types
 // ============================================================================
 
-/** Player position from Dynmap API */
+/** Player position from the live player feed */
 export interface PlayerPosition {
     x: number;
     y: number;

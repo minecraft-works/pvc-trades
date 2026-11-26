@@ -61,15 +61,15 @@ export const SORT = {
 
 /** localStorage keys for persistence */
 export const STORAGE_KEYS = {
-    CART: 'pvc-trades-cart',
-    FAVORITES: 'pvc-trades-favorites',
-    SNAPSHOT: 'pvc-trades-snapshot',
-    NAV_PROGRESS: 'pvc-trades-nav-progress',
-    NAV_PLAYER: 'pvc-trades-nav-player',
-    NAV_TAB: 'pvc-trades-nav-tab',
-    NAV_MODE: 'pvc-trades-nav-mode',
-    NAV_VIEW_WORLD: 'pvc-trades-nav-view-world',
-    NAV_VIEW_WORLD_MODE: 'pvc-trades-nav-view-world-mode',
+    CART: 'shop-trades-cart',
+    FAVORITES: 'shop-trades-favorites',
+    SNAPSHOT: 'shop-trades-snapshot',
+    NAV_PROGRESS: 'shop-trades-nav-progress',
+    NAV_PLAYER: 'shop-trades-nav-player',
+    NAV_TAB: 'shop-trades-nav-tab',
+    NAV_MODE: 'shop-trades-nav-mode',
+    NAV_VIEW_WORLD: 'shop-trades-nav-view-world',
+    NAV_VIEW_WORLD_MODE: 'shop-trades-nav-view-world-mode',
 } as const;
 
 // ============================================================================

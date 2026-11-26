@@ -1,6 +1,6 @@
-# PVC Trades Development Skill
+# Shop Trades Development Skill
 
-Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, daily deals dashboard, and Dynmap integration.
+Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, daily deals dashboard, and live Squaremap integration.
 
 ---
 
@@ -67,11 +67,11 @@ Before debugging, enable verbose logging:
 
 ```javascript
 // In evaluate_script or browser console
-localStorage.debug = 'pvc:*';
+localStorage.debug = 'app:*';
 location.reload();
 ```
 
-Then check console messages for `pvc:navigation`, `pvc:tiles`, etc.
+Then check console messages for `app:navigation`, `app:tiles`, etc.
 
 ### Using Local Data (Offline/Development)
 
@@ -85,7 +85,7 @@ To avoid network issues or test with static data, configure `config.json` to use
 }
 ```
 
-The remote API (`https://pvc-shops.minecraft-works.workers.dev/`) may be blocked by corporate networks. Switch to local `data.json` for development.
+The remote API (`dataUrl` in `config.json`) may be blocked by corporate networks. Switch to local `data.json` for development.
 
 ---
 
@@ -336,9 +336,9 @@ NAVIGATION.ARRIVAL_THRESHOLD  // 8 blocks - auto-complete shop
 NAVIGATION.NEARBY_THRESHOLD   // 100 blocks - show tooltip
 
 // localStorage keys (prevents typos)
-STORAGE_KEYS.CART             // 'pvc-trades-cart'
-STORAGE_KEYS.SNAPSHOT         // 'pvc-trades-snapshot'
-STORAGE_KEYS.NAV_PROGRESS     // 'pvc-trades-nav-progress'
+STORAGE_KEYS.CART             // 'shop-trades-cart'
+STORAGE_KEYS.SNAPSHOT         // 'shop-trades-snapshot'
+STORAGE_KEYS.NAV_PROGRESS     // 'shop-trades-nav-progress'
 
 // Dashboard thresholds
 DASHBOARD.PRICE_DROP_THRESHOLD // 5 percentage points
@@ -365,9 +365,9 @@ debugTiles('loading tile %s at zoom %d', tileKey, zoom);
 
 **Enable in browser console:**
 ```javascript
-localStorage.debug = 'pvc:*';           // All logs
-localStorage.debug = 'pvc:navigation';  // Navigation only
-localStorage.debug = 'pvc:tiles';       // Tile loading
+localStorage.debug = 'app:*';           // All logs
+localStorage.debug = 'app:navigation';  // Navigation only
+localStorage.debug = 'app:tiles';       // Tile loading
 // Then reload the page
 ```
 
@@ -655,7 +655,7 @@ npx playwright show-report
 |-----------|-------|--------|--------|
 | Virtual scroll | >100 items | ADR-007 | Apply `<virtual-scroller>` |
 | Search debounce | `requestAnimationFrame` | main.ts | Frame-based (not fixed ms) |
-| Player polling | **1000ms** | config.json | Dynmap API refresh rate |
+| Player polling | **1000ms** | config.json | Player list refresh rate |
 | Auto-advance | **8 blocks** | constants.ts | Mark shop complete when player arrives |
 | Nearby tooltip | 100 blocks | constants.ts | Show shop tooltip when close |
 | Shop clustering | 16 blocks | config.json | Independent shops for price aggregation |
@@ -674,7 +674,7 @@ npx playwright show-report
 | 006 | Zod `.safeParse()` pattern (never `.parse()`) |
 | 007 | Virtual scroll at 100+ items |
 | 008 | Normalize nether coords to overworld for distance |
-| 009 | Tile caching with blob URLs (no service worker) |
+| 009 | Tiles loaded directly from the map server (no referrer, `<img>` only) |
 
 ---
 
@@ -747,41 +747,24 @@ Given('the app is loaded with dashboard test data', async ({ page }) => {
 
 ---
 
-## Tile System (Dynmap Integration)
+## Tile System (Squaremap Integration)
 
-### Pipeline Overview
+### Overview
+
+The browser loads tiles directly from the map server.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           BUILD TIME                                     │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Dynmap Server                                                           │
-│       │                                                                  │
-│       └── scripts/fetch-tiles.ts (Playwright + stealth)                  │
-│                │                                                         │
-│                ├── Reads shop locations from data.json                   │
-│                ├── Calculates tiles needed (5×5 grid around each shop)   │
-│                ├── Fetches zoom 4 AND zoom 8 tiles                       │
-│                └── Saves to public/tiles/{world}/{z}/{x}/{y}.png         │
-│                                                                          │
-│  Output: public/tiles/manifest.json (list of available tiles)            │
-└─────────────────────────────────────────────────────────────────────────┘
+{squaremap.baseUrl}/tiles/minecraft_{world}/{zoom}/{tileX}_{tileZ}.png
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           RUNTIME                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Browser loads manifest.json                                             │
-│       │                                                                  │
-│       └── TileLoader (src/map/tile-loader.ts)                            │
-│                │                                                         │
-│                ├── Checks manifest before fetching (avoid 404s)          │
-│                ├── Fetches tile PNG → creates Blob URL                   │
-│                ├── Caches blob URL in memory (tileBlobCache)             │
-│                └── Adds L.ImageOverlay to Leaflet map                    │
-│                                                                          │
-│  Display: L.CRS.Simple coordinate system                                 │
-└─────────────────────────────────────────────────────────────────────────┘
+Browser ── <img> via L.imageOverlay ──► Squaremap server
+   │            (no Referer: <meta name="referrer" content="no-referrer">)
+   └── JSON (players, shops) ──► Cloudflare Workers (add CORS) ──► origin servers
 ```
+
+- `src/map/tile-layout.ts` maps app pyramid levels (0 = overview … 4 = detail) to server zooms 4–8 and builds URLs.
+- `src/map/tile-loader.ts` adds each tile to a Leaflet map once; unrendered tiles (HTTP 200, empty body) fail to decode and their overlay is removed on `error`.
+- The server returns 403 for tile requests with a foreign `Referer` and sends no CORS headers, so tiles can only be used as plain images.
+- See ADR-009 and ADR-010.
 
 ### Zoom Levels & Pyramid Structure
 
@@ -804,7 +787,7 @@ Zoom   Blocks/Tile   1 tile covers        Use case
 ### Tile Coordinate Calculation
 
 ```typescript
-// From scripts/tile-utils.ts - convert Minecraft to tile coords
+// From src/tile-coords.ts - convert Minecraft to tile coords
 const blocksPerTile = tileSize * Math.pow(2, maxZoom - zoom);
 const tileX = Math.floor(x / blocksPerTile);
 const tileZ = Math.floor(z / blocksPerTile);
@@ -823,77 +806,35 @@ Leaflet uses `CRS.Simple` with **inverted Z axis**:
 const leafletCoords = { lat: -offsetZ, lng: offsetX };
 ```
 
-### File Structure
-
-```
-public/tiles/
-├── manifest.json           # List of available tiles
-├── overworld/
-│   ├── 4/                  # Zoom 4 (overview)
-│   │   ├── 0/
-│   │   │   ├── 0.png
-│   │   │   └── 1.png
-│   │   └── 1/
-│   └── 8/                  # Zoom 8 (detail)
-│       ├── -3/
-│       └── 2/
-├── the_nether/
-│   ├── 4/
-│   └── 8/
-└── the_end/
-```
-
-### Manifest Format
-
-```json
-[
-    { "world": "overworld", "tileX": 0, "tileZ": 0, "blocksPerTile": 8192 },
-    { "world": "overworld", "tileX": 2, "tileZ": 4, "blocksPerTile": 512 },
-    { "world": "the_nether", "tileX": 0, "tileZ": 0, "blocksPerTile": 8192 }
-]
-```
-
 ### TileLoader API (src/map/tile-loader.ts)
 
 ```typescript
-import { loadTileManifest, tileExistsInManifest, loadTileToMap } from './map/tile-loader.js';
+import { addTileOverlay, getTileUrl, loadTileToMap } from './map/tile-loader.js';
 
-const manifest = await loadTileManifest();  // Load once at startup
-tileExistsInManifest(manifest, 'overworld', blocksPerTile, tx, tz);  // Check before fetch
-loadTileToMap({ map, worldId, zoom, tx, tz, bounds, addedToMap });   // Handles blob caching
-```
-
-### Fetch Workflow
-
-```bash
-npx tsx scripts/fetch-tiles.ts
-# Playwright + stealth → Dynmap → public/tiles/{world}/{z}/{x}/{y}.png
-# Rate-limited: 500ms/tile, 2s between 10-tile batches
+getTileUrl('overworld', level, tx, tz);                              // Absolute tile URL
+loadTileToMap({ map, worldId, zoom, tx, tz, bounds, addedToMap });   // Once per map, drops missing tiles
 ```
 
 ### World ID Mapping
 
-| World Name (data.json) | Dynmap API ID | Local Tile Directory |
-|------------------------|---------------|---------------------|
-| `world`, `World` | `minecraft_overworld` | `overworld/` |
-| `world_nether` | `minecraft_the_nether` | `the_nether/` |
-| `world_the_end` | `minecraft_the_end` | `the_end/` |
+| World Name (data.json) | Tile URL world segment |
+|------------------------|------------------------|
+| `world`, `World` | `minecraft_overworld` |
+| `world_nether` | `minecraft_the_nether` |
+| `world_the_end` | `minecraft_the_end` |
 
-**Note**: `getWorldId()` in library.ts converts between formats.
+**Note**: `getWorldId()` in library.ts returns the normalized name (`overworld`, `the_nether`, `the_end`); `tile-layout.ts` adds the `minecraft_` prefix.
 
 ### Key Constants (tile-loader.ts)
 
 ```typescript
 export const TILE_CONFIG = {
-    tileSize: 512,      // Pixels per tile (= blocks at maxZoom)
-    baseUrl: 'tiles',   // Relative to site root
-    maxZoom: 8,         // 1 pixel = 1 block
-    fallbackZoom: 4,    // Overview tiles
-    minZoom: 1,
-    playersUrl: 'players.json'
+    tileSize: 512,              // Blocks per detail tile (1 px = 1 block)
+    maxZoom: 4,                 // Detail pyramid level (server zoom 8)
+    fallbackZoom: 0,            // Overview pyramid level (server zoom 4)
+    overviewTileBlocks: 8192,
+    detailToOverviewRatio: 16
 };
-
-export const ZOOM4_TILE_SIZE = 512 * 16;  // 8192 blocks
 ```
 
 ---

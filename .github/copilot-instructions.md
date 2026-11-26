@@ -1,8 +1,8 @@
-# PVC Trades Development Guide
+# Shop Trades Development Guide
 
 ## Project Overview
 
-A Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, and Dynmap integration for live navigation.
+A Minecraft Shop Trade Viewer with exchange rate matrix, deviation tracking, and live map integration (Squaremap tiles) for live navigation.
 
 ## File Organization
 
@@ -22,7 +22,8 @@ src/
 ├── favorites/           # Favorites/watchlist UI
 │   └── favorites-ui.ts     # Favorites dialog rendering
 ├── map/                 # Map tile loading and rendering
-│   ├── tile-loader.ts       # Tile manifest, blob caching, Leaflet
+│   ├── tile-layout.ts       # Squaremap zoom pyramid, tile URLs
+│   ├── tile-loader.ts       # Adds tiles to Leaflet maps (direct URLs)
 │   ├── tile-types.ts        # TileConfig, TileRange interfaces
 │   ├── players.ts           # Player position fetching
 │   └── shop-map-dialog.ts   # Shop map dialog
@@ -105,7 +106,7 @@ export function getTrustedItemValue(
 
 - Prefer `undefined` over `null` (enforced by `unicorn/no-null`)
 - Use `unknown` for external data, validate with Zod
-- Prefer `for...of` over `.forEach()` (enforced by `unicorn/no-array-for-each`)
+- Prefer `for...of` over `.forEach()` (enforced by `unicorn/no-for-each`)
 - Use template literals over string concatenation
 - Always add JSDoc for exported functions
 
@@ -296,45 +297,30 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 | **Rolling Snapshot** | Compact history of snapshots with key deduplication for baseline comparison |
 | **Player Interpolation** | Smooth marker movement between polled positions using velocity extrapolation |
 
-## Tile System Workflow
+## Tile System
 
-Map tiles are pre-fetched at build time to minimize requests to the external Dynmap server.
-
-### Build-Time Tile Collection
+Map tiles are loaded by the user's browser directly from the external Squaremap server (`config.squaremap.baseUrl`).
 
 ```
-Deploy Workflow:
-├── 1. Restore tile cache (GitHub Actions cache)
-├── 2. npm run fetch-data      → Fresh shop data
-├── 3. npm run fetch-tiles     → Fetch tiles around CURRENT shops
-│   ├── Read shops from public/data.json
-│   ├── Calculate 5×5 tile grid around each shop (zoom 8)
-│   ├── Add base map tiles (zoom 4, range -5 to 4)
-│   ├── Skip tiles already in cache
-│   ├── Fetch missing tiles with rate limiting
-│   └── Write manifest.json (only successful tiles)
-├── 4. npm run validate-tiles  → Check integrity + coverage
-├── 5. npm run build           → Bundle to dist/
-└── 6. Deploy dist/ to GitHub Pages
+{baseUrl}/tiles/minecraft_{world}/{zoom}/{tileX}_{tileZ}.png
 ```
 
 ### Key Files
 
 | File | Purpose |
-|------|---------|. 
-| `scripts/fetch-tiles.ts` | Build-time tile fetcher with Playwright + stealth |
-| `scripts/validate-tiles.ts` | Post-fetch validation (manifest ↔ files, shop coverage) |
+|------|---------|
+| `src/map/tile-layout.ts` | Pyramid levels ↔ server zooms, tile URL builder |
+| `src/map/tile-loader.ts` | Adds tile overlays to Leaflet maps, drops tiles the server lacks |
 | `src/tile-coords.ts` | **Shared** coordinate utilities (single source of truth) |
-| `src/map/tile-loader.ts` | Runtime tile loading with blob URL caching |
-| `public/tiles/manifest.json` | Lists all available tiles |
+| `workers/players/` | Cloudflare Worker adding CORS to the player list (reshaped for `PlayersDataSchema`) |
 
 ### Tile Coordinate System
 
 ```typescript
 // Tile size at each zoom level
-const blocksPerTile = tileSize × 2^(maxZoom - zoom)
-// zoom 8 (max): 512 blocks/tile (detail tiles)
-// zoom 4:       8192 blocks/tile (overview tiles)
+const blocksPerTile = 512 × 2^(8 - zoom)
+// zoom 8 (max): 512 blocks/tile (detail tiles, app level 4)
+// zoom 4:       8192 blocks/tile (overview tiles, app level 0)
 
 // Block coords → tile coords
 const tileX = Math.floor(blockX / blocksPerTile);
@@ -343,12 +329,14 @@ const tileZ = Math.floor(blockZ / blocksPerTile);
 
 ### Important Constraints
 
-- **Never spam the Dynmap server** - tiles are cached in GitHub Actions
-- **Manifest reflects reality** - only successfully fetched tiles are listed
-- **Validation catches drift** - detects missing tiles before deploy
+- **The page sends no referrer** (`<meta name="referrer" content="no-referrer">`): the map server answers `403` to tile requests with a foreign `Referer`
+- **Tiles are `<img>` only** - the server sends no CORS headers, so no `fetch()`, canvas or WebGL on tile pixels
+- **Missing tiles are HTTP 200 with an empty body** - the overlay is removed on `error`
+- **Only request what is visible** - the server is a community resource we do not control
+- **JSON needs a Worker** - player positions and shop data are not CORS-readable from the origin servers
 - **Shared coordinate logic** - `src/tile-coords.ts` is the single source of truth
 
-See [ADR-010](docs/adr/010-tile-loading-minimization.md) for the rationale.
+See [ADR-009](docs/adr/009-tile-caching-strategy.md) and [ADR-010](docs/adr/010-tile-loading-minimization.md) for the rationale.
 
 ## Git Conventions
 
@@ -405,19 +393,19 @@ npm run lint:fix     # Auto-fix lint issues
 Enable debug logging in production via browser console:
 
 ```javascript
-localStorage.debug = 'pvc:*';           // All logs
-localStorage.debug = 'pvc:navigation';  // Navigation only
-localStorage.debug = 'pvc:playerpoll';  // Player polling only
-localStorage.debug = 'pvc:map';         // Map operations
-localStorage.debug = 'pvc:tiles';       // Tile loading details
+localStorage.debug = 'app:*';           // All logs
+localStorage.debug = 'app:navigation';  // Navigation only
+localStorage.debug = 'app:playerpoll';  // Player polling only
+localStorage.debug = 'app:map';         // Map operations
+localStorage.debug = 'app:tiles';       // Tile loading details
 delete localStorage.debug;              // Disable logging
 ```
 
-Logs appear in browser console with namespace prefixes (e.g., `pvc:navigation Starting navigation...`).
+Logs appear in browser console with namespace prefixes (e.g., `app:navigation Starting navigation...`).
 
 ### Key Files to Know
 
-- `config.json` - App configuration (Dynmap URLs, analysis settings)
+- `config.json` - App configuration (Squaremap URL, analysis settings)
 - `core_currencies.json` - List of core blocks for ratio matrix
 - `block_conversions.json` - Block ↔ ingot conversion rates
 
@@ -433,14 +421,9 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-006](docs/adr/006-zod-runtime-validation.md) - Zod runtime validation
 - [ADR-007](docs/adr/007-virtual-scrolling.md) - Virtual scrolling for large lists
 - [ADR-008](docs/adr/008-nether-coordinate-system.md) - Nether coordinate normalization
-- [ADR-009](docs/adr/009-tile-caching-strategy.md) - Tile caching with blob URLs
-- [ADR-010](docs/adr/010-tile-loading-minimization.md) - Minimizing external tile requests
+- [ADR-009](docs/adr/009-tile-caching-strategy.md) - Map tiles loaded directly from the map server
+- [ADR-010](docs/adr/010-tile-loading-minimization.md) - Limiting requests to the external map server
 - [ADR-011](docs/adr/011-player-position-interpolation.md) - Smooth player position interpolation
-- [ADR-012](docs/adr/012-bluemap-tile-migration.md) - BlueMap tile format and dual-layer PNG layout
-- [ADR-013](docs/adr/013-canonical-tile-pyramid.md) - Canonical tile pyramid structure
-- [ADR-014](docs/adr/014-heightmap-lighting.md) - Heightmap-based lighting (Lambertian model)
-- [ADR-015](docs/adr/015-bluemap-slope-shading.md) - BlueMap-exact slope shading (current model)
-- [ADR-016](docs/adr/016-single-tile-render-pipeline.md) - Single-tile render pipeline
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code

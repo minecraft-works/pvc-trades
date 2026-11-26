@@ -36,6 +36,58 @@ export default tseslint.config(
     security.configs.recommended,
     regexp.configs['flat/recommended'],
     {
+        // Rules added to the Unicorn and SonarJS recommended presets in later major versions.
+        // The project's conventions are defined by the explicit rules further below.
+        rules: {
+            'unicorn/consistent-boolean-name': 'off',
+            'unicorn/consistent-class-member-order': 'off',
+            'unicorn/consistent-compound-words': 'off',
+            'unicorn/isolated-functions': 'off',
+            'unicorn/max-nested-calls': 'off',
+            'unicorn/no-asterisk-prefix-in-documentation-comments': 'off',
+            'unicorn/no-break-in-nested-loop': 'off',
+            'unicorn/no-computed-property-existence-check': 'off',
+            'unicorn/no-declarations-before-early-exit': 'off',
+            'unicorn/no-global-object-property-assignment': 'off',
+            'unicorn/no-negated-array-predicate': 'off',
+            'unicorn/no-non-function-verb-prefix': 'off',
+            'unicorn/no-top-level-assignment-in-function': 'off',
+            'unicorn/no-top-level-side-effects': 'off',
+            'unicorn/no-unnecessary-array-flat-map': 'off',
+            'unicorn/no-unnecessary-parameters': 'off',
+            'unicorn/no-unreadable-for-of-expression': 'off',
+            'unicorn/no-useless-template-literals': 'off',
+            'unicorn/operator-assignment': 'off',
+            'unicorn/prefer-await': 'off',
+            'unicorn/prefer-combined-guards': 'off',
+            'unicorn/prefer-continue': 'off',
+            'unicorn/prefer-direct-iteration': 'off',
+            'unicorn/prefer-dom-node-html-methods': 'off',
+            'unicorn/prefer-dom-node-replace-children': 'off',
+            'unicorn/prefer-early-return': 'off',
+            'unicorn/prefer-global-number-constants': 'off',
+            'unicorn/prefer-hoisting-branch-code': 'off',
+            'unicorn/prefer-iterator-to-array': 'off',
+            'unicorn/prefer-minimal-ternary': 'off',
+            'unicorn/prefer-number-coercion': 'off',
+            'unicorn/prefer-number-is-safe-integer': 'off',
+            'unicorn/prefer-object-iterable-methods': 'off',
+            'unicorn/prefer-options-parameter': 'off',
+            'unicorn/prefer-private-class-fields': 'off',
+            'unicorn/prefer-set-methods': 'off',
+            'unicorn/prefer-short-escape-sequences': 'off',
+            'unicorn/prefer-simple-condition-first': 'off',
+            'unicorn/prefer-single-replace': 'off',
+            'unicorn/prefer-unicode-code-point-escapes': 'off',
+            'unicorn/require-css-escape': 'off',
+            'unicorn/single-line-block-comment-style': 'off',
+            'sonarjs/no-fixed-wait-in-tests': 'off',
+            'sonarjs/no-floating-point-equality': 'off',
+            'sonarjs/parameterized-tests': 'off',
+            'sonarjs/prefer-specific-assertions': 'off'
+        }
+    },
+    {
         plugins: {
             'unused-imports': unusedImports,
             'simple-import-sort': simpleImportSort,
@@ -47,7 +99,7 @@ export default tseslint.config(
             sourceType: 'module',
             parserOptions: {
                 projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'src/map/providers/*.test.ts', 'src/dialogs/*.test.ts', 'src/chatlog/*.test.ts', 'src/lighting/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'features/support/*.ts', 'features/step-definitions/*.ts', 'scripts/*.ts'],
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'src/dialogs/*.test.ts', 'src/chatlog/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'scripts/*.ts'],
                     defaultProject: './tsconfig.eslint.json',
                     maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 50
                 },
@@ -203,10 +255,12 @@ export default tseslint.config(
 
             // Unicorn - STRICT with minimal necessary adjustments
             'unicorn/filename-case': ['error', { cases: { kebabCase: true, camelCase: true } }],
-            'unicorn/prevent-abbreviations': 'error',
+            'unicorn/name-replacements': ['error', { replacements: { deps: false } }],
+            // Conflicts with the project's early-return convention (see the development guide)
+            'unicorn/prefer-ternary': 'off',
             'unicorn/no-null': 'error',
             'unicorn/no-array-reduce': 'error',
-            'unicorn/no-array-for-each': 'error',
+            'unicorn/no-for-each': 'error',
             'unicorn/prefer-query-selector': 'error',
             'unicorn/prefer-module': 'error',
             'unicorn/prefer-top-level-await': 'error',
@@ -261,24 +315,6 @@ export default tseslint.config(
             'no-restricted-syntax': 'off'
         }
     },
-    // Lighting module: WebGL/GPU/DOM-driven — inherently stateful by nature
-    {
-        files: ['src/lighting/**/*.ts'],
-        rules: {
-            'functional/immutable-data': 'off',
-            'functional/no-let': 'off',
-            'functional/prefer-immutable-types': 'off',
-            'functional/prefer-tacit': 'off',
-            'functional/prefer-property-signatures': 'off',
-            'max-lines-per-function': 'off',
-            'max-lines': 'off',
-            'unicorn/no-null': 'off',
-            'unicorn/consistent-function-scoping': 'off',
-            '@typescript-eslint/no-unnecessary-type-parameters': 'off',
-            '@typescript-eslint/no-unnecessary-condition': 'off',
-            '@typescript-eslint/prefer-readonly': 'off'
-        }
-    },
     // UI/DOM modules legitimately mutate DOM elements and local state
     {
         files: [
@@ -307,14 +343,19 @@ export default tseslint.config(
             'unicorn/no-array-method-this-argument': 'off'
         }
     },
+    // Vite requires this exact global interface name to type `import.meta.env`
+    {
+        files: ['src/vite-environment.d.ts'],
+        rules: {
+            'unicorn/name-replacements': 'off'
+        }
+    },
     // tile-loader.ts uses CDN Leaflet with `declare const L: typeof import('leaflet')`
     // which is a value-declaration pattern that consistent-type-imports flags incorrectly
-    // bluemap-provider.ts iterates strings with Array.from() — prefer-spread conflicts with no-misused-spread
     {
-        files: ['src/map/tile-loader.ts', 'src/map/providers/bluemap-provider.ts'],
+        files: ['src/map/tile-loader.ts'],
         rules: {
-            '@typescript-eslint/consistent-type-imports': 'off',
-            'unicorn/prefer-spread': 'off'
+            '@typescript-eslint/consistent-type-imports': 'off'
         }
     },
     // Computation modules build data structures imperatively (Maps, arrays, Sets)
@@ -328,8 +369,7 @@ export default tseslint.config(
             'src/data-loader/**/*.ts',
             'src/chatlog/**/*.ts',
             'src/interpolation/**/*.ts',
-            'src/tile-coords.ts',
-            'src/tile-pyramid.ts'
+            'src/tile-coords.ts'
         ],
         rules: {
             'functional/immutable-data': 'off',
@@ -584,11 +624,11 @@ export default tseslint.config(
             // Allow more params for utility functions
             'max-params': ['error', { max: 10 }],
             // Allow forEach in scripts (simpler for logging)
-            'unicorn/no-array-for-each': 'off',
+            'unicorn/no-for-each': 'off',
             // Allow null for external API compat
             'unicorn/no-null': 'off',
             // Allow abbreviations common in scripts including "utils" in filenames
-            'unicorn/prevent-abbreviations': ['error', {
+            'unicorn/name-replacements': ['error', {
                 replacements: {
                     dir: false,
                     msg: false,

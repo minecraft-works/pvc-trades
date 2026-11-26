@@ -69,22 +69,6 @@ export class FavoritesStore {
         return [...this._items.values()].toSorted((a, b) => b.addedAt - a.addedAt);
     }
 
-    /**
-     * Get number of watched items
-     * @returns Total count of favorited items
-     */
-    get count(): number {
-        return this._items.size;
-    }
-
-    /**
-     * Check if any items are being watched
-     * @returns True if no items are in the watchlist
-     */
-    get isEmpty(): boolean {
-        return this._items.size === 0;
-    }
-
     // ========================================================================
     // Item Operations
     // ========================================================================
@@ -176,15 +160,6 @@ export class FavoritesStore {
         }
         // Deviation must be <= threshold (lower is better)
         return deviation <= favorite.maxDeviation;
-    }
-
-    /**
-     * Clear all favorites
-     */
-    clear(): void {
-        this._items.clear();
-        this._save();
-        this._notifyChange();
     }
 
     // ========================================================================

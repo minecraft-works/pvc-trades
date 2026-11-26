@@ -17,13 +17,13 @@
 │                                                                   │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │                    localStorage                              │  │
-│  │  • pvc-trades-cart (CartItem[])                             │  │
-│  │  • pvc-trades-nav-progress (NavigationProgress)             │  │
-│  │  • pvc-trades-player (string)                               │  │
-│  │  • pvc-trades-nav-tab (string)                              │  │
-│  │  • pvc-trades-nav-mode (NavigationMode)                     │  │
-│  │  • pvc-trades-snapshot (CompactSnapshotHistory)              │  │
-│  │  • pvc-trades-favorites (FavoriteItem[])                    │  │
+│  │  • shop-trades-cart (CartItem[])                            │  │
+│  │  • shop-trades-nav-progress (NavigationProgress)            │  │
+│  │  • shop-trades-nav-player (string)                          │  │
+│  │  • shop-trades-nav-tab (string)                             │  │
+│  │  • shop-trades-nav-mode (NavigationMode)                    │  │
+│  │  • shop-trades-snapshot (CompactSnapshotHistory)            │  │
+│  │  • shop-trades-favorites (FavoriteItem[])                   │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -34,14 +34,16 @@
 ├─────────────────────────────────────────────────────────────────┤
 │  /data.json          - Shop and trade data                       │
 │  /config.json        - Application configuration                 │
-│  /players.json       - Live player positions (Dynmap proxy)      │
+│  /players.json       - Live player positions (Worker proxy)       │
 │  /core_currencies.json - Core block definitions                  │
 │  /block_conversions.json - Block↔ingot conversion rates          │
-│  /tiles/{world}/{z}/{x}/{y}.png - Map tile images                │
-│  /tiles/manifest.json - Available tiles manifest                 │
 │  /icons/*.png        - Minecraft item icons                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+Map tiles are not static assets: the browser loads them directly from the
+map server (`{squaremap.baseUrl}/tiles/minecraft_{world}/{zoom}/{x}_{z}.png`,
+see [ADR-009](adr/009-tile-caching-strategy.md)).
 
 ## Module Responsibilities
 
@@ -95,13 +97,14 @@
 | `player-interpolator.ts` | Smooth player position interpolation between polls |
 
 ### `src/map/` (New)
-**Role**: Map tile loading and caching
+**Role**: Map tile loading
 
 | Module | Responsibility |
 |--------|----------------|
-| `tile-loader.ts` | Tile manifest, blob caching, Leaflet integration |
+| `tile-layout.ts` | Pyramid levels ↔ Squaremap zooms, tile URL builder |
+| `tile-loader.ts` | Adds tile overlays to Leaflet maps, drops tiles the server lacks |
 | `tile-types.ts` | TileConfig, LoadTileOptions, TileRange interfaces |
-| `players.ts` | Player position fetching from Dynmap |
+| `players.ts` | Player position fetching (via the players Worker) |
 | `shop-map-dialog.ts` | Shop map dialog rendering |
 
 ### `src/dialogs/`
@@ -189,18 +192,18 @@
 | Core Types | `Trade`, `Item`, `Shop`, `ShopData` |
 | Cart Types | `CartItem`, `RouteStop`, `ShoppingList` |
 | Navigation | `NavigationProgress`, `NavigationMode`, `Player` |
-| Config | `AppConfig`, `DynmapConfig` |
+| Config | `AppConfig`, `SquaremapConfig` |
 | Schemas | `AppConfigSchema`, `BlockConversionsSchema`, etc. |
 
 ### `src/debug.ts` (28 lines)
 **Role**: Debug logging utilities
 
 ```typescript
-export const debugNavigation = debug('pvc:navigation');
-export const debugWorldSwitch = debug('pvc:world-switch');
-export const debugPlayerPoll = debug('pvc:player-poll');
-export const debugMap = debug('pvc:map');
-export const debugTiles = debug('pvc:tiles');
+export const debugNavigation = debug('app:navigation');
+export const debugWorldSwitch = debug('app:world-switch');
+export const debugPlayerPoll = debug('app:player-poll');
+export const debugMap = debug('app:map');
+export const debugTiles = debug('app:tiles');
 ```
 
 ## Data Flow
@@ -300,13 +303,13 @@ let navStopMarkers: L.Marker[] = [];
 ### Persisted State (localStorage)
 | Key | Type | Purpose |
 |-----|------|---------|
-| `pvc-trades-cart` | `CartItem[]` | Shopping cart contents |
-| `pvc-trades-nav-progress` | `{ completedKeys, currentIndex }` | Route completion |
-| `pvc-trades-player` | `string` | Saved player name |
-| `pvc-trades-nav-tab` | `string` | Active cart dialog tab |
-| `pvc-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
-| `pvc-trades-snapshot` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
-| `pvc-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
+| `shop-trades-cart` | `CartItem[]` | Shopping cart contents |
+| `shop-trades-nav-progress` | `{ completedKeys, currentIndex }` | Route completion |
+| `shop-trades-nav-player` | `string` | Saved player name |
+| `shop-trades-nav-tab` | `string` | Active cart dialog tab |
+| `shop-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
+| `shop-trades-snapshot` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
+| `shop-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
 
 ## External Dependencies
 
@@ -340,7 +343,7 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            '/players.json': 'http://dynmap.example.com'
+            '/players.json': 'http://map.example.com'
         }
     }
 });

@@ -88,16 +88,6 @@ These are known quality risks. AI assistants should actively work to **reduce** 
 ### Concern 1: God Files
 
 **Hard limit: 400 lines per `.ts` file** (enforced by ESLint `max-lines`, skip blanks + comments).
-Decomposition plan: [docs/plan-file-size-limits.md](../../docs/plan-file-size-limits.md).
-
-| File | Lines | Status |
-|------|-------|--------|
-| `main.ts` | ~2,823 | Suppressed — split into 7+ modules planned |
-| `library.ts` | ~2,095 | Suppressed — split into 5+ modules planned |
-| `navigation-store.ts` | ~504 | Suppressed — extract persistence |
-| `favorites-ui.ts` | ~495 | Suppressed — extract popover |
-| `shop-map-dialog.ts` | ~467 | Suppressed — extract tile loading |
-| `types.ts` | ~433 | Suppressed — extract snapshot types or exempt |
 
 **When adding code**: Before adding a function to any file, check if it would push the file over 400 lines. If so, create a new sub-module instead. Never add to `main.ts` or `library.ts` — use or create sub-modules (`dialogs/`, `map/`, `navigation/`, `search/`, `favorites/`, `stores/`, `dashboard/`, `rendering/`, `routing/`, `valuation/`, `cart/`).
 
@@ -109,14 +99,12 @@ Decomposition plan: [docs/plan-file-size-limits.md](../../docs/plan-file-size-li
 
 ### Concern 3: Mutation Testing Score
 
-- Current mutation score: ~69% overall (cart-store 87%, navigation-store 60%, library 68%)
 - The Stryker `break` threshold is 65% — do not let it regress
 - When modifying `library.ts`, `cart-store.ts`, or `navigation-store.ts`, aim to **improve** the mutation score
 - Next target: raise `break` to 70% once scores allow
 
 ### Concern 4: Large Step Definition Files
 
-- Some BDD step files exceed 1,000 lines (tile-loading, tile-color-verification)
 - When adding new step definitions, check if similar steps already exist
 - Prefer reusing existing steps over duplicating patterns
 - If a step file exceeds 500 lines, consider splitting by sub-feature

@@ -6,6 +6,8 @@
 
 import type { Page, Route } from '@playwright/test';
 
+import { PLAYERS_ROUTE_PATTERN } from './endpoints.js';
+
 export interface PlayerState {
     uuid: string;
     name: string;
@@ -27,17 +29,18 @@ export interface PlayerMock {
     /** Current player state */
     state: PlayerState;
     /** Update player position/world */
-    setPosition(x: number, z: number, world?: string, y?: number): void;
+    setPosition: (x: number, z: number, world?: string, y?: number) => void;
     /** Move player to nether */
-    moveToNether(x?: number, z?: number, y?: number): void;
+    moveToNether: (x?: number, z?: number, y?: number) => void;
     /** Move player to overworld */
-    moveToOverworld(x?: number, z?: number, y?: number): void;
+    moveToOverworld: (x?: number, z?: number, y?: number) => void;
 }
 
 /**
  * Creates a controllable player mock
+ * @param initialWorld
  */
-export function createPlayerMock(initialWorld: string = 'World'): PlayerMock {
+export function createPlayerMock(initialWorld = 'World'): PlayerMock {
     const state: PlayerState = {
         uuid: 'test-uuid-1234',
         name: 'TestPlayer',
@@ -90,11 +93,11 @@ export interface MultiPlayerMock {
     /** All player states */
     players: PlayerState[];
     /** Add a player */
-    addPlayer(name: string, x: number, z: number, world: string): void;
+    addPlayer: (name: string, x: number, z: number, world: string) => void;
     /** Clear all players */
-    clear(): void;
+    clear: () => void;
     /** Get player by name */
-    getPlayer(name: string): PlayerState | undefined;
+    getPlayer: (name: string) => PlayerState | undefined;
 }
 
 /**
@@ -127,9 +130,11 @@ export function createMultiPlayerMock(): MultiPlayerMock {
 
 /**
  * Sets up player API mock that returns the current player state
+ * @param page
+ * @param playerMock
  */
 export async function setupPlayerApiMock(page: Page, playerMock: PlayerMock): Promise<void> {
-    await page.route('**/pvc-players.minecraft-works.workers.dev**', async (route: Route) => {
+    await page.route(PLAYERS_ROUTE_PATTERN, async (route: Route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -142,9 +147,11 @@ export async function setupPlayerApiMock(page: Page, playerMock: PlayerMock): Pr
 
 /**
  * Sets up player API mock that returns multiple players
+ * @param page
+ * @param multiPlayerMock
  */
 export async function setupMultiPlayerApiMock(page: Page, multiPlayerMock: MultiPlayerMock): Promise<void> {
-    await page.route('**/pvc-players.minecraft-works.workers.dev**', async (route: Route) => {
+    await page.route(PLAYERS_ROUTE_PATTERN, async (route: Route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',

@@ -2,7 +2,7 @@ name: Daily Deploy
 
 on:
   schedule:
-    # Run daily at 06:00 UTC to refresh data and keep tile cache alive (7-day expiry)
+    # Run daily at 06:00 UTC to refresh the deployed data
     - cron: '0 6 * * *'
   workflow_dispatch:
 

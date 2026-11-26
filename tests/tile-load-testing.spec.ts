@@ -11,6 +11,7 @@ import { deflateSync } from 'node:zlib';
 
 import type { Page } from '@playwright/test';
 
+import { PLAYERS_ROUTE_PATTERN } from './helpers/endpoints';
 import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute, TILE_ROUTE_PATTERN } from './helpers/test-config';
 
@@ -97,26 +98,6 @@ const TILE_PNG = createColoredPng(0, 100, 255);
 // Test Utilities
 // ============================================================================
 
-// Large manifest covering many tiles for stress testing
-function generateLargeManifest(): { world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }[] {
-    const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number; shopCount: number }[] = [];
-    const worlds = ['World', 'World_nether'];
-    const blocksPerTileOptions = [256, 4096];  // detail and overview canonical levels
-    
-    // Generate tiles around origin for stress testing
-    for (const world of worlds) {
-        for (const blocksPerTile of blocksPerTileOptions) {
-            for (let tx = -10; tx <= 10; tx++) {
-                for (let tz = -10; tz <= 10; tz++) {
-                    entries.push({ world, tileX: tx, tileZ: tz, blocksPerTile, shopCount: 1 });
-                }
-            }
-        }
-    }
-    
-    return entries;
-}
-
 // ============================================================================
 // Test Setup Helper
 // ============================================================================
@@ -142,9 +123,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     };
     
     // Mock config - must have dataRefreshMs > 0 to pass Zod validation!
-    await mockConfigRoute(page, {
-        dynmap: { baseUrl: 'http://localhost:5173/pvc-trades/tiles' }
-    });
+    await mockConfigRoute(page);
 
     // Mock data.json with minimal test data
     await page.route('**/data.json', route => {
@@ -170,7 +149,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
     });
     
     // Mock player API
-    await page.route('**/pvc-players.minecraft-works.workers.dev**', async route => {
+    await page.route(PLAYERS_ROUTE_PATTERN, async route => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -184,16 +163,7 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
         });
     });
 
-    // Mock manifest with large tile set for tile loading tests
-    await page.route('**/tiles/manifest.json', route => {
-        route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(generateLargeManifest())
-        });
-    });
-    
-    // Mock tiles with timing measurement
+    // Mock the map server's tiles with timing measurement
     await page.route(TILE_ROUTE_PATTERN, async route => {
         const startTime = Date.now();
         
@@ -395,18 +365,18 @@ test.describe('Tile Loading Performance', () => {
         
         // Check memory usage via performance API
         const memoryInfo = await page.evaluate(() => {
-            const perf = performance as Performance & { 
+            const performance_ = performance as Performance & { 
                 memory?: { 
                     usedJSHeapSize: number; 
                     totalJSHeapSize: number;
                     jsHeapSizeLimit: number;
                 } 
             };
-            if (perf.memory) {
+            if (performance_.memory) {
                 return {
-                    usedHeap: Math.round(perf.memory.usedJSHeapSize / 1024 / 1024),
-                    totalHeap: Math.round(perf.memory.totalJSHeapSize / 1024 / 1024),
-                    heapLimit: Math.round(perf.memory.jsHeapSizeLimit / 1024 / 1024)
+                    usedHeap: Math.round(performance_.memory.usedJSHeapSize / 1024 / 1024),
+                    totalHeap: Math.round(performance_.memory.totalJSHeapSize / 1024 / 1024),
+                    heapLimit: Math.round(performance_.memory.jsHeapSizeLimit / 1024 / 1024)
                 };
             }
         });

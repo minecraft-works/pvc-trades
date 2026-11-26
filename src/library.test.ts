@@ -143,8 +143,8 @@ const TEST_CORE_BLOCKS = [
 const TEST_CONFIG: AppConfig = {
     ...DEFAULT_CONFIG,
     dataUrl: TEST_DATA_URL,
-    dynmap: {
-        ...DEFAULT_CONFIG.dynmap,
+    squaremap: {
+        ...DEFAULT_CONFIG.squaremap,
         baseUrl: TEST_MAPS_URL
     }
 };
@@ -457,7 +457,7 @@ describe('parseLocation', () => {
 describe('config loading', () => {
     test('getConfig returns config', () => {
         const config = getConfig();
-        expect(config.dynmap.baseUrl).toBe('https://test.example.com/maps');
+        expect(config.squaremap.baseUrl).toBe('https://test.example.com/maps');
     });
 
     test('config has analysis settings', () => {
@@ -2395,7 +2395,7 @@ function percentByX(x1Percent: number, otherPercent: number) {
  * @returns Always undefined, simulating a trade with no computable deviation
  */
 function noDeviationResult(): undefined {
-    return undefined;
+    return;
 }
 
 /**

@@ -61,7 +61,7 @@ interface ChatlogFile {
 // Text extraction
 // ============================================================================
 
-/** Chat message separator used by the PVC server's chat format. */
+/** Chat message separator used by the server's chat format. */
 const CHAT_SEPARATOR = '›';
 
 /**
@@ -256,7 +256,7 @@ function parsePlayerChat(
     let message: string;
 
     if (separatorIndex === -1) {
-        // Fallback: treat entire text as player name (shouldn't happen on PVC)
+        // Fallback: treat entire text as player name (shouldn't happen on the server)
         player = fullText;
         message = '';
     } else {
@@ -353,9 +353,9 @@ function parseSameIpMessage(
     const ipSuffix = ' has the same IP';
     const prefixEnd = cleanedText.indexOf(warningPrefix);
     const suffixStart = cleanedText.indexOf(ipSuffix);
-    const player = prefixEnd !== -1 && suffixStart !== -1
-        ? cleanedText.slice(prefixEnd + warningPrefix.length, suffixStart).trim()
-        : '';
+    const player = prefixEnd === -1 || suffixStart === -1
+        ? ''
+        : cleanedText.slice(prefixEnd + warningPrefix.length, suffixStart).trim();
 
     return {
         player,

@@ -9,7 +9,8 @@ import {
     setupColoredTileMocks,
     setupMultiWorldDataMock,
     setupPlayerApiMock} from '../../tests/helpers/navigation-mocks';
-import { Given, Then,When, TILE_URL_EXTENSION } from './fixtures';
+import { isTileRequestUrl, tileWorldLabel } from '../../tests/helpers/tile-url';
+import { Given, Then,When } from './fixtures';
 
 // Constants
 const SELECTOR_NAV_DIALOG = '#nav-dialog[open]';
@@ -36,8 +37,8 @@ Given(String.raw`I open the navigation dialog with a nether shop at \({int}, {in
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
-            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+        if (isTileRequestUrl(request.url())) {
+            const world = tileWorldLabel(request.url());
             tileRequests.push(world);
         }
     });
@@ -65,8 +66,8 @@ Given(String.raw`I open the navigation dialog with an overworld shop at \({int},
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
-            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+        if (isTileRequestUrl(request.url())) {
+            const world = tileWorldLabel(request.url());
             tileRequests.push(world);
         }
     });
@@ -166,7 +167,7 @@ When('the player crosses a portal to the overworld', async ({ page, playerMock, 
     // Wait one polling cycle to ensure world is registered
     const pollInterval = await page.evaluate(() => {
         // @ts-expect-error - config is exposed
-        return globalThis.__appConfig?.dynmap?.playerRefreshMs ?? 500;
+        return globalThis.__appConfig?.squaremap?.playerRefreshMs ?? 500;
     }) as number;
     await page.waitForTimeout(pollInterval + 200);
     
@@ -340,8 +341,8 @@ Given('I start navigation with items from both worlds', async ({ page, playerMoc
     
     // Track tile requests
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
-            const world = request.url().includes('/the_nether/') ? 'nether' : 'overworld';
+        if (isTileRequestUrl(request.url())) {
+            const world = tileWorldLabel(request.url());
             tileRequests.push(world);
         }
     });

@@ -19,7 +19,6 @@ import {
     getWorldId,
     hasPositionMoved,
 } from '../library.js';
-import type { LightingController } from '../lighting/lighting-controller.js';
 import {
     fetchPlayers,
     getPlayerWorld,
@@ -62,7 +61,7 @@ export interface LiveNavigationDeps {
     renderCartDialog: () => void;
     switchTab: (tab: 'cart' | 'navigate') => void;
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
-    getConfig: () => { dynmap: { playerRefreshMs: number } };
+    getConfig: () => { squaremap: { playerRefreshMs: number } };
     playerPositionService: {
         pushSample: (name: string, sample: { x: number; y: number; z: number; yaw?: number | undefined; timestamp: number }) => void;
         resetPlayer: (name: string) => void;
@@ -72,8 +71,6 @@ export interface LiveNavigationDeps {
     };
     updateNearbyShopTooltip: () => void;
     cartStoreUniqueCount: () => number;
-    /** Optional lighting controller for day/night toggle */
-    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
@@ -234,11 +231,10 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         }
 
         if (state.map && state.currentRoute.length > 0) {
-            void deps.navMapHandler.initNavigationMapDialog(state.currentRoute).then(() => {
-                if (deps.navigationStore.mode === 'follow') {
-                    deps.navUpdatesHandler.centerMapOnPlayer();
-                }
-            });
+            deps.navMapHandler.initNavigationMapDialog(state.currentRoute);
+            if (deps.navigationStore.mode === 'follow') {
+                deps.navUpdatesHandler.centerMapOnPlayer();
+            }
         }
     }
 
@@ -257,7 +253,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         }
 
         if (state.map && state.currentRoute.length > 0) {
-            void deps.navMapHandler.initNavigationMapDialog(state.currentRoute);
+            deps.navMapHandler.initNavigationMapDialog(state.currentRoute);
             return true;
         }
         return false;
@@ -354,12 +350,12 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         }
     }
 
-    async function initMapAndStartPolling(): Promise<void> {
+    function initMapAndStartPolling(): void {
         const route = deps.computeRoute(deps.navigationStore.playerPosition, true);
         state.currentRoute = route;
         const playerWorld = deps.navigationStore.playerPosition?.world;
         debugNavigation('Initializing map stops=%d targetWorld=%s worlds=%o', route.length, playerWorld, [...new Set(route.map(s => getWorldId(s.world)))]);
-        await deps.navMapHandler.initNavigationMapDialog(route, playerWorld);
+        deps.navMapHandler.initNavigationMapDialog(route, playerWorld);
 
         if (deps.navigationStore.mode === 'follow' && deps.navigationStore.playerPosition) {
             deps.navUpdatesHandler.centerMapOnPlayer();
@@ -367,7 +363,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
         void pollPlayerPosition();
         const config = deps.getConfig();
-        deps.navigationStore.setRefreshInterval(setInterval(() => void pollPlayerPosition(), config.dynmap.playerRefreshMs));
+        deps.navigationStore.setRefreshInterval(setInterval(() => void pollPlayerPosition(), config.squaremap.playerRefreshMs));
         deps.navUpdatesHandler.startNavAnimationLoop();
     }
 
@@ -396,7 +392,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             await fetchInitialPlayerPosition(playerName);
 
             requestAnimationFrame(() => {
-                void initMapAndStartPolling();
+                initMapAndStartPolling();
             });
         } else {
             console.error('nav-dialog element not found!');
@@ -455,7 +451,6 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         const followToggleButton = document.querySelector('#nav-follow-toggle');
         const viewModeToggleButton = document.querySelector(SELECTORS.NAV_VIEW_MODE_TOGGLE);
         const worldToggleButton = document.querySelector(SELECTORS.NAV_WORLD_TOGGLE);
-        const dayNightToggleButton = document.querySelector<HTMLButtonElement>('#nav-daynight-toggle');
 
         startButton?.addEventListener('click', toggleNavigation);
         recenterButton?.addEventListener('click', switchToFollowMode);
@@ -463,18 +458,6 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         followToggleButton?.addEventListener('click', toggleFollowMode);
         viewModeToggleButton?.addEventListener('click', toggleViewWorldMode);
         worldToggleButton?.addEventListener('click', toggleViewWorld);
-
-        if (dayNightToggleButton) {
-            dayNightToggleButton.dataset.mode = 'day';
-            dayNightToggleButton.addEventListener('click', () => {
-                if (!deps.lightingController) { return; }
-                deps.lightingController.toggleDayNight();
-                const isNightNow = deps.lightingController.state.config.sunIntensity === 0;
-                dayNightToggleButton.dataset.mode = isNightNow ? 'night' : 'day';
-                dayNightToggleButton.textContent = isNightNow ? '🌙' : '☀️';
-                dayNightToggleButton.title = isNightNow ? 'Night mode' : 'Day mode';
-            });
-        }
 
         const navDialog = document.querySelector<HTMLDialogElement>(SELECTORS.NAV_DIALOG);
         if (navDialog) {

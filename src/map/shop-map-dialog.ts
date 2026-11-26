@@ -20,18 +20,12 @@ import {
     getWorldId,
     toLeafletCoords,
     toLeafletCoordsRelative} from '../library.js';
-import { getConfig as getStoreConfig } from '../stores/config-store.js';
 import { playerPositionService } from '../stores/player-position-service.js';
-import {
-    blocksPerTile as pyramidBlocksPerTile,
-    detailLevel as pyramidDetailLevel} from '../tile-pyramid.js';
 import type { Player } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
-import {
-    loadTileManifest,
-    TILE_CONFIG,
-    tileExistsInManifest} from './tile-loader.js';
+import { blocksPerTile, DETAIL_LEVEL } from './tile-layout.js';
+import { addTileOverlay, getTileUrl, TILE_CONFIG } from './tile-loader.js';
 
 // ============================================================================
 // Module State
@@ -51,10 +45,11 @@ let shopMapTileZ = 0;
 
 // Leaflet zoom thresholds for LOD switching
 /**
- * Leaflet zoom level at which the detail (highest-resolution) tile level activates.
+ * Leaflet zoom level at which the detail (highest-resolution) tile level activates:
+ * one tile pixel per screen pixel (server tiles are 1 px per block at detail).
  * With a factor-2 pyramid, each coarser level activates 1 zoom unit lower.
  */
-const ZOOM_SHOW_DETAIL = 1;
+const ZOOM_SHOW_DETAIL = 0;
 
 /**
  * Returns the pyramid level that should be displayed at the given Leaflet zoom.
@@ -64,9 +59,8 @@ const ZOOM_SHOW_DETAIL = 1;
  * @returns Active pyramid level index
  */
 function getActivePyramidLevel(zoom: number): number {
-    const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
-    for (let l = detail; l > 0; l--) {
-        if (zoom >= ZOOM_SHOW_DETAIL - (detail - l)) { return l; }
+    for (let l = DETAIL_LEVEL; l > 0; l--) {
+        if (zoom >= ZOOM_SHOW_DETAIL - (DETAIL_LEVEL - l)) { return l; }
     }
     return 0;
 }
@@ -75,8 +69,7 @@ function getActivePyramidLevel(zoom: number): number {
 function updateTilePaneVisibility(zoom: number): void {
     if (!leafletMap) { return; }
     const activeLevel = getActivePyramidLevel(zoom);
-    const detail = pyramidDetailLevel(getStoreConfig().tilePyramid);
-    for (let l = 0; l <= detail; l++) {
+    for (let l = 0; l <= DETAIL_LEVEL; l++) {
         const pane = leafletMap.getPane(`tilesLevel${l}`);
         if (pane) { pane.style.display = l === activeLevel ? '' : 'none'; }
     }
@@ -93,7 +86,6 @@ interface ShopMapTileContext {
     centerTileZ: number;
     /** Dedup sets keyed by pyramid level — prevents the same URL being added twice */
     addedToMap: Map<number, Set<string>>;
-    manifest: Set<string>;
 }
 
 /** Parameters for setting up shop map */
@@ -105,7 +97,6 @@ interface ShopMapSetupParameters {
     z: number;
     tileX: number;
     tileZ: number;
-    manifest: Set<string>;
     playerRefreshMs: number;
 }
 
@@ -117,8 +108,8 @@ export interface ShopMapDialogDependencies {
     isOpenedFromCart: () => boolean;
     /** Reset the opened-from-cart flag */
     clearOpenedFromCart: () => void;
-    /** Get app config (specifically dynmap.playerRefreshMs) */
-    getConfig: () => { dynmap: { playerRefreshMs: number } };
+    /** Get app config (specifically squaremap.playerRefreshMs) */
+    getConfig: () => { squaremap: { playerRefreshMs: number } };
 }
 
 /** Handler returned by factory */
@@ -150,45 +141,10 @@ async function fetchPlayersAndUpdateCache(): Promise<Player[]> {
 }
 
 /**
- * Returns true if every finer-level tile that covers this tile's footprint
- * exists in the manifest. When true this tile can be skipped — the finer
- * layer will fully cover it (and is preferentially shown at lower zoom).
- *
- * @param manifest - Set of manifest keys for available tiles
- * @param worldId - World identifier
- * @param level - Pyramid level to check
- * @param lx - Tile X coordinate
- * @param lz - Tile Z coordinate
- * @returns True if all finer tiles covering this footprint exist
- */
-function isLevelCoveredByFiner(
-    manifest: Set<string>,
-    worldId: string,
-    level: number,
-    lx: number,
-    lz: number,
-): boolean {
-    const pyramid = getStoreConfig().tilePyramid;
-    const finerLevel = level + 1;
-    if (finerLevel > pyramidDetailLevel(pyramid)) { return false; }
-    const bpt = pyramidBlocksPerTile(level, pyramid);
-    const finerBpt = pyramidBlocksPerTile(finerLevel, pyramid);
-    const scale = Math.round(bpt / finerBpt);
-    for (let dx = 0; dx < scale; dx++) {
-        for (let dz = 0; dz < scale; dz++) {
-            if (!tileExistsInManifest(manifest, worldId, finerBpt, lx * scale + dx, lz * scale + dz)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-/**
  * Load one tile at a given pyramid level onto the map.
  * Deduplication is handled via context.addedToMap.
  *
- * @param context - Tile context with manifest and dedup sets
+ * @param context - Tile context with dedup sets
  * @param level - Pyramid level to load
  * @param lx - Tile X coordinate
  * @param lz - Tile Z coordinate
@@ -199,18 +155,14 @@ function loadTileAtLevel(
     lx: number,
     lz: number,
 ): void {
-    const { worldId, centerTileX, centerTileZ, addedToMap, manifest } = context;
-    const pyramid = getStoreConfig().tilePyramid;
-    const bpt = pyramidBlocksPerTile(level, pyramid);
+    const { worldId, centerTileX, centerTileZ, addedToMap } = context;
+    const bpt = blocksPerTile(level);
 
     let seen = addedToMap.get(level);
     if (!seen) { seen = new Set<string>(); addedToMap.set(level, seen); }
     const mapKey = `${lx},${lz}`;
     if (seen.has(mapKey)) { return; }
     seen.add(mapKey);
-
-    if (!tileExistsInManifest(manifest, worldId, bpt, lx, lz)) { return; }
-    if (isLevelCoveredByFiner(manifest, worldId, level, lx, lz)) { return; }
 
     // Compute Leaflet bounds from world block coords relative to center
     const centerX = centerTileX * TILE_CONFIG.tileSize;
@@ -224,8 +176,7 @@ function loadTileAtLevel(
         [-dZ, dX + bpt],
     ];
 
-    const url = `${TILE_CONFIG.baseUrl}/${worldId}/${level}/${lx}/${lz}.${TILE_CONFIG.format}`;
-    if (leafletMap) { L.imageOverlay(url, bounds, { pane: `tilesLevel${level}` }).addTo(leafletMap); }
+    if (leafletMap) { addTileOverlay(leafletMap, getTileUrl(worldId, level, lx, lz), bounds, `tilesLevel${level}`); }
 }
 
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
@@ -235,23 +186,20 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
 
     updateTilePaneVisibility(currentZoom);
 
-    const pyramid = getStoreConfig().tilePyramid;
-    const detail = pyramidDetailLevel(pyramid);
     const centerX = context.centerTileX * TILE_CONFIG.tileSize;
     const centerZ = context.centerTileZ * TILE_CONFIG.tileSize;
 
-    // Load tiles for every pyramid level lazily — dedup prevents re-fetching.
-    // Pane visibility controls which level is shown at each zoom.
-    for (let level = 0; level <= detail; level++) {
-        const bpt = pyramidBlocksPerTile(level, pyramid);
-        const minLx = Math.floor((centerX + mapBounds.getWest()) / bpt);
-        const maxLx = Math.floor((centerX + mapBounds.getEast()) / bpt);
-        const minLz = Math.floor((centerZ - mapBounds.getNorth()) / bpt);
-        const maxLz = Math.floor((centerZ - mapBounds.getSouth()) / bpt);
-        for (let lz = minLz; lz <= maxLz; lz++) {
-            for (let lx = minLx; lx <= maxLx; lx++) {
-                loadTileAtLevel(context, level, lx, lz);
-            }
+    // Only the level shown at this zoom is requested; dedup prevents re-fetching
+    // when the user returns to a level they already visited.
+    const level = getActivePyramidLevel(currentZoom);
+    const bpt = blocksPerTile(level);
+    const minLx = Math.floor((centerX + mapBounds.getWest()) / bpt);
+    const maxLx = Math.floor((centerX + mapBounds.getEast()) / bpt);
+    const minLz = Math.floor((centerZ - mapBounds.getNorth()) / bpt);
+    const maxLz = Math.floor((centerZ - mapBounds.getSouth()) / bpt);
+    for (let lz = minLz; lz <= maxLz; lz++) {
+        for (let lx = minLx; lx <= maxLx; lx++) {
+            loadTileAtLevel(context, level, lx, lz);
         }
     }
 }
@@ -390,22 +338,19 @@ function createMapConfig(): L.MapOptions {
 }
 
 function setupShopMap(parameters: ShopMapSetupParameters): void {
-    const { container, dialog, worldId, x, z, tileX, tileZ, manifest, playerRefreshMs } = parameters;
+    const { container, dialog, worldId, x, z, tileX, tileZ, playerRefreshMs } = parameters;
     
     leafletMap = L.map(container, createMapConfig());
     
     // Create one pane per pyramid level for proper z-ordering.
     // Level 0 (coarsest) has the lowest z-index; detail is on top.
     // Default overlayPane z-index is 400; all tile panes go below it.
-    const pyramidForPanes = getStoreConfig().tilePyramid;
-    const detailLevelForPanes = pyramidDetailLevel(pyramidForPanes);
-    for (let l = 0; l <= detailLevelForPanes; l++) {
+    for (let l = 0; l <= DETAIL_LEVEL; l++) {
         leafletMap.createPane(`tilesLevel${l}`).style.zIndex = String(350 + l);
     }
 
     const context: ShopMapTileContext = {
         worldId,
-        manifest,
         centerTileX: tileX,
         centerTileZ: tileZ,
         addedToMap: new Map<number, Set<string>>(),
@@ -524,16 +469,13 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
                 leafletMap = undefined;
             }
             
-            void loadTileManifest().then(manifest => {
-                setupShopMap({
-                    playerRefreshMs: getConfig().dynmap.playerRefreshMs,
-                    worldId,
-                    x, z,
-                    tileX, tileZ,
-                    container,
-                    dialog,
-                    manifest
-                });
+            setupShopMap({
+                playerRefreshMs: getConfig().squaremap.playerRefreshMs,
+                worldId,
+                x, z,
+                tileX, tileZ,
+                container,
+                dialog
             });
         });
     }

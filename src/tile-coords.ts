@@ -1,12 +1,8 @@
 /**
  * Tile Coordinate Utilities
  * 
- * Shared module for tile coordinate calculations used by both:
- * - Runtime (src/library.ts, src/main.ts)
- * - Build scripts (scripts/fetch-tiles.ts, scripts/tile-utils.ts)
- * 
- * This module eliminates duplication and ensures coordinate calculations
- * are consistent across build-time tile fetching and runtime tile loading.
+ * Shared module for tile coordinate calculations used by the runtime
+ * (src/library.ts, src/main.ts, src/map/).
  * 
  * @module tile-coords
  */
@@ -21,7 +17,7 @@ export interface SimpleTileCoords {
     tileZ: number;
 }
 
-/** Extended tile coordinates with zoom info (for build scripts) */
+/** Extended tile coordinates with zoom info */
 export interface ZoomedTileCoords extends SimpleTileCoords {
     blocksPerTile: number;
 }
@@ -188,28 +184,4 @@ export function isCoordInTile(
 ): boolean {
     const bounds = getTileBounds(tileX, tileZ, blocksPerTile);
     return x >= bounds.west && x < bounds.east && z >= bounds.north && z < bounds.south;
-}
-
-/**
- * Get all tile coordinates in a 5×5 grid around a center tile.
- * Used for pre-fetching tiles around shop locations.
- * 
- * @param centerTileX - Center tile X
- * @param centerTileZ - Center tile Z
- * @returns Array of 25 tile coordinates
- */
-export function getTileNeighborhood(
-    centerTileX: number,
-    centerTileZ: number
-): readonly SimpleTileCoords[] {
-    const tiles: SimpleTileCoords[] = [];
-    for (let dx = -2; dx <= 2; dx++) {
-        for (let dz = -2; dz <= 2; dz++) {
-            tiles.push({
-                tileX: centerTileX + dx,
-                tileZ: centerTileZ + dz
-            });
-        }
-    }
-    return tiles;
 }

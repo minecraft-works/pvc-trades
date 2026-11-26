@@ -52,7 +52,7 @@ Given('I have a shop with {int} items in my cart from a single shop', async ({ p
         });
     });
     
-    await page.goto('/pvc-trades/');
+    await page.goto('./');
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     
     // Add multiple items from first shop (it has 2 recipes)

@@ -3,8 +3,8 @@ Feature: Tile Loading Properties
   Property-based tests for tile positioning, loading, and visual verification
   
   Uses color-coded tiles to verify behavior:
-  - Overworld: Blue (bright = detail level 2, dark = overview level 0)
-  - Nether: Red (bright = detail level 2, dark = overview level 0)
+  - Overworld: Blue (bright = detail zoom 8, dark = overview zoom 4)
+  - Nether: Red (bright = detail zoom 8, dark = overview zoom 4)
   - Checkerboard pattern shows tile boundaries
 
   Background:
@@ -16,24 +16,24 @@ Feature: Tile Loading Properties
 
   @tiles @property @bounds
   Scenario Outline: Tile bounds match world coordinates
-    Given a tile at (<tile_x>, <tile_z>) at level <level>
+    Given a tile at (<tile_x>, <tile_z>) at zoom <zoom>
     Then the tile's west edge should be at x = <west_x>
     And the tile's east edge should be at x = <east_x>
     And the tile's north edge should be at z = <north_z>
     And the tile's south edge should be at z = <south_z>
 
-    Examples: Detail level tiles (256 blocks per tile)
-      | tile_x | tile_z | level | west_x | east_x | north_z | south_z |
-      | 0      | 0      | 2     | 0      | 256    | 0       | 256     |
-      | 1      | 0      | 2     | 256    | 512    | 0       | 256     |
-      | -1     | -1     | 2     | -256   | 0      | -256    | 0       |
-      | 10     | -5     | 2     | 2560   | 2816   | -1280   | -1024   |
+    Examples: Detail zoom tiles (512 blocks per tile)
+      | tile_x | tile_z | zoom | west_x | east_x | north_z | south_z |
+      | 0      | 0      | 8    | 0      | 512    | 0       | 512     |
+      | 1      | 0      | 8    | 512    | 1024   | 0       | 512     |
+      | -1     | -1     | 8    | -512   | 0      | -512    | 0       |
+      | 10     | -5     | 8    | 5120   | 5632   | -2560   | -2048   |
 
-    Examples: Overview level tiles (4096 blocks per tile)
-      | tile_x | tile_z | level | west_x | east_x | north_z | south_z |
-      | 0      | 0      | 0     | 0      | 4096   | 0       | 4096    |
-      | 1      | 1      | 0     | 4096   | 8192   | 4096    | 8192    |
-      | -1     | 0      | 0     | -4096  | 0      | 0       | 4096    |
+    Examples: Overview zoom tiles (8192 blocks per tile)
+      | tile_x | tile_z | zoom | west_x | east_x | north_z | south_z |
+      | 0      | 0      | 4    | 0      | 8192   | 0       | 8192    |
+      | 1      | 1      | 4    | 8192   | 16384  | 8192    | 16384   |
+      | -1     | 0      | 4    | -8192  | 0      | 0       | 8192    |
 
   # ===========================================================================
   # Shop Navigation → Tile Loading Properties
@@ -63,7 +63,7 @@ Feature: Tile Loading Properties
     And no tile brightness should be in the ambiguous 140-149 range
 
   # NOTE: These checkerboard tests assume test tiles with alternating brightness.
-  # Real Dynmap tiles don't have this pattern. Use @request-verification tests instead.
+  # Real map tiles don't have this pattern. Use @request-verification tests instead.
   @tiles @property @checkerboard @skip
   Scenario Outline: Checkerboard pattern verifies tile boundaries
     Given the navigation map is open
@@ -85,7 +85,7 @@ Feature: Tile Loading Properties
   # The __leafletMap is exposed on globalThis for programmatic zoom control
 
   # NOTE: Brightness-based tests assume detail tiles are brighter than overview.
-  # This doesn't hold for real Dynmap tiles. Use @request-verification tests instead.
+  # This doesn't hold for real map tiles. Use @request-verification tests instead.
   @tiles @property @zoom-threshold @skip
   Scenario: Detail tiles load when map zoom is above threshold
     Given the navigation map is open at map zoom 0
@@ -122,7 +122,7 @@ Feature: Tile Loading Properties
   Scenario: Detail tile requests are made when zoom > -2
     Given the navigation map is open at map zoom 0
     Then detail level tiles should be requested
-    And tile URLs should contain "/2/"
+    And tile URLs should contain "/minecraft_overworld/8/"
 
   # NOTE: This test verifies that detail tiles are NOT requested when map zoom <= -2.
   # Currently marked @skip because the map initializes before the target zoom is set,
@@ -133,7 +133,7 @@ Feature: Tile Loading Properties
   Scenario: No detail tile requests when zoom <= -2
     Given the navigation map is open at map zoom -3
     Then detail level tiles should NOT be requested
-    And tile URLs should only contain "/0/"
+    And tile URLs should only contain "/minecraft_overworld/4/"
 
   # ===========================================================================
   # Nether → Overworld Tile Mapping Properties
@@ -164,12 +164,6 @@ Feature: Tile Loading Properties
   # Note: Leaflet may request tiles multiple times due to its internal
   # tile management. The duplicate detection test needs adjustment.
   
-  # @tiles @property @race
-  # Scenario: Manifest loads before tiles are requested
-  #   When I open the navigation map
-  #   Then manifest.json should be requested first
-  #   And tile requests should only occur after manifest loads
-
   # @tiles @property @race
   # Scenario Outline: Rapid pan does not cause duplicate tile requests
   #   Given the navigation map is open

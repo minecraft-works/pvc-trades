@@ -9,7 +9,7 @@ The application loads data from multiple external sources:
 
 - `data.json` — Shop and trade data
 - `config.json` — Application configuration
-- `players.json` — Live player positions (Dynmap proxy)
+- `players.json` — Live player positions (players Worker proxy)
 - `core_currencies.json` — Core block definitions
 - `block_conversions.json` — Block↔ingot conversion rates
 - localStorage — Persisted user state

@@ -92,7 +92,7 @@ export function createTradeDetailsHandler(options: TradeDetailsOptions): (row: H
         const contentElement = dialog.querySelector('#trade-details-content');
         if (!titleElement || !contentElement) { return; }
 
-        let html = '';
+        let html: string;
 
         titleElement.textContent = 'Item Details';
 

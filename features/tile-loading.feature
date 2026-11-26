@@ -1,13 +1,13 @@
 Feature: Tile Loading
   As a user viewing the map
-  I want tiles to load correctly based on availability
+  I want tiles to be loaded straight from the map server
   So that I always see the best available map detail
 
   Background:
     Given the tile loading test app is configured
 
   @tiles @loading
-  Scenario: Both tile levels are requested when available in manifest
+  Scenario: Both tile levels are requested for an overworld shop
     When I open the navigation map with an overworld item
     Then detail level tiles should be requested
     And overview level tiles should be requested
@@ -25,18 +25,19 @@ Feature: Tile Loading
     And I wait for any pending tile requests
     Then no additional tile requests should be made
 
-  @tiles @caching @skip
-  Scenario: Tiles are cached across map sessions
-    When I open the navigation map with an overworld item
-    And I record the tile request count
-    And I close and reopen the navigation map
-    Then no additional tile requests should be made
-
-  @tiles @manifest
-  Scenario: No requests made for tiles not in manifest
-    Given the manifest only includes tiles near origin
+  @tiles @loading @far-away
+  Scenario: Far-away shops request the tiles at their location
     When I open the navigation map with a far-away shop item
-    Then only tiles near origin should be requested
+    Then tiles containing the block position (50000, 50000) should be requested at both levels
+
+  @tiles @missing @fallback
+  Scenario: Overview stays visible when the server has no detail tiles
+    Given the map server has no detail tiles
+    When I open the navigation map with an overworld item
+    Then detail level tiles should be requested
+    And no detail tile should remain on the map
+    And overview tiles should be displayed on the map
+    And no broken tile image should remain on the map
 
   @tiles @dynamic @moveend
   Scenario: Tiles load dynamically when map moves to new location
@@ -60,10 +61,8 @@ Feature: Tile Loading
     Given the navigation map is open with an overworld item
     Then at least one tile should be visible in the viewport
 
-  # NOTE: This test has a coordinate calculation issue in the step definition.
-  # The expected tile coordinates (13, -8) don't match the actual loaded tiles.
-  # This appears to be a test design issue with how tile coordinates are calculated
-  # from player world coordinates, not a production bug.
+  # The player position drives the tile area: the detail tile under the player
+  # (512 blocks per tile, e.g. (13, -8) for (7000, -4000)) must be requested.
   @tiles @positioning @distant-player
   Scenario: Tiles are positioned correctly when following distant player
     Given the navigation map is open with an overworld item

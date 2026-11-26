@@ -1,5 +1,4 @@
 export type {
-    TradeRendererDeps,
     TradeRendererHandler,
 } from './trade-renderer.js';
 export {

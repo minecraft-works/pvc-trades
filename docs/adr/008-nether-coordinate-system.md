@@ -47,7 +47,7 @@ function toOverworldEquivalent(x: number, z: number, world: WorldType): [number,
 ### Why Overworld as Reference?
 
 1. **Player familiarity**: Players think in overworld coordinates
-2. **Dynmap default**: Dynmap displays overworld coordinates
+2. **Map default**: The live map displays overworld coordinates
 3. **1:1 scale**: No multiplication/division for overworld comparisons
 4. **Portal behavior**: Nether portals link based on overworld-equivalent positions
 
@@ -117,7 +117,7 @@ Shop B: 🔥 50, 75 (nether)
 - Accurate cross-world routing
 - Consistent distance calculations
 - Matches player mental model
-- Matches Dynmap behavior
+- Matches the live map's behavior
 
 ### Negative
 

@@ -6,7 +6,16 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { Given, Then,When, TILE_URL_EXTENSION } from './fixtures';
+import {
+    blocksPerTileForZoom,
+    colorForTile,
+    DETAIL_ZOOM,
+    isTileRequestUrl,
+    parseTileUrls,
+    tilePathFragment,
+    type TileWorld,
+} from '../../tests/helpers/tile-url';
+import { Given, Then,When } from './fixtures';
 
 // ============================================================================
 // Color thresholds and types
@@ -27,12 +36,9 @@ interface PageWithTileTracking extends Page {
     __tileRequests?: string[];
     __tileRequestsAtTargetZoom?: string[];
     __tileRequestCount?: number;
-    __manifestFilter?: 'all' | 'origin-only';
     __lastPlayerX?: number;
     __lastPlayerZ?: number;
     __useColorEncoding?: boolean;
-    __detailLevelAvailable?: boolean;
-    __manifestRequestTime?: number;
     __firstTileRequestTime?: number;
     __currentMapZoom?: number;
     __savedTileCount?: number;
@@ -45,55 +51,22 @@ interface PageWithTileTracking extends Page {
 // ============================================================================
 
 /**
- * Extract colors from all visible tiles in the map
- * Checks both tile layers (.leaflet-tile img) and image overlays (.leaflet-image-layer)
+ * Colors of all tiles currently displayed on a map.
+ *
+ * Tiles come from another origin than the app, so their pixels cannot be read
+ * back through a canvas. The decoded image overlays are located in the DOM and
+ * the color is that of the color-coded mock tile served for their URL.
  * @param page
  */
 async function getVisibleTileColors(page: Page): Promise<RGB[]> {
-    return page.evaluate(() => {
-        // Find tiles from both regular tile layers and image overlays
-        const tileImages = document.querySelectorAll('.leaflet-tile img');
-        const imageOverlays = document.querySelectorAll('.leaflet-image-layer');
-        const colors: { r: number; g: number; b: number }[] = [];
-
-        // Process regular tile images
-        for (const tile of tileImages) {
-            if (!tile.complete || tile.naturalWidth === 0) {continue;}
-
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            if (!context) {continue;}
-
-            canvas.width = 1;
-            canvas.height = 1;
-
-            // Sample center pixel
-            context.drawImage(tile, 0, 0, 1, 1);
-            const imageData = context.getImageData(0, 0, 1, 1);
-            const [r, g, b] = imageData.data;
-            colors.push({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
-        }
-        
-        // Process image overlays (used by navigation map)
-        for (const img of imageOverlays) {
-            if (!img.complete || img.naturalWidth === 0) {continue;}
-
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            if (!context) {continue;}
-
-            canvas.width = 1;
-            canvas.height = 1;
-
-            // Sample center pixel
-            context.drawImage(img, 0, 0, 1, 1);
-            const imageData = context.getImageData(0, 0, 1, 1);
-            const [r, g, b] = imageData.data;
-            colors.push({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
-        }
-        
-        return colors;
+    const loadedSources = await page.evaluate(() => {
+        const images = document.querySelectorAll<HTMLImageElement>('.leaflet-image-layer');
+        return [...images]
+            .filter(img => img.complete && img.naturalWidth > 0)
+            .map(img => img.src);
     });
+
+    return parseTileUrls(loadedSources).map(tile => colorForTile(tile));
 }
 
 /**
@@ -152,7 +125,7 @@ Given('the navigation map is open', async ({ page, tileRequests }) => {
     
     // Set up request listener BEFORE any navigation
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+        if (isTileRequestUrl(request.url())) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -185,7 +158,7 @@ Given('the navigation map is open at map zoom {int}', async ({ page, tileRequest
     
     // Set up request listener BEFORE any navigation
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+        if (isTileRequestUrl(request.url())) {
             allRequests.push(request.url());
             tileRequests.push(request.url());
         }
@@ -251,12 +224,12 @@ Given(String.raw`a {word} shop exists at \({int}, {int}\)`, async ({ page }, wor
     p.__lastPlayerZ = z;
 });
 
-Given(String.raw`a tile at \({int}, {int}\) at level {int}`, async ({ page }, tileX: number, tileZ: number, level: number) => {
+Given(String.raw`a tile at \({int}, {int}\) at zoom {int}`, async ({ page }, tileX: number, tileZ: number, zoom: number) => {
     // Store for later verification
     const p = page as PageWithTileTracking;
     (p as unknown as { __testTileX: number }).__testTileX = tileX;
     (p as unknown as { __testTileZ: number }).__testTileZ = tileZ;
-    (p as unknown as { __testLevel: number }).__testLevel = level;
+    (p as unknown as { __testZoom: number }).__testZoom = zoom;
 });
 
 Given(String.raw`a nether shop at nether coordinates \({int}, {int}\)`, async ({ page }, netherX: number, netherZ: number) => {
@@ -275,11 +248,6 @@ Given('tiles are currently {word}', async ({ page }, brightness: string) => {
     // Just a descriptive step, actual verification happens in Then
     const p = page as PageWithTileTracking;
     (p as unknown as { __expectedStartBrightness: string }).__expectedStartBrightness = brightness;
-});
-
-Given('detail tiles are unavailable for the current area', async ({ page }) => {
-    const p = page as PageWithTileTracking;
-    p.__detailLevelAvailable = false;
 });
 
 // Store mock shop data for dynamic shop creation
@@ -303,7 +271,7 @@ Given(String.raw`a mock shop {string} exists at \({int}, {int}\) in {string}`, a
         
         // Set up request listener
         page.on('request', request => {
-            if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+            if (isTileRequestUrl(request.url())) {
                 p.__tileRequests?.push(request.url());
                 tileRequests.push(request.url());
             }
@@ -427,7 +395,7 @@ When('I navigate to shop {string}', async ({ page, tileRequests }, shopName: str
         
         // Set up request listener
         page.on('request', request => {
-            if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+            if (isTileRequestUrl(request.url())) {
                 p.__tileRequests?.push(request.url());
                 tileRequests.push(request.url());
             }
@@ -435,7 +403,7 @@ When('I navigate to shop {string}', async ({ page, tileRequests }, shopName: str
     }
     
     // Navigate to page to load the mock data
-    await page.goto('/pvc-trades/');
+    await page.goto('./');
     await page.waitForSelector('.trade-row', { state: 'visible' });
     
     // Find the shop row by name and add to cart
@@ -466,7 +434,7 @@ When('I navigate to the shop named {string}', async ({ page, tileRequests }, sho
     // Set up request listener BEFORE any navigation
     // Note: Background step already loaded the page with mock data at /
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+        if (isTileRequestUrl(request.url())) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -512,7 +480,7 @@ When('I navigate to a shop selling {string}', async ({ page, tileRequests }, ite
     
     // Set up request listener
     page.on('request', request => {
-        if (request.url().includes('/tiles/') && request.url().endsWith(TILE_URL_EXTENSION)) {
+        if (isTileRequestUrl(request.url())) {
             p.__tileRequests?.push(request.url());
             tileRequests.push(request.url());
         }
@@ -550,11 +518,6 @@ When('I open the navigation map', async ({ page }) => {
     await page.click(SELECTOR_START_NAVIGATION);
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible' });
     await page.waitForTimeout(1000);
-});
-
-When('the map falls back to overview tiles', async ({ page }) => {
-    // Fallback happens automatically when detail tiles are unavailable
-    await page.waitForTimeout(500);
 });
 
 When('I zoom the map to level {int}', async ({ page }, zoomLevel: number) => {
@@ -610,7 +573,7 @@ When('player position updates {int} times within the same tile', async ({ page }
     const baseX = p.__lastPlayerX ?? 100;
     const baseZ = p.__lastPlayerZ ?? 200;
 
-    // Update position slightly within same tile (tile is 256 blocks)
+    // Update position slightly within same tile (a detail tile is 512 blocks)
     for (let index = 0; index < count; index++) {
         const newX = baseX + (index % 10);
         const newZ = baseZ + (index % 10);
@@ -629,53 +592,45 @@ Then(String.raw`the expected tile \({int}, {int}\) for world {string} should be 
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
-    const worldPath = world === 'the_nether' ? 'the_nether' : 'overworld';
-    const patterns = [
-        `/${worldPath}/2/${tileX}/${tileZ}${TILE_URL_EXTENSION}`,
-        `/tiles/${worldPath}/2/${tileX}/${tileZ}${TILE_URL_EXTENSION}`,
-    ];
+    const worldPath: TileWorld = world === 'the_nether' ? 'the_nether' : 'overworld';
+    const fragment = tilePathFragment({ world: worldPath, zoom: DETAIL_ZOOM, tileX, tileZ });
     
-    const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
+    const found = requests.some(url => url.includes(fragment));
 
     if (!found) {
         // Log helpful debug info
         console.log(`Tile requests captured (${requests.length}):`, requests.slice(0, 15));
-        console.log(`Looking for tile (${tileX}, ${tileZ}) in ${world}, patterns:`, patterns);
+        console.log(`Looking for tile (${tileX}, ${tileZ}) in ${world}, fragment:`, fragment);
         
         // Show which tiles WERE requested for this world
-        const worldRequests = requests.filter(url => url.includes(`/${worldPath}/`));
+        const worldRequests = requests.filter(url => url.includes(`/minecraft_${worldPath}/`));
         console.log(`Requests for ${world}:`, worldRequests.slice(0, 10));
     }
     
-    expect(found, `Expected tile (${tileX}, ${tileZ}) in ${world} at detail level to be requested. Got ${requests.length} total requests.`).toBe(true);
+    expect(found, `Expected tile (${tileX}, ${tileZ}) in ${world} at detail zoom to be requested. Got ${requests.length} total requests.`).toBe(true);
 });
 
 Then(String.raw`a tile containing coordinates \({int}, {int}\) should be requested`, async ({ page }, x: number, z: number) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
     
-    // Calculate which tile contains these coordinates at detail level (256 blocks per tile)
-    const blocksPerTile = 256;
+    // Which detail tile contains these coordinates
+    const blocksPerTile = blocksPerTileForZoom(DETAIL_ZOOM);
     const expectedTileX = Math.floor(x / blocksPerTile);
     const expectedTileZ = Math.floor(z / blocksPerTile);
     
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
-    const patterns = [
-        `/overworld/2/${expectedTileX}/${expectedTileZ}${TILE_URL_EXTENSION}`,
-        `/tiles/overworld/2/${expectedTileX}/${expectedTileZ}${TILE_URL_EXTENSION}`,
-    ];
+    const fragment = tilePathFragment({ world: 'overworld', zoom: DETAIL_ZOOM, tileX: expectedTileX, tileZ: expectedTileZ });
     
-    const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
+    const found = requests.some(url => url.includes(fragment));
 
     if (!found) {
         // Log helpful debug info
         console.log(`Coordinates (${x}, ${z}) → Expected tile (${expectedTileX}, ${expectedTileZ})`);
         console.log(`Tile requests captured (${requests.length}):`, requests.slice(0, 15));
-        console.log('Patterns searched:', patterns);
+        console.log('Fragment searched:', fragment);
         
         // Extract tile coordinates from actual requests
-        const overworldRequests = requests.filter(url => url.includes('/overworld/2/'));
+        const overworldRequests = requests.filter(url => url.includes(`/minecraft_overworld/${DETAIL_ZOOM}/`));
         console.log('Overworld detail tiles:', overworldRequests.slice(0, 10));
     }
     
@@ -686,47 +641,42 @@ Then(String.raw`tile \({int}, {int}\) should be requested at detail level`, asyn
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    // URL format is /tiles/{world}/{level}/{tileX}/{tileZ}.png
-    // Detail level 2 = 256 blocks per tile
-    const patterns = [
-        `/overworld/2/${tileX}/${tileZ}${TILE_URL_EXTENSION}`,
-        `/tiles/overworld/2/${tileX}/${tileZ}${TILE_URL_EXTENSION}`,
-    ];
+    const fragment = tilePathFragment({ world: 'overworld', zoom: DETAIL_ZOOM, tileX, tileZ });
     
-    const found = requests.some(url => patterns.some(pattern => url.includes(pattern)));
+    const found = requests.some(url => url.includes(fragment));
 
     if (!found) {
         console.log(`Tile requests captured (${requests.length}):`, requests.slice(0, 10));
-        console.log(`Looking for tile (${tileX}, ${tileZ}), patterns:`, patterns);
+        console.log(`Looking for tile (${tileX}, ${tileZ}), fragment:`, fragment);
     }
     
     expect(found, `Expected tile (${tileX}, ${tileZ}) at detail level to be requested. Got ${requests.length} requests.`).toBe(true);
 });
 
 Then('the tile\'s west edge should be at x = {int}', async ({ page }, westX: number) => {
-    const p = page as unknown as { __testTileX: number; __testLevel: number };
-    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
+    const p = page as unknown as { __testTileX: number; __testZoom: number };
+    const blocksPerTile = blocksPerTileForZoom(p.__testZoom);
     const calculatedWest = p.__testTileX * blocksPerTile;
     expect(calculatedWest).toBe(westX);
 });
 
 Then('the tile\'s east edge should be at x = {int}', async ({ page }, eastX: number) => {
-    const p = page as unknown as { __testTileX: number; __testLevel: number };
-    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
+    const p = page as unknown as { __testTileX: number; __testZoom: number };
+    const blocksPerTile = blocksPerTileForZoom(p.__testZoom);
     const calculatedEast = (p.__testTileX + 1) * blocksPerTile;
     expect(calculatedEast).toBe(eastX);
 });
 
 Then('the tile\'s north edge should be at z = {int}', async ({ page }, northZ: number) => {
-    const p = page as unknown as { __testTileZ: number; __testLevel: number };
-    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
+    const p = page as unknown as { __testTileZ: number; __testZoom: number };
+    const blocksPerTile = blocksPerTileForZoom(p.__testZoom);
     const calculatedNorth = p.__testTileZ * blocksPerTile;
     expect(calculatedNorth).toBe(northZ);
 });
 
 Then('the tile\'s south edge should be at z = {int}', async ({ page }, southZ: number) => {
-    const p = page as unknown as { __testTileZ: number; __testLevel: number };
-    const blocksPerTile = p.__testLevel === 2 ? 256 : 4096;
+    const p = page as unknown as { __testTileZ: number; __testZoom: number };
+    const blocksPerTile = blocksPerTileForZoom(p.__testZoom);
     const calculatedSouth = (p.__testTileZ + 1) * blocksPerTile;
     expect(calculatedSouth).toBe(southZ);
 });
@@ -865,27 +815,10 @@ Then(String.raw`overworld tile at \({int}, {int}\) should be requested`, async (
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
 
-    const expectedPattern = `/overworld/2/${tileX}/${tileZ}${TILE_URL_EXTENSION}`;
-    const found = requests.some(url => url.includes(expectedPattern));
+    const expectedFragment = tilePathFragment({ world: 'overworld', zoom: DETAIL_ZOOM, tileX, tileZ });
+    const found = requests.some(url => url.includes(expectedFragment));
 
     expect(found).toBe(true);
-});
-
-Then('manifest.json should be requested first', async ({ page }) => {
-    const p = page as PageWithTileTracking;
-
-    expect(p.__manifestRequestTime).toBeDefined();
-    if (p.__firstTileRequestTime !== undefined) {
-        expect(p.__manifestRequestTime).toBeLessThanOrEqual(p.__firstTileRequestTime);
-    }
-});
-
-Then('tile requests should only occur after manifest loads', async ({ page }) => {
-    const p = page as PageWithTileTracking;
-
-    if (p.__manifestRequestTime !== undefined && p.__firstTileRequestTime !== undefined) {
-        expect(p.__firstTileRequestTime).toBeGreaterThanOrEqual(p.__manifestRequestTime);
-    }
 });
 
 Then('each unique tile should be requested at most once', async ({ page }) => {
@@ -987,7 +920,7 @@ Then('tiles should be {word}', async ({ page }, brightness: string) => {
 
 Then('detail level tiles should NOT be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const detailRequests = p.__tileRequests?.filter(url => url.includes('/2/')) ?? [];
+    const detailRequests = parseTileUrls(p.__tileRequests ?? []).filter(tile => tile.zoom === DETAIL_ZOOM);
     expect(detailRequests.length, 'Expected no detail level tile requests').toBe(0);
 });
 
@@ -1002,7 +935,7 @@ Then('tile URLs should contain {string}', async ({ page }, pattern: string) => {
 
 Then('tile URLs should only contain {string}', async ({ page }, pattern: string) => {
     const p = page as PageWithTileTracking;
-    const requests = p.__tileRequests?.filter(url => url.includes(TILE_URL_EXTENSION)) ?? [];
+    const requests = p.__tileRequests?.filter(url => isTileRequestUrl(url)) ?? [];
     expect(requests.length).toBeGreaterThan(0);
     
     for (const url of requests) {
@@ -1068,9 +1001,9 @@ Then('the rendered map center should show detail brightness', async ({ page }) =
                 const centerX = Math.floor(img.width / 2) + 50;
                 const centerY = Math.floor(img.height / 2) + 50;
                 const imageData = context.getImageData(centerX, centerY, 1, 1);
-                const [r, g, b] = imageData.data;
+                const [r = 0, g = 0, b = 0] = imageData.data;
                 
-                resolve({ r: r ?? 0, g: g ?? 0, b: b ?? 0 });
+                resolve({ r, g, b });
             });
             img.addEventListener('error', () => {
                 resolve({ r: 0, g: 0, b: 0 });

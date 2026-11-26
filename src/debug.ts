@@ -2,9 +2,9 @@
  * Debug loggers for production troubleshooting.
  * 
  * Enable in browser console:
- *   localStorage.debug = 'pvc:*';           // all logs
- *   localStorage.debug = 'pvc:worldswitch'; // specific namespace
- *   localStorage.debug = 'pvc:tiles';       // tile loading details
+ *   localStorage.debug = 'app:*';           // all logs
+ *   localStorage.debug = 'app:worldswitch'; // specific namespace
+ *   localStorage.debug = 'app:tiles';       // tile loading details
  * 
  * Then reload the page.
  * 
@@ -16,8 +16,8 @@
  */
 import Debug from 'debug';
 
-export const debugNavigation = Debug('pvc:navigation');
-export const debugPlayerPoll = Debug('pvc:playerpoll');
-export const debugMap = Debug('pvc:map');
-export const debugTiles = Debug('pvc:tiles');
-export const debugInterpolation = Debug('pvc:interpolation');
+export const debugNavigation = Debug('app:navigation');
+export const debugPlayerPoll = Debug('app:playerpoll');
+export const debugMap = Debug('app:map');
+export const debugTiles = Debug('app:tiles');
+export const debugInterpolation = Debug('app:interpolation');
