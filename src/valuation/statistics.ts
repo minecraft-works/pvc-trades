@@ -167,14 +167,34 @@ function getMedianValue(
     return buy ?? sell;
 }
 
+/**
+ * Median value of an entry. For core blocks only sides backed by enough
+ * independent shops contribute, so a lone outlier on one side cannot skew
+ * the average with the well-supported side.
+ * @param entry - Item value entry with buy/sell prices
+ * @param isCoreBlock - Whether the item is a core block subject to trust rules
+ * @param minShops - Minimum independent shops required per side for core blocks
+ * @returns Emerald value, or undefined if no side is trusted
+ */
+function getEntryValue(
+    entry: ItemValueEntry,
+    isCoreBlock: boolean,
+    minShops: number
+): number | undefined {
+    if (!isCoreBlock) { return getMedianValue(entry.buyPrices, entry.sellPrices); }
+    return getMedianValue(
+        countIndependentShops(entry.buyPrices) >= minShops ? entry.buyPrices : [],
+        countIndependentShops(entry.sellPrices) >= minShops ? entry.sellPrices : []
+    );
+}
+
 function getDirectTradeValue(
     entry: ItemValueEntry | undefined,
     isCoreBlock: boolean,
     minShops: number
 ): number | undefined {
     if (!entry) { return undefined; }
-    if (isCoreBlock && !hasEnoughIndependentData(entry, minShops)) { return undefined; }
-    return getMedianValue(entry.buyPrices, entry.sellPrices);
+    return getEntryValue(entry, isCoreBlock, minShops);
 }
 
 function getBlockConversionValue(
@@ -189,9 +209,8 @@ function getBlockConversionValue(
 
     const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
     if (!baseEntry) { return undefined; }
-    if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
 
-    const baseValue = getMedianValue(baseEntry.buyPrices, baseEntry.sellPrices);
+    const baseValue = getEntryValue(baseEntry, isCoreBlock, minShops);
     if (baseValue === undefined) { return undefined; }
     return baseValue * blockInfo.multiplier;
 }
@@ -207,8 +226,8 @@ function getReverseConversionValue(
         if (conversion.base.toLowerCase() !== itemKey) { continue; }
 
         const blockEntry = itemValues.get(blockKey);
-        if (blockEntry && (!isCoreBlock || hasEnoughIndependentData(blockEntry, minShops))) {
-            const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
+        if (blockEntry) {
+            const blockValue = getEntryValue(blockEntry, isCoreBlock, minShops);
             if (blockValue !== undefined) {
                 return blockValue / conversion.multiplier;
             }
