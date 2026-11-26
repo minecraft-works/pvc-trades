@@ -18,7 +18,7 @@ import {
     type ItemValues,
     type RatioGraph,
 } from '../types.js';
-import { hasEnoughIndependentData,median } from './statistics.js';
+import { countIndependentShops,hasEnoughIndependentData,median } from './statistics.js';
 
 // ============================================================================
 // Public API
@@ -213,11 +213,14 @@ function buildDirectionalEmeraldValues(
     const coreBlocksLower = new Set(coreBlocks.map(b => b.toLowerCase()));
 
     for (const [key, entry] of itemValues.entries()) {
-        if (coreBlocksLower.has(key) && !hasEnoughIndependentData(entry, config.analysis.minIndependentShops)) {
+        const prices = side === 'buy' ? entry.buyPrices : entry.sellPrices;
+
+        // Trust is judged on the same side that supplies the value, otherwise a
+        // single outlier shop on one side passes thanks to the other side's data.
+        if (coreBlocksLower.has(key) && countIndependentShops(prices) < config.analysis.minIndependentShops) {
             continue;
         }
 
-        const prices = side === 'buy' ? entry.buyPrices : entry.sellPrices;
         const value = median(prices);
         if (value !== undefined) {
             emeraldValues.set(key, value);

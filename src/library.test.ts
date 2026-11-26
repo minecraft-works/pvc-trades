@@ -937,6 +937,46 @@ describe('buildExchangeMatrix', () => {
         expect(sellMatrix.ratios[diamondSellIndex]![goldSellIndex]).toBe(4);
     });
 
+    test('ignores a core block whose own side has too few independent shops', () => {
+        // One outlier buy shop must not override the diamond-derived value, even
+        // though the sell side has plenty of independent shops.
+        const values: ItemValues = new Map([
+            ['diamond block', {
+                name: 'Diamond Block',
+                buyPrices: [{ price: 24, x: 0, y: 0, z: 0 }],
+                sellPrices: [
+                    { price: 90, x: 0, y: 0, z: 0 },
+                    { price: 90, x: 100, y: 0, z: 0 },
+                    { price: 90, x: 200, y: 0, z: 0 }
+                ]
+            }],
+            ['diamond', {
+                name: 'Diamond',
+                buyPrices: [
+                    { price: 10, x: 0, y: 0, z: 0 },
+                    { price: 10, x: 100, y: 0, z: 0 },
+                    { price: 10, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }],
+            ['iron block', {
+                name: 'Iron Block',
+                buyPrices: [
+                    { price: 9, x: 0, y: 0, z: 0 },
+                    { price: 9, x: 100, y: 0, z: 0 },
+                    { price: 9, x: 200, y: 0, z: 0 }
+                ],
+                sellPrices: []
+            }]
+        ]);
+
+        const matrix = buildExchangeMatrix(values, 'buy');
+        const diamondBlockIndex = matrix.labels.indexOf('Diamond Block');
+        const ironBlockIndex = matrix.labels.indexOf('Iron Block');
+        // Diamond Block = diamond × 9 = 90, not the outlier 24
+        expect(matrix.ratios[diamondBlockIndex]![ironBlockIndex]).toBe(10);
+    });
+
     test('derives block values from base item via block conversions', () => {
         // Only "diamond" has data, "diamond block" should be derived (diamond × 9)
         const values: ItemValues = new Map([
