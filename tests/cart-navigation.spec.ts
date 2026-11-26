@@ -2,8 +2,9 @@
  * Functional E2E Tests for Shopping Cart and Navigation Features
  */
 
-import { test, expect } from './helpers/global-setup';
 import type { Page } from '@playwright/test';
+
+import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // Mock data matching the actual app structure
@@ -108,7 +109,7 @@ test.describe('Shopping Cart Basics', () => {
         await page.locator('.add-to-cart-btn').first().click();
 
         // Check localStorage with correct storage key
-        const cartData = await page.evaluate(() => localStorage.getItem('pvc-trades-cart'));
+        const cartData = await page.evaluate(() => localStorage.getItem('shop-trades-cart'));
         expect(cartData).toBeTruthy();
         
         const cart = JSON.parse(cartData!);
@@ -136,7 +137,7 @@ test.describe('Shopping Cart Basics', () => {
                 },
                 quantity: 1
             }];
-            localStorage.setItem('pvc-trades-cart', JSON.stringify(mockCart));
+            localStorage.setItem('shop-trades-cart', JSON.stringify(mockCart));
         });
 
         // Reload page

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        include: ['src/**/*.test.ts', 'src/**/*.property.test.ts', 'scripts/**/*.test.ts'],
+        include: ['src/**/*.test.ts', 'src/**/*.property.test.ts'],
         exclude: ['tests/**', 'node_modules/**'],
         coverage: {
             provider: 'v8',
@@ -21,11 +21,6 @@ export default defineConfig({
                 'src/map/**/*.ts',
                 'src/dialogs/**/*.ts',
                 'src/favorites/**/*.ts',
-                'src/lighting/heightmap-atlas.ts',
-                'src/lighting/light-overlay.ts',
-                'src/lighting/light-renderer.ts',
-                'src/lighting/light-shaders.ts',
-                'src/lighting/lighting-controller.ts',
                 'src/navigation/**/*.ts',
                 'src/rendering/**/*.ts',
                 'src/search/**/*.ts',

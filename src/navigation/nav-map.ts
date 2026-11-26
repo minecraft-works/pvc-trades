@@ -25,16 +25,12 @@ import {
     toLeafletCoordsRelative,
     toViewCoords,
 } from '../library.js';
-import type { LightingController } from '../lighting/lighting-controller.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
 import {
     calculateOverviewCoords,
-    loadTileManifest,
     loadTileToMap,
     TILE_CONFIG,
-    tileExistsInManifest,
 } from '../map/index.js';
-import { getManifestEntries } from '../map/index.js';
 import type { RouteStop } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 
@@ -88,13 +84,11 @@ export interface NavMapDeps {
     };
     toggleStopCompletion: (stop: RouteStop, route: RouteStop[]) => void;
     onMapDrag: () => void;
-    /** Optional lighting controller for dynamic terrain lighting */
-    lightingController?: LightingController;
 }
 
 /** Public API returned by the factory */
 export interface NavMapHandler {
-    initNavigationMapDialog: (route: RouteStop[], targetWorld?: string) => Promise<void>;
+    initNavigationMapDialog: (route: RouteStop[], targetWorld?: string) => void;
     createRouteMarkersUnified: (
         allStops: RouteStop[],
         centerTileX: number,
@@ -110,7 +104,6 @@ export interface NavMapHandler {
 
 interface TileLoadContext {
     map: L.Map;
-    manifest: Set<string>;
     worldId: string;
     minTileX: number;
     maxTileX: number;
@@ -125,10 +118,9 @@ interface TileLoadContext {
 // Pure tile loading helpers (no closure needed)
 // ============================================================================
 
-function loadOverviewTiles(context: TileLoadContext): { loaded: number; skipped: number } {
-    const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
-    let loaded = 0;
-    let skipped = 0;
+function loadOverviewTiles(context: TileLoadContext): number {
+    const { map, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
+    let requested = 0;
     const overviewSize = TILE_CONFIG.overviewTileBlocks;
     const ratio = TILE_CONFIG.detailToOverviewRatio;
     const overviewTiles = new Set<string>();
@@ -138,46 +130,37 @@ function loadOverviewTiles(context: TileLoadContext): { loaded: number; skipped:
             const key = `${ov.x},${ov.z}`;
             if (overviewTiles.has(key)) { continue; }
             overviewTiles.add(key);
-            if (tileExistsInManifest(manifest, worldId, TILE_CONFIG.overviewTileBlocks, ov.x, ov.z)) {
-                loaded++;
-                const startDetailX = ov.x * ratio;
-                const startDetailZ = ov.z * ratio;
-                const dx = startDetailX - positionCenterX;
-                const dy = startDetailZ - positionCenterZ;
-                const bounds: L.LatLngBoundsExpression = [
-                    [-dy * TILE_CONFIG.tileSize - overviewSize, dx * TILE_CONFIG.tileSize],
-                    [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize],
-                ];
-                loadTileToMap({ map, worldId, bounds, addedToMap, zoom: TILE_CONFIG.fallbackZoom, tx: ov.x, tz: ov.z, pane: 'tilesOverview' });
-            } else {
-                skipped++;
-            }
+            requested++;
+            const startDetailX = ov.x * ratio;
+            const startDetailZ = ov.z * ratio;
+            const dx = startDetailX - positionCenterX;
+            const dy = startDetailZ - positionCenterZ;
+            const bounds: L.LatLngBoundsExpression = [
+                [-dy * TILE_CONFIG.tileSize - overviewSize, dx * TILE_CONFIG.tileSize],
+                [-dy * TILE_CONFIG.tileSize, dx * TILE_CONFIG.tileSize + overviewSize],
+            ];
+            loadTileToMap({ map, worldId, bounds, addedToMap, zoom: TILE_CONFIG.fallbackZoom, tx: ov.x, tz: ov.z, pane: 'tilesOverview' });
         }
     }
-    return { loaded, skipped };
+    return requested;
 }
 
-function loadDetailTiles(context: TileLoadContext): { loaded: number; skipped: number } {
-    const { map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
-    let loaded = 0;
-    let skipped = 0;
+function loadDetailTiles(context: TileLoadContext): number {
+    const { map, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap } = context;
+    let requested = 0;
     for (let tz = minTileZ - 1; tz <= maxTileZ + 1; tz++) {
         for (let tx = minTileX - 1; tx <= maxTileX + 1; tx++) {
-            if (tileExistsInManifest(manifest, worldId, TILE_CONFIG.tileSize, tx, tz)) {
-                loaded++;
-                const relativeX = tx - positionCenterX;
-                const relativeZ = tz - positionCenterZ;
-                const bounds: L.LatLngBoundsExpression = [
-                    [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
-                    [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize],
-                ];
-                loadTileToMap({ map, worldId, tx, tz, bounds, addedToMap, zoom: TILE_CONFIG.maxZoom, pane: 'tilesDetail' });
-            } else {
-                skipped++;
-            }
+            requested++;
+            const relativeX = tx - positionCenterX;
+            const relativeZ = tz - positionCenterZ;
+            const bounds: L.LatLngBoundsExpression = [
+                [-relativeZ * TILE_CONFIG.tileSize - TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize],
+                [-relativeZ * TILE_CONFIG.tileSize, relativeX * TILE_CONFIG.tileSize + TILE_CONFIG.tileSize],
+            ];
+            loadTileToMap({ map, worldId, tx, tz, bounds, addedToMap, zoom: TILE_CONFIG.maxZoom, pane: 'tilesDetail' });
         }
     }
-    return { loaded, skipped };
+    return requested;
 }
 
 /**
@@ -241,7 +224,6 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
     // ── Map lifecycle ───────────────────────────────────────────────
 
     function cleanupNavMap(): void {
-        deps.lightingController?.detach();
         if (state.map) {
             try { state.map.remove(); } catch { /* already removed */ }
         }
@@ -295,7 +277,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
     // ── Tile loading ────────────────────────────────────────────────
 
     function loadNavMapTiles(options: LoadNavMapTilesOptions): void {
-        const { manifest, worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
+        const { worldId, tileRange, addedToMap, mapCenterTileX, mapCenterTileZ } = options;
         if (!state.map) { return; }
         const { minTileX, maxTileX, minTileZ, maxTileZ, centerTileX, centerTileZ } = tileRange;
         const positionCenterX = mapCenterTileX ?? centerTileX;
@@ -305,20 +287,17 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         debugTiles('loadNavMapTiles: world=%s tileRange=[%d,%d]->[%d,%d] center=[%d,%d] posCenter=[%d,%d] zoom=%d',
             worldId, minTileX, minTileZ, maxTileX, maxTileZ, centerTileX, centerTileZ, positionCenterX, positionCenterZ, currentZoom);
 
-        const tileContext: TileLoadContext = { map: state.map, manifest, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap };
+        const tileContext: TileLoadContext = { map: state.map, worldId, minTileX, maxTileX, minTileZ, maxTileZ, positionCenterX, positionCenterZ, addedToMap };
 
-        const z4 = loadOverviewTiles(tileContext);
-        debugTiles('loadNavMapTiles: overview loaded=%d skipped=%d (not in manifest)', z4.loaded, z4.skipped);
-
-        let z8 = { loaded: 0, skipped: 0 };
+        const overview = loadOverviewTiles(tileContext);
+        let detail = 0;
         if (currentZoom > -2) {
-            z8 = loadDetailTiles(tileContext);
+            detail = loadDetailTiles(tileContext);
         } else {
             debugTiles('loadNavMapTiles: skipping detail tiles (currentZoom=%d <= -2)', currentZoom);
         }
 
-        debugTiles('loadNavMapTiles: detail loaded=%d skipped=%d (not in manifest)', z8.loaded, z8.skipped);
-        debugTiles('loadNavMapTiles: TOTAL loaded=%d (overview=%d detail=%d)', z4.loaded + z8.loaded, z4.loaded, z8.loaded);
+        debugTiles('loadNavMapTiles: requested overview=%d detail=%d', overview, detail);
     }
 
     // ── Route markers ───────────────────────────────────────────────
@@ -373,7 +352,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
     // ── Dynamic tile loading ────────────────────────────────────────
 
-    function bindDynamicTileLoading(manifest: Set<string>, addedToNavMap: Set<string>): void {
+    function bindDynamicTileLoading(addedToNavMap: Set<string>): void {
         if (!state.map) { return; }
         const loadVisibleNavMapTiles = () => {
             const viewTileRange = calculateTileRangeFromView(state.centerTileX, state.centerTileZ);
@@ -381,7 +360,6 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
                 debugTiles('loadVisibleNavMapTiles: view range [%d,%d]->[%d,%d]',
                     viewTileRange.minTileX, viewTileRange.minTileZ, viewTileRange.maxTileX, viewTileRange.maxTileZ);
                 loadNavMapTiles({
-                    manifest,
                     worldId: deps.navigationStore.viewWorld,
                     tileRange: viewTileRange,
                     addedToMap: addedToNavMap,
@@ -396,7 +374,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
 
     // ── Map initialization ──────────────────────────────────────────
 
-    async function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): Promise<void> {
+    function initNavigationMapDialog(route: RouteStop[], targetWorld?: string): void {
         const container = document.querySelector('#nav-dialog-map-container');
         if (!(container instanceof HTMLElement)) {
             debugMap('Map container not found');
@@ -440,21 +418,16 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
             state.map.fitBounds(L.latLngBounds(routePoints), { padding: [50, 50] });
         }
 
-        const manifest = await loadTileManifest();
+        // Only request the tiles in view; panning and zooming load the rest
         const addedToNavMap = new Set<string>();
-        loadNavMapTiles({ manifest, tileRange, worldId: worldToShow, addedToMap: addedToNavMap });
-        bindDynamicTileLoading(manifest, addedToNavMap);
-
-        // Attach lighting overlay to the map
-        if (deps.lightingController) {
-            const entries = getManifestEntries();
-            void deps.lightingController.attach(
-                state.map,
-                tileRange.centerTileX,
-                tileRange.centerTileZ,
-                entries,
-            );
-        }
+        loadNavMapTiles({
+            tileRange: calculateTileRangeFromView(tileRange.centerTileX, tileRange.centerTileZ) ?? tileRange,
+            worldId: worldToShow,
+            addedToMap: addedToNavMap,
+            mapCenterTileX: tileRange.centerTileX,
+            mapCenterTileZ: tileRange.centerTileZ,
+        });
+        bindDynamicTileLoading(addedToNavMap);
     }
 
     // ── Return public API ───────────────────────────────────────────

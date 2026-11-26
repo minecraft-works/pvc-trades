@@ -3,6 +3,7 @@
  */
 import { expect } from '@playwright/test';
 
+import { PLAYERS_ROUTE_PATTERN } from '../../tests/helpers/endpoints';
 import { Given, Then,When } from './fixtures';
 
 // ============================================================================
@@ -112,8 +113,8 @@ Given('I am navigating as {string} with yaw {int}', async ({ page, playerMock },
 Given('I am navigating as {string}', async ({ page }, playerName: string) => {
     if (playerName.toLowerCase().includes('nonexistent')) {
         // Remove any existing player API route first, then add the empty response
-        await page.unroute('**/pvc-players.minecraft-works.workers.dev**');
-        await page.route('**/pvc-players.minecraft-works.workers.dev**', async (route) => {
+        await page.unroute(PLAYERS_ROUTE_PATTERN);
+        await page.route(PLAYERS_ROUTE_PATTERN, async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
@@ -168,8 +169,8 @@ Given('the next shop is in the nether', async () => {
 Given('I am navigating with {int} shops in my route', async ({ page }, shopCount: number) => {
     // Clear existing cart items first - use correct storage keys
     await page.evaluate(() => {
-        localStorage.removeItem('pvc-trades-cart');
-        localStorage.removeItem('pvc-trades-nav-progress');
+        localStorage.removeItem('shop-trades-cart');
+        localStorage.removeItem('shop-trades-nav-progress');
     });
     await page.reload();
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
@@ -189,11 +190,11 @@ Given('I am navigating with {int} shops in my route', async ({ page }, shopCount
     await page.waitForSelector('#nav-dialog[open]', { state: 'visible', timeout: 5000 });
 });
 
-Given('I am navigating with {int} shop remaining', async ({ page }) => {
+Given('I am navigating with {int} shop remaining', async ({ page }, _count: number) => {
     // Clear existing cart items first - use correct storage keys
     await page.evaluate(() => {
-        localStorage.removeItem('pvc-trades-cart');  // Correct key!
-        localStorage.removeItem('pvc-trades-nav-progress');
+        localStorage.removeItem('shop-trades-cart');  // Correct key!
+        localStorage.removeItem('shop-trades-nav-progress');
     });
     await page.reload();
     
@@ -224,7 +225,7 @@ Given('I am navigating with {int} shop remaining', async ({ page }) => {
             },
             quantity: 1
         };
-        localStorage.setItem('pvc-trades-cart', JSON.stringify([cartItem]));
+        localStorage.setItem('shop-trades-cart', JSON.stringify([cartItem]));
     });
     
     // Reload to pick up the cart state
@@ -232,7 +233,7 @@ Given('I am navigating with {int} shop remaining', async ({ page }) => {
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
     
     // Verify cart is now populated
-    const cartAfter = await page.evaluate(() => localStorage.getItem('pvc-trades-cart'));
+    const cartAfter = await page.evaluate(() => localStorage.getItem('shop-trades-cart'));
     console.log('Cart after direct localStorage set:', cartAfter);
     
     await page.locator('#open-cart').click();
@@ -246,7 +247,7 @@ Given('I am navigating with {int} shop remaining', async ({ page }) => {
     await page.locator('#player-name-input').fill('TestPlayer');
     
     // Debug: Check cart state right before starting
-    const cartBeforeStart = await page.evaluate(() => localStorage.getItem('pvc-trades-cart'));
+    const cartBeforeStart = await page.evaluate(() => localStorage.getItem('shop-trades-cart'));
     console.log('Cart right before start:', cartBeforeStart);
     
     await page.locator('#start-navigation').click();

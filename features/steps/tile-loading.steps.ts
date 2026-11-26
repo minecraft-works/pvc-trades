@@ -1,120 +1,26 @@
 /**
  * Step definitions for tile loading scenarios
- * Tests manifest-based tile loading, fallback behavior, and caching
+ * Tests direct map-server tile requests, fallback when the server has no tile, and request counting
  */
-import { deflateSync } from 'node:zlib';
-
 import type { Page, Route } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import { PLAYERS_ROUTE_PATTERN } from '../../tests/helpers/endpoints';
 import { mockConfigRoute } from '../../tests/helpers/test-config';
-import { Given, Then,When, TILE_ROUTE_PATTERN, TILE_URL_EXTENSION } from './fixtures';
-
-// ============================================================================
-// Tile creation helpers (same as navigation-mocks.ts)
-// ============================================================================
-
-function createColoredPng(r: number, g: number, b: number): Buffer {
-    const header = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-    
-    const ihdrData = Buffer.from([
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x02, 0x00, 0x00, 0x00
-    ]);
-    const ihdrCrc = crc32(Buffer.concat([Buffer.from('IHDR'), ihdrData]));
-    const ihdr = Buffer.concat([
-        Buffer.from([0x00, 0x00, 0x00, 0x0D]),
-        Buffer.from('IHDR'),
-        ihdrData,
-        ihdrCrc
-    ]);
-    
-    const rawData = Buffer.from([0x00, r, g, b]);
-    const compressed = deflateSync(rawData);
-    const idatCrc = crc32(Buffer.concat([Buffer.from('IDAT'), compressed]));
-    const idat = Buffer.concat([
-        Buffer.alloc(4),
-        Buffer.from('IDAT'),
-        compressed,
-        idatCrc
-    ]);
-    idat.writeUInt32BE(compressed.length, 0);
-    
-    const iendCrc = crc32(Buffer.from('IEND'));
-    const iend = Buffer.concat([
-        Buffer.from([0x00, 0x00, 0x00, 0x00]),
-        Buffer.from('IEND'),
-        iendCrc
-    ]);
-    
-    return Buffer.concat([header, ihdr, idat, iend]);
-}
-
-const crcTable: number[] = [];
-for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) {
-        c = (c & 1) ? (0xED_B8_83_20 ^ (c >>> 1)) : (c >>> 1);
-    }
-    crcTable[n] = c;
-}
-
-function crc32(data: Buffer): Buffer {
-    let crc = 0xFF_FF_FF_FF;
-    for (const byte of data) {
-        crc = crcTable[(crc ^ byte) & 0xFF]! ^ (crc >>> 8);
-    }
-    crc = crc ^ 0xFF_FF_FF_FF;
-    const result = Buffer.alloc(4);
-    result.writeUInt32BE(crc >>> 0, 0);
-    return result;
-}
-
-// ============================================================================
-// Color-coded tile generation for visual verification
-// ============================================================================
-// Encoding scheme:
-//   - World type (hue): Blue = Overworld, Red = Nether
-//   - Tile level (brightness): Bright = Detail level 2 (256 bpt), Dark = Overview level 0 (4096 bpt)
-//   - Checkerboard pattern: 15% brightness variation based on tile parity
-
-const TILE_COLORS = {
-    overworld: {
-        detail: { r: 100, g: 180, b: 255 },  // Bright Sky Blue
-        overview: { r: 40, g: 80, b: 140 },    // Dark Navy Blue
-    },
-    the_nether: {
-        detail: { r: 255, g: 120, b: 100 },  // Bright Coral Red
-        overview: { r: 140, g: 50, b: 40 },    // Dark Maroon Red
-    }
-} as const;
-
-interface TileColorConfig {
-    world: 'overworld' | 'the_nether';
-    blocksPerTile: number;
-    tileX: number;
-    tileZ: number;
-}
-
-function createEncodedTile(config: TileColorConfig): Buffer {
-    const worldColors = TILE_COLORS[config.world];
-    const zoomKey = config.blocksPerTile === 256 ? 'detail' : 'overview';
-    const base = worldColors[zoomKey];
-
-    // Apply checkerboard pattern (15% darker for odd parity)
-    const isEven = (config.tileX + config.tileZ) % 2 === 0;
-    const patternMultiplier = isEven ? 1 : 0.85;
-
-    const r = Math.round(base.r * patternMultiplier);
-    const g = Math.round(base.g * patternMultiplier);
-    const b = Math.round(base.b * patternMultiplier);
-
-    return createColoredPng(r, g, b);
-}
-
-// Legacy constants for backward compatibility with existing tests
-const BLUE_PIXEL_PNG = createColoredPng(100, 180, 255);  // Overworld detail
-const RED_PIXEL_PNG = createColoredPng(255, 120, 100);   // Nether detail
+import { fulfillMissingTile } from '../../tests/helpers/tile-map-mocks';
+import {
+    createEncodedTilePng,
+    DETAIL_BPT,
+    DETAIL_TILES_PER_OVERVIEW,
+    DETAIL_ZOOM,
+    OVERVIEW_BPT,
+    OVERVIEW_ZOOM,
+    type ParsedTileUrl,
+    parseTileUrl,
+    parseTileUrls,
+    tilePathFragment,
+} from '../../tests/helpers/tile-url';
+import { Given, Then,TILE_ROUTE_PATTERN,When } from './fixtures';
 
 // ============================================================================
 // Test data with controlled shop locations
@@ -125,7 +31,7 @@ const MOCK_SHOP_DATA = {
         {
             shopName: 'Origin Overworld Shop',
             shopOwner: 'TestOwner',
-            location: '100.0, 64.0, 200.0',  // Near origin, tile (0, 0) at detail level
+            location: '100.0, 64.0, 200.0',  // Near origin, detail tile (0, 0)
             world: 'World',
             recipes: [{
                 resultItem: { type: 'EMERALD', name: 'Emerald', amount: 1 },
@@ -165,15 +71,13 @@ const MOCK_SHOP_DATA = {
 interface PageWithTileTracking extends Page {
     __tileRequests?: string[];
     __tileRequestCount?: number;
-    __manifestFilter?: 'all' | 'origin-only';
     __lastPlayerX?: number;
     __lastPlayerZ?: number;
-    __useColorEncoding?: boolean;
-    __detailLevelAvailable?: boolean;
-    __manifestRequestTime?: number;
     __firstTileRequestTime?: number;
     __overviewDelay?: number;
     __detailDelay?: number;
+    /** Tiles for which the mocked map server answers with an empty body */
+    __isTileMissing?: (tile: ParsedTileUrl) => boolean;
 }
 
 // ============================================================================
@@ -186,12 +90,11 @@ const SELECTOR_TAB_NAVIGATE = '#tab-navigate';
 const SELECTOR_PLAYER_NAME_INPUT = '#player-name-input';
 const SELECTOR_START_NAVIGATION = '#start-navigation';
 const SELECTOR_NAV_DIALOG_OPEN = '#nav-dialog[open]';
-const SELECTOR_CART_DIALOG_OPEN = '#cart-dialog[open]';
 const SELECTOR_ADD_TO_CART_BUTTON = '.add-to-cart-btn';
 const SELECTOR_NAV_MAP_CONTAINER = '#nav-dialog-map-container';
 const TEST_PLAYER_NAME = 'TestPlayer';
 const TEST_UUID = 'test-uuid-1234';
-const PLAYER_API_PATTERN = '**/pvc-players.minecraft-works.workers.dev**';
+const PLAYER_API_PATTERN = PLAYERS_ROUTE_PATTERN;
 const APPLICATION_JSON = 'application/json';
 const ERROR_NO_BOUNDING_BOX = 'Could not get map container bounding box';
 
@@ -199,48 +102,51 @@ const ERROR_NO_BOUNDING_BOX = 'Could not get map container bounding box';
 // GIVEN Steps
 // ============================================================================
 
-Given('the tile loading test app is configured', async ({ page }) => {
+/**
+ * Mock the map server: every tile request is recorded and answered with a
+ * color-coded PNG, except tiles the scenario declared missing, which get an
+ * empty 200 response like the real server sends for unrendered tiles.
+ * @param page
+ */
+async function mockTileServer(page: Page): Promise<void> {
     const p = page as PageWithTileTracking;
     p.__tileRequests = [];
-    p.__manifestFilter = 'all';
-    
-    // Set up tile request tracking
+
     await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
         const url = route.request().url();
-        p.__tileRequests!.push(url);
-        
-        const isNether = url.includes('/the_nether/');
+        p.__tileRequests?.push(url);
+
+        // Track timing for race condition tests
+        p.__firstTileRequestTime ??= Date.now();
+
+        const tile = parseTileUrl(url);
+        if (!tile) {
+            await fulfillMissingTile(route);
+            return;
+        }
+
+        if (p.__isTileMissing?.(tile)) {
+            await fulfillMissingTile(route);
+            return;
+        }
+
+        // Apply artificial delay if configured (for z-order race condition testing)
+        const delay = tile.zoom === DETAIL_ZOOM ? p.__detailDelay : p.__overviewDelay;
+        if (delay && delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
         await route.fulfill({
             status: 200,
             contentType: 'image/png',
-            body: isNether ? RED_PIXEL_PNG : BLUE_PIXEL_PNG
+            body: createEncodedTilePng(tile)
         });
     });
-    
-    // Set up manifest mock
-    await page.route('**/tiles/manifest.json', async (route: Route) => {
-        const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
-        const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = [256, 4096];
-        
-        const range = p.__manifestFilter === 'origin-only' ? 5 : 200;
-        
-        for (const world of worlds) {
-            for (const blocksPerTile of blocksPerTileOptions) {
-                for (let tx = -range; tx <= range; tx++) {
-                    for (let tz = -range; tz <= range; tz++) {
-                        entries.push({ world, tileX: tx, tileZ: tz, blocksPerTile });
-                    }
-                }
-            }
-        }
-        
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(entries)
-        });
-    });
+}
+
+Given('the tile loading test app is configured', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    await mockTileServer(page);
     
     // Set up config.json mock to use local data.json path
     await mockConfigRoute(page);
@@ -264,7 +170,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
                     uuid: TEST_UUID,
                     name: TEST_PLAYER_NAME,
                     foreign: false,
-                    position: { x: 0, y: 64, z: 0 },
+                    position: { x: p.__lastPlayerX ?? 0, y: 64, z: p.__lastPlayerZ ?? 0 },
                     rotation: { pitch: 0, yaw: 0, roll: 0 },
                     world: 'World'
                 }]
@@ -279,95 +185,7 @@ Given('the tile loading test app is configured', async ({ page }) => {
 
 Given('the tile loading test app is configured with color-coded tiles', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    p.__tileRequests = [];
-    p.__manifestFilter = 'all';
-    p.__useColorEncoding = true;
-    p.__detailLevelAvailable = true;
-
-    // Set up tile request tracking with color-encoded tiles
-    await page.route(TILE_ROUTE_PATTERN, async (route: Route) => {
-        const url = route.request().url();
-        p.__tileRequests!.push(url);
-
-        // Track timing for race condition tests
-        if (p.__firstTileRequestTime === undefined) {
-            p.__firstTileRequestTime = Date.now();
-        }
-
-        // Parse URL to extract tile info
-        // Format: /tiles/{world}/{level}/{tileX}/{tileZ}.png
-        // level 2 = 256 blocks per tile, level 0 = 4096 blocks per tile
-        const match = /tiles\/(overworld|the_nether)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/.exec(url);
-
-        if (match) {
-            const [, world, levelString, tileXString, tileZString] = match;
-            const level = Number.parseInt(levelString, 10);
-            const tileX = Number.parseInt(tileXString, 10);
-            const tileZ = Number.parseInt(tileZString, 10);
-            // Convert level to blocks per tile: level 2 = 256, level 0 = 4096
-            const blocksPerTile = level === 2 ? 256 : 4096;
-
-            // Check if detail level is available (for fallback tests)
-            if (level === 2 && !p.__detailLevelAvailable) {
-                await route.fulfill({ status: 404 });
-                return;
-            }
-
-            const tile = createEncodedTile({
-                world: world as 'overworld' | 'the_nether',
-                blocksPerTile,
-                tileX,
-                tileZ
-            });
-
-            // Apply artificial delay if configured (for z-order race condition testing)
-            const pWithDelay = p as PageWithTileTracking & { __overviewDelay?: number; __detailDelay?: number };
-            const delay = level === 2 ? pWithDelay.__detailDelay : pWithDelay.__overviewDelay;
-            if (delay && delay > 0) {
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-
-            await route.fulfill({
-                status: 200,
-                contentType: 'image/png',
-                body: tile
-            });
-        } else {
-            // Fallback for unexpected URL format - gray tile
-            await route.fulfill({
-                status: 200,
-                contentType: 'image/png',
-                body: createColoredPng(128, 128, 128)
-            });
-        }
-    });
-
-    // Set up manifest mock with timing tracking
-    await page.route('**/tiles/manifest.json', async (route: Route) => {
-        p.__manifestRequestTime = Date.now();
-
-        const entries: { world: string; tileX: number; tileZ: number; blocksPerTile: number }[] = [];
-        const worlds = ['overworld', 'the_nether'];
-        const blocksPerTileOptions = p.__detailLevelAvailable ? [256, 4096] : [4096];
-
-        const range = p.__manifestFilter === 'origin-only' ? 5 : 200;
-
-        for (const world of worlds) {
-            for (const blocksPerTile of blocksPerTileOptions) {
-                for (let tx = -range; tx <= range; tx++) {
-                    for (let tz = -range; tz <= range; tz++) {
-                        entries.push({ world, tileX: tx, tileZ: tz, blocksPerTile });
-                    }
-                }
-            }
-        }
-
-        await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(entries)
-        });
-    });
+    await mockTileServer(page);
 
     // Set up config.json mock
     await mockConfigRoute(page);
@@ -404,9 +222,9 @@ Given('the tile loading test app is configured with color-coded tiles', async ({
     await page.waitForSelector('.trade-row', { state: 'visible', timeout: 5000 });
 });
 
-Given('the manifest only includes tiles near origin', async ({ page }) => {
+Given('the map server has no detail tiles', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    p.__manifestFilter = 'origin-only';
+    p.__isTileMissing = tile => tile.zoom === DETAIL_ZOOM;
 });
 
 // ============================================================================
@@ -510,37 +328,6 @@ When('I wait for any pending tile requests', async ({ page }) => {
     await waitForTileRequestsToStabilize(page, 500, 5000);
 });
 
-When('I close and reopen the navigation map', async ({ page }) => {
-    // Close the navigation dialog by clicking the close button
-    const closeButton = page.locator('#close-nav');
-    await closeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await closeButton.click();
-    await page.waitForTimeout(300);
-    
-    // Cart should reopen automatically after nav dialog closes
-    await page.waitForSelector(SELECTOR_CART_DIALOG_OPEN, { state: 'visible', timeout: 10_000 });
-    
-    // Switch to navigate tab
-    const navigateTab = page.locator(SELECTOR_TAB_NAVIGATE);
-    await navigateTab.waitFor({ state: 'visible', timeout: 5000 });
-    await navigateTab.click();
-    
-    // Fill player name and start navigation again
-    const playerInput = page.locator(SELECTOR_PLAYER_NAME_INPUT);
-    await playerInput.waitFor({ state: 'visible', timeout: 5000 });
-    await playerInput.fill(TEST_PLAYER_NAME);
-    
-    const startButton = page.locator(SELECTOR_START_NAVIGATION);
-    await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.click();
-    
-    // Wait for navigation dialog with longer timeout
-    await page.waitForSelector(SELECTOR_NAV_DIALOG_OPEN, { state: 'visible', timeout: 15_000 });
-    
-    // Wait for map to initialize and any potential tile requests to stabilize
-    await waitForTileRequestsToStabilize(page, 1000, 10_000);
-});
-
 // ============================================================================
 // THEN Steps
 // ============================================================================
@@ -548,14 +335,14 @@ When('I close and reopen the navigation map', async ({ page }) => {
 Then('detail level tiles should be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
     await expect(async () => {
-        const detailRequests = p.__tileRequests?.filter(url => url.includes('/2/')) ?? [];
+        const detailRequests = parseTileUrls(p.__tileRequests ?? []).filter(tile => tile.zoom === DETAIL_ZOOM);
         expect(detailRequests.length, 'Expected detail level tile requests').toBeGreaterThan(0);
     }).toPass({ timeout: 10_000, intervals: [500] });
 });
 
 Then('overview level tiles should be requested', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const overviewRequests = p.__tileRequests?.filter(url => url.includes('/0/')) ?? [];
+    const overviewRequests = parseTileUrls(p.__tileRequests ?? []).filter(tile => tile.zoom === OVERVIEW_ZOOM);
     expect(overviewRequests.length, 'Expected overview level tile requests').toBeGreaterThan(0);
 });
 
@@ -573,24 +360,66 @@ Then('no additional tile requests should be made', async ({ page }) => {
     expect(currentCount).toBe(previousCount);
 });
 
-Then('only tiles near origin should be requested', async ({ page }) => {
+Then(String.raw`tiles containing the block position \({int}, {int}\) should be requested at both levels`, async ({ page }, x: number, z: number) => {
     const p = page as PageWithTileTracking;
-    
-    // Since manifest only has tiles near origin (range -5 to +5),
-    // no tiles far from origin should be requested
-    // For a shop at 50000, 50000, that would be tile ~195 at detail level
-    const tilePattern = /\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
-    const farTileRequests = p.__tileRequests?.filter(url => {
-        const match = tilePattern.exec(url);
-        if (!match) {
-            return false;
-        }
-        const x = Number.parseInt(match[2]!, 10);
-        const z = Number.parseInt(match[3]!, 10);
-        return Math.abs(x) > 5 || Math.abs(z) > 5;
-    }) ?? [];
-    
-    expect(farTileRequests.length, 'Should not request tiles far from origin').toBe(0);
+    const requests = p.__tileRequests ?? [];
+
+    for (const zoom of [DETAIL_ZOOM, OVERVIEW_ZOOM]) {
+        const blocksPerTile = zoom === DETAIL_ZOOM ? DETAIL_BPT : OVERVIEW_BPT;
+        const fragment = tilePathFragment({
+            world: 'overworld',
+            zoom,
+            tileX: Math.floor(x / blocksPerTile),
+            tileZ: Math.floor(z / blocksPerTile),
+        });
+        expect(
+            requests.some(url => url.includes(fragment)),
+            `Expected ${fragment} to be requested. Got ${requests.length} requests, e.g. ${requests.slice(0, 5).join(', ')}`
+        ).toBe(true);
+    }
+});
+
+// ============================================================================
+// Missing Tile Steps - the server answers 200 with an empty body
+// ============================================================================
+
+const SELECTOR_DETAIL_OVERLAYS = '#nav-dialog-map-container .leaflet-tilesDetail-pane img';
+const SELECTOR_OVERVIEW_OVERLAYS = '#nav-dialog-map-container .leaflet-tilesOverview-pane img';
+
+/**
+ * Count the overlay images in a pane that decoded successfully.
+ * @param page
+ * @param selector
+ */
+async function countLoadedImages(page: Page, selector: string): Promise<number> {
+    return page.evaluate((cssSelector) => {
+        const images = document.querySelectorAll<HTMLImageElement>(cssSelector);
+        return [...images].filter(img => img.complete && img.naturalWidth > 0).length;
+    }, selector);
+}
+
+/**
+ * Count the overlay images on the navigation map that failed to decode.
+ * @param page
+ */
+async function countBrokenImages(page: Page): Promise<number> {
+    return page.evaluate(() => {
+        const images = document.querySelectorAll<HTMLImageElement>('#nav-dialog-map-container .leaflet-image-layer');
+        return [...images].filter(img => !img.complete || img.naturalWidth === 0).length;
+    });
+}
+
+Then('no detail tile should remain on the map', async ({ page }) => {
+    // The failed image decode is reported asynchronously, so poll until the overlays are gone
+    await expect(page.locator(SELECTOR_DETAIL_OVERLAYS)).toHaveCount(0, { timeout: 5000 });
+});
+
+Then('overview tiles should be displayed on the map', async ({ page }) => {
+    await expect.poll(() => countLoadedImages(page, SELECTOR_OVERVIEW_OVERLAYS), { timeout: 5000 }).toBeGreaterThan(0);
+});
+
+Then('no broken tile image should remain on the map', async ({ page }) => {
+    await expect.poll(() => countBrokenImages(page), { timeout: 5000 }).toBe(0);
 });
 
 // ============================================================================
@@ -670,49 +499,12 @@ Then('the map should continue displaying tiles', async ({ page }) => {
 // Tile Positioning Steps - Verify tiles are requested for correct locations
 // ============================================================================
 
-interface TileInfo {
-    url: string;
-    tileX: number;
-    tileZ: number;
-    level: number;
-    world: string;
-}
-
 /**
  * Parse tile info from request URLs
  * @param requests
  */
-function parseTileRequests(requests: string[]): TileInfo[] {
-    const tiles: TileInfo[] = [];
-    // URL pattern: /tiles/world/level/x/z.png
-    const tileUrlPattern = /\/tiles\/([^/]+)\/(\d+)\/(-?\d+)\/(-?\d+)\.png/;
-    for (const url of requests) {
-        const match = tileUrlPattern.exec(url);
-        if (match) {
-            tiles.push({
-                url,
-                world: match[1]!,
-                level: Number.parseInt(match[2]!, 10),
-                tileX: Number.parseInt(match[3]!, 10),
-                tileZ: Number.parseInt(match[4]!, 10)
-            });
-        }
-    }
-    return tiles;
-}
-
-/**
- * Get the most recent tile requests for a specific area
- * @param tiles
- * @param centerX
- * @param centerZ
- * @param radius
- */
-function getTilesForArea(tiles: TileInfo[], centerX: number, centerZ: number, radius = 5): TileInfo[] {
-    return tiles.filter(t => 
-        Math.abs(t.tileX - centerX) <= radius && 
-        Math.abs(t.tileZ - centerZ) <= radius
-    );
+function parseTileRequests(requests: string[]): ParsedTileUrl[] {
+    return parseTileUrls(requests);
 }
 
 Given(String.raw`the tile test player is at position \({int}, {int})`, async ({ page }, x: number, z: number) => {
@@ -837,71 +629,45 @@ Then('tiles should be visible within the viewport', async ({ page }) => {
     expect(tiles.length, 'Expected tiles to be requested').toBeGreaterThan(0);
 });
 
-Then('the visible tiles should correspond to the player area', async ({ page }) => {
-    const p = page as PageWithTileTracking;
-    const requests = p.__tileRequests ?? [];
+/**
+ * Assert that the tiles containing a block position were requested.
+ * With the player followed, the detail tile under the player and the overview
+ * tile around it must both have been requested from the map server.
+ * @param requests
+ * @param x
+ * @param z
+ */
+function expectTilesAroundPosition(requests: string[], x: number, z: number): void {
     const tiles = parseTileRequests(requests);
-    
-    const playerX = p.__lastPlayerX ?? 0;
-    const playerZ = p.__lastPlayerZ ?? 0;
-    
-    // Calculate expected tile coordinates for player position at different levels
-    // Level 2 in URL (256 blocks per tile) - high detail
-    const expectedTileX_detail = Math.floor(playerX / 256);
-    const expectedTileZ_detail = Math.floor(playerZ / 256);
-    // Level 0 in URL (4096 blocks per tile) - lower detail, loaded at low zoom
-    const expectedTileX_overview = Math.floor(playerX / 4096);
-    const expectedTileZ_overview = Math.floor(playerZ / 4096);
-    
-    // Separate tiles by level in URL (0 or 2)
-    // Note: URL level 2 = 256 blocks per tile, URL level 0 = 4096 blocks per tile
-    const detailTiles = tiles.filter(t => t.level === 2);
-    const overviewTiles = tiles.filter(t => t.level === 0);
-    
-    // Check that tiles were requested near the player area at either level
-    const nearbyTiles_detail = getTilesForArea(detailTiles, expectedTileX_detail, expectedTileZ_detail, 3);
-    const nearbyTiles_overview = getTilesForArea(overviewTiles, expectedTileX_overview, expectedTileZ_overview, 3);
-    
-    const hasNearbyTiles = nearbyTiles_detail.length > 0 || nearbyTiles_overview.length > 0;
-    
+    const detailTiles = tiles.filter(t => t.zoom === DETAIL_ZOOM);
+    const overviewTiles = tiles.filter(t => t.zoom === OVERVIEW_ZOOM);
+
+    const expectedDetailX = Math.floor(x / DETAIL_BPT);
+    const expectedDetailZ = Math.floor(z / DETAIL_BPT);
+    const expectedOverviewX = Math.floor(x / OVERVIEW_BPT);
+    const expectedOverviewZ = Math.floor(z / OVERVIEW_BPT);
+
     const detailTileList = detailTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
     const overviewTileList = overviewTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
-    const errorMessage = 'Expected tiles near player area. ' +
-        `Detail (256bpt): expected (${expectedTileX_detail}, ${expectedTileZ_detail}), got: ${detailTileList}. ` +
-        `Overview (4096bpt): expected (${expectedTileX_overview}, ${expectedTileZ_overview}), got: ${overviewTileList}`;
-    
-    expect(hasNearbyTiles, errorMessage).toBe(true);
+
+    expect(
+        detailTiles.some(t => t.tileX === expectedDetailX && t.tileZ === expectedDetailZ),
+        `Expected detail tile (${expectedDetailX}, ${expectedDetailZ}) for (${x}, ${z}); got: ${detailTileList}`
+    ).toBe(true);
+    expect(
+        overviewTiles.some(t => t.tileX === expectedOverviewX && t.tileZ === expectedOverviewZ),
+        `Expected overview tile (${expectedOverviewX}, ${expectedOverviewZ}) for (${x}, ${z}); got: ${overviewTileList}`
+    ).toBe(true);
+}
+
+Then('the visible tiles should correspond to the player area', async ({ page }) => {
+    const p = page as PageWithTileTracking;
+    expectTilesAroundPosition(p.__tileRequests ?? [], p.__lastPlayerX ?? 0, p.__lastPlayerZ ?? 0);
 });
 
 Then('the visible tiles should correspond to the new player area', async ({ page }) => {
     const p = page as PageWithTileTracking;
-    const requests = p.__tileRequests ?? [];
-    const tiles = parseTileRequests(requests);
-    
-    // For the "moves to (5000, 5000)" step
-    // Calculate expected tile coords at both levels
-    const expectedTileX_detail = Math.floor(5000 / 256);  // ~19
-    const expectedTileZ_detail = Math.floor(5000 / 256);  // ~19
-    const expectedTileX_overview = Math.floor(5000 / 4096); // ~1
-    const expectedTileZ_overview = Math.floor(5000 / 4096); // ~1
-    
-    // Separate tiles by level in URL (0 or 2)
-    const detailTiles = tiles.filter(t => t.level === 2);
-    const overviewTiles = tiles.filter(t => t.level === 0);
-    
-    // Check that tiles were requested near the new player area at either level
-    const nearbyTiles_detail = getTilesForArea(detailTiles, expectedTileX_detail, expectedTileZ_detail, 3);
-    const nearbyTiles_overview = getTilesForArea(overviewTiles, expectedTileX_overview, expectedTileZ_overview, 3);
-    
-    const hasNearbyTiles = nearbyTiles_detail.length > 0 || nearbyTiles_overview.length > 0;
-    
-    const detailTileList = detailTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
-    const overviewTileList = overviewTiles.map(t => `(${t.tileX},${t.tileZ})`).join(', ') || 'none';
-    const errorMessage = 'Expected tiles near new player area (5000, 5000). ' +
-        `Detail: expected (${expectedTileX_detail}, ${expectedTileZ_detail}), got: ${detailTileList}. ` +
-        `Overview: expected (${expectedTileX_overview}, ${expectedTileZ_overview}), got: ${overviewTileList}`;
-    
-    expect(hasNearbyTiles, errorMessage).toBe(true);
+    expectTilesAroundPosition(p.__tileRequests ?? [], p.__lastPlayerX ?? 0, p.__lastPlayerZ ?? 0);
 });
 
 Then('each loaded tile should have bounds matching its tile coordinates', async ({ page }) => {
@@ -915,8 +681,8 @@ Then('each loaded tile should have bounds matching its tile coordinates', async 
     expect(tiles.length, 'Expected some tiles to be requested').toBeGreaterThan(0);
     
     // Verify we have a reasonable distribution of tiles
-    const detailTiles = tiles.filter(t => t.level === 2);
-    const overviewTiles = tiles.filter(t => t.level === 0);
+    const detailTiles = tiles.filter(t => t.zoom === DETAIL_ZOOM);
+    const overviewTiles = tiles.filter(t => t.zoom === OVERVIEW_ZOOM);
     
     // Both levels should typically be requested
     expect(detailTiles.length + overviewTiles.length, 'Expected tiles at overview or detail level').toBeGreaterThan(0);
@@ -971,21 +737,21 @@ Then('overview tiles should cover the same area as detail tiles', async ({ page 
     const requests = p.__tileRequests ?? [];
     const tiles = parseTileRequests(requests);
     
-    const overviewTiles = tiles.filter(t => t.level === 0);
-    const detailTiles = tiles.filter(t => t.level === 2);
+    const overviewTiles = tiles.filter(t => t.zoom === OVERVIEW_ZOOM);
+    const detailTiles = tiles.filter(t => t.zoom === DETAIL_ZOOM);
     
     // We should have overview tiles (they're always loaded as base layer)
     expect(overviewTiles.length, 'Expected overview tiles').toBeGreaterThan(0);
     
     // If we have detail tiles, verify overview tiles cover the same general area
     if (detailTiles.length > 0 && overviewTiles.length > 0) {
-        // Each overview tile covers 16x16 detail tiles
+        // Each overview tile covers DETAIL_TILES_PER_OVERVIEW x DETAIL_TILES_PER_OVERVIEW detail tiles
         const detailMinX = Math.min(...detailTiles.map(t => t.tileX));
         const detailMaxX = Math.max(...detailTiles.map(t => t.tileX));
         
         // Convert to overview coordinates
-        const expectedOverviewMinX = Math.floor(detailMinX / 16);
-        const expectedOverviewMaxX = Math.floor(detailMaxX / 16);
+        const expectedOverviewMinX = Math.floor(detailMinX / DETAIL_TILES_PER_OVERVIEW);
+        const expectedOverviewMaxX = Math.floor(detailMaxX / DETAIL_TILES_PER_OVERVIEW);
         
         // Verify overview tiles are in a similar range
         const overviewMinX = Math.min(...overviewTiles.map(t => t.tileX));
@@ -1020,14 +786,14 @@ Then('the visible tiles should be nether tiles', async ({ page }) => {
 Then('overworld tile requests should be made', async ({ page }) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
-    const overworldRequests = requests.filter(url => url.includes('/overworld/'));
+    const overworldRequests = requests.filter(url => url.includes('/minecraft_overworld/'));
     expect(overworldRequests.length, 'Expected overworld tile requests').toBeGreaterThan(0);
 });
 
 Then('no nether tile requests should be made', async ({ page }) => {
     const p = page as PageWithTileTracking;
     const requests = p.__tileRequests ?? [];
-    const netherRequests = requests.filter(url => url.includes('/the_nether/'));
+    const netherRequests = requests.filter(url => url.includes('/minecraft_the_nether/'));
     expect(netherRequests.length, 'Expected no nether tile requests in unified view').toBe(0);
 });
 

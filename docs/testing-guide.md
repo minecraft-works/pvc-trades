@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide explains how to write and run tests for PVC Trades.
+This guide explains how to write and run tests for Shop Trades.
 
 ## Test Architecture Overview
 
@@ -45,9 +45,6 @@ npm test -- src/library.test.ts
 # Run with visible browser (debugging)
 npm run test:e2e
 
-# Run headless (CI mode)
-npm run test:ci
-
 # Run specific feature file
 npx bddgen && npx playwright test --grep "cart"
 
@@ -78,9 +75,8 @@ src/
 │   ├── navigation-store.test.ts
 │   └── snapshot-store.test.ts
 ├── map/
-│   └── players.test.ts
-scripts/
-└── tile-utils.test.ts
+│   ├── players.test.ts
+│   └── tile-layout.test.ts
 ```
 
 ### Writing Unit Tests

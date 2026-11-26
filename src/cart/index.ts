@@ -1,7 +1,5 @@
 export type {
-    CartDialogDeps,
     CartDialogHandler,
-    RouteOrigin,
 } from './cart-dialog.js';
 export {
     cleanupZeroQuantityItems,

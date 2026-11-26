@@ -1,6 +1,6 @@
 # Domain Glossary
 
-This glossary defines domain-specific terms used throughout the PVC Trades codebase.
+This glossary defines domain-specific terms used throughout the Shop Trades codebase.
 
 ## Minecraft Concepts
 
@@ -109,7 +109,7 @@ How the map behaves during live navigation:
 Automatic completion of stops when the player comes within **50 blocks** of a shop during live navigation.
 
 ### Live Navigation
-Real-time tracking mode that polls player position from Dynmap and updates the route display.
+Real-time tracking mode that polls player position from the live player feed and updates the route display.
 
 ## UI Concepts
 
@@ -130,13 +130,13 @@ Visual representation of the route with stops showing:
 ### Matrix Dialog
 A tabbed NxN grid showing exchange rates between all core currency pairs. Has **Buy** and **Sell** tabs for ask and bid prices respectively. Ratios are derived from median emerald values via direct trades and transitive derivation (e.g., Netherite Ingot valued through Diamond Block → Emerald chains). The diagonal shows "—"; off-diagonal 1:1 ratios display as "1".
 
-### Dynmap
-A web-based map renderer for Minecraft servers. Used for:
-- Tile images (pre-rendered map chunks)
-- Player position polling
+### Squaremap
+The web-based live map of the Minecraft server (`squaremap.baseUrl` in `config.json`). Used for:
+- Tile images, loaded directly by the browser (see [ADR-009](adr/009-tile-caching-strategy.md))
+- The live player list (proxied by the players Worker, which adds CORS headers)
 
 ### Tile
-A square map image at a specific zoom level and coordinate. Format: `tiles/{world}/{zoom}/{x}/{z}.png`
+A square 512×512 px map image at a specific zoom and coordinate. URL: `{baseUrl}/tiles/minecraft_{world}/{zoom}/{x}_{z}.png`. At zoom 8 one pixel is one block; each lower zoom doubles the area.
 
 ### Virtual Scroller
 Performance optimization that only renders visible rows in long lists, recycling DOM elements as the user scrolls.

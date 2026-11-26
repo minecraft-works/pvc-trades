@@ -5,7 +5,6 @@
 
 export { createDeviationCalculator, type DeviationResult } from './deviation.js';
 export type {
-    SearchSortDeps,
     SearchSortHandler,
 } from './search-sort.js';
 export {

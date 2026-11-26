@@ -8,6 +8,7 @@
  */
 
 import type { Page, Route } from '@playwright/test';
+
 import { type AppConfig, DEFAULT_CONFIG } from '../../src/types.js';
 
 // ============================================================================
@@ -29,17 +30,11 @@ export const TEST_APP_CONFIG: AppConfig = {
 // Tile format constants
 // ============================================================================
 
-/**
- * Tile format derived from DEFAULT_CONFIG so a single format change propagates
- * to all test interceptors automatically.
- */
-export const TILE_FORMAT = DEFAULT_CONFIG.tilePyramid.format;
+/** Tile format served by the Squaremap server. */
+export const TILE_FORMAT = 'png';
 
 /** Glob pattern for page.route() tile interception */
 export const TILE_ROUTE_PATTERN = `**/tiles/**/*.${TILE_FORMAT}` as const;
-
-/** Extension for url.endsWith() checks, e.g. '.png' */
-export const TILE_URL_EXTENSION = `.${TILE_FORMAT}` as const;
 
 // ============================================================================
 // Config builder
@@ -49,22 +44,23 @@ export const TILE_URL_EXTENSION = `.${TILE_FORMAT}` as const;
 export interface TestConfigOverrides {
     dataUrl?: string;
     dataRefreshMs?: number;
-    dynmap?: Partial<AppConfig['dynmap']>;
+    squaremap?: Partial<AppConfig['squaremap']>;
     analysis?: Partial<AppConfig['analysis']>;
 }
 
 /**
  * Build a test config with selective overrides (deep-merged for nested objects).
  *
+ * @param overrides
  * @example
  * // Override just the polling rate
- * buildTestConfig({ dynmap: { baseUrl: 'http://localhost:5173/tiles' } })
+ * buildTestConfig({ squaremap: { playerRefreshMs: 500 } })
  */
 export function buildTestConfig(overrides: TestConfigOverrides = {}): AppConfig {
     return {
         ...TEST_APP_CONFIG,
         ...overrides,
-        dynmap: { ...TEST_APP_CONFIG.dynmap, ...overrides.dynmap },
+        squaremap: { ...TEST_APP_CONFIG.squaremap, ...overrides.squaremap },
         analysis: { ...TEST_APP_CONFIG.analysis, ...overrides.analysis }
     };
 }
@@ -77,6 +73,8 @@ export function buildTestConfig(overrides: TestConfigOverrides = {}): AppConfig 
  * Intercept `config.json` requests and respond with the standard test config
  * (or a customised variant via `overrides`).
  *
+ * @param page
+ * @param overrides
  * @example
  * // Default config
  * await mockConfigRoute(page);
@@ -84,8 +82,8 @@ export function buildTestConfig(overrides: TestConfigOverrides = {}): AppConfig 
  * // Fast data refresh for polling tests
  * await mockConfigRoute(page, { dataRefreshMs: 2000 });
  *
- * // Custom dynmap base URL
- * await mockConfigRoute(page, { dynmap: { baseUrl: 'http://localhost:5173/tiles' } });
+ * // Custom map server base URL
+ * await mockConfigRoute(page, { squaremap: { baseUrl: 'http://localhost:5173/maps' } });
  */
 export async function mockConfigRoute(
     page: Page,

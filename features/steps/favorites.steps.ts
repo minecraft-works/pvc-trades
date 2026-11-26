@@ -40,13 +40,20 @@ const THRESHOLD_DISPLAY_SELECTOR = '.favorites-item-threshold';
 // Helper Functions
 // ============================================================================
 
-/** Get the first visible trade's item name */
+/**
+ * Get the first visible trade's item name
+ * @param page
+ */
 async function getFirstTradeItemName(page: import('@playwright/test').Page): Promise<string> {
     await page.waitForSelector(FAVORITE_STAR_SELECTOR);
     return await page.locator(FAVORITE_STAR_SELECTOR).first().getAttribute('data-item') ?? 'unknown';
 }
 
-/** Get a trade item name by index (0-based), returns different items for badge count tests */
+/**
+ * Get a trade item name by index (0-based), returns different items for badge count tests
+ * @param page
+ * @param index
+ */
 async function getTradeItemNameByIndex(page: import('@playwright/test').Page, index: number): Promise<string> {
     await page.waitForSelector(FAVORITE_STAR_SELECTOR);
     const stars = page.locator(FAVORITE_STAR_SELECTOR);
@@ -73,7 +80,7 @@ let lastClickedItemName = '';
 
 Given('I have no favorites', async ({ page }) => {
     await page.evaluate(() => {
-        localStorage.removeItem('pvc-trades-favorites');
+        localStorage.removeItem('shop-trades-favorites');
     });
     // Re-apply mocks before reload
     await setupColoredTileMocks(page);
@@ -92,11 +99,11 @@ Given('I have {string} in my favorites', async ({ page }, itemName: string) => {
     }
     
     await page.evaluate((name) => {
-        const existing = localStorage.getItem('pvc-trades-favorites');
+        const existing = localStorage.getItem('shop-trades-favorites');
         const favorites = existing ? JSON.parse(existing) : [];
         if (!favorites.some((f: { itemName: string }) => f.itemName === name)) {
             favorites.push({ itemName: name, addedAt: Date.now() });
-            localStorage.setItem('pvc-trades-favorites', JSON.stringify(favorites));
+            localStorage.setItem('shop-trades-favorites', JSON.stringify(favorites));
         }
     }, actualItemName.toLowerCase());
     
@@ -117,7 +124,7 @@ Given('I have {string} in my favorites with threshold {int}', async ({ page }, i
     
     await page.evaluate(({ name, thresh }) => {
         const favorites = [{ itemName: name, maxDeviation: thresh, addedAt: Date.now() }];
-        localStorage.setItem('pvc-trades-favorites', JSON.stringify(favorites));
+        localStorage.setItem('shop-trades-favorites', JSON.stringify(favorites));
     }, { name: actualItemName.toLowerCase(), thresh: threshold });
     
     // Re-apply mocks before reload
@@ -137,7 +144,7 @@ Given('I have {string} in my favorites without threshold', async ({ page }, item
     
     await page.evaluate((name) => {
         const favorites = [{ itemName: name, addedAt: Date.now() }];
-        localStorage.setItem('pvc-trades-favorites', JSON.stringify(favorites));
+        localStorage.setItem('shop-trades-favorites', JSON.stringify(favorites));
     }, actualItemName.toLowerCase());
     
     // Re-apply mocks before reload
@@ -164,7 +171,7 @@ Given('I have {int} different items in my favorites', async ({ page }, count: nu
     }));
     
     await page.evaluate((favs) => {
-        localStorage.setItem('pvc-trades-favorites', JSON.stringify(favs));
+        localStorage.setItem('shop-trades-favorites', JSON.stringify(favs));
     }, favorites);
     
     // Re-apply mocks before reload
@@ -185,7 +192,7 @@ Given('I have multiple favorites with thresholds that are met', async ({ page })
     ];
     
     await page.evaluate((favs) => {
-        localStorage.setItem('pvc-trades-favorites', JSON.stringify(favs));
+        localStorage.setItem('shop-trades-favorites', JSON.stringify(favs));
     }, favorites);
     
     // Re-apply mocks before reload
@@ -428,11 +435,11 @@ Then('the star should be filled', async ({ page }) => {
 });
 
 Then('the star should remain hollow', async ({ page }) => {
-    await expect(page.locator(`${FAVORITE_STAR_SELECTOR}`).first()).not.toHaveClass(/active/);
+    await expect(page.locator(FAVORITE_STAR_SELECTOR).first()).not.toHaveClass(/active/);
 });
 
 Then('the star should be hollow', async ({ page }) => {
-    await expect(page.locator(`${FAVORITE_STAR_SELECTOR}`).first()).not.toHaveClass(/active/);
+    await expect(page.locator(FAVORITE_STAR_SELECTOR).first()).not.toHaveClass(/active/);
 });
 
 Then('all {string} trade rows should show filled stars', async ({ page }, _itemName: string) => {
@@ -458,7 +465,7 @@ Then('{string} trade rows should show filled stars', async ({ page }, _itemName:
 
 Then('the item should be in my favorites', async ({ page }) => {
     const hasFavorite = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.length > 0;
@@ -468,7 +475,7 @@ Then('the item should be in my favorites', async ({ page }) => {
 
 Then('the item should not be in my favorites', async ({ page }) => {
     const isEmpty = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return true; }
         const favorites = JSON.parse(data);
         return favorites.length === 0;
@@ -478,7 +485,7 @@ Then('the item should not be in my favorites', async ({ page }) => {
 
 Then('the item should have no threshold filter', async ({ page }) => {
     const hasNoThreshold = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === undefined);
@@ -488,7 +495,7 @@ Then('the item should have no threshold filter', async ({ page }) => {
 
 Then('the item should be in my favorites with threshold {int}', async ({ page }, threshold: number) => {
     const hasThreshold = await page.evaluate((thresh) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === thresh);
@@ -498,7 +505,7 @@ Then('the item should be in my favorites with threshold {int}', async ({ page },
 
 Then('the item should have threshold {int}', async ({ page }, threshold: number) => {
     const hasThreshold = await page.evaluate((thresh) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === thresh);
@@ -508,7 +515,7 @@ Then('the item should have threshold {int}', async ({ page }, threshold: number)
 
 Then('the item should still have threshold {int}', async ({ page }, threshold: number) => {
     const hasThreshold = await page.evaluate((thresh) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === thresh);
@@ -518,7 +525,7 @@ Then('the item should still have threshold {int}', async ({ page }, threshold: n
 
 Then('{string} should be in my favorites', async ({ page }, itemName: string) => {
     const hasFavorite = await page.evaluate((name) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { itemName: string }) => 
@@ -530,7 +537,7 @@ Then('{string} should be in my favorites', async ({ page }, itemName: string) =>
 
 Then('{string} should be in my favorites with threshold {int}', async ({ page }, itemName: string, threshold: number) => {
     const hasItem = await page.evaluate(({ name, thresh }) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { itemName: string; maxDeviation?: number }) => 
@@ -542,7 +549,7 @@ Then('{string} should be in my favorites with threshold {int}', async ({ page },
 
 Then('I should still have {string} in my favorites', async ({ page }, _itemName: string) => {
     const hasFavorites = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.length > 0;
@@ -617,7 +624,7 @@ Then('the favorites button should show inactive state', async ({ page }) => {
 
 Then('the item should be stored as {string}', async ({ page }, expectedName: string) => {
     const hasItem = await page.evaluate((name) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { itemName: string }) => f.itemName === name);
@@ -627,7 +634,7 @@ Then('the item should be stored as {string}', async ({ page }, expectedName: str
 
 Then('I should have exactly {int} favorite', async ({ page }, count: number) => {
     const actualCount = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return 0; }
         const favorites = JSON.parse(data);
         return favorites.length;
@@ -637,7 +644,7 @@ Then('I should have exactly {int} favorite', async ({ page }, count: number) => 
 
 Then('I should have exactly {int} entries', async ({ page }, count: number) => {
     const actualCount = await page.evaluate(() => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return 0; }
         const favorites = JSON.parse(data);
         return favorites.length;
@@ -647,7 +654,7 @@ Then('I should have exactly {int} entries', async ({ page }, count: number) => {
 
 Then('the threshold should be {int}', async ({ page }, threshold: number) => {
     const hasThreshold = await page.evaluate((thresh) => {
-        const data = localStorage.getItem('pvc-trades-favorites');
+        const data = localStorage.getItem('shop-trades-favorites');
         if (!data) { return false; }
         const favorites = JSON.parse(data);
         return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === thresh);
@@ -658,7 +665,7 @@ Then('the threshold should be {int}', async ({ page }, threshold: number) => {
 Then('the stored threshold should be {word}', async ({ page }, value: string) => {
     if (value === 'undefined') {
         const hasNoThreshold = await page.evaluate(() => {
-            const data = localStorage.getItem('pvc-trades-favorites');
+            const data = localStorage.getItem('shop-trades-favorites');
             if (!data) { return false; }
             const favorites = JSON.parse(data);
             return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === undefined);
@@ -667,7 +674,7 @@ Then('the stored threshold should be {word}', async ({ page }, value: string) =>
     } else {
         const threshold = Number.parseInt(value, 10);
         const hasThreshold = await page.evaluate((thresh) => {
-            const data = localStorage.getItem('pvc-trades-favorites');
+            const data = localStorage.getItem('shop-trades-favorites');
             if (!data) { return false; }
             const favorites = JSON.parse(data);
             return favorites.some((f: { maxDeviation?: number }) => f.maxDeviation === thresh);

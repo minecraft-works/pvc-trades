@@ -2,7 +2,7 @@
     "$schema": "https://typedoc.org/schema.json",
     "entryPoints": ["src/library.ts", "src/types.ts"],
     "out": "docs/api",
-    "name": "PVC Trades API Documentation",
+    "name": "Shop Trades API Documentation",
     "readme": "none",
     "excludePrivate": true,
     "excludeProtected": true,

@@ -5,6 +5,8 @@
  */
 
 import type { Page, Route } from '@playwright/test';
+
+import { SHOPS_OR_DATA_ROUTE_REGEX } from './endpoints.js';
 import { mockConfigRoute } from './test-config.js';
 
 /**
@@ -37,19 +39,19 @@ export interface DynamicDataMock {
     /** Number of times data was fetched */
     fetchCount: number;
     /** Add a new shop */
-    addShop(shop: MockShop): void;
+    addShop: (shop: MockShop) => void;
     /** Add a new trade to an existing shop or create new shop */
-    addTrade(itemName: string, itemType: string, costName: string, costType: string, costAmount: number): void;
+    addTrade: (itemName: string, itemType: string, costName: string, costType: string, costAmount: number) => void;
     /** Clear all shops */
-    clear(): void;
+    clear: () => void;
     /** Reset to initial state */
-    reset(): void;
+    reset: () => void;
     /** Simulate a network error on next fetch */
-    setNextFetchError(error: boolean): void;
+    setNextFetchError: (error: boolean) => void;
     /** Increment fetch count (called internally by setupDynamicDataMock) */
-    incrementFetchCount(): void;
+    incrementFetchCount: () => void;
     /** Check if next fetch should error (and reset flag) */
-    shouldError(): boolean;
+    shouldError: () => boolean;
 }
 
 /**
@@ -187,10 +189,12 @@ export function createDynamicDataMock(): DynamicDataMock {
 
 /**
  * Sets up dynamic data mock that intercepts both data.json and the Cloudflare Worker URL
+ * @param page
+ * @param mock
  */
 export async function setupDynamicDataMock(page: Page, mock: DynamicDataMock): Promise<void> {
     // Intercept both the old data.json path and the new Cloudflare Worker URL
-    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route: Route) => {
+    await page.route(SHOPS_OR_DATA_ROUTE_REGEX, async (route: Route) => {
         // Check if we should simulate an error
         if (mock.shouldError()) {
             await route.fulfill({
@@ -215,7 +219,9 @@ export async function setupDynamicDataMock(page: Page, mock: DynamicDataMock): P
 /**
  * Sets up dynamic data mock with fast refresh interval for testing
  * Overrides config to use a shorter refresh interval and local data.json path
+ * @param page
+ * @param refreshMs
  */
-export async function setupFastRefreshConfig(page: Page, refreshMs: number = 2000): Promise<void> {
+export async function setupFastRefreshConfig(page: Page, refreshMs = 2000): Promise<void> {
     await mockConfigRoute(page, { dataRefreshMs: refreshMs });
 }

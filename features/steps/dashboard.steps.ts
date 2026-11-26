@@ -28,8 +28,8 @@ const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
 const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
-const STORAGE_KEY_SNAPSHOT = 'pvc-trades-snapshot';
-const STORAGE_KEY_FAVORITES = 'pvc-trades-favorites';
+const STORAGE_KEY_SNAPSHOT = 'shop-trades-snapshot';
+const STORAGE_KEY_FAVORITES = 'shop-trades-favorites';
 
 // ============================================================================
 // Dashboard-specific mock data
@@ -119,6 +119,7 @@ const MOCK_TRADE_KEYS = {
 
 /**
  * Set up data.json & config.json mocks using dashboard-specific shop data.
+ * @param page
  */
 async function setupDashboardMock(page: import('@playwright/test').Page): Promise<void> {
     await mockConfigRoute(page);
@@ -135,6 +136,8 @@ async function setupDashboardMock(page: import('@playwright/test').Page): Promis
 /**
  * Create a complete snapshot matching all trades in the dashboard mock data.
  * Default deviations are arbitrary; use overrides for specific test scenarios.
+ * @param overrides
+ * @param timestampOverride
  */
 function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number; stock?: number }> = {}, timestampOverride?: number): object {
     const baseTrades: Record<string, { deviationPercent?: number; stock: number }> = {
@@ -157,6 +160,7 @@ function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number
 
 /**
  * Wrap a snapshot in the rolling history format for localStorage.
+ * @param snapshot
  */
 function wrapAsHistory(snapshot: object): object {
     return { snapshots: [snapshot] };
@@ -167,12 +171,13 @@ function wrapAsHistory(snapshot: object): object {
  * Handles compact `{ keys, snapshots: [{ t, v }] }`,
  * history `{ snapshots: [{ timestamp, trades }] }`,
  * and legacy single `{ timestamp, trades }`.
+ * @param parsed
  */
-function extractSnapshots(parsed: Record<string, unknown>): Array<{ timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }> {
+function extractSnapshots(parsed: Record<string, unknown>): { timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }[] {
     // Compact format: { keys: string[], snapshots: [{ t, v }] }
     if (Array.isArray(parsed.keys) && Array.isArray(parsed.snapshots)) {
         const keys = parsed.keys as string[];
-        return (parsed.snapshots as Array<{ t: number; v: Array<[number | null, number]> }>).map((cs) => {
+        return (parsed.snapshots as { t: number; v: [number | null, number][] }[]).map((cs) => {
             const trades: Record<string, { deviationPercent?: number; stock: number }> = {};
             for (const [index, key] of keys.entries()) {
                 const value = cs.v[index];
@@ -189,7 +194,7 @@ function extractSnapshots(parsed: Record<string, unknown>): Array<{ timestamp: n
 
     // History format: { snapshots: [{ timestamp, trades }] }
     if (Array.isArray(parsed.snapshots)) {
-        return parsed.snapshots as Array<{ timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }>;
+        return parsed.snapshots as { timestamp: number; trades: Record<string, { deviationPercent?: number; stock: number }> }[];
     }
 
     // Legacy single: { timestamp, trades }
@@ -198,15 +203,18 @@ function extractSnapshots(parsed: Record<string, unknown>): Array<{ timestamp: n
 
 /**
  * Store a snapshot in localStorage using the rolling history format.
+ * @param page
+ * @param snapshot
  */
 async function storeSnapshotHistory(page: import('@playwright/test').Page, snapshot: object): Promise<void> {
     await page.evaluate((data) => {
-        localStorage.setItem('pvc-trades-snapshot', JSON.stringify(data));
+        localStorage.setItem('shop-trades-snapshot', JSON.stringify(data));
     }, wrapAsHistory(snapshot));
 }
 
 /**
  * Reload the page with dashboard mocks applied.
+ * @param page
  */
 async function reloadWithMocks(page: import('@playwright/test').Page): Promise<void> {
     await setupColoredTileMocks(page);
@@ -264,9 +272,8 @@ Given('I have a previous snapshot missing some trades', async ({ page }) => {
     const snapshot = buildFullSnapshot();
     await page.evaluate(({ data, key1, key2 }) => {
         const parsed = data as { trades: Record<string, unknown> };
-        delete parsed.trades[key1];
-        delete parsed.trades[key2];
-        localStorage.setItem('pvc-trades-snapshot', JSON.stringify({ snapshots: [parsed] }));
+        const trades = Object.fromEntries(Object.entries(parsed.trades).filter(([tradeKey]) => tradeKey !== key1 && tradeKey !== key2));
+        localStorage.setItem('shop-trades-snapshot', JSON.stringify({ snapshots: [{ ...parsed, trades }] }));
     }, {
         data: snapshot,
         key1: MOCK_TRADE_KEYS.cheapDiamonds,
@@ -506,7 +513,7 @@ Then('the first watchlist item should have the lowest deviation', async ({ page 
     const deviations: number[] = [];
     for (let index = 0; index < count; index++) {
         const text = await items.nth(index).textContent();
-        const match = /(-?\d+)%/.exec(text ?? ''); // eslint-disable-line sonarjs/slow-regex
+        const match = /(-?\d{1,4})%/.exec(text ?? '');  
         if (match) {
             deviations.push(Number(match[1]));
         }

@@ -4,6 +4,7 @@
  * Usage: npx tsx src/chatlog/run-parser.ts [path-to-chatlog.json]
  * Default: src/chatlog.json
  */
+/// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 

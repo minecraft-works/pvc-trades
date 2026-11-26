@@ -11,7 +11,6 @@ import {
     getTileBounds,
     getTileCoords,
     getTileCoordsAtZoom,
-    getTileNeighborhood,
     isCoordInTile,
     parseLocation} from './tile-coords.js';
 
@@ -223,55 +222,6 @@ describe('isCoordInTile', () => {
         expect(isCoordInTile(-512, -512, -1, -1, 512)).toBe(true); // lower-left corner (inclusive)
         expect(isCoordInTile(-513, -513, -1, -1, 512)).toBe(false); // outside tile -1,-1 (in tile -2,-2)
         expect(isCoordInTile(-1, -1, -1, -1, 512)).toBe(true);
-    });
-});
-
-// ============================================================================
-// getTileNeighborhood
-// ============================================================================
-
-describe('getTileNeighborhood', () => {
-    test('returns 25 tiles in 5x5 grid', () => {
-        const neighborhood = getTileNeighborhood(0, 0);
-        expect(neighborhood).toHaveLength(25);
-    });
-
-    test('includes center tile', () => {
-        const neighborhood = getTileNeighborhood(5, 10);
-        const hasCenter = neighborhood.some(t => t.tileX === 5 && t.tileZ === 10);
-        expect(hasCenter).toBe(true);
-    });
-
-    test('includes all corners', () => {
-        const neighborhood = getTileNeighborhood(0, 0);
-        const corners = [
-            { tileX: -2, tileZ: -2 },
-            { tileX: -2, tileZ: 2 },
-            { tileX: 2, tileZ: -2 },
-            { tileX: 2, tileZ: 2 }
-        ];
-        
-        for (const corner of corners) {
-            const found = neighborhood.some(t => t.tileX === corner.tileX && t.tileZ === corner.tileZ);
-            expect(found).toBe(true);
-        }
-    });
-
-    test('handles negative center coordinates', () => {
-        const neighborhood = getTileNeighborhood(-10, -20);
-        const hasCenter = neighborhood.some(t => t.tileX === -10 && t.tileZ === -20);
-        expect(hasCenter).toBe(true);
-        
-        // Check range is -12 to -8 for X, -22 to -18 for Z
-        const minX = Math.min(...neighborhood.map(t => t.tileX));
-        const maxX = Math.max(...neighborhood.map(t => t.tileX));
-        const minZ = Math.min(...neighborhood.map(t => t.tileZ));
-        const maxZ = Math.max(...neighborhood.map(t => t.tileZ));
-        
-        expect(minX).toBe(-12);
-        expect(maxX).toBe(-8);
-        expect(minZ).toBe(-22);
-        expect(maxZ).toBe(-18);
     });
 });
 

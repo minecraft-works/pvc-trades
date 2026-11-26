@@ -180,7 +180,7 @@ function getDirectTradeValue(
 function getBlockConversionValue(
     itemKey: string,
     itemValues: ItemValues,
-    blockConversions: BlockConversions,
+    blockConversions: Readonly<BlockConversions>,
     isCoreBlock: boolean,
     minShops: number
 ): number | undefined {
@@ -199,7 +199,7 @@ function getBlockConversionValue(
 function getReverseConversionValue(
     itemKey: string,
     itemValues: ItemValues,
-    blockConversions: BlockConversions,
+    blockConversions: Readonly<BlockConversions>,
     isCoreBlock: boolean,
     minShops: number
 ): number | undefined {

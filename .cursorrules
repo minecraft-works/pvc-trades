@@ -1,13 +1,13 @@
 # Rules for AI Code Assistants
 
-# Project: PVC Trades - Minecraft Shop Trade Viewer
+# Project: Shop Trades - Minecraft Shop Trade Viewer
 
 ## Project Context
-- TypeScript 5.9 with strict mode
-- Vite 7.x build tool
+- TypeScript 6 with strict mode
+- Vite 8 build tool
 - Playwright-BDD for behavioral testing
 - Vitest for unit testing
-- ESLint 9 with SonarJS, Unicorn plugins
+- ESLint 10 with SonarJS, Unicorn plugins
 - Leaflet for interactive maps
 
 ## File Organization Rules
@@ -76,8 +76,7 @@ import { z } from 'zod';
 ### Test Commands
 ```bash
 npm test           # Unit tests
-npm run test:e2e   # BDD tests with headed browser
-npm run test:ci    # BDD tests headless
+npm run test:e2e   # BDD tests (headless)
 ```
 
 ## Domain Knowledge

@@ -115,9 +115,9 @@ function buildEmeraldValuesFromTrades(itemValues: ItemValues): ReadonlyMap<strin
 
         const medianBuy = median(entry.buyPrices);
         const medianSell = median(entry.sellPrices);
-        const value = medianBuy !== undefined && medianSell !== undefined
-            ? (medianBuy + medianSell) / 2
-            : medianBuy ?? medianSell;
+        const value = medianBuy === undefined || medianSell === undefined
+            ? medianBuy ?? medianSell
+            : (medianBuy + medianSell) / 2;
         if (value !== undefined) {
             emeraldValues.set(key, value);
         }
@@ -135,7 +135,7 @@ function buildEmeraldValuesFromTrades(itemValues: ItemValues): ReadonlyMap<strin
  */
 function applyBlockConversions(
     baseValues: ReadonlyMap<string, number>,
-    blockConversions: BlockConversions
+    blockConversions: Readonly<BlockConversions>
 ): ReadonlyMap<string, number> {
     const result = new Map(baseValues);
     for (const [blockName, { base, multiplier }] of Object.entries(blockConversions)) {

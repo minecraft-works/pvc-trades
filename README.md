@@ -1,6 +1,6 @@
 # Minecraft Shop Trade Viewer
 
-A web application for viewing and analyzing Minecraft shop trades with exchange rate matrix, deviation tracking, and Dynmap integration for live navigation.
+A web application for viewing and analyzing Minecraft shop trades with exchange rate matrix, deviation tracking, and live map integration for navigation.
 
 ## Features
 
@@ -9,24 +9,24 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Market Deviation**: See how each trade compares to the median market price
 - **Shopping Cart**: Build a shopping list and see aggregated costs
 - **Route Optimization**: Compute optimal visiting order using nearest-neighbor + 2-opt
-- **Live Navigation**: Track your position via Dynmap and navigate to shops
+- **Live Navigation**: Track your position on the server map and navigate to shops
 - **Price Intelligence**: Automatic clustering of nearby shops to prevent price manipulation
 
 ## Tech Stack
 
-- **TypeScript 5.9** with strict mode
-- **Vite 7** for development and builds
+- **TypeScript 6** with strict mode
+- **Vite 8** for development and builds
 - **Zod 4** for runtime schema validation
 - **Vitest** for unit testing with v8 coverage
 - **Playwright-BDD** for behavioral testing with Gherkin
-- **ESLint 9** with SonarJS and Unicorn plugins
+- **ESLint 10** with SonarJS and Unicorn plugins
 - **Leaflet** for interactive maps
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+ (24 recommended)
 - npm 10+
 
 ### Installation
@@ -48,7 +48,7 @@ npm test
 npm run test:e2e
 
 # Run all checks (lint + typecheck + test)
-npm run check
+npm run lint:all && npm run typecheck && npm test
 
 # Type checking only
 npm run typecheck
@@ -76,8 +76,9 @@ npm run lint
 │   ├── testing-guide.md   # How to write tests
 │   └── adr/               # Architecture Decision Records
 ├── public/
-│   ├── data.json      # Trade data
-│   └── tiles/         # Map tile images
+│   └── data.json      # Trade data (local development)
+├── workers/
+│   └── players/       # Cloudflare Worker proxying live player positions
 ├── index.html         # Main HTML file
 ├── styles.css         # Styles with CSS custom properties
 ├── config.json        # Application configuration
@@ -91,12 +92,9 @@ npm run lint
 
 ```json
 {
-  "dynmap": {
-    "baseUrl": "https://your-dynmap-server.com",
-    "tileSize": 128,
-    "defaultZoom": 5,
-    "maxZoomLevel": 6,
-    "playerRefreshMs": 5000
+  "squaremap": {
+    "baseUrl": "https://your-map-server.com/maps",
+    "playerRefreshMs": 1000
   },
   "analysis": {
     "shopClusterDistance": 16,
@@ -135,12 +133,9 @@ npm run test:coverage
 
 # Run BDD tests
 npm run test:e2e
-
-# Run BDD tests headless (CI)
-npm run test:ci
 ```
 
-Coverage thresholds are set to 80% for all metrics (lines, functions, branches, statements).
+Coverage thresholds are enforced in `vitest.config.js`.
 
 ## Documentation
 
@@ -159,14 +154,15 @@ Coverage thresholds are set to 80% for all metrics (lines, functions, branches, 
 - [ADR-006: Zod Runtime Validation](docs/adr/006-zod-runtime-validation.md)
 - [ADR-007: Virtual Scrolling](docs/adr/007-virtual-scrolling.md)
 - [ADR-008: Nether Coordinate System](docs/adr/008-nether-coordinate-system.md)
-- [ADR-009: Tile Caching Strategy](docs/adr/009-tile-caching-strategy.md)
+- [ADR-009: Map Tiles Loaded Directly From the Map Server](docs/adr/009-tile-caching-strategy.md)
+- [ADR-010: Limiting Requests to the External Map Server](docs/adr/010-tile-loading-minimization.md)
 
 ## Troubleshooting
 
 | Issue | Likely Cause | Fix |
 |-------|--------------|-----|
-| Map tiles blank | Tiles not fetched or CORS blocked | Run `npm run fetch-tiles` |
-| Player not found | Name mismatch with Dynmap | Check exact spelling, case-sensitive |
+| Map tiles blank | Map server unreachable, or it now rejects tile requests (it returns 403 for tiles requested with a foreign `Referer`) | Check the Network tab for tile requests; see [ADR-009](docs/adr/009-tile-caching-strategy.md) |
+| Player not found | Name mismatch with the server's player list | Check exact spelling, case-sensitive |
 | Cart not saving | localStorage blocked | Check browser privacy settings |
 | Search returns nothing | Regex syntax error | Escape special chars or use wildcards |
 
@@ -174,7 +170,7 @@ Coverage thresholds are set to 80% for all metrics (lines, functions, branches, 
 
 1. Create a feature branch from `develop`
 2. Follow [Conventional Commits](https://conventionalcommits.org)
-3. Ensure `npm run check` passes
+3. Ensure `npm run lint:all`, `npm run typecheck` and `npm test` pass
 4. Open a PR with description
 
 See [code patterns](docs/code-patterns.md) and [testing guide](docs/testing-guide.md) for conventions.

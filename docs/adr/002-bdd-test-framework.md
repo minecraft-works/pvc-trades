@@ -5,7 +5,7 @@
 
 ## Context
 
-We need a BDD (Behavior-Driven Development) testing framework for the pvc-trades application that:
+We need a BDD (Behavior-Driven Development) testing framework for this application that:
 
 1. Allows writing human-readable Gherkin feature files
 2. Integrates with Playwright for browser automation
@@ -85,7 +85,7 @@ The initial implementation used `@cucumber/cucumber` with Playwright used as a l
 ### 1. Project Structure
 
 ```
-pvc-trades/
+project-root/
 ├── features/
 │   ├── *.feature              # Gherkin feature files
 │   └── steps/
@@ -222,23 +222,11 @@ No special setup required - `webServer` handles everything.
 
 1. **Build Step**: Must run `bddgen` before tests (mitigated by npm scripts)
 2. **Generated Files**: `.features-gen/` directory needs gitignore
-3. **Migration Effort**: Existing step definitions need minor refactoring
-4. **Learning Curve**: Team needs to learn Playwright fixtures pattern
+3. **Learning Curve**: Team needs to learn Playwright fixtures pattern
 
 ### Neutral
 
 1. **Step Definition Style**: Can use Cucumber-style or Playwright-style (we choose Playwright-style for fixture access)
-
-## Migration Plan
-
-1. Install `playwright-bdd` and remove `@cucumber/cucumber` direct dependency
-2. Create `features/steps/fixtures.ts` with BDD setup
-3. Refactor step definitions to import from fixtures
-4. Update `playwright.config.ts` with `defineBddConfig` and `webServer`
-5. Remove `features/support/hooks.ts` and `features/support/world.ts`
-6. Update npm scripts
-7. Add `.features-gen/` to `.gitignore`
-8. Update CI workflow
 
 ## References
 

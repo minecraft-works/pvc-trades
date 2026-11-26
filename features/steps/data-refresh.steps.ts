@@ -3,6 +3,7 @@
  */
 import { expect } from '@playwright/test';
 
+import { SHOPS_OR_DATA_ROUTE_REGEX, SHOPS_ROUTE_PATTERN } from '../../tests/helpers/endpoints';
 import { 
     createDynamicDataMock,
     type DynamicDataMock, 
@@ -88,7 +89,7 @@ Given('the refresh interval is set to {int} seconds', async ({ page }, seconds: 
 When(String.raw`the shop data refreshes with {int} new trade\(s)`, async ({ page }, newTradeCount: number) => {
     // Add new trades by updating the route handler to return additional shops
     // First, unroute any existing handlers then set up a new one with more shops
-    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
+    await page.unroute(SHOPS_OR_DATA_ROUTE_REGEX);
     
     // Get existing shop count from page context
     const existingShops = await page.evaluate(() => {
@@ -112,7 +113,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s)`, async ({ page
     }
     
     // Set up new route with updated data
-    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+    await page.route(SHOPS_OR_DATA_ROUTE_REGEX, async (route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -134,7 +135,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s)`, async ({ page
 
 When(String.raw`the shop data refreshes with {int} new trade\(s) for {string}`, async ({ page }, _count: number, itemName: string) => {
     // Update route with a new trade for the specific item
-    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
+    await page.unroute(SHOPS_OR_DATA_ROUTE_REGEX);
     
     const existingShops = await page.evaluate(() => {
         return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
@@ -159,7 +160,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s) for {string}`, 
         }
     ];
     
-    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+    await page.route(SHOPS_OR_DATA_ROUTE_REGEX, async (route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -178,7 +179,7 @@ When(String.raw`the shop data refreshes with {int} new trade\(s) for {string}`, 
 });
 
 When('the shop data refreshes with a new {string} trade', async ({ page }, itemName: string) => {
-    await page.unroute(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/);
+    await page.unroute(SHOPS_OR_DATA_ROUTE_REGEX);
     
     const existingShops = await page.evaluate(() => {
         return (globalThis as unknown as { __dynamicMock?: { shops: unknown[] } }).__dynamicMock?.shops ?? [];
@@ -204,7 +205,7 @@ When('the shop data refreshes with a new {string} trade', async ({ page }, itemN
         }
     ];
     
-    await page.route(/(data\.json|pvc-shops\.minecraft-works\.workers\.dev)/, async (route) => {
+    await page.route(SHOPS_OR_DATA_ROUTE_REGEX, async (route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -235,7 +236,7 @@ When('the shop data refreshes', async({ page }) => {
 
 When('the data refresh fails with a network error', async ({ page }) => {
     // Set up a failing route for the next request
-    await page.route('**/pvc-shops.minecraft-works.workers.dev/**', async (route) => {
+    await page.route(SHOPS_ROUTE_PATTERN, async (route) => {
         await route.abort('failed');
     });
     

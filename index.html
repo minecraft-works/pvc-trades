@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- The map server only serves tiles to requests without a foreign Referer -->
+    <meta name="referrer" content="no-referrer">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://pvc-players.minecraft-works.workers.dev https://pvc-shops.minecraft-works.workers.dev; img-src 'self' https: data: blob:;">
     <title>Shop Listings</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -64,7 +66,6 @@
         <div id="nav-view-controls" class="nav-view-controls">
             <button id="nav-view-mode-toggle" class="nav-view-mode-toggle" aria-label="Toggle auto/manual view world" title="Auto view: follows player world">🔄</button>
             <button id="nav-world-toggle" class="nav-world-toggle" aria-label="Toggle overworld/nether view" title="View: Overworld">🌍</button>
-            <button id="nav-daynight-toggle" class="nav-daynight-toggle" aria-label="Toggle day/night lighting" title="Day mode">☀️</button>
         </div>
         <button id="close-nav" aria-label="Stop navigation">&times;</button>
     </dialog>

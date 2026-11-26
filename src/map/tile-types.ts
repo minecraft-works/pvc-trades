@@ -1,12 +1,10 @@
 /**
  * Map Tile Types
  * 
- * Type definitions for map tile loading and caching.
+ * Type definitions for map tile loading.
  * 
  * @module map/tile-types
  */
-
-import { z } from 'zod';
 
 // ============================================================================
 // Configuration Types
@@ -16,26 +14,14 @@ import { z } from 'zod';
 export interface TileConfig {
     /** Blocks per tile at the highest detail level */
     readonly tileSize: number;
-    /** Base URL for tile assets */
-    readonly baseUrl: string;
     /** Highest detail pyramid level */
     readonly maxZoom: number;
-    /** Intermediate pyramid level (detail - 1), sitting between overview and detail */
-    readonly intermediateZoom: number;
     /** Overview pyramid level for fallback tiles */
     readonly fallbackZoom: number;
-    /** Lowest detail zoom level */
-    readonly minZoom: number;
-    /** URL for player position data */
-    readonly playersUrl: string;
     /** Blocks covered by one overview tile */
     readonly overviewTileBlocks: number;
-    /** Blocks covered by one intermediate tile */
-    readonly intermediateTileBlocks: number;
     /** Number of detail tiles per overview tile per axis */
     readonly detailToOverviewRatio: number;
-    /** Output tile format (png, webp, avif) */
-    readonly format: string;
 }
 
 // ============================================================================
@@ -62,24 +48,8 @@ export interface LoadTileOptions {
     pane?: string;
 }
 
-/** Context for loading shop map tiles */
-export interface MapTileContext {
-    /** World identifier */
-    worldId: string;
-    /** Center tile X coordinate for positioning */
-    centerTileX: number;
-    /** Center tile Z coordinate for positioning */
-    centerTileZ: number;
-    /** Dedup sets keyed by pyramid level — prevents the same URL being added twice */
-    addedToMap: Map<number, Set<string>>;
-    /** Manifest of available tiles */
-    manifest: Set<string>;
-}
-
 /** Options for loading navigation map tiles */
 export interface LoadNavMapTilesOptions {
-    /** Manifest of available tiles */
-    manifest: Set<string>;
     /** World identifier */
     worldId: string;
     /** Tile range to load */
@@ -100,31 +70,4 @@ export interface TileRange {
     maxTileZ: number;
     centerTileX: number;
     centerTileZ: number;
-}
-
-// ============================================================================
-// Manifest Types
-// ============================================================================
-
-/** Schema for validating tile manifest entries */
-export const ManifestEntrySchema = z.object({
-    world: z.string(),
-    tileX: z.number(),
-    tileZ: z.number(),
-    blocksPerTile: z.number(),
-    /** Heightmap metadata (present for BlueMap tiles with lighting) */
-    heightmap: z.object({
-        min: z.number().int(),
-        max: z.number().int()
-    }).optional()
-});
-
-/** Entry from tile manifest.json */
-export interface ManifestEntry {
-    world: string;
-    tileX: number;
-    tileZ: number;
-    blocksPerTile: number;
-    /** Heightmap range (present when tile has corresponding .height.png) */
-    heightmap?: { min: number; max: number };
 }

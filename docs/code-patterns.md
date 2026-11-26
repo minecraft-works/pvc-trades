@@ -1,6 +1,6 @@
 # Code Patterns Reference
 
-This document describes the established patterns used in pvc-trades. Follow these patterns when adding new features.
+This document describes the established patterns used in this project. Follow these patterns when adding new features.
 
 ## State Management Pattern
 
@@ -12,7 +12,7 @@ Use class-based stores for shared state that needs encapsulation:
 // Example: Cart store pattern
 class CartStore {
     private items: CartItem[] = [];
-    private readonly storageKey = 'pvc-trades-cart';
+    private readonly storageKey = 'shop-trades-cart';
     
     constructor() {
         this.load();
@@ -460,9 +460,9 @@ function loadConfig(): AppConfig {
 // debug.ts
 import debug from 'debug';
 
-export const debugNavigation = debug('pvc:navigation');
-export const debugMap = debug('pvc:map');
-export const debugTiles = debug('pvc:tiles');
+export const debugNavigation = debug('app:navigation');
+export const debugMap = debug('app:map');
+export const debugTiles = debug('app:tiles');
 
 // Usage
 debugNavigation('Starting route calculation items=%d', cart.length);
