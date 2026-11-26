@@ -449,6 +449,10 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
                 virtualScroller.stop();
                 virtualScroller = undefined;
             }
+            // The scroller sizes the list with inline padding; stop() leaves it behind,
+            // which would keep a page-high empty scroll area under the message
+            container.style.removeProperty('padding-top');
+            container.style.removeProperty('padding-bottom');
             container.innerHTML = '<div class="no-results"><h2>No trades found</h2><p>Try a different search term</p></div>';
             return;
         }

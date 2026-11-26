@@ -25,6 +25,13 @@
     box-sizing: border-box;
 }
 
+/* Keep keyboard-focused rows clear of the sticky search bar, and always reserve
+   the scrollbar's space so the page doesn't jump sideways when results shrink */
+html {
+    scroll-padding-top: 130px;
+    scrollbar-gutter: stable;
+}
+
 body {
     font-family: system-ui, -apple-system, sans-serif;
     background: var(--color-bg);
@@ -66,6 +73,31 @@ body {
 /* Hidden utility class */
 .hidden {
     display: none !important;
+}
+
+/* Focus: one indicator color everywhere. Free-standing controls get a ring
+   just outside; controls that sit inside a framed container draw it inside,
+   so it follows the container's edges instead of crossing them. */
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.search-input-wrapper > button:focus-visible,
+.trade-row > .col:focus-visible,
+.cart-tab:focus-visible {
+    outline-offset: -2px;
+}
+
+/* Buttons inside a search field fill its full height, so their ring hugs the field's edges */
+.search-input-wrapper > button {
+    align-self: stretch;
+}
+
+/* The last button in a search field shares the field's rounded right corners */
+#add-to-watchlist,
+#clear-search-give {
+    border-radius: 0 calc(var(--border-radius) - 1px) calc(var(--border-radius) - 1px) 0;
 }
 
 /* Search */
@@ -112,11 +144,6 @@ body {
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
-}
-
-.quick-bar-label {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
 }
 
 .quick-bar-separator {
@@ -228,7 +255,8 @@ body {
     border: 1px solid var(--color-border);
 }
 
-.search-input-wrapper:focus-within {
+/* Highlight the field only while typing in it; its buttons show their own ring */
+.search-input-wrapper:has(> input:focus) {
     border-color: var(--color-accent);
 }
 
@@ -245,7 +273,6 @@ body {
     color: var(--color-text-muted);
     font-size: 1.1rem;
     padding: 0 8px;
-    height: 100%;
     cursor: pointer;
     transition: color 0.2s, transform 0.2s;
     opacity: 0.6;
@@ -257,13 +284,18 @@ body {
     transform: scale(1.1);
 }
 
+/* Full opacity while focused, so the focus ring keeps its real color */
+#add-to-watchlist:focus-visible,
+.clear-search-btn:focus-visible {
+    opacity: 1;
+}
+
 .clear-search-btn {
     background: transparent;
     border: none;
     color: var(--color-text-muted);
     font-size: 0.85rem;
     padding: 0 6px;
-    height: 100%;
     cursor: pointer;
     opacity: 0.5;
     transition: opacity 0.2s, color 0.2s;
@@ -1387,7 +1419,6 @@ mark {
     cursor: pointer;
     padding: 0 8px;
     line-height: 1;
-    outline: none;
 }
 
 #close-matrix:hover,
@@ -1501,7 +1532,7 @@ mark {
 }
 
 .converter-input:focus {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-accent);
     outline-offset: -1px;
 }
 
@@ -1560,7 +1591,7 @@ mark {
 }
 
 .converter-select:focus {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-accent);
     outline-offset: -1px;
 }
 
@@ -1649,7 +1680,6 @@ mark {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    outline: none;
     z-index: 1000;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
 }
@@ -1987,7 +2017,6 @@ mark {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    outline: none;
     z-index: 1001;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
     transition: all 0.15s ease;
@@ -2015,7 +2044,6 @@ mark {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    outline: none;
     z-index: 1001;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
     transition: all 0.15s ease;
@@ -2104,7 +2132,6 @@ mark {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    outline: none;
     box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
     transition: all 0.15s ease;
     padding: 0;
@@ -2419,10 +2446,6 @@ mark {
         flex-wrap: nowrap;
         overflow-x: auto;
         scrollbar-width: none;
-    }
-
-    .quick-bar-label {
-        display: none;
     }
 
     .quick-chip,
@@ -2984,7 +3007,7 @@ mark {
 
 .favorites-item-name-input:focus {
     outline: none;
-    border-color: #ffd700;
+    border-color: var(--color-accent);
 }
 
 .favorites-threshold-select {
@@ -3000,7 +3023,7 @@ mark {
 
 .favorites-threshold-select:focus {
     outline: none;
-    border-color: #ffd700;
+    border-color: var(--color-accent);
 }
 
 .favorites-item-actions {

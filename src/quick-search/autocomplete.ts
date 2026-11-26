@@ -45,6 +45,8 @@ export function createAutocomplete(input: HTMLInputElement, getNames: () => read
     input.setAttribute('aria-autocomplete', 'list');
     input.setAttribute('aria-controls', listId);
     input.setAttribute('aria-expanded', 'false');
+    // The browser's own saved-entry dropdown would stack on top of ours
+    input.setAttribute('autocomplete', 'off');
 
     let suggestions: readonly string[] = [];
     let highlighted = -1;

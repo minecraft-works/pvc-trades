@@ -228,6 +228,21 @@ test.describe('Virtual Scrolling - Search Integration', () => {
         expect(rowCount).toBe(0);
     });
 
+    test('empty results leave no scroll space and the layout does not shift', async ({ page }) => {
+        // Wide enough that the content is centered, so a disappearing scrollbar would move it
+        await page.setViewportSize({ width: 1600, height: 900 });
+        const searchLeft = () => page.locator('.search-container').evaluate(element => element.getBoundingClientRect().left);
+        const leftWithResults = await searchLeft();
+
+        await page.fill('#searchWant', 'xyznonexistent123');
+        await expect(page.locator('.no-results')).toBeVisible();
+
+        // The scroller's inline padding must not linger as a page-high empty area
+        const isScrollable = await page.evaluate(() => document.documentElement.scrollHeight > innerHeight);
+        expect(isScrollable).toBe(false);
+        expect(await searchLeft()).toBe(leftWithResults);
+    });
+
     test('search after scroll works correctly', async ({ page }) => {
         // Scroll down first
         await page.evaluate(() => window.scrollBy(0, 2000));

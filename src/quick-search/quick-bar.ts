@@ -44,13 +44,10 @@ export function createQuickBar(container: HTMLElement, deps: QuickBarDeps): Quic
     let dealsOnly = false;
     let bestPerItem = false;
 
-    const label = document.createElement('span');
-    label.className = 'quick-bar-label';
-    label.textContent = 'Paying:';
-    container.append(label);
-
     const chips = QUICK_SEARCH.CURRENCIES.map((currency, index) => {
         const chip = createButton('quick-chip', currency, `Paying exactly ${currency} (Alt+${index + 1})`);
+        // No visible "Paying:" label, so the accessible name carries that context
+        chip.setAttribute('aria-label', `Pay with ${currency}`);
         chip.dataset.query = toExactQuery(currency);
         chip.addEventListener('click', () => { toggleCurrency(chip); });
         container.append(chip);
