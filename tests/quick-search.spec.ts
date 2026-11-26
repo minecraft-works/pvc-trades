@@ -23,6 +23,19 @@ function recipe(resultType: string, resultAmount: number, costType: string, cost
 }
 
 /**
+ * 3 diamonds for one shulker box with 27 stacks of `content`.
+ * @param content - Item name filling the shulker box
+ * @returns Raw recipe in data.json shape
+ */
+function diamondsForShulkerOf(content: string) {
+    return {
+        resultItem: { type: 'DIAMOND', name: '', amount: 3 },
+        item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: Array.from({ length: 27 }, () => `- 64x ${content}`) },
+        stock: 41,
+    };
+}
+
+/**
  * Three shops far apart. Cooked beef for emeralds is sold at 2, 4 and 3
  * emeralds, so the median is 3 and the cheapest offer is −33%.
  */
@@ -50,12 +63,12 @@ const SHOP_DATA = {
     ],
 };
 
-async function openApp(page: Page, query = ''): Promise<void> {
+async function openApp(page: Page, query = '', data: unknown = SHOP_DATA): Promise<void> {
     await mockConfigRoute(page);
     await page.route('**/data.json', route => route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(SHOP_DATA),
+        body: JSON.stringify(data),
     }));
     await page.goto(`./${query}`);
     await page.waitForSelector(ROW, { state: 'visible', timeout: 10_000 });
@@ -205,5 +218,37 @@ test.describe('Result rows', () => {
         await expect(name.locator('mark')).toHaveText('beef');
         // innerText reflects rendering: flex layout used to drop the space before <mark>
         expect(await name.innerText()).toBe('Cooked beef');
+    });
+});
+
+test.describe('Shulker box costs', () => {
+    const SHULKER_SHOP = {
+        data: [{ location: '-87.0, 68.0, 90.0', world: 'world', recipes: [diamondsForShulkerOf('COBBLESTONE'), diamondsForShulkerOf('STONE')] }],
+    };
+
+    test.beforeEach(async ({ page }) => { await openApp(page, '', SHULKER_SHOP); });
+
+    test('trades for different shulker contents are told apart', async ({ page }) => {
+        const costs = await page.locator(`${ROW} .cost-name .name-text`).allTextContents();
+        expect(costs.toSorted((a, b) => a.localeCompare(b))).toEqual(['Cobblestone', 'Stone']);
+        await expect(page.locator(`${ROW} .cost-amt`)).toHaveText(['1728', '1728']);
+
+        const keys = await page.locator(ROW).evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.tradeKey));
+        expect(new Set(keys).size).toBe(2);
+    });
+
+    test('each row opens the details of its own shulker', async ({ page }) => {
+        const stoneRow = page.locator(ROW).filter({ has: page.locator('.cost-name .name-text', { hasText: /^Stone$/ }) });
+        await stoneRow.locator('.cost-name .info-icon').click();
+
+        const details = page.locator('#trade-details-content');
+        await expect(details.locator('.trade-detail-contents')).toHaveText('Contains 1728× Stone');
+        await expect(details.locator('.trade-detail-lore-line')).toHaveText(['- 64x STONE ×27']);
+    });
+
+    test('Paying search finds shulker contents', async ({ page }) => {
+        await page.locator(GIVE).fill('cobble');
+        await expect(page.locator(ROW)).toHaveCount(1);
+        await expect(page.locator(`${ROW} .cost-name .name-text`)).toHaveText('Cobblestone');
     });
 });

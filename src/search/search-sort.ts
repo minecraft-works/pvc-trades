@@ -17,8 +17,10 @@ import {
 import { isFavoritesFilterActive } from '../favorites/index.js';
 import {
     filterTrade,
+    formatTradeCostNames,
     getOverworldDistanceFromOrigin,
     getRegex,
+    getTotalCostAmount,
     getTradeKey,
 } from '../library.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
@@ -93,15 +95,6 @@ export interface SearchSortHandler {
 // ============================================================================
 // Pure helpers (exported)
 // ============================================================================
-
-/**
- * Get total cost amount including optional second item
- * @param t - Trade to compute cost for
- * @returns Total cost amount including optional second item
- */
-function getTotalCostAmount(t: Trade): number {
-    return t.item1.amount + (t.item2?.amount ?? 0);
-}
 
 /**
  * Show or hide a clear button based on whether the associated input has content.
@@ -250,7 +243,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
                 return multiplier * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
             }
             case COLUMNS.COST_NAME: {
-                return multiplier * ta.costName.localeCompare(tb.costName);
+                return multiplier * formatTradeCostNames(ta).localeCompare(formatTradeCostNames(tb));
             }
             case COLUMNS.RESULT_AMT: {
                 return multiplier * (ta.resultAmount - tb.resultAmount);

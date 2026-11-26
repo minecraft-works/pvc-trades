@@ -8,8 +8,8 @@
  */
 
 import { ZOOM_HEIGHT } from '../constants.js';
-import { formatName } from '../formatting.js';
 import { type RouteStop,type ShoppingList, type Trade } from '../types.js';
+import { describeItemStack } from '../valuation/item-identity.js';
 import { calculateRouteDistance } from './route-optimizer.js';
 
 // ============================================================================
@@ -33,15 +33,10 @@ export function aggregateShoppingList(cartItems: readonly { readonly trade: Read
 
     for (const cartItem of cartItems) {
         const { trade, quantity } = cartItem;
-        // Aggregate costs
-        const cost1Name = formatName(trade.item1);
-        const cost1Amount = trade.item1.amount * quantity;
-        costs.set(cost1Name, (costs.get(cost1Name) ?? 0) + cost1Amount);
-
-        if (trade.item2) {
-            const cost2Name = formatName(trade.item2);
-            const cost2Amount = trade.item2.amount * quantity;
-            costs.set(cost2Name, (costs.get(cost2Name) ?? 0) + cost2Amount);
+        // Aggregate costs (a filled shulker counts as its contents)
+        for (const item of trade.item2 ? [trade.item1, trade.item2] : [trade.item1]) {
+            const { amount, name } = describeItemStack(item);
+            costs.set(name, (costs.get(name) ?? 0) + amount * quantity);
         }
 
         // Aggregate gains

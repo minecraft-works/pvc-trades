@@ -63,10 +63,10 @@ export const SORT = {
 export const STORAGE_KEYS = {
     CART: 'shop-trades-cart',
     FAVORITES: 'shop-trades-favorites',
-    /** Versioned with the deviation model: baselines from an older model are not comparable */
-    SNAPSHOT: 'shop-trades-snapshot-dev2',
-    /** Snapshot key used before the same-currency deviation model; removed on load */
-    SNAPSHOT_LEGACY: 'shop-trades-snapshot',
+    /** Versioned with the deviation model and trade-key format: older baselines are not comparable */
+    SNAPSHOT: 'shop-trades-snapshot-dev3',
+    /** Snapshot keys from earlier models/key formats; removed on load */
+    SNAPSHOT_LEGACY: ['shop-trades-snapshot', 'shop-trades-snapshot-dev2'],
     NAV_PROGRESS: 'shop-trades-nav-progress',
     NAV_PLAYER: 'shop-trades-nav-player',
     NAV_TAB: 'shop-trades-nav-tab',

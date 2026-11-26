@@ -27,6 +27,7 @@ import {
     formatTradeCostNames,
     fromLeafletCoordsRelative,
     getConfig,
+    getCostParts,
     getItemComponents,
     getRatio,
     getRegex,
@@ -146,6 +147,13 @@ const calculatorFor = (trades: readonly Trade[]) => {
     }
     return createDeviationCalculator(calculateItemValues(inputs, EMERALD_LOWER), calculatePairPrices(inputs));
 };
+
+// Helper: 3 diamonds sold for one shulker box filled with `content`
+const diamondsForShulkerOf = (content: string): Trade => ({
+    ...createTrade(3, 1, DIAMOND_TITLE, 41),
+    item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: [`- 64x ${content}`] },
+    costName: 'Shulker box',
+});
 
 // Test fixtures
 const TEST_BLOCK_CONVERSIONS: BlockConversions = {
@@ -2306,6 +2314,46 @@ describe('getTradeKey', () => {
     test('handles item names with spaces', () => {
         const trade = { x: 100, y: 64, z: 200, world: OVERWORLD, costName: GOLD_INGOT, resultName: 'iron block' };
         expect(getTradeKey(trade)).toBe(`100,64,200,overworld,iron block,${GOLD_INGOT}`);
+    });
+
+    test('trades at one shop that differ only in shulker contents get different keys', () => {
+        const keys = ['COBBLESTONE', 'STONE', 'SAND'].map(content => getTradeKey(diamondsForShulkerOf(content)));
+        expect(new Set(keys).size).toBe(3);
+        // Readable prefix is kept for selectors and debugging
+        expect(keys[0]).toMatch(/^0,0,0,overworld,Diamond,Shulker box\|3:1#/);
+    });
+
+    test('trades at one shop that differ only in amounts get different keys', () => {
+        expect(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 5))).not.toBe(getTradeKey(createTrade(2, 9, DIAMOND_TITLE, 5)));
+        expect(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 5))).toBe(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 99)));
+    });
+});
+
+describe('shulker box costs', () => {
+    const cobbleShulker: Trade = {
+        ...createTrade(3, 1, DIAMOND_TITLE, 41),
+        item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x COBBLESTONE', '- 64x COBBLESTONE'] },
+        costName: 'Shulker box',
+        costText: 'shulker box cobblestone',
+    };
+
+    test('are shown as their contents', () => {
+        expect(getCostParts(cobbleShulker)).toEqual([{ amount: 128, name: 'Cobblestone' }]);
+        expect(formatTradeCost(cobbleShulker)).toBe('128× Cobblestone');
+        const mixed = { ...cobbleShulker, item1: { ...cobbleShulker.item1, lore: ['- 64x COBBLESTONE', '- 10x SAND'] } };
+        expect(formatTradeCostNames(mixed)).toBe('Shulker box (Cobblestone, Sand)');
+    });
+
+    test('can be found by their contents, also with an exact query', () => {
+        expect(filterTrade(cobbleShulker, '', 'cobble')).toBeDefined();
+        expect(filterTrade(cobbleShulker, '', '"cobblestone"')).toBeDefined();
+        expect(filterTrade(cobbleShulker, '', '"stone"')).toBeUndefined();
+    });
+
+    test('add their contents to the shopping list totals', () => {
+        const list = aggregateShoppingList([{ trade: cobbleShulker, quantity: 2 }]);
+        expect(list.costs.get('Cobblestone')).toBe(256);
+        expect(list.costs.has('Shulker box')).toBe(false);
     });
 });
 

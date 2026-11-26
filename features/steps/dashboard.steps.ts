@@ -28,7 +28,7 @@ const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
 const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
-const STORAGE_KEY_SNAPSHOT = 'shop-trades-snapshot-dev2';
+const STORAGE_KEY_SNAPSHOT = 'shop-trades-snapshot-dev3';
 const STORAGE_KEY_FAVORITES = 'shop-trades-favorites';
 
 // ============================================================================
@@ -39,7 +39,7 @@ const STORAGE_KEY_FAVORITES = 'shop-trades-favorites';
  * Mock shops with enough Diamond↔Emerald trades to satisfy minIndependentShops = 3.
  * All shops are >16 blocks apart (independent).
  *
- * Trade keys (after formatName): x,y,z,world,resultName,costName
+ * Trade keys (after formatName): x,y,z,world,resultName,costName|resultAmount:costAmount
  */
 const DASHBOARD_SHOP_DATA = {
     data: [
@@ -103,14 +103,14 @@ const DASHBOARD_SHOP_DATA = {
 
 /**
  * Trade keys matching DASHBOARD_SHOP_DATA after formatName() processing.
- * Format: x,y,z,world,resultName,costName
+ * Format: x,y,z,world,resultName,costName|resultAmount:costAmount
  */
 const MOCK_TRADE_KEYS = {
-    cheapDiamonds:  '100,64,200,World,Diamond,Emerald',   // deviation ≈ −43%
-    fairDiamonds:   '300,64,400,World,Diamond,Emerald',   // deviation ≈ −14%
-    priceyDiamonds: '600,64,100,World,Diamond,Emerald',   // deviation ≈ +14%
-    ironWorks:      '800,64,400,World,Iron ingot,Emerald', // deviation ≈ 0%
-    overpriced:     '900,64,300,World,Diamond,Emerald',   // deviation ≈ +129%
+    cheapDiamonds:  '100,64,200,World,Diamond,Emerald|1:1',    // deviation ≈ −43%
+    fairDiamonds:   '300,64,400,World,Diamond,Emerald|2:3',    // deviation ≈ −14%
+    priceyDiamonds: '600,64,100,World,Diamond,Emerald|1:2',    // deviation ≈ +14%
+    ironWorks:      '800,64,400,World,Iron ingot,Emerald|16:1', // deviation ≈ 0%
+    overpriced:     '900,64,300,World,Diamond,Emerald|1:4',    // deviation ≈ +129%
 };
 
 // ============================================================================
@@ -208,7 +208,7 @@ function extractSnapshots(parsed: Record<string, unknown>): { timestamp: number;
  */
 async function storeSnapshotHistory(page: import('@playwright/test').Page, snapshot: object): Promise<void> {
     await page.evaluate((data) => {
-        localStorage.setItem('shop-trades-snapshot-dev2', JSON.stringify(data));
+        localStorage.setItem('shop-trades-snapshot-dev3', JSON.stringify(data));
     }, wrapAsHistory(snapshot));
 }
 
@@ -273,7 +273,7 @@ Given('I have a previous snapshot missing some trades', async ({ page }) => {
     await page.evaluate(({ data, key1, key2 }) => {
         const parsed = data as { trades: Record<string, unknown> };
         const trades = Object.fromEntries(Object.entries(parsed.trades).filter(([tradeKey]) => tradeKey !== key1 && tradeKey !== key2));
-        localStorage.setItem('shop-trades-snapshot-dev2', JSON.stringify({ snapshots: [{ ...parsed, trades }] }));
+        localStorage.setItem('shop-trades-snapshot-dev3', JSON.stringify({ snapshots: [{ ...parsed, trades }] }));
     }, {
         data: snapshot,
         key1: MOCK_TRADE_KEYS.cheapDiamonds,

@@ -28,9 +28,40 @@ export function isNether(world: string): boolean {
     return world.toLowerCase().includes('nether');
 }
 
+/** Item fields that distinguish otherwise identical trades */
+interface TradeKeyItem {
+    readonly amount: number;
+    readonly lore?: readonly string[] | undefined;
+    readonly enchant?: Readonly<Record<string, number>> | undefined;
+}
+
 /**
- * Generate a unique key for a trade based on coordinates and items.
- * Used for cart persistence and navigation progress tracking.
+ * Short, stable FNV-1a hash (base 36) for compact keys
+ * @param text - Text to hash
+ * @returns Base-36 hash
+ */
+function hashString(text: string): string {
+    let hash = 0x81_1C_9D_C5;
+    for (const char of text) {
+        hash ^= char.codePointAt(0) ?? 0;
+        hash = Math.imul(hash, 0x01_00_01_93) >>> 0;
+    }
+    return hash.toString(36);
+}
+
+function itemExtras(item: TradeKeyItem | undefined): string {
+    if (!item) { return ''; }
+    const enchant = Object.entries(item.enchant ?? {}).map(([key, level]) => `${key}=${level}`).toSorted((a, b) => a.localeCompare(b));
+    return [...(item.lore ?? []), ...enchant].join('\n');
+}
+
+/**
+ * Generate a unique key for a trade based on location, items and amounts.
+ * Used for cart persistence, navigation progress, snapshots and row identity.
+ *
+ * The readable prefix is `x,y,z,world,result,cost`. Amounts and a hash of
+ * lore/enchantments are appended when known, so two trades at the same shop
+ * that differ only in amount or in shulker contents get different keys.
  *
  * @param trade - Trade with location and item info
  * @param trade.x - X coordinate in Minecraft blocks
@@ -39,13 +70,28 @@ export function isNether(world: string): boolean {
  * @param trade.world - World name (e.g., 'overworld', 'the_nether')
  * @param trade.costName - Display name of the cost item
  * @param trade.resultName - Display name of the result item
+ * @param trade.resultAmount - Amount received (optional)
+ * @param trade.resultItem - Received item stack (optional)
+ * @param trade.item1 - First cost item stack (optional)
+ * @param trade.item2 - Second cost item stack (optional)
  * @returns Unique string key
  *
  * @example
- * getTradeKey(trade) // '100,64,-200,overworld,Diamond,Emerald'
+ * getTradeKey(trade) // '100,64,-200,overworld,Diamond,Shulker box|3:1#k2x9f1'
  */
-export function getTradeKey(trade: { x: number; y: number; z: number; world: string; costName: string; resultName: string }): string {
-    return `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
+export function getTradeKey(trade: {
+    x: number; y: number; z: number; world: string; costName: string; resultName: string;
+    resultAmount?: number; resultItem?: TradeKeyItem; item1?: TradeKeyItem; item2?: TradeKeyItem | undefined;
+}): string {
+    const base = `${trade.x},${trade.y},${trade.z},${trade.world},${trade.resultName},${trade.costName}`;
+    if (trade.item1 === undefined || trade.resultAmount === undefined) { return base; }
+
+    const amounts = [trade.resultAmount, trade.item1.amount, trade.item2?.amount]
+        .filter(amount => amount !== undefined)
+        .join(':');
+    const extras = [trade.resultItem, trade.item1, trade.item2].map(item => itemExtras(item));
+    const hash = extras.some(Boolean) ? `#${hashString(extras.join('\u0000'))}` : '';
+    return `${base}|${amounts}${hash}`;
 }
 
 /**

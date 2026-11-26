@@ -49,7 +49,7 @@ Given('I add a trade requiring {int} emeralds and giving {int} diamond', async (
 
 Given('I add a trade to the cart', async ({ page }) => {
     // Find the specific trade that gives Emerald and costs Diamond (Overworld Shop at 100,64,200)
-    // data-trade-key format: x,y,z,world,resultItem,costItem
+    // data-trade-key format: x,y,z,world,resultItem,costItem|amounts
     const addButton = page.locator(EMERALD_DIAMOND_TRADE_SELECTOR);
     await addButton.click();
 });

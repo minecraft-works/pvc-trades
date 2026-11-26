@@ -2684,6 +2684,15 @@ mark {
     padding: 2px 0;
 }
 
+.trade-detail-lore-count {
+    color: var(--color-text-muted);
+}
+
+.trade-detail-contents {
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+
 .trade-detail-enchants {
     color: var(--color-accent);
     font-size: 0.9rem;

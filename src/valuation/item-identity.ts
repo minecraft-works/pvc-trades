@@ -94,6 +94,36 @@ export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerP
 }
 
 /**
+ * Describe an item stack for display: a filled shulker box with one kind of
+ * content shows as that content ("1728 Cobblestone"); a mixed shulker lists
+ * its contents; anything else uses the item's own name and amount.
+ *
+ * @param item - Item stack
+ * @returns Display amount and name
+ *
+ * @example
+ * describeItemStack({ type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x SAND'] }) // { amount: 64, name: 'Sand' }
+ */
+export function describeItemStack(item: Readonly<Item>): { readonly amount: number; readonly name: string } {
+    if (!isShulkerWithContents(item)) { return { amount: item.amount, name: formatName(item) }; }
+    const contents = parseShulkerContents(item.lore ?? []).items;
+    const [only] = contents;
+    if (contents.length === 1 && only) { return { amount: only.total * item.amount, name: only.name }; }
+    return { amount: item.amount, name: `${formatName(item)} (${contents.map(content => content.name).join(', ')})` };
+}
+
+/**
+ * Names an item stack can be found by: its own name plus any shulker contents.
+ *
+ * @param item - Item stack
+ * @returns Display names (any case)
+ */
+export function getItemStackNames(item: Readonly<Item>): readonly string[] {
+    const contents = isShulkerWithContents(item) ? parseShulkerContents(item.lore ?? []).items.map(content => content.name) : [];
+    return [formatName(item), ...contents];
+}
+
+/**
  * Get the name an item is priced under, or undefined if it cannot be priced.
  *
  * @param item - Item to identify

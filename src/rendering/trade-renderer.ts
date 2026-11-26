@@ -19,6 +19,7 @@ import {
 import {
     escapeHtml,
     formatTradeCostNames,
+    getCostParts,
     getOverworldDistanceFromOrigin,
     getTradeKey,
     highlight,
@@ -99,21 +100,23 @@ function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
  * @returns Formatted cost amount and name strings for display
  */
 function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
-    const costAmt = t.item2 ? `${t.item1.amount}+${t.item2.amount}` : String(t.item1.amount);
-    return { costAmt, costName: formatTradeCostNames(t) };
+    const parts = getCostParts(t);
+    return { costAmt: parts.map(part => part.amount).join('+'), costName: formatTradeCostNames(t) };
 }
 
 /**
- * Per-item price badge for the cost cell. Only shown for single-item,
- * non-shulker costs when more than one item is received (otherwise the
- * cost column already is the per-item price).
+ * Per-item price badge for the cost cell. Only shown for single-item costs
+ * (a shulker of one kind counts as its contents) when more than one item is
+ * received; otherwise the cost column already is the per-item price.
  * @param t - Trade
  * @param displayAmount - Number of items received (shulker contents counted)
  * @returns HTML for the badge, or an empty string
  */
 function getUnitPriceHtml(t: Trade, displayAmount: number): string {
-    if (t.item2 || displayAmount <= 1 || (t.item1.lore?.length ?? 0) > 0) { return ''; }
-    const text = formatUnitPrice(t.item1.amount, displayAmount);
+    const [cost, ...rest] = getCostParts(t);
+    // Mixed shulkers keep their own name, so the badge would be meaningless
+    if (!cost || rest.length > 0 || displayAmount <= 1 || cost.name.includes('(')) { return ''; }
+    const text = formatUnitPrice(cost.amount, displayAmount);
     return text ? `<span class="unit-price" title="Price per item">${text}</span>` : '';
 }
 
@@ -158,6 +161,25 @@ function itemHasDetails(item: Item): boolean {
 
 // Right-aligned columns get arrow before label, left-aligned get arrow after
 const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock', 'dev', 'distance', 'world']);
+
+// Virtual-scroller row identity: one id per trade object, so shops listing
+// identical-looking trades never share a row id
+const rowIds = new WeakMap<Trade, number>();
+let nextRowId = 0;
+
+/**
+ * Stable, unique id for a trade's row
+ * @param trade - Trade shown in the row
+ * @returns Row id
+ */
+function getRowId(trade: Trade): number {
+    let id = rowIds.get(trade);
+    if (id === undefined) {
+        id = nextRowId++;
+        rowIds.set(trade, id);
+    }
+    return id;
+}
 
 /**
  * Run a handler on click and on Enter/Space, so header controls work from the keyboard.
@@ -467,7 +489,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
                 createTradeRowElement,
                 {
                     getEstimatedItemHeight: () => 32,
-                    getItemId: (item: FilterResult) => `${item.trade.x}-${item.trade.y}-${item.trade.z}-${item.trade.resultName}-${item.trade.costName}`
+                    getItemId: (item: FilterResult) => getRowId(item.trade)
                 }
             );
         }

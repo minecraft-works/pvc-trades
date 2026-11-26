@@ -7,7 +7,7 @@
  * @module dialogs/trade-details
  */
 
-import { escapeHtml,formatName } from '../library.js';
+import { escapeHtml,formatName, parseShulkerContents } from '../library.js';
 import type { Item,Trade } from '../types.js';
 import { setupDialogBackdropClose } from './dialog-utilities.js';
 
@@ -25,9 +25,20 @@ function formatEnchantmentName(name: string): string {
 }
 
 /**
+ * Group identical lore lines (shulker boxes list one line per stack)
+ * @param lore - Raw lore lines
+ * @returns Unique lines with how often each occurs, in first-seen order
+ */
+function groupLoreLines(lore: readonly string[]): { line: string; count: number }[] {
+    const counts = new Map<string, number>();
+    for (const line of lore) { counts.set(line, (counts.get(line) ?? 0) + 1); }
+    return [...counts].map(([line, count]) => ({ line, count }));
+}
+
+/**
  * Render item details HTML for the trade details dialog
  * @param item - The item to render details for
- * @returns HTML string with item name, lore lines, and enchantments
+ * @returns HTML string with item name, contents summary, lore lines, and enchantments
  */
 function renderItemDetails(item: Item): string {
     const name = formatName(item);
@@ -37,10 +48,17 @@ function renderItemDetails(item: Item): string {
             <div class="trade-detail-name">${escapeHtml(name)}</div>
     `;
 
+    const contents = item.type.toUpperCase().includes('SHULKER_BOX') && item.lore ? parseShulkerContents(item.lore).items : [];
+    if (contents.length > 0) {
+        const summary = contents.map(content => `${content.total * item.amount}× ${content.name}`).join(', ');
+        html += `<div class="trade-detail-contents">Contains ${escapeHtml(summary)}</div>`;
+    }
+
     if (item.lore && item.lore.length > 0) {
         html += '<div class="trade-detail-lore">';
-        for (const line of item.lore) {
-            html += `<span class="trade-detail-lore-line">${escapeHtml(line)}</span>`;
+        for (const { line, count } of groupLoreLines(item.lore)) {
+            const repeat = count > 1 ? ` <span class="trade-detail-lore-count">×${count}</span>` : '';
+            html += `<span class="trade-detail-lore-line">${escapeHtml(line)}${repeat}</span>`;
         }
         html += '</div>';
     }

@@ -48,7 +48,7 @@ import {
     type SortDirection,
     type Trade,
 } from './types.js';
-import { parseShulkerContents } from './valuation/item-identity.js';
+import { describeItemStack, getItemStackNames, parseShulkerContents } from './valuation/item-identity.js';
 
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
@@ -329,11 +329,13 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
 
     const costName = formatName(item1) + (item2 ? ' ' + formatName(item2) : '');
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
+    // Searchable cost text also covers shulker contents ("cobblestone" finds a shulker of it)
+    const costNames = [item1, item2].flatMap(item => (item ? getItemStackNames(item) : []));
 
     return {
         stock: recipe.stock,
         resultText: resultName.toLowerCase(),
-        costText: costName.toLowerCase(),
+        costText: costNames.join(' ').toLowerCase(),
         item1,
         item2,
         resultItem,
@@ -352,6 +354,17 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
 // ============================================================================
 
 /**
+ * Display amount and name of each cost item; a filled shulker box shows its
+ * contents ("1728× Cobblestone") rather than "1× Shulker box".
+ *
+ * @param trade - Trade whose cost should be described
+ * @returns One entry per cost item
+ */
+export function getCostParts(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): readonly { readonly amount: number; readonly name: string }[] {
+    return trade.item2 ? [describeItemStack(trade.item1), describeItemStack(trade.item2)] : [describeItemStack(trade.item1)];
+}
+
+/**
  * Format a trade's cost with per-item amounts (handles two-item costs).
  *
  * @param trade - Trade whose cost should be formatted
@@ -361,9 +374,7 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
  * formatTradeCost(trade) // '64× Emerald'
  */
 export function formatTradeCost(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): string {
-    const first = `${trade.item1.amount}× ${formatName(trade.item1)}`;
-    if (!trade.item2) { return first; }
-    return `${first} + ${trade.item2.amount}× ${formatName(trade.item2)}`;
+    return getCostParts(trade).map(part => `${part.amount}× ${part.name}`).join(' + ');
 }
 
 /**
@@ -373,8 +384,17 @@ export function formatTradeCost(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>)
  * @returns Cost names joined with " + ", e.g. "Diamond block + Emerald block"
  */
 export function formatTradeCostNames(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): string {
-    const first = formatName(trade.item1);
-    return trade.item2 ? `${first} + ${formatName(trade.item2)}` : first;
+    return getCostParts(trade).map(part => part.name).join(' + ');
+}
+
+/**
+ * Total displayed cost amount (shulker contents counted), for sorting.
+ *
+ * @param trade - Trade
+ * @returns Sum of displayed cost amounts
+ */
+export function getTotalCostAmount(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): number {
+    return getCostParts(trade).reduce((sum, part) => sum + part.amount, 0);
 }
 
 interface ShulkerMatchResult {
@@ -396,7 +416,8 @@ function nameMatches(name: string, query: string): boolean {
 
 function costMatches(trade: Readonly<Trade>, query: string): boolean {
     if (parseExactQuery(query) === undefined) { return matchesQuery(trade.costText, query); }
-    return nameMatches(formatName(trade.item1), query) || (trade.item2 !== undefined && nameMatches(formatName(trade.item2), query));
+    const names = [trade.item1, trade.item2].flatMap(item => (item ? getItemStackNames(item) : []));
+    return names.some(name => nameMatches(name, query));
 }
 
 function findMatchingShulkerItem(
@@ -494,12 +515,12 @@ export function sortResults(
 
         switch (column) {
             case 'cost-amt': {
-                valueA = tradeA.item1.amount + (tradeA.item2?.amount ?? 0);
-                valueB = tradeB.item1.amount + (tradeB.item2?.amount ?? 0);
+                valueA = getTotalCostAmount(tradeA);
+                valueB = getTotalCostAmount(tradeB);
                 break;
             }
             case 'cost-name': {
-                return sortDirection * tradeA.costName.localeCompare(tradeB.costName);
+                return sortDirection * formatTradeCostNames(tradeA).localeCompare(formatTradeCostNames(tradeB));
             }
             case 'result-amt': {
                 valueA = tradeA.resultAmount;
