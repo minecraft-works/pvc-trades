@@ -57,7 +57,7 @@ Then('I should see the cost item name', async ({ page }) => {
 
 Given('there is a trade with two cost items', async ({ page }) => {
     // Look for a trade with "+" in the cost column (indicates item2)
-    const tradesWithItem2 = page.locator(`${SELECTOR_TRADE_ROW}`).filter({
+    const tradesWithItem2 = page.locator(SELECTOR_TRADE_ROW).filter({
         has: page.locator('.cost-name:has-text("+")')
     });
     const count = await tradesWithItem2.count();
@@ -68,7 +68,7 @@ Given('there is a trade with two cost items', async ({ page }) => {
 });
 
 When('I click on the cost name of that trade', async ({ page }) => {
-    const tradeWithItem2 = page.locator(`${SELECTOR_TRADE_ROW}`).filter({
+    const tradeWithItem2 = page.locator(SELECTOR_TRADE_ROW).filter({
         has: page.locator('.cost-name:has-text("+")')
     }).first();
     await tradeWithItem2.locator('.cost-name').click();
@@ -76,7 +76,7 @@ When('I click on the cost name of that trade', async ({ page }) => {
 
 Given('there is a trade with lore on the result item', async ({ page }) => {
     // Shulker boxes with contents have lore - find one of these
-    const shulkerTrades = page.locator(`${SELECTOR_TRADE_ROW}`).filter({
+    const shulkerTrades = page.locator(SELECTOR_TRADE_ROW).filter({
         has: page.locator('.result-name:has-text("Shulker")')
     });
     const count = await shulkerTrades.count();
@@ -87,7 +87,7 @@ Given('there is a trade with lore on the result item', async ({ page }) => {
 
 When('I click on the result name of that trade', async ({ page }) => {
     // Click the first shulker trade result
-    const shulkerTrade = page.locator(`${SELECTOR_TRADE_ROW}`).filter({
+    const shulkerTrade = page.locator(SELECTOR_TRADE_ROW).filter({
         has: page.locator('.result-name:has-text("Shulker")')
     }).first();
     await shulkerTrade.locator('.result-name').click();
@@ -100,7 +100,7 @@ Then('I should see the lore text', async ({ page }) => {
 
 Given('there is a trade with enchanted items', async ({ page }) => {
     // Look for trades that might have enchantments (tools, armor, books)
-    const enchantedTrades = page.locator(`${SELECTOR_TRADE_ROW}`).filter({
+    const enchantedTrades = page.locator(SELECTOR_TRADE_ROW).filter({
         has: page.locator('.result-name:text-matches("Sword|Pickaxe|Axe|Book|Bow|Trident|Helmet|Chestplate|Leggings|Boots")')
     });
     const count = await enchantedTrades.count();

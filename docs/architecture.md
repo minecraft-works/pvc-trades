@@ -22,7 +22,7 @@
 │  │  • shop-trades-nav-player (string)                          │  │
 │  │  • shop-trades-nav-tab (string)                             │  │
 │  │  • shop-trades-nav-mode (NavigationMode)                    │  │
-│  │  • shop-trades-snapshot (CompactSnapshotHistory)            │  │
+│  │  • shop-trades-snapshot-dev2 (CompactSnapshotHistory)       │  │
 │  │  • shop-trades-favorites (FavoriteItem[])                   │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -308,7 +308,7 @@ let navStopMarkers: L.Marker[] = [];
 | `shop-trades-nav-player` | `string` | Saved player name |
 | `shop-trades-nav-tab` | `string` | Active cart dialog tab |
 | `shop-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
-| `shop-trades-snapshot` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
+| `shop-trades-snapshot-dev2` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
 | `shop-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
 
 ## External Dependencies

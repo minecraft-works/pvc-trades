@@ -123,6 +123,14 @@ describe('SnapshotStore', () => {
             expect(snapshotStore.loadAll()).toEqual([]);
         });
 
+        test('ignores and removes baselines stored by the previous deviation model', () => {
+            const compact = packSnapshots([makeSnapshot(1000, { key1: { deviationPercent: 10, stock: 5 } })]);
+            mockLocalStorage.setItem(STORAGE_KEYS.SNAPSHOT_LEGACY, JSON.stringify(compact));
+
+            expect(snapshotStore.loadAll()).toEqual([]);
+            expect(mockLocalStorage.getItem(STORAGE_KEYS.SNAPSHOT_LEGACY)).toBeNull();
+        });
+
         test('returns snapshots from compact format', () => {
             const snapshots = [
                 makeSnapshot(1000, { key1: { deviationPercent: 10, stock: 5 } }),

@@ -8,6 +8,7 @@
   "analysis": {
     "shopClusterDistance": 16,
     "maxTransitiveIterations": 10,
-    "minIndependentShops": 3
+    "minIndependentShops": 3,
+    "minIndependentShopsPerItem": 2
   }
 }

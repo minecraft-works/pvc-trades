@@ -16,6 +16,7 @@ import {
 import { isFavoritesFilterActive } from '../favorites/index.js';
 import {
     filterTrade,
+    getOverworldDistanceFromOrigin,
     getRegex,
     getTradeKey,
 } from '../library.js';
@@ -103,9 +104,6 @@ export function updateClearButtonVisibility(input: Readonly<HTMLInputElement>, c
     if (!button) { return; }
     button.classList.toggle('hidden', input.value.length === 0);
 }
-
-// Column order for sort priority (left to right)
-const COLUMN_ORDER: readonly SortColumn[] = [COLUMNS.RESULT_AMT, COLUMNS.RESULT_NAME, COLUMNS.COST_AMT, COLUMNS.COST_NAME, 'dev', 'stock', 'distance', 'world'];
 
 // ============================================================================
 // Factory
@@ -198,14 +196,15 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         deps.updateDealsBadge(dealsCount);
     }
 
-    function compareDeviation(ta: Trade, tb: Trade): number {
+    function compareDeviation(ta: Trade, tb: Trade, multiplier: number): number {
         const deviationCalc = deps.getDeviation();
         const deviationA = deviationCalc(ta);
         const deviationB = deviationCalc(tb);
+        // Trades without a deviation always sink to the bottom, regardless of direction
         if (!deviationA && !deviationB) { return 0; }
         if (!deviationA) { return 1; }
         if (!deviationB) { return -1; }
-        return deviationA.percent - deviationB.percent;
+        return multiplier * (deviationA.percent - deviationB.percent);
     }
 
     function compareByColumn(a: FilterResult, b: FilterResult, column: SortColumn, direction: SortDirection): number {
@@ -215,7 +214,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
         switch (column) {
             case 'dev': {
-                return multiplier * compareDeviation(ta, tb);
+                return compareDeviation(ta, tb, multiplier);
             }
             case COLUMNS.COST_AMT: {
                 return multiplier * (getTotalCostAmount(ta) - getTotalCostAmount(tb));
@@ -236,7 +235,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
                 return multiplier * ta.world.localeCompare(tb.world);
             }
             case 'distance': {
-                return multiplier * (Math.hypot(ta.x, ta.z) - Math.hypot(tb.x, tb.z));
+                return multiplier * (getOverworldDistanceFromOrigin(ta) - getOverworldDistanceFromOrigin(tb));
             }
             default: {
                 return 0;
@@ -249,18 +248,28 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
             return results; // No sorting applied
         }
 
-        // Get active columns in left-to-right order
-        const sortColumns = COLUMN_ORDER.filter(col => activeSorts.has(col));
+        // Map insertion order is the sort priority (most recently clicked first)
+        const sortColumns = [...activeSorts.entries()];
 
         return results.toSorted((a, b) => {
-            for (const column of sortColumns) {
-                const direction = activeSorts.get(column);
-                if (direction === undefined) { continue; }
+            for (const [column, direction] of sortColumns) {
                 const cmp = compareByColumn(a, b, column, direction);
                 if (cmp !== 0) { return cmp; }
             }
             return 0;
         });
+    }
+
+    /**
+     * Set a column's sort direction and make it the primary sort key.
+     * @param column - Column to promote
+     * @param direction - Sort direction to apply
+     */
+    function promoteSort(column: SortColumn, direction: SortDirection): void {
+        const previous = [...activeSorts.entries()].filter(([col]) => col !== column);
+        activeSorts.clear();
+        activeSorts.set(column, direction);
+        for (const [col, direction] of previous) { activeSorts.set(col, direction); }
     }
 
     function sortByColumn(column: SortColumn): void {
@@ -269,13 +278,13 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
         if (currentDirection === undefined) {
             // First click: set initial direction based on column type
-            activeSorts.set(column, startsAsc ? SORT.ASC : SORT.DESC);
+            promoteSort(column, startsAsc ? SORT.ASC : SORT.DESC);
         } else if (startsAsc && currentDirection === SORT.ASC) {
             // Name columns: asc -> desc -> none
-            activeSorts.set(column, SORT.DESC);
+            promoteSort(column, SORT.DESC);
         } else if (!startsAsc && currentDirection === SORT.DESC) {
             // Numeric columns: desc -> asc -> none
-            activeSorts.set(column, SORT.ASC);
+            promoteSort(column, SORT.ASC);
         } else {
             // Third click: remove sort
             activeSorts.delete(column);

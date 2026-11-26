@@ -189,8 +189,7 @@ Then('the tile layer should be {string}', async ({ page }, expectedLayer: string
     expect(expectedLayer).toBe('overworld');
 });
 
-Then('no nether tiles should be loaded', async ({ page }) => {
-    // In unified navigation, nether tiles are never loaded
-    // This is a design property - verified by checking tile layer is overworld
-    expect(true).toBe(true);
+Then('no nether tiles should be loaded', async () => {
+    // In unified navigation, nether tiles are never loaded. This is a design
+    // property; the preceding "tile layer should be" step verifies it.
 });

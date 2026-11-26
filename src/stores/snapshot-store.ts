@@ -109,6 +109,9 @@ class SnapshotStore {
      */
     loadAll(): TradeSnapshot[] {
         try {
+            // Baselines from the previous deviation model would show false price drops
+            localStorage.removeItem(STORAGE_KEYS.SNAPSHOT_LEGACY);
+
             const stored = localStorage.getItem(STORAGE_KEYS.SNAPSHOT);
             if (!stored) { return []; }
 

@@ -17,9 +17,14 @@ import {
     type Coordinates,
     type ItemValueEntry,
     type ItemValues,
+    type PairPrices,
     type PriceEntry,
     type TrustedValueOptions,
 } from '../types.js';
+import { getPairKey } from './item-identity.js';
+
+/** Default independent shops required for non-core items */
+const DEFAULT_MIN_ITEM_SHOPS = 2;
 
 // ============================================================================
 // Public API
@@ -129,7 +134,10 @@ export function getTrustedItemValue(
     itemValues: ItemValues,
     options: TrustedValueOptions = {}
 ): number | undefined {
-    const { minShops = 3 } = options;
+    const {
+        minShops = 3,
+        minItemShops = configStore.get().analysis.minIndependentShopsPerItem ?? DEFAULT_MIN_ITEM_SHOPS,
+    } = options;
     const blockConversions = blockConversionsStore.get();
     const coreBlocks: readonly string[] = coreBlocksStore.get();
     const itemKey = itemName.toLowerCase();
@@ -140,17 +148,53 @@ export function getTrustedItemValue(
 
     const coreBlocksLower: readonly string[] = coreBlocks.map(b => b.toLowerCase());
     const isCoreBlock = coreBlocksLower.includes(itemKey);
+    const isTrusted = (entry: ItemValueEntry): boolean => isCoreBlock
+        ? hasEnoughIndependentData(entry, minShops)
+        : countIndependentShops([...entry.buyPrices, ...entry.sellPrices]) >= minItemShops;
 
     // Try direct value from trades
-    const directValue = getDirectTradeValue(itemValues.get(itemKey), isCoreBlock, minShops);
+    const directValue = getDirectTradeValue(itemValues.get(itemKey), isTrusted);
     if (directValue !== undefined) { return directValue; }
 
     // Try block conversion (block = ingot × multiplier)
-    const conversionValue = getBlockConversionValue(itemKey, itemValues, blockConversions, isCoreBlock, minShops);
+    const conversionValue = getBlockConversionValue(itemKey, itemValues, blockConversions, isTrusted);
     if (conversionValue !== undefined) { return conversionValue; }
 
     // Try reverse conversion (ingot from block)
-    return getReverseConversionValue(itemKey, itemValues, blockConversions, isCoreBlock, minShops);
+    return getReverseConversionValue(itemKey, itemValues, blockConversions, isTrusted);
+}
+
+/**
+ * Get the trusted median per-unit price of an item in a specific currency,
+ * e.g. how many diamonds one hanging root usually costs.
+ * Requires the same independent-shop evidence as {@link getTrustedItemValue}.
+ *
+ * @param pairPrices - Prices from calculatePairPrices
+ * @param resultName - Valuation name of the item received
+ * @param costName - Valuation name of the item paid
+ * @param options - Optional evidence thresholds
+ * @returns Median cost units per result unit, or undefined if untrusted
+ *
+ * @example
+ * getTrustedPairPrice(pairs, 'Hanging roots', 'Diamond') // 0.0156
+ */
+export function getTrustedPairPrice(
+    pairPrices: PairPrices,
+    resultName: string,
+    costName: string,
+    options: TrustedValueOptions = {}
+): number | undefined {
+    const {
+        minShops = 3,
+        minItemShops = configStore.get().analysis.minIndependentShopsPerItem ?? DEFAULT_MIN_ITEM_SHOPS,
+    } = options;
+    const prices = pairPrices.get(getPairKey(resultName, costName));
+    if (!prices) { return undefined; }
+
+    const isCoreBlock = coreBlocksStore.get().some(b => b.toLowerCase() === resultName.toLowerCase());
+    const required = isCoreBlock ? minShops : minItemShops;
+    if (countIndependentShops(prices) < required) { return undefined; }
+    return median(prices);
 }
 
 // ============================================================================
@@ -169,11 +213,9 @@ function getMedianValue(
 
 function getDirectTradeValue(
     entry: ItemValueEntry | undefined,
-    isCoreBlock: boolean,
-    minShops: number
+    isTrusted: (entry: ItemValueEntry) => boolean
 ): number | undefined {
-    if (!entry) { return undefined; }
-    if (isCoreBlock && !hasEnoughIndependentData(entry, minShops)) { return undefined; }
+    if (!entry || !isTrusted(entry)) { return undefined; }
     return getMedianValue(entry.buyPrices, entry.sellPrices);
 }
 
@@ -181,15 +223,13 @@ function getBlockConversionValue(
     itemKey: string,
     itemValues: ItemValues,
     blockConversions: Readonly<BlockConversions>,
-    isCoreBlock: boolean,
-    minShops: number
+    isTrusted: (entry: ItemValueEntry) => boolean
 ): number | undefined {
     const blockInfo = blockConversions[itemKey];
     if (!blockInfo) { return undefined; }
 
     const baseEntry = itemValues.get(blockInfo.base.toLowerCase());
-    if (!baseEntry) { return undefined; }
-    if (isCoreBlock && !hasEnoughIndependentData(baseEntry, minShops)) { return undefined; }
+    if (!baseEntry || !isTrusted(baseEntry)) { return undefined; }
 
     const baseValue = getMedianValue(baseEntry.buyPrices, baseEntry.sellPrices);
     if (baseValue === undefined) { return undefined; }
@@ -200,14 +240,13 @@ function getReverseConversionValue(
     itemKey: string,
     itemValues: ItemValues,
     blockConversions: Readonly<BlockConversions>,
-    isCoreBlock: boolean,
-    minShops: number
+    isTrusted: (entry: ItemValueEntry) => boolean
 ): number | undefined {
     for (const [blockKey, conversion] of Object.entries(blockConversions)) {
         if (conversion.base.toLowerCase() !== itemKey) { continue; }
 
         const blockEntry = itemValues.get(blockKey);
-        if (blockEntry && (!isCoreBlock || hasEnoughIndependentData(blockEntry, minShops))) {
+        if (blockEntry && isTrusted(blockEntry)) {
             const blockValue = getMedianValue(blockEntry.buyPrices, blockEntry.sellPrices);
             if (blockValue !== undefined) {
                 return blockValue / conversion.multiplier;

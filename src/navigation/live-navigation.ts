@@ -106,7 +106,10 @@ function updateFollowToggleButton(mode: 'follow' | 'manual'): void {
 function showPlayerNotFound(playerNameInput: HTMLInputElement | null): void {
     const distanceDisplay = document.querySelector('#nav-dialog-distance');
     if (distanceDisplay) {
-        distanceDisplay.innerHTML = `<span class="distance-label">Player "${playerNameInput?.value}" not found</span>`;
+        const label = document.createElement('span');
+        label.className = 'distance-label';
+        label.textContent = `Player "${playerNameInput?.value ?? ''}" not found`;
+        distanceDisplay.replaceChildren(label);
     }
 }
 
@@ -299,14 +302,21 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
 
     // ── Player polling ──────────────────────────────────────────────
 
+    // Skip a poll while the previous one is in flight, so a slow (older)
+    // response can never overwrite a newer position.
+    let pollInFlight = false;
+
     async function pollPlayerPosition(): Promise<void> {
         const playerNameInput = document.querySelector<HTMLInputElement>(SELECTORS.PLAYER_NAME_INPUT);
         const playerName = playerNameInput?.value.trim().toLowerCase();
 
-        if (!playerName || !state.map) { return; }
+        if (!playerName || !state.map || pollInFlight) { return; }
 
+        pollInFlight = true;
         try {
             const players = await fetchPlayers();
+            // Navigation may have been stopped while the request was in flight
+            if (!deps.navigationStore.isActive) { return; }
             const player = players.find(p => p.name.toLowerCase() === playerName);
 
             if (player) {
@@ -321,6 +331,8 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         } catch (error) {
             debugPlayerPoll('Poll failed: %s', error);
             console.warn('Failed to poll player position:', error);
+        } finally {
+            pollInFlight = false;
         }
     }
 

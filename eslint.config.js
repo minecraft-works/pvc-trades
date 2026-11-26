@@ -99,9 +99,9 @@ export default tseslint.config(
             sourceType: 'module',
             parserOptions: {
                 projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'src/dialogs/*.test.ts', 'src/chatlog/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'scripts/*.ts'],
+                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'src/dialogs/*.test.ts', 'src/chatlog/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'scripts/*.ts', 'workers/*/*.ts'],
                     defaultProject: './tsconfig.eslint.json',
-                    maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 50
+                    maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 100
                 },
                 tsconfigRootDir: import.meta.dirname
             },
@@ -659,6 +659,16 @@ export default tseslint.config(
             'no-restricted-syntax': 'off',
             '@typescript-eslint/prefer-nullish-coalescing': 'off',
             '@typescript-eslint/prefer-readonly': 'off'
+        }
+    },
+    // Cloudflare Workers: module-level cache state and the platform's `Env`/`env` naming
+    {
+        files: ['workers/**/*.ts'],
+        rules: {
+            'functional/no-let': 'off',
+            'functional/prefer-immutable-types': 'off',
+            'functional/prefer-tacit': 'off',
+            'unicorn/name-replacements': ['error', { replacements: { env: false, Env: false } }]
         }
     }
 );

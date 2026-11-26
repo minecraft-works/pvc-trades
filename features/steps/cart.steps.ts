@@ -127,12 +127,23 @@ When('I click clear cart', async ({ page }) => {
     await page.locator(OPEN_CART_SELECTOR).click();
     await page.waitForSelector(CART_DIALOG_SELECTOR, { state: 'visible' });
     await page.locator('#tab-cart').click();
+    // First click asks for confirmation, second click clears
+    await page.locator('#clear-cart').click();
+    await page.locator('#clear-cart').click();
+});
+
+When('I click clear cart once', async ({ page }) => {
     await page.locator('#clear-cart').click();
 });
 
 // ============================================================================
 // THEN Steps
 // ============================================================================
+
+Then('the clear cart button should ask for confirmation', async ({ page }) => {
+    await expect(page.locator('#clear-cart')).toHaveText('Click again to clear');
+    await expect(page.locator(CART_DIALOG_SELECTOR)).toBeVisible();
+});
 
 Then('I should see total costs showing {string}', async ({ page }, expectedText: string) => {
     const costsContainer = page.locator('#cart-costs');

@@ -16,9 +16,11 @@ import {
     type ItemValueEntry,
     type ItemValues,
     type NormalizeResult,
+    type PairPrices,
     type PriceEntry,
     type TradeInput,
 } from '../types.js';
+import { getPairKey } from './item-identity.js';
 import { getTrustedItemValue } from './statistics.js';
 
 // ============================================================================
@@ -68,6 +70,29 @@ export function calculateItemValues(trades: readonly TradeInput[], baseCurrency:
     }
 
     return values;
+}
+
+/**
+ * Collect per-unit prices for every (result, cost) pair of single-cost trades.
+ * Price is the number of cost units paid per result unit.
+ *
+ * @param trades - Valuation inputs
+ * @returns Prices grouped by pair key
+ *
+ * @example
+ * const pairs = calculatePairPrices(inputs);
+ * pairs.get(getPairKey('Hanging roots', 'Diamond')); // [{ price: 0.0156, x, y, z }, ...]
+ */
+export function calculatePairPrices(trades: readonly TradeInput[]): PairPrices {
+    const pairs = new Map<string, PriceEntry[]>();
+    for (const trade of trades) {
+        if (trade.item2 || trade.resultAmount <= 0) { continue; }
+        const key = getPairKey(trade.resultName, trade.item1Name);
+        const prices = pairs.get(key) ?? [];
+        prices.push({ price: trade.costAmount / trade.resultAmount, x: trade.x, y: trade.y, z: trade.z });
+        pairs.set(key, prices);
+    }
+    return pairs;
 }
 
 // ============================================================================

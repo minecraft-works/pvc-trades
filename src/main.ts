@@ -103,6 +103,8 @@ let mapOpenedFromCart = false;
 
 const CLEAR_SEARCH_WANT_ID = 'clear-search-want';
 const CLEAR_SEARCH_GIVE_ID = 'clear-search-give';
+const SEARCH_WANT_ID = 'searchWant';
+const SEARCH_GIVE_ID = 'searchGive';
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     const element = document.querySelector<T>(`#${id}`);
@@ -141,12 +143,36 @@ const openTradeDetailsPopover = createTradeDetailsHandler({
 // Tab Switching
 // ============================================================================
 
+const TAB_CART_SELECTOR = '#tab-cart';
+const TAB_NAVIGATE_SELECTOR = '#tab-navigate';
+
 function setupCartTabs(): void {
-    const tabCart = document.querySelector('#tab-cart');
-    const tabNavigate = document.querySelector('#tab-navigate');
+    const tabCart = document.querySelector(TAB_CART_SELECTOR);
+    const tabNavigate = document.querySelector(TAB_NAVIGATE_SELECTOR);
     
     tabCart?.addEventListener('click', () => switchTab('cart'));
     tabNavigate?.addEventListener('click', () => switchTab('navigate'));
+
+    // Arrow keys move between tabs (WAI-ARIA tabs pattern)
+    document.querySelector('.cart-tabs')?.addEventListener('keydown', (event) => {
+        if (!(event instanceof KeyboardEvent) || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) { return; }
+        event.preventDefault();
+        const isCartActive = tabCart?.classList.contains('active') ?? true;
+        switchTab(isCartActive ? 'navigate' : 'cart');
+        document.querySelector<HTMLElement>(isCartActive ? TAB_NAVIGATE_SELECTOR : TAB_CART_SELECTOR)?.focus();
+    });
+}
+
+/**
+ * Mark a tab as selected/unselected for assistive technology and keyboard focus
+ * @param selector - CSS selector for the tab button
+ * @param selected - Whether the tab is selected
+ */
+function setTabSelected(selector: string, selected: boolean): void {
+    const tab = document.querySelector<HTMLElement>(selector);
+    if (!tab) { return; }
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
 }
 
 /**
@@ -174,8 +200,10 @@ function setHidden(selector: string, hidden: boolean): void {
 function switchTab(tab: 'cart' | 'navigate'): void {
     const isCart = tab === 'cart';
 
-    setActive('#tab-cart', isCart);
-    setActive('#tab-navigate', !isCart);
+    setActive(TAB_CART_SELECTOR, isCart);
+    setActive(TAB_NAVIGATE_SELECTOR, !isCart);
+    setTabSelected(TAB_CART_SELECTOR, isCart);
+    setTabSelected(TAB_NAVIGATE_SELECTOR, !isCart);
     setActive('#tab-content-cart', isCart);
     setActive('#tab-content-navigate', !isCart);
     setHidden('#clear-cart', !isCart);
@@ -224,53 +252,118 @@ globalThis.addEventListener('unhandledrejection', (event) => {
     debugNavigation('Unhandled promise rejection: %O', event.reason);
 });
 
-/** Wire up search input fields, clear buttons, and swap button */
-function setupSearchInputHandlers(): void {
-    getElement('searchWant').addEventListener('input', () => {
-        updateClearButtonVisibility(getElement<HTMLInputElement>('searchWant'), CLEAR_SEARCH_WANT_ID);
-        searchHandler.debouncedSearch();
-    });
-    getElement('searchGive').addEventListener('input', () => {
-        updateClearButtonVisibility(getElement<HTMLInputElement>('searchGive'), CLEAR_SEARCH_GIVE_ID);
-        searchHandler.debouncedSearch();
-    });
-    getElement(CLEAR_SEARCH_WANT_ID).addEventListener('click', () => {
-        searchHandler.clearSearchInput('searchWant', CLEAR_SEARCH_WANT_ID);
-    });
-    getElement(CLEAR_SEARCH_GIVE_ID).addEventListener('click', () => {
-        searchHandler.clearSearchInput('searchGive', CLEAR_SEARCH_GIVE_ID);
-    });
-    getElement('swap-search').addEventListener('click', () => {
-        const wantInput = getElement<HTMLInputElement>('searchWant');
-        const giveInput = getElement<HTMLInputElement>('searchGive');
-        const wantValue = wantInput.value;
-        wantInput.value = giveInput.value;
-        giveInput.value = wantValue;
-        updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
-        updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
-        searchHandler.search();
-    });
+/**
+ * Focus a search field and select its text, so typing replaces the old query
+ * @param input - Search field to focus
+ */
+function focusSearchField(input: HTMLInputElement): void {
+    input.focus();
+    input.select();
 }
 
-/** Register global keyboard shortcuts (Ctrl+F search focus, Ctrl+Shift+X swap) */
+/**
+ * Keyboard accelerators inside a search field for fast probing:
+ * Esc clears the field, ↓ jumps into the results, and Tab in Buying goes
+ * straight to Paying (skipping the clear/watchlist/swap buttons).
+ * @param event - Keydown event from the search field
+ * @param input - The search field
+ * @param clearButtonId - ID of the field's clear button
+ */
+function handleSearchFieldKeydown(event: KeyboardEvent, input: HTMLInputElement, clearButtonId: string): void {
+    if (event.isComposing) { return; }
+
+    if (event.key === 'Escape' && input.value) {
+        event.preventDefault();
+        searchHandler.clearSearchInput(input.id, clearButtonId);
+        return;
+    }
+    if (event.key === 'ArrowDown') {
+        const firstRow = document.querySelector<HTMLElement>(`#results .${CSS_CLASSES.TRADE_ROW}`);
+        if (!firstRow) { return; }
+        event.preventDefault();
+        firstRow.focus();
+        return;
+    }
+    if (event.key === 'Tab' && !event.shiftKey && input.id === SEARCH_WANT_ID) {
+        event.preventDefault();
+        focusSearchField(getElement<HTMLInputElement>(SEARCH_GIVE_ID));
+    }
+}
+
+/** Wire up search input fields, clear buttons, and swap button */
+function setupSearchInputHandlers(): void {
+    const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+    const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
+
+    wantInput.addEventListener('input', () => {
+        updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+        searchHandler.debouncedSearch();
+    });
+    giveInput.addEventListener('input', () => {
+        updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
+        searchHandler.debouncedSearch();
+    });
+    wantInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, wantInput, CLEAR_SEARCH_WANT_ID); });
+    giveInput.addEventListener('keydown', (event) => { handleSearchFieldKeydown(event, giveInput, CLEAR_SEARCH_GIVE_ID); });
+    getElement(CLEAR_SEARCH_WANT_ID).addEventListener('click', () => {
+        searchHandler.clearSearchInput(SEARCH_WANT_ID, CLEAR_SEARCH_WANT_ID);
+    });
+    getElement(CLEAR_SEARCH_GIVE_ID).addEventListener('click', () => {
+        searchHandler.clearSearchInput(SEARCH_GIVE_ID, CLEAR_SEARCH_GIVE_ID);
+    });
+    getElement('swap-search').addEventListener('click', swapSearchFields);
+}
+
+/** Swap the Buying and Paying search terms and re-run the search */
+function swapSearchFields(): void {
+    const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+    const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
+    const wantValue = wantInput.value;
+    wantInput.value = giveInput.value;
+    giveInput.value = wantValue;
+    updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
+    updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
+    searchHandler.search();
+}
+
+/**
+ * Whether a keystroke target is a text-entry control (where "/" must be typed)
+ * @param target - Event target
+ * @returns True for inputs, textareas, selects and contenteditable elements
+ */
+function isTextEntryTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || (target instanceof HTMLElement && target.isContentEditable);
+}
+
+/**
+ * "/" focuses the search from anywhere outside text fields and dialogs
+ * @param event - Keydown event
+ * @returns True if the event is the "/" shortcut
+ */
+function isSlashSearchShortcut(event: KeyboardEvent): boolean {
+    const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+    return event.key === '/' && !hasModifier
+        && !isTextEntryTarget(event.target) && !document.querySelector('dialog[open]');
+}
+
+/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap) */
 function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
-        // Ctrl+F / Cmd+F: Focus search
-        if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+        const searchInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+        const withCommandKey = event.ctrlKey || event.metaKey;
+
+        // "/" or Ctrl+F / Cmd+F focus the search; a second Ctrl+F falls through to the browser's find
+        const isCtrlF = withCommandKey && event.key === 'f' && document.activeElement !== searchInput;
+        if (isSlashSearchShortcut(event) || isCtrlF) {
             event.preventDefault();
-            getElement<HTMLInputElement>('searchWant').focus();
-        }
-        // Ctrl+Shift+X / Cmd+Shift+X: Swap search fields
-        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'X') {
+            focusSearchField(searchInput);
+        } else if (withCommandKey && event.shiftKey && event.key === 'X') {
+            // Ctrl+Shift+X / Cmd+Shift+X: Swap search fields
             event.preventDefault();
-            const wantInput = getElement<HTMLInputElement>('searchWant');
-            const giveInput = getElement<HTMLInputElement>('searchGive');
-            const wantValue = wantInput.value;
-            wantInput.value = giveInput.value;
-            giveInput.value = wantValue;
-            updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
-            updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
-            searchHandler.search();
+            swapSearchFields();
         }
     });
 }
@@ -314,11 +407,42 @@ function setupAllDialogs(): void {
         }
         cartDialog.close();
     });
-    getElement('clear-cart').addEventListener('click', () => {
+    setupClearCartButton(cartDialog);
+}
+
+/** Time the clear-cart button waits for a confirming second click */
+const CLEAR_CART_CONFIRM_MS = 4000;
+
+/**
+ * Clearing the cart is destructive, so the first click asks for confirmation
+ * and only a second click within a few seconds clears it.
+ * @param cartDialog - The cart dialog, closed after clearing
+ */
+function setupClearCartButton(cartDialog: HTMLDialogElement): void {
+    const button = getElement<HTMLButtonElement>('clear-cart');
+    const label = button.textContent;
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const reset = (): void => {
+        clearTimeout(resetTimer);
+        resetTimer = undefined;
+        button.textContent = label;
+        button.classList.remove('confirming');
+    };
+
+    button.addEventListener('click', () => {
+        if (resetTimer === undefined) {
+            button.textContent = 'Click again to clear';
+            button.classList.add('confirming');
+            resetTimer = setTimeout(reset, CLEAR_CART_CONFIRM_MS);
+            return;
+        }
+        reset();
         clearCart();
         refreshCartButtonStates();
         cartDialog.close();
     });
+    cartDialog.addEventListener('close', reset);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -457,11 +581,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Set up event delegation for trade row clicks
+ * Set up event delegation for trade row clicks and keyboard access
  * Handles info icon clicks, map dialog opening, and ignores add-to-cart
  */
 function setupTradeRowClickHandler(): void {
-    getElement('results').addEventListener('click', (event) => {
+    const results = getElement('results');
+    results.addEventListener('click', (event) => {
         if (!(event.target instanceof HTMLElement)) { return; }
         const target = event.target;
         const row = target.closest<HTMLElement>(`.${CSS_CLASSES.TRADE_ROW}`);
@@ -488,4 +613,42 @@ function setupTradeRowClickHandler(): void {
         // Click anywhere else on row → open map dialog
         shopMapDialog.open(x, y, z, world);
     });
+
+    // Keyboard on a focused row: Enter opens the map, arrows move between rows,
+    // Esc (or ↑ on the top row) returns to the search field
+    results.addEventListener('keydown', (event) => {
+        const row = event.target;
+        if (!(row instanceof HTMLElement) || !row.classList.contains(CSS_CLASSES.TRADE_ROW)) { return; }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            row.click();
+            return;
+        }
+        const target = getRowKeyTarget(row, event.key);
+        if (!target) { return; }
+        event.preventDefault();
+        if (target instanceof HTMLInputElement) {
+            focusSearchField(target);
+        } else {
+            target.focus();
+        }
+    });
+}
+
+/**
+ * Where focus should move when a navigation key is pressed on a trade row
+ * @param row - The focused trade row
+ * @param key - Pressed key
+ * @returns The adjacent row, the Buying search field (Esc, or ↑ on the top row), or undefined
+ */
+function getRowKeyTarget(row: HTMLElement, key: string): HTMLElement | undefined {
+    const searchInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
+    const isRow = (element: Element | null): element is HTMLElement =>
+        element instanceof HTMLElement && element.classList.contains(CSS_CLASSES.TRADE_ROW);
+
+    if (key === 'Escape') { return searchInput; }
+    if (key === 'ArrowDown') { return isRow(row.nextElementSibling) ? row.nextElementSibling : undefined; }
+    if (key === 'ArrowUp') { return isRow(row.previousElementSibling) ? row.previousElementSibling : searchInput; }
+    return undefined;
 }

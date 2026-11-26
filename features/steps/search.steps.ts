@@ -52,6 +52,10 @@ When('I click the swap search button', async ({ page }) => {
     await page.locator('#swap-search').click();
 });
 
+When('I press {string}', async ({ page }, key: string) => {
+    await page.keyboard.press(key);
+});
+
 // ============================================================================
 // THEN Steps
 // ============================================================================
@@ -62,6 +66,23 @@ Then('the want field should contain {string}', async ({ page }, expected: string
 
 Then('the give field should contain {string}', async ({ page }, expected: string) => {
     await expect(page.locator('#searchGive')).toHaveValue(expected);
+});
+
+Then('the want field should be focused', async ({ page }) => {
+    await expect(page.locator('#searchWant')).toBeFocused();
+});
+
+Then('the give field should be focused', async ({ page }) => {
+    await expect(page.locator('#searchGive')).toBeFocused();
+});
+
+Then('the first trade row should be focused', async ({ page }) => {
+    await expect(page.locator(SELECTOR_TRADE_ROW).first()).toBeFocused();
+});
+
+Then('trades other than {string} should be displayed', async ({ page }, term: string) => {
+    const others = page.locator(`${SELECTOR_TRADE_ROW} .result-name`).filter({ hasNotText: new RegExp(term, 'i') });
+    await expect(others.first()).toBeVisible();
 });
 
 Then('only trades offering {word} should be displayed', async ({ page }, item: string) => {

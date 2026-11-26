@@ -1,7 +1,7 @@
 # ADR-001: Price Aggregation and Market Analysis Design
 
 ## Status
-**Implemented** - 2024
+**Implemented** - 2024. Extended by [ADR-018](018-trade-deviation-model.md) (item identity, minimum evidence for all items, same-currency comparison).
 
 ## Context
 

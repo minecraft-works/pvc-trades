@@ -91,6 +91,31 @@ body {
     border-color: var(--color-accent);
 }
 
+.data-freshness {
+    margin: 2px 8px 0;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-align: right;
+}
+
+.data-freshness:empty {
+    display: none;
+}
+
+.data-freshness.stale {
+    color: var(--color-warning, #ffb74d);
+}
+
+.no-results .retry-load-btn {
+    margin-top: 12px;
+    padding: 6px 16px;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--border-radius-sm, 4px);
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+}
+
 #searchWant,
 #searchGive {
     flex: 1 1 0;
@@ -377,6 +402,16 @@ body {
 
 .col.dev.bad-deal {
     color: #e57373;
+}
+
+.col.dev.no-data {
+    color: var(--color-text-muted);
+}
+
+.trade-row:focus-visible,
+#table-header .col:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
 }
 
 .col.coord {
@@ -1193,7 +1228,8 @@ mark {
     cursor: pointer;
 }
 
-.clear-cart-btn:hover {
+.clear-cart-btn:hover,
+.clear-cart-btn.confirming {
     background: var(--color-bad-deal);
     border-color: var(--color-bad-deal);
     color: var(--color-bg);
@@ -2248,13 +2284,25 @@ mark {
         font-size: 0.85rem;
     }
 
-    /* Compact 11-column layout: star, #, name, #, name, deal, stock, dist, world, new, cart */
+    /* Compact 11-column layout: star, #, name, #, name, deal, stock, dist, world, new, cart.
+       The world track collapses to 0 so the names get the space; Nether rows tint the distance instead. */
     #table-header {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 22px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 22px 24px;
     }
 
     .trade-row {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 38px 34px 36px 26px 22px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 22px 24px;
+    }
+
+    #table-header .col.world-header,
+    .trade-row > .col.world {
+        overflow: hidden;
+        padding: 0 !important;
+        visibility: hidden;
+    }
+
+    .trade-row[data-world*="nether" i] > .col.distance {
+        color: var(--color-nether);
     }
 
     /* Smaller add button on mobile */
@@ -2275,14 +2323,14 @@ mark {
 
     /* Distance column mobile styling */
     .col.distance {
-        font-size: 0.55rem;
+        font-size: 0.65rem;
         padding-left: 4px !important;
         border-radius: 0 4px 4px 0;
     }
 
     /* Add inner padding between deal, stock, and coords for visual separation */
     .col.dev {
-        font-size: 0.6rem;
+        font-size: 0.65rem;
         padding-right: 8px !important;
     }
 

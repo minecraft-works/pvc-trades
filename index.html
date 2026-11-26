@@ -7,7 +7,7 @@
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://pvc-players.minecraft-works.workers.dev https://pvc-shops.minecraft-works.workers.dev; img-src 'self' https: data: blob:;">
     <title>Shop Listings</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,14 +17,14 @@
         <div class="search-box">
             <div class="search-input-wrapper">
                 <label for="searchWant" class="visually-hidden">Search for items to buy</label>
-                <input type="text" id="searchWant" placeholder="Buying..." autofocus>
+                <input type="text" id="searchWant" placeholder="Buying..." autofocus aria-keyshortcuts="/ Control+F" title="Tab: go to Paying · Esc: clear · ↓: browse results · / or Ctrl+F: jump here">
                 <button id="clear-search-want" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear buying search">✕</button>
                 <button id="add-to-watchlist" type="button" title="Add search to watchlist" aria-label="Add to watchlist">☆</button>
             </div>
             <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
             <div class="search-input-wrapper">
                 <label for="searchGive" class="visually-hidden">Search by cost item</label>
-                <input type="text" id="searchGive" placeholder="Paying...">
+                <input type="text" id="searchGive" placeholder="Paying..." title="Esc: clear · ↓: browse results">
                 <button id="clear-search-give" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear paying search">✕</button>
             </div>
             <button id="open-dashboard" type="button" title="Daily deals" aria-label="Toggle daily deals dashboard" class="hidden">📊</button>
@@ -33,6 +33,7 @@
                 🛒<span id="cart-badge" class="cart-badge hidden"></span>
             </button>
         </div>
+        <p id="data-freshness" class="data-freshness"></p>
     </div>
 
     <div id="deals-dashboard" class="deals-dashboard hidden" role="status" aria-label="Daily deals summary">
@@ -45,8 +46,9 @@
 
     <div id="table-container" role="grid" aria-label="Trade listings">
         <div id="table-header" role="row"></div>
-        <div id="results" role="rowgroup" aria-live="polite"></div>
+        <div id="results" role="rowgroup"></div>
     </div>
+    <p id="results-status" class="visually-hidden" role="status"></p>
 
     <dialog id="matrix-dialog">
         <div id="matrix-container"></div>
@@ -77,13 +79,13 @@
         </div>
         <div class="cart-content">
             <!-- Tab Bar -->
-            <div class="cart-tabs">
-                <button id="tab-cart" class="cart-tab active" data-tab="cart">Cart</button>
-                <button id="tab-navigate" class="cart-tab" data-tab="navigate">Route</button>
+            <div class="cart-tabs" role="tablist" aria-label="Cart view">
+                <button id="tab-cart" class="cart-tab active" data-tab="cart" role="tab" aria-selected="true" aria-controls="tab-content-cart">Cart</button>
+                <button id="tab-navigate" class="cart-tab" data-tab="navigate" role="tab" aria-selected="false" aria-controls="tab-content-navigate" tabindex="-1">Route</button>
             </div>
             
             <!-- Cart Tab Content -->
-            <div id="tab-content-cart" class="tab-content active">
+            <div id="tab-content-cart" class="tab-content active" role="tabpanel" aria-labelledby="tab-cart">
                 <div id="cart-items" class="cart-items"></div>
                 <div class="cart-lists">
                     <div class="cart-list-section">
@@ -98,11 +100,11 @@
             </div>
             
             <!-- Navigate Tab Content -->
-            <div id="tab-content-navigate" class="tab-content">
+            <div id="tab-content-navigate" class="tab-content" role="tabpanel" aria-labelledby="tab-navigate">
                 <div class="navigate-setup">
                     <p class="navigate-hint">Enter your player name to start live navigation with the route map.</p>
                     <div class="navigate-controls">
-                        <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name...">
+                        <input type="text" id="player-name-input" class="player-name-input" placeholder="Player name..." aria-label="Minecraft player name">
                     </div>
                 </div>
                 <div class="cart-route-section">

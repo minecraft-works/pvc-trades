@@ -33,6 +33,8 @@ interface PageWithMapTracking extends Page, BasePageTracking {
 
 /**
  * Check if player is visible based on world filtering
+ * @param shopWorld
+ * @param playerWorld
  */
 function isPlayerVisible(shopWorld: string, playerWorld: string): boolean {
     return shopWorld === playerWorld;
@@ -40,6 +42,10 @@ function isPlayerVisible(shopWorld: string, playerWorld: string): boolean {
 
 /**
  * Check if position is within viewport
+ * @param x
+ * @param z
+ * @param min
+ * @param max
  */
 function isInViewport(x: number, z: number, min: number, max: number): boolean {
     return x >= min && x <= max && z >= min && z <= max;
@@ -112,8 +118,7 @@ Then('{int} player markers should be visible', async ({ page }, expected: number
     const p = page as PageWithMapTracking;
     const shopWorld = p.__shopWorld ?? 'overworld';
     
-    let visibleCount: number;
-    visibleCount = shopWorld === 'overworld' ? p.__overworldPlayerCount ?? 0 : p.__netherPlayerCount ?? 0;
+    const visibleCount = shopWorld === 'overworld' ? p.__overworldPlayerCount ?? 0 : p.__netherPlayerCount ?? 0;
     
     expect(visibleCount).toBe(expected);
 });

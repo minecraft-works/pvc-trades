@@ -47,7 +47,9 @@ const SquaremapConfigSchema = z.object({
 const AnalysisConfigSchema = z.object({
     shopClusterDistance: z.number().positive(),
     maxTransitiveIterations: z.number().int().positive(),
-    minIndependentShops: z.number().int().positive()
+    minIndependentShops: z.number().int().positive(),
+    /** Independent shops needed before a non-core item gets a market price (default 2) */
+    minIndependentShopsPerItem: z.number().int().positive().optional()
 });
 
 export const AppConfigSchema = z.object({
@@ -275,6 +277,12 @@ export interface ItemValueEntry {
 
 export type ItemValues = ReadonlyMap<string, ItemValueEntry>;
 
+/**
+ * Per-unit prices keyed by (result, cost) pair, e.g. "hanging roots|diamond".
+ * Lets a trade be compared with others paid in the same currency.
+ */
+export type PairPrices = ReadonlyMap<string, readonly PriceEntry[]>;
+
 export type RatioGraph = ReadonlyMap<string, number>;
 
 /** NxN exchange rate matrix for core currencies */
@@ -295,7 +303,10 @@ export interface NormalizeResult {
 }
 
 export interface TrustedValueOptions {
+    /** Independent shops required for core blocks (default 3) */
     minShops?: number;
+    /** Independent shops required for all other items (default from config, else 2) */
+    minItemShops?: number;
 }
 
 // ============================================================================

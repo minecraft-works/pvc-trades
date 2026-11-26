@@ -45,6 +45,23 @@ export function toOverworldEquivalent(x: number, z: number, world: string): { re
 }
 
 /**
+ * Horizontal distance from the world origin, normalized to overworld blocks.
+ *
+ * @param location - Location with x/z coordinates and world name
+ * @param location.x - X coordinate
+ * @param location.z - Z coordinate
+ * @param location.world - World name
+ * @returns Overworld-equivalent distance from (0, 0)
+ *
+ * @example
+ * getOverworldDistanceFromOrigin({ x: 30, z: 40, world: 'world_nether' }) // 400
+ */
+export function getOverworldDistanceFromOrigin(location: Readonly<{ x: number; z: number; world: string }>): number {
+    const { x, z } = toOverworldEquivalent(location.x, location.z, location.world);
+    return Math.hypot(x, z);
+}
+
+/**
  * Convert coordinates for display on the specified view world.
  * When viewing overworld: nether coords are scaled ×8
  * When viewing nether: overworld coords are scaled ÷8

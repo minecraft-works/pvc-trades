@@ -35,6 +35,8 @@ export interface DeviationResult {
     readonly text: string;
     /** True if good deal (negative deviation), false if bad, undefined if neutral */
     readonly isGood: boolean | undefined;
+    /** What the price was compared with: same-currency listings or emerald-equivalent values */
+    readonly basis?: 'same-currency' | 'emerald';
 }
 
 const TradeSnapshotEntrySchema = z.object({

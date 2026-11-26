@@ -47,3 +47,11 @@ Feature: Cart Management
     Then the cart badge should be hidden
     And reopening the cart should show empty message
 
+  @cart @clear
+  Scenario: Clearing the cart asks for confirmation first
+    Given I add a trade to the cart
+    And I open the cart dialog
+    When I click clear cart once
+    Then the clear cart button should ask for confirmation
+    And the cart badge should still show "1"
+

@@ -16,7 +16,6 @@
  *   Store Re-exports          configStore, coreBlocksStore, blockConversionsStore
  *   Query Matching            matchesQuery(), matchesItem(), matchesShop()
  *   Formatting                formatName(), formatPrice(), escapeHtml()
- *   Shulker Box Parsing       parseShulkerItems(), extractShulkerCount()
  *   HTML Utilities            stripHtml(), splitAtWordBoundary()
  *   Location & Distance       isValidCoordinate(), formatCoordinates()
  *   Trade Processing          normalizeTradeName(), parseTrade()
@@ -24,7 +23,7 @@
  *   Sorting                   sortTrades(), compareByColumn()
  * 
  * RE-EXPORTED MODULES
- *   src/valuation/            statistics, ratio-graph, item-values
+ *   src/valuation/            statistics, ratio-graph, item-values, item-identity (shulker parsing)
  *   src/map/map-math          coordinate conversions, tile offsets, zoom
  *   src/routing/              route-optimizer, navigation-helpers
  *   src/interpolation/        player position interpolation
@@ -35,6 +34,7 @@
  */
 
 import { formatName } from './formatting.js';
+import { getOverworldDistanceFromOrigin } from './routing/route-optimizer.js';
 import {
     type Coordinates,
     type FilterResult,
@@ -43,11 +43,11 @@ import {
     type Recipe,
     type Shop,
     type ShulkerItem,
-    type ShulkerParseResult,
     type SortColumn,
     type SortDirection,
     type Trade,
 } from './types.js';
+import { parseShulkerContents } from './valuation/item-identity.js';
 
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
@@ -209,52 +209,6 @@ function splitPreservingEscapes(string_: string): readonly string[] {
 }
 
 // ============================================================================
-// Shulker Box Parsing
-// ============================================================================
-
-/**
- * Parse shulker box lore to extract contained items and quantities.
- * 
- * @param lore - Array of lore lines from shulker box item
- * @returns Parsed result with items array and default display values
- * 
- * @example
- * parseShulkerContents(['- 64x DIAMOND', '- 32x GOLD_INGOT'])
- * // { items: [{key: 'diamond', name: 'Diamond', total: 64}, ...], defaultName: 'Diamond', defaultTotal: 64 }
- */
-export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerParseResult> {
-    const counts: Record<string, number> = {};
-    const shulkerRegex = /-\s*(?<quantity>\d+)x\s+(?<item>.+)/i;
-    for (const line of lore) {
-        const match = shulkerRegex.exec(line);
-        if (match?.groups?.quantity && match.groups.item) {
-            const amt = Number.parseInt(match.groups.quantity, 10);
-            const item = match.groups.item.trim();
-            counts[item] = (counts[item] ?? 0) + amt;
-        }
-    }
-
-    const items: ShulkerItem[] = Object.entries(counts).map(([key, total]) => {
-        const formatted = key.replaceAll('_', ' ').toLowerCase();
-        return {
-            key: key.toLowerCase(),
-            name: formatted.charAt(0).toUpperCase() + formatted.slice(1),
-            total
-        };
-    });
-
-    items.sort((a, b) => b.total - a.total);
-
-    if (items.length === 0) {
-        return { items: [], defaultName: 'Shulker box', defaultTotal: 1 };
-    }
-
-    const firstItem = items[0];
-    if (!firstItem) { return { items, defaultName: 'Shulker box', defaultTotal: 1 }; }
-    return { items, defaultName: firstItem.name, defaultTotal: firstItem.total };
-}
-
-// ============================================================================
 // HTML Utilities
 // ============================================================================
 
@@ -281,7 +235,9 @@ export function escapeHtml(text: string): string {
 
 /**
  * Highlight matching text with <mark> tags.
- * Text is HTML-escaped before highlighting.
+ * Matching runs on the raw text and each segment is HTML-escaped, so queries
+ * can never match inside an escaped entity (e.g. "amp" in "&amp;").
+ * Highlights only the first match unless the regex has the global flag.
  * 
  * @param text - Text to highlight in
  * @param regex - Pattern to match and highlight
@@ -291,8 +247,17 @@ export function escapeHtml(text: string): string {
  * highlight('Diamond Pickaxe', /diamond/i) // '<mark>Diamond</mark> Pickaxe'
  */
 export function highlight(text: string, regex: Readonly<RegExp>): string {
-    const escaped = escapeHtml(text);
-    return escaped.replace(regex, m => `<mark>${m}</mark>`);
+    const matcher = new RegExp(regex.source, regex.global ? regex.flags : `${regex.flags}g`);
+    let html = '';
+    let lastIndex = 0;
+    for (const match of text.matchAll(matcher)) {
+        if (match[0] !== '') {
+            html += `${escapeHtml(text.slice(lastIndex, match.index))}<mark>${escapeHtml(match[0])}</mark>`;
+            lastIndex = match.index + match[0].length;
+            if (!regex.global) { break; }
+        }
+    }
+    return html + escapeHtml(text.slice(lastIndex));
 }
 
 // ============================================================================
@@ -384,6 +349,32 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
 // ============================================================================
 // Trade Filtering
 // ============================================================================
+
+/**
+ * Format a trade's cost with per-item amounts (handles two-item costs).
+ *
+ * @param trade - Trade whose cost should be formatted
+ * @returns Human-readable cost, e.g. "5× Diamond block + 5× Emerald block"
+ *
+ * @example
+ * formatTradeCost(trade) // '64× Emerald'
+ */
+export function formatTradeCost(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): string {
+    const first = `${trade.item1.amount}× ${formatName(trade.item1)}`;
+    if (!trade.item2) { return first; }
+    return `${first} + ${trade.item2.amount}× ${formatName(trade.item2)}`;
+}
+
+/**
+ * Format a trade's cost item names without amounts (handles two-item costs).
+ *
+ * @param trade - Trade whose cost names should be formatted
+ * @returns Cost names joined with " + ", e.g. "Diamond block + Emerald block"
+ */
+export function formatTradeCostNames(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>): string {
+    const first = formatName(trade.item1);
+    return trade.item2 ? `${first} + ${formatName(trade.item2)}` : first;
+}
 
 interface ShulkerMatchResult {
     matched: boolean;
@@ -508,8 +499,8 @@ export function sortResults(
                 return sortDirection * tradeA.world.localeCompare(tradeB.world);
             }
             case 'distance': {
-                valueA = Math.hypot(tradeA.x, tradeA.z);
-                valueB = Math.hypot(tradeB.x, tradeB.z);
+                valueA = getOverworldDistanceFromOrigin(tradeA);
+                valueB = getOverworldDistanceFromOrigin(tradeB);
                 break;
             }
             default: {
@@ -524,9 +515,10 @@ export function sortResults(
 // Valuation Re-exports (implementations moved to src/valuation/)
 // ============================================================================
 
-export { calculateItemValues } from './valuation/item-values.js';
+export { getItemComponents, getPairKey, getPairPrice, getValuationName, parseShulkerContents, toValuationInput, valueItemStack } from './valuation/item-identity.js';
+export { calculateItemValues, calculatePairPrices } from './valuation/item-values.js';
 export { buildExchangeMatrix,buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
-export { countIndependentShops, getTrustedItemValue,hasEnoughIndependentData, median } from './valuation/statistics.js';
+export { countIndependentShops, getTrustedItemValue, getTrustedPairPrice, hasEnoughIndependentData, median } from './valuation/statistics.js';
 
 // ============================================================================
 // Map Utilities Re-exports (implementations moved to src/map/map-math.ts)
@@ -538,7 +530,7 @@ export { calculateFitZoom, clampToCircle,fromLeafletCoordsRelative, getTileOffse
 // Route Optimization Re-exports (implementations moved to src/routing/route-optimizer.ts)
 // ============================================================================
 
-export { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, computeOptimalOrder,nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, toViewCoords, twoOptOptimize } from './routing/route-optimizer.js';
+export { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, computeOptimalOrder, getOverworldDistanceFromOrigin, nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, toViewCoords, twoOptOptimize } from './routing/route-optimizer.js';
 
 // ============================================================================
 // Shopping & Navigation Re-exports (implementations moved to src/routing/navigation-helpers.ts)

@@ -6,7 +6,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 
 - **Trade Search**: Filter trades by what you want to buy or sell
 - **Exchange Rate Matrix**: View currency conversion rates across all tradeable items
-- **Market Deviation**: See how each trade compares to the median market price
+- **Market Deviation**: See how each trade compares to other shops selling the same item, in the same currency when possible
 - **Shopping Cart**: Build a shopping list and see aggregated costs
 - **Route Optimization**: Compute optimal visiting order using nearest-neighbor + 2-opt
 - **Live Navigation**: Track your position on the server map and navigate to shops
@@ -44,8 +44,11 @@ npm run dev
 # Run unit tests
 npm test
 
-# Run BDD tests (headed browser)
+# Run BDD and Playwright spec tests (headless)
 npm run test:e2e
+
+# Run BDD tests in a headed browser
+npm run test:e2e:headed
 
 # Run all checks (lint + typecheck + test)
 npm run lint:all && npm run typecheck && npm test
@@ -156,6 +159,7 @@ Coverage thresholds are enforced in `vitest.config.js`.
 - [ADR-008: Nether Coordinate System](docs/adr/008-nether-coordinate-system.md)
 - [ADR-009: Map Tiles Loaded Directly From the Map Server](docs/adr/009-tile-caching-strategy.md)
 - [ADR-010: Limiting Requests to the External Map Server](docs/adr/010-tile-loading-minimization.md)
+- [ADR-018: Trade Deviation Model](docs/adr/018-trade-deviation-model.md)
 
 ## Troubleshooting
 

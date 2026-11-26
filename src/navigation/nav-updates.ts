@@ -13,6 +13,7 @@ import { NAVIGATION } from '../constants.js';
 import { debugInterpolation } from '../debug.js';
 import {
     calculateRouteDistance,
+    escapeHtml,
     getTradeKey,
     getWorldId,
     getZoomForHeight,
@@ -92,7 +93,7 @@ function buildStopDistanceHtml(
         playerPos.x, playerPos.z, playerPos.world,
         stop.x, stop.z, stop.world,
     );
-    const itemName = stop.cartItem?.trade.resultName ?? 'Next stop';
+    const itemName = escapeHtml(stop.cartItem?.trade.resultName ?? 'Next stop');
     const quantity = stop.cartItem?.quantity ?? 1;
     const distanceText = Math.round(distance).toLocaleString();
     const worldIndicator = isNetherShop ? '🔥 ' : '';
