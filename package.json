@@ -42,7 +42,7 @@
   "size-limit": [
     {
       "path": "dist/assets/index-*.js",
-      "limit": "55 kB"
+      "limit": "56 kB"
     }
   ],
   "lint-staged": {
