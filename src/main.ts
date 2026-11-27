@@ -56,6 +56,7 @@ import type { ShopMapDialogHandler } from './map/index.js';
 import {
     createShopMapDialogHandler
 } from './map/index.js';
+import { prefetchLeaflet } from './map/leaflet.js';
 import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
 import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
 import type { ActionSuggestion, Autocomplete } from './quick-search/autocomplete.js';
@@ -622,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
         search: () => searchHandler.search(),
         showDashboard: () => dashboardUI.showDashboard(),
     });
-    void dataLoader.loadShops();
+    void dataLoader.loadShops().then(prefetchLeaflet);
 
     // Register cart change listener before loading
     cartStore.onChange(updateCartBadge);

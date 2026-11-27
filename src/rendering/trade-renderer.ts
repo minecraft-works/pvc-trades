@@ -9,8 +9,6 @@
  * @module rendering/trade-renderer
  */
 
-import VirtualScroller from 'virtual-scroller/dom';
-
 import {
     COLUMNS,
     CSS_CLASSES,
@@ -35,6 +33,7 @@ import type {
     SortDirection,
     Trade,
 } from '../types.js';
+import { createVirtualList, type VirtualList } from './virtual-list.js';
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -186,25 +185,6 @@ function itemHasDetails(item: Item): boolean {
 // Right-aligned columns get arrow before label, left-aligned get arrow after
 const RIGHT_ALIGNED_COLS = new Set([COLUMNS.RESULT_AMT, COLUMNS.COST_AMT, 'stock', 'dev', 'distance', 'world']);
 
-// Virtual-scroller row identity: one id per trade object, so shops listing
-// identical-looking trades never share a row id
-const rowIds = new WeakMap<Trade, number>();
-let nextRowId = 0;
-
-/**
- * Stable, unique id for a trade's row
- * @param trade - Trade shown in the row
- * @returns Row id
- */
-function getRowId(trade: Trade): number {
-    let id = rowIds.get(trade);
-    if (id === undefined) {
-        id = nextRowId++;
-        rowIds.set(trade, id);
-    }
-    return id;
-}
-
 /**
  * Run a handler on click and on Enter/Space, so header controls work from the keyboard.
  * @param element - Focusable header element
@@ -234,7 +214,7 @@ function onActivate(element: Readonly<Element>, handler: () => void): void {
 export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRendererHandler {
     // Internal filter and rendering state
     let filterCartOnly = false;
-    let virtualScroller: VirtualScroller<FilterResult> | undefined;
+    let virtualList: VirtualList<FilterResult> | undefined;
     let currentWantRegex: RegExp | undefined;
     let currentGiveRegex: RegExp | undefined;
 
@@ -481,33 +461,18 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
         // Handle empty results
         if (results.length === 0) {
-            // Clean up virtual scroller if it exists
-            if (virtualScroller) {
-                virtualScroller.stop();
-                virtualScroller = undefined;
-            }
-            // The scroller sizes the list with inline padding; stop() leaves it behind,
-            // which would keep a page-high empty scroll area under the message
-            container.style.removeProperty('padding-top');
-            container.style.removeProperty('padding-bottom');
+            virtualList?.destroy();
+            virtualList = undefined;
             container.innerHTML = '<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2><p>Try a different search term</p></div></div>';
             return;
         }
 
-        // Initialize or update virtual scroller
-        if (virtualScroller) {
-            virtualScroller.setItems([...results]);
-        } else {
-            virtualScroller = new VirtualScroller(
-                container,
-                [...results],
-                createTradeRowElement,
-                {
-                    getEstimatedItemHeight: () => 32,
-                    getItemId: (item: FilterResult) => getRowId(item.trade)
-                }
-            );
+        if (!virtualList) {
+            // Drop a "no results" or load-error message before the list takes over
+            container.replaceChildren();
+            virtualList = createVirtualList(container, createTradeRowElement);
         }
+        virtualList.setItems(results);
     }
 
     return {

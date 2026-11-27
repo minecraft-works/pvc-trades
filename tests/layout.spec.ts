@@ -1008,6 +1008,14 @@ interface LeafletWindow {
     __leafletMap: { getCenter: () => { lat: number; lng: number }; getZoom: () => number };
 }
 
+/**
+ * Wait until the shop map exists: Leaflet loads on demand, after the dialog opens
+ * @param page - Playwright page
+ */
+async function waitForShopMap(page: Page): Promise<void> {
+    await expect.poll(() => page.evaluate(() => Boolean((globalThis as unknown as Partial<LeafletWindow>).__leafletMap))).toBe(true);
+}
+
 test.describe('Map Dialog - Backdrop Close Behavior', () => {
     test.beforeEach(async ({ page }) => {
         await setupMockRoutes(page);
@@ -1059,6 +1067,7 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
         await page.locator('.trade-row').first().locator('.distance').click();
         const dialog = page.locator('#map-dialog');
         await expect(dialog).toBeVisible();
+        await waitForShopMap(page);
         const lng = () => page.evaluate(() => (globalThis as unknown as LeafletWindow).__leafletMap.getCenter().lng);
         const before = await lng();
 
@@ -1074,6 +1083,7 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
     test('pinching around the map zooms it', async ({ page }) => {
         await page.locator('.trade-row').first().locator('.distance').click();
         await expect(page.locator('#map-dialog')).toBeVisible();
+        await waitForShopMap(page);
         const zoom = () => page.evaluate(() => (globalThis as unknown as LeafletWindow).__leafletMap.getZoom());
         const before = await zoom();
 

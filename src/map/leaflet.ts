@@ -35,3 +35,19 @@ export function leaflet(): LeafletModule {
     if (!loaded) { throw new Error('Leaflet used before loadLeaflet() resolved'); }
     return loaded;
 }
+
+function loadInBackground(): void {
+    void loadLeaflet();
+}
+
+/**
+ * Load Leaflet once the browser is idle, so maps open without a wait while
+ * the download stays off the initial render's critical path.
+ */
+export function prefetchLeaflet(): void {
+    if ('requestIdleCallback' in globalThis) {
+        requestIdleCallback(loadInBackground, { timeout: 5000 });
+    } else {
+        setTimeout(loadInBackground, 2000);
+    }
+}
