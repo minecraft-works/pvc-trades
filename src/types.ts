@@ -2,7 +2,7 @@
  * Type definitions for the Shop Trade Viewer application
  */
 
-import { z } from 'zod';
+import { z } from 'zod/mini';
 
 // ============================================================================
 // Animation Configuration (for testing)
@@ -41,20 +41,20 @@ export function shouldDisableAnimations(): boolean {
 const SquaremapConfigSchema = z.object({
     /** Map server base URL; tiles live at `{baseUrl}/tiles/...` */
     baseUrl: z.url(),
-    playerRefreshMs: z.number().int().positive()
+    playerRefreshMs: z.int().check(z.positive())
 });
 
 const AnalysisConfigSchema = z.object({
-    shopClusterDistance: z.number().positive(),
-    maxTransitiveIterations: z.number().int().positive(),
-    minIndependentShops: z.number().int().positive(),
+    shopClusterDistance: z.number().check(z.positive()),
+    maxTransitiveIterations: z.int().check(z.positive()),
+    minIndependentShops: z.int().check(z.positive()),
     /** Independent shops needed before a non-core item gets a market price (default 2) */
-    minIndependentShopsPerItem: z.number().int().positive().optional()
+    minIndependentShopsPerItem: z.optional(z.int().check(z.positive()))
 });
 
 export const AppConfigSchema = z.object({
-    dataUrl: z.string().min(1),
-    dataRefreshMs: z.number().int().positive().optional().default(60_000),
+    dataUrl: z.string().check(z.minLength(1)),
+    dataRefreshMs: z._default(z.int().check(z.positive()), 60_000),
     squaremap: SquaremapConfigSchema,
     analysis: AnalysisConfigSchema
 });
@@ -63,7 +63,7 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 
 const BlockConversionSchema = z.object({
     base: z.string(),
-    multiplier: z.number().positive()
+    multiplier: z.number().check(z.positive())
 });
 
 export const BlockConversionsSchema = z.record(z.string(), BlockConversionSchema);
@@ -74,10 +74,10 @@ export type BlockConversions = z.infer<typeof BlockConversionsSchema>;
 
 export const MappingRuleSchema = z.object({
     item: z.string(),
-    originalName: z.string().optional(),
-    enchant: z.record(z.string(), z.number()).optional(),
+    originalName: z.optional(z.string()),
+    enchant: z.optional(z.record(z.string(), z.number())),
     customName: z.string(),
-    lore: z.string().optional()
+    lore: z.optional(z.string())
 });
 
 export type MappingRule = z.infer<typeof MappingRuleSchema>;
@@ -107,26 +107,26 @@ export interface ShulkerParseResult {
 // Shop & Recipe Types
 
 /** Schema for validating Item from external data */
-const ItemSchema = z.object({
+const ItemSchema = z.looseObject({
     type: z.string(),
-    name: z.string().optional().default(''),
+    name: z._default(z.string(), ''),
     amount: z.number()
-}).loose();
+});
 
-const RecipeSchema = z.object({
+const RecipeSchema = z.looseObject({
     resultItem: ItemSchema,
     item1: ItemSchema,
-    item2: ItemSchema.optional(),
+    item2: z.optional(ItemSchema),
     stock: z.number()
-}).loose();
+});
 
-const ShopSchema = z.object({
-    shopName: z.string().optional(),
-    shopOwner: z.string().optional(),
+const ShopSchema = z.looseObject({
+    shopName: z.optional(z.string()),
+    shopOwner: z.optional(z.string()),
     location: z.string(),
     world: z.string(),
     recipes: z.array(RecipeSchema)
-}).loose();
+});
 
 /** Schema for validating external shop data JSON */
 export const ShopDataSchema = z.object({
@@ -239,7 +239,7 @@ export interface CartItem {
 }
 
 const CartItemSchema = z.object({
-    trade: z.object({
+    trade: z.looseObject({
         x: z.number(),
         y: z.number(),
         z: z.number(),
@@ -249,8 +249,8 @@ const CartItemSchema = z.object({
         stock: z.number(),
         resultName: z.string(),
         costName: z.string()
-    }).loose(),
-    quantity: z.number().int().nonnegative()
+    }),
+    quantity: z.int().check(z.nonnegative())
 });
 
 export const CartItemArraySchema = z.array(CartItemSchema);
@@ -379,9 +379,9 @@ export interface FavoriteItem {
 }
 
 const FavoriteItemSchema = z.object({
-    itemName: z.string().min(1),
-    maxDeviation: z.number().int().min(-99).max(999).optional(),
-    addedAt: z.number().int().positive()
+    itemName: z.string().check(z.minLength(1)),
+    maxDeviation: z.optional(z.int().check(z.gte(-99), z.lte(999))),
+    addedAt: z.int().check(z.positive())
 });
 
 export const FavoriteItemArraySchema = z.array(FavoriteItemSchema);
@@ -426,8 +426,8 @@ const PlayerSchema = z.object({
     name: z.string(),
     foreign: z.boolean(),
     position: PlayerPositionSchema,
-    rotation: PlayerRotationSchema.optional(),
-    world: z.string().optional()
+    rotation: z.optional(PlayerRotationSchema),
+    world: z.optional(z.string())
 });
 
 /** Schema for validating external player API response */

@@ -5,7 +5,7 @@
  * Re-exported from types.ts so existing imports are unaffected.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/mini';
 
 // ============================================================================
 // Snapshot Types (Daily Deals Dashboard)
@@ -40,8 +40,8 @@ export interface DeviationResult {
 }
 
 const TradeSnapshotEntrySchema = z.object({
-    deviationPercent: z.number().optional(),
-    stock: z.number().int().nonnegative()
+    deviationPercent: z.optional(z.number()),
+    stock: z.int().check(z.nonnegative())
 });
 
 /**
@@ -55,7 +55,7 @@ export interface TradeSnapshot {
 }
 
 export const TradeSnapshotSchema = z.object({
-    timestamp: z.number().positive(),
+    timestamp: z.number().check(z.positive()),
     trades: z.record(z.string(), TradeSnapshotEntrySchema)
 });
 
@@ -94,8 +94,8 @@ export interface CompactSnapshotHistory {
 }
 
 const CompactSnapshotSchema = z.object({
-    t: z.number().positive(),
-    v: z.array(z.tuple([z.number().nullable(), z.number().int().nonnegative()]))
+    t: z.number().check(z.positive()),
+    v: z.array(z.tuple([z.nullable(z.number()), z.int().check(z.nonnegative())]))
 });
 
 export const CompactSnapshotHistorySchema = z.object({

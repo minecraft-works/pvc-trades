@@ -7,7 +7,7 @@
  * @module stores/navigation-store
  */
 
-import { z } from 'zod';
+import { z } from 'zod/mini';
 
 import { STORAGE_KEYS, WORLDS } from '../constants.js';
 import type { NavigationMode, NavigationProgress, RouteStop, ViewWorldMode } from '../types.js';
