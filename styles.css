@@ -1724,10 +1724,14 @@ mark {
     width: min(calc(100vw - 32px), calc(100vh - 64px), 1100px);
     height: min(calc(100vw - 32px), calc(100vh - 64px), 1100px);
     overflow: visible;
+
+    /* Drags and pinches around the round map move the map, not the page */
+    touch-action: none;
 }
 
 #map-dialog::backdrop {
     background: rgb(0 0 0 / 80%);
+    touch-action: none;
 }
 
 #map-container {

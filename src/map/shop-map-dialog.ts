@@ -26,6 +26,7 @@ import type { Player, ShopFilter } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { createLevelSwitcher, type LevelSwitcher } from './level-switcher.js';
 import { getMarkerScale } from './map-math.js';
+import { setupOutsideGestures } from './outside-gestures.js';
 import { createPlayerLayer, type PlayerLayer } from './player-layer.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
 import { blocksPerTile, DETAIL_LEVEL } from './tile-layout.js';
@@ -795,6 +796,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             closeButton.addEventListener('click', () => dialog.close());
         }
         setupPlayerClicks(dialog);
+        setupOutsideGestures(dialog, () => leafletMap);
 
         dialog.addEventListener('close', () => {
             if (playerRefreshInterval) {

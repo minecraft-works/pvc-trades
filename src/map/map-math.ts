@@ -331,3 +331,49 @@ export function clampToCircle(
         clamped: true
     };
 }
+
+// ============================================================================
+// Gestures
+// ============================================================================
+
+/** A pointer position on screen */
+export interface ScreenPoint {
+    readonly x: number;
+    readonly y: number;
+}
+
+/** Where a set of pointers is and how far apart they are */
+export interface PointerSpread {
+    readonly center: ScreenPoint;
+    /** Mean distance from the centre; 0 for a single pointer */
+    readonly spread: number;
+}
+
+/**
+ * Centre and spread of the pointers on screen.
+ * @param points - Pointer positions
+ * @returns Centre and mean distance from it
+ *
+ * @example
+ * measurePointers([{ x: 0, y: 0 }, { x: 10, y: 0 }]) // { center: { x: 5, y: 0 }, spread: 5 }
+ */
+export function measurePointers(points: readonly ScreenPoint[]): PointerSpread {
+    if (points.length === 0) { return { center: { x: 0, y: 0 }, spread: 0 }; }
+    const x = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const y = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+    const spread = points.length < 2
+        ? 0
+        : points.reduce((sum, point) => sum + Math.hypot(point.x - x, point.y - y), 0) / points.length;
+    return { center: { x, y }, spread };
+}
+
+/**
+ * How much a pinch zooms: the change in spread, in zoom levels (one level is a factor 2).
+ * @param before - Spread at the previous step
+ * @param after - Spread now
+ * @returns Zoom change, 0 when either spread is too small to measure
+ */
+export function getPinchZoomDelta(before: number, after: number): number {
+    if (before < 1 || after < 1) { return 0; }
+    return Math.log2(after / before);
+}

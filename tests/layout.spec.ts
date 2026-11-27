@@ -997,6 +997,11 @@ test.describe('Map Dialog - Player Markers Structure', () => {
     });
 });
 
+/** The open shop map, exposed for tests */
+interface LeafletWindow {
+    __leafletMap: { getCenter: () => { lat: number; lng: number }; getZoom: () => number };
+}
+
 test.describe('Map Dialog - Backdrop Close Behavior', () => {
     test.beforeEach(async ({ page }) => {
         await setupMockRoutes(page);
@@ -1042,6 +1047,43 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
         await page.mouse.click(10, 10);
 
         await expect(dialog).not.toBeVisible();
+    });
+
+    test('dragging on the backdrop pans the map and keeps the dialog open', async ({ page }) => {
+        await page.locator('.trade-row').first().locator('.distance').click();
+        const dialog = page.locator('#map-dialog');
+        await expect(dialog).toBeVisible();
+        const lng = () => page.evaluate(() => (globalThis as unknown as LeafletWindow).__leafletMap.getCenter().lng);
+        const before = await lng();
+
+        await page.mouse.move(10, 10);
+        await page.mouse.down();
+        await page.mouse.move(110, 60, { steps: 10 });
+        await page.mouse.up();
+
+        await expect(dialog).toBeVisible();
+        await expect.poll(lng).toBeLessThan(before);
+    });
+
+    test('pinching around the map zooms it', async ({ page }) => {
+        await page.locator('.trade-row').first().locator('.distance').click();
+        await expect(page.locator('#map-dialog')).toBeVisible();
+        const zoom = () => page.evaluate(() => (globalThis as unknown as LeafletWindow).__leafletMap.getZoom());
+        const before = await zoom();
+
+        // Two fingers on the backdrop left of the map, moving apart
+        const cdp = await page.context().newCDPSession(page);
+        const touch = (type: string, points: readonly (readonly [number, number])[]) => cdp.send('Input.dispatchTouchEvent', {
+            type, touchPoints: points.map(([x, y], id) => ({ x, y, id })),
+        });
+        await touch('touchStart', [[20, 300], [20, 340]]);
+        for (let index = 1; index <= 10; index++) {
+            await touch('touchMove', [[20, 300 - index * 10], [20, 340 + index * 10]]);
+        }
+        await touch('touchEnd', []);
+
+        await expect(page.locator('#map-dialog')).toBeVisible();
+        await expect.poll(zoom).toBeGreaterThan(before + 0.5);
     });
 });
 
