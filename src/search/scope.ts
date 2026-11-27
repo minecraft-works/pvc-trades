@@ -1,0 +1,196 @@
+/**
+ * Search scope: everything that narrows the results besides the typed text.
+ * WHAT (a lens per side), WHO (a shop or owner) and HOW (trade filters such
+ * as "Best per item"). Pure helpers for the filter catalogue and URL state.
+ *
+ * See ADR-023.
+ *
+ * @module search/scope
+ */
+
+import { QUICK_SEARCH } from '../constants.js';
+import type { QuickFilters, ShopFilter } from '../types.js';
+import { findLens, type LensId } from './lenses.js';
+import { textMatchRank } from './query.js';
+import { buildShopFilterHref, readShopFilter } from './shop-filter.js';
+
+/** Search field a scope option belongs to: Buying (received) or Paying (cost) */
+export type SearchSide = 'buy' | 'pay';
+
+/** Everything besides the typed text that narrows the results */
+export interface SearchScope {
+    /** Lens on the received item */
+    readonly buyLens: LensId | undefined;
+    /** Lens on the cost items */
+    readonly payLens: LensId | undefined;
+    /** Shop or owner the results are limited to */
+    readonly shop: ShopFilter | undefined;
+    /** Trade filters */
+    readonly filters: QuickFilters;
+}
+
+/** A trade filter in the field menus and pill row */
+export interface TradeFilterSpec {
+    readonly key: keyof QuickFilters;
+    /** Value in the URL `filters` list */
+    readonly param: string;
+    /** Pill text */
+    readonly label: string;
+    /** Menu text, when it needs more words than the pill */
+    readonly menuLabel: string;
+    readonly title: string;
+    /** Fields whose menu offers the filter */
+    readonly sides: readonly SearchSide[];
+    /** Words that find the filter while typing */
+    readonly keywords: readonly string[];
+}
+
+const DEALS_PERCENT = Math.abs(QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT);
+
+/** The trade filters, in Alt+1…4 order */
+export const TRADE_FILTERS: readonly TradeFilterSpec[] = [
+    {
+        key: 'dealsOnly', param: 'deals', label: `Deals ≤ −${DEALS_PERCENT}%`, menuLabel: `Deals ≤ −${DEALS_PERCENT}%`,
+        title: `Only trades at least ${DEALS_PERCENT}% below market`,
+        sides: ['buy', 'pay'], keywords: ['deals', 'cheap', 'discount', 'bargain'],
+    },
+    {
+        key: 'bestPerItem', param: 'best', label: 'Best per item', menuLabel: 'Best per item',
+        title: 'Only the cheapest offer for each item',
+        sides: ['buy'], keywords: ['best', 'cheapest', 'lowest'],
+    },
+    {
+        key: 'shulkersOnly', param: 'shulkers', label: 'Shulkers', menuLabel: 'Shulker boxes',
+        title: 'Only trades that buy or sell a filled shulker box',
+        sides: ['buy', 'pay'], keywords: ['shulkers', 'box', 'bulk'],
+    },
+    {
+        key: 'newOnly', param: 'new', label: 'New', menuLabel: 'New since last visit',
+        title: 'Only trades that are new since your last visit',
+        sides: ['buy', 'pay'], keywords: ['new', 'recent', 'fresh'],
+    },
+];
+
+/** No filters on */
+export const NO_FILTERS: QuickFilters = { dealsOnly: false, bestPerItem: false, shulkersOnly: false, newOnly: false };
+
+/** Nothing narrows the results */
+export const EMPTY_SCOPE: SearchScope = { buyLens: undefined, payLens: undefined, shop: undefined, filters: NO_FILTERS };
+
+const LENS_PARAM: Readonly<Record<SearchSide, string>> = { buy: 'lens', pay: 'paylens' };
+const FILTERS_PARAM = 'filters';
+
+/**
+ * The lens of one side of the scope.
+ * @param scope - Search scope
+ * @param side - Buying or Paying
+ * @returns Lens ID, if any
+ */
+export function getScopeLens(scope: SearchScope, side: SearchSide): LensId | undefined {
+    return side === 'buy' ? scope.buyLens : scope.payLens;
+}
+
+/**
+ * Whether anything besides the typed text narrows the results.
+ * @param scope - Search scope
+ * @returns True if a lens, shop or filter is set
+ */
+export function isScopeActive(scope: SearchScope): boolean {
+    return scope.buyLens !== undefined || scope.payLens !== undefined || scope.shop !== undefined
+        || Object.values(scope.filters).some(Boolean);
+}
+
+/**
+ * Read the scope from a URL query string.
+ *
+ * @param search - `location.search`, e.g. "?lens=redstone&owner=Val&filters=best,new"
+ * @returns The scope; unknown lenses and filters are ignored
+ */
+export function readScope(search: string): SearchScope {
+    const parameters = new URLSearchParams(search);
+    const filterNames = new Set((parameters.get(FILTERS_PARAM) ?? '').split(',').map(part => part.trim().toLowerCase()));
+    let filters = NO_FILTERS;
+    for (const spec of TRADE_FILTERS) {
+        if (filterNames.has(spec.param)) { filters = { ...filters, [spec.key]: true }; }
+    }
+    return {
+        buyLens: findLens(parameters.get(LENS_PARAM.buy) ?? undefined)?.id,
+        payLens: findLens(parameters.get(LENS_PARAM.pay) ?? undefined)?.id,
+        shop: readShopFilter(search),
+        filters,
+    };
+}
+
+/**
+ * Build a URL with the scope, keeping all other parts. Unset parts are removed.
+ *
+ * @param href - Current URL
+ * @param scope - Search scope
+ * @returns Updated URL string
+ */
+export function buildScopeHref(href: string, scope: SearchScope): string {
+    const url = new URL(buildShopFilterHref(href, scope.shop));
+    const lenses: readonly (readonly [string, string | undefined])[] = [[LENS_PARAM.buy, scope.buyLens], [LENS_PARAM.pay, scope.payLens]];
+    for (const [key, value] of lenses) {
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    }
+    const filterNames = TRADE_FILTERS.filter(spec => scope.filters[spec.key]).map(spec => spec.param);
+    if (filterNames.length > 0) {
+        url.searchParams.set(FILTERS_PARAM, filterNames.join(','));
+    } else {
+        url.searchParams.delete(FILTERS_PARAM);
+    }
+    return url.href;
+}
+
+/**
+ * The scope without the last pill a field's Backspace removes: in Buying the
+ * last pill of the row (trade filters, then the shop, then the Buying lens);
+ * in Paying the Paying lens.
+ *
+ * @param scope - Search scope
+ * @param side - Field where Backspace was pressed
+ * @returns The scope without that pill, or undefined if the field has none
+ */
+export function removeLastPill(scope: SearchScope, side: SearchSide): SearchScope | undefined {
+    if (side === 'pay') {
+        return scope.payLens === undefined ? undefined : { ...scope, payLens: undefined };
+    }
+    const lastFilter = TRADE_FILTERS.findLast(spec => scope.filters[spec.key]);
+    if (lastFilter) { return { ...scope, filters: { ...scope.filters, [lastFilter.key]: false } }; }
+    if (scope.shop) { return { ...scope, shop: undefined }; }
+    if (scope.buyLens) { return { ...scope, buyLens: undefined }; }
+    return undefined;
+}
+
+/**
+ * Trade filters a field's menu offers that match typed text, by label first
+ * and then by keyword.
+ *
+ * @param query - Typed text
+ * @param side - Field being typed in
+ * @param limit - Maximum filters to return
+ * @returns Best matching filters
+ *
+ * @example
+ * rankTradeFilters('cheap', 'buy', 2) // [Deals, Best per item]
+ */
+export function rankTradeFilters(query: string, side: SearchSide, limit: number): readonly TradeFilterSpec[] {
+    const q = query.trim().toLowerCase();
+    if (!q) { return []; }
+    return TRADE_FILTERS
+        .filter(spec => spec.sides.includes(side))
+        .map(spec => {
+            const labelRank = textMatchRank(spec.menuLabel.toLowerCase(), q);
+            const keywordRank = spec.keywords.some(keyword => keyword.startsWith(q)) ? 2 : -1;
+            return { spec, rank: labelRank === 0 || labelRank === 1 ? labelRank : keywordRank };
+        })
+        .filter(match => match.rank >= 0)
+        .toSorted((a, b) => a.rank - b.rank)
+        .slice(0, limit)
+        .map(match => match.spec);
+}

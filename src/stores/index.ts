@@ -9,6 +9,7 @@
 export { cartStore } from './cart-store.js';
 export { favoritesStore } from './favorites-store.js';
 export { navigationStore } from './navigation-store.js';
+export { searchScopeStore } from './search-scope-store.js';
 export { snapshotStore } from './snapshot-store.js';
 
 // Player interpolation

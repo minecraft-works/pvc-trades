@@ -59,9 +59,11 @@ run again and new trade keys are highlighted.
 - Two queries: *Buying* (result item) and *Paying* (cost items). Matching
   ignores spaces/underscores and word order; a quoted query
   (`"emerald"`) matches whole names only (`search/query.ts`).
-- Quick filters, shop/owner filter chip and autocomplete live in
-  `src/quick-search/`; the search state is mirrored in the URL
-  (`url-sync.ts`).
+- The search scope (lenses, shop/owner and trade filters, ADR-023) is chosen
+  from each field's menu (`quick-search/autocomplete.ts`, `field-menu.ts`),
+  shown as pills (`scope-pills.ts`) and held by `searchScopeStore`. Lenses
+  match on item IDs (`search/lenses.ts`); the whole search state is mirrored
+  in the URL (`url-sync.ts`, `search/scope.ts`).
 - Sorting supports several columns at once (`search-sort.ts`).
 
 ## Cart, route and navigation
@@ -116,7 +118,7 @@ watchlist hits (`dashboard/dashboard-data.ts`, pure; `dashboard-ui.ts`, DOM).
 - **Baseline:** the snapshot closest to `BASELINE_TARGET_AGE_MS` (24 h) old.
   Without one (first visit) nothing is shown.
 - The banner can be dismissed and re-opened with the 📊 button; the new-trade
-  keys also drive the "New" quick filter.
+  keys also drive the "New" trade filter.
 - Storage is compact (keys stored once, values in parallel arrays) and
   versioned with the deviation model, so old baselines are discarded.
 

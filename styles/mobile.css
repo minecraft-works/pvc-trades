@@ -7,7 +7,6 @@
     .search-container {
         grid-template:
             "box box" auto
-            "chip chip" auto
             "bar actions" auto
             "fresh fresh" auto / minmax(0, 1fr) auto;
         column-gap: 8px;
@@ -34,7 +33,7 @@
         padding: 8px 10px;
     }
 
-    /* Actions share the quick-filter row, so the search fields get the full width;
+    /* Actions share the pill row, so the search fields get the full width;
        they sit beside the first line of pills when the pills wrap
        (centred on it: buttons are 30px, pills 24px) */
     .search-actions {
@@ -85,41 +84,13 @@
         display: none;
     }
 
-    /* The chip, quick filters and freshness note become rows of the search
-       grid, so the actions always line up with the quick filters */
+    /* The pills and freshness note become rows of the search grid,
+       so the actions always line up with the pills */
     .search-meta {
         display: contents;
     }
 
-    /* The chip gets its own row here, so no divider */
-    .shop-filter {
-        grid-area: chip;
-        justify-self: start;
-        align-self: center;
-        max-width: 100%;
-        margin-top: var(--spacing-sm);
-    }
-
-    /* With a chip, the actions share its row and the pills get the full width */
-    .search-container:has(.shop-filter:not(.hidden)) {
-        grid-template:
-            "box box" auto
-            "chip actions" auto
-            "bar bar" auto
-            "fresh fresh" auto / minmax(0, 1fr) auto;
-    }
-
-    .search-container:has(.shop-filter:not(.hidden)) .search-actions {
-        align-self: center;
-        margin-top: var(--spacing-sm);
-    }
-
-    .shop-filter:not(.hidden) + .quick-bar {
-        padding-left: 0;
-        border-left: none;
-    }
-
-    .quick-bar {
+    .scope-pills {
         grid-area: bar;
         align-self: start;
         min-width: 0;
@@ -130,8 +101,9 @@
         row-gap: 6px;
     }
 
-    .quick-toggle {
-        flex-shrink: 0;
+    /* The Paying menu is wider than its field, so it grows to the left */
+    #searchGive-suggestions {
+        left: auto;
     }
 
     .data-freshness {

@@ -11,8 +11,14 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Route Optimization**: Compute optimal visiting order using nearest-neighbor + 2-opt
 - **Live Navigation**: Track your position on the server map and navigate to shops
 - **Price Intelligence**: Automatic clustering of nearby shops and of one owner's shops to prevent price manipulation
-- **Fast Probing**: Item-name autocomplete, one-click currency chips, "Deals only" and "Best per item" filters, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
-- **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Type a shop or player name in the Buying field and pick the 🏪/👤 suggestion, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
+- **Fast Probing**: Item-name autocomplete, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
+- **Lenses, Shops and Filters**: Click the Buying or Paying field (or press `Alt+↓`) for its menu:
+  - **Lenses** narrow a side to a theme. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
+  - **Shops & owners** lists every owner and shop.
+  - **Filters**: Deals only, Best per item, Shulkers, New.
+  
+  Typing also suggests matching lenses, shops and filters. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
+- **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Pick a shop or player from the Buying menu, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
 - **Flip Finder**: The **Flips** tab of the exchange-rates dialog (💱) lists items you can buy at one shop and sell to another player's shop for more, with the profit per trip; "Add both to cart" plans the route
 
 ### Keyboard Shortcuts
@@ -20,6 +26,9 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | Key | Where | Action |
 |-----|-------|--------|
 | `/` or `Ctrl+F` | Anywhere | Jump to the Buying field (a second `Ctrl+F` opens the browser's find) |
+| Click or `Alt+↓` | Search field | Open the field's menu: lenses, shops & owners, filters |
+| `→` / `←` | Field menu | Open a submenu (Lenses, Shops & owners) / go back |
+| `Backspace` | Empty search field | Remove the field's last pill |
 | `Tab` | Buying field | Go straight to the Paying field (accepts a highlighted suggestion first) |
 | `Esc` | Search field | Clear the field |
 | `↓` / `↑` | Search field | Move through suggestions, or into the results when there are none |
@@ -29,7 +38,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | `+` | Result row | Add the trade to the cart |
 | `Esc` | Result row | Back to the Buying field |
 | `Alt+1` / `Alt+2` / `Alt+3` / `Alt+4` | Anywhere | Toggle "Deals only" (≤ −75%) / "Best per item" / "Shulkers" (only trades with a filled shulker box) / "New" (new since your last visit) |
-| `Ctrl+Shift+X` | Anywhere | Swap the Buying and Paying terms |
+| `Ctrl+Shift+X` | Anywhere | Swap the Buying and Paying terms and lenses |
 
 Put a name in double quotes (`"emerald"`) for an exact match: it matches Emerald but not Emerald block.
 
@@ -158,6 +167,7 @@ Coverage thresholds are enforced in `vitest.config.js`.
 - [ADR-019: One Exchange-Rate Model](docs/adr/019-exchange-rate-model.md)
 - [ADR-021: Lean Runtime Dependencies](docs/adr/021-lean-runtime-dependencies.md)
 - [ADR-022: Fast Feedback Loop for AI Agents](docs/adr/022-agent-feedback-loop.md)
+- [ADR-023: Lenses, Shops and Filters in the Search Field Menus](docs/adr/023-search-lenses-and-scopes.md)
 
 ## Troubleshooting
 

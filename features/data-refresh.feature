@@ -66,6 +66,7 @@ Feature: Data Refresh and New Items
   Scenario: Filter to show only new items
     Given there are 5 trades initially
     When the shop data refreshes with 2 new trade(s)
-    And I click the new items filter toggle
+    And I turn on the "New since last visit" filter in the Buying menu
     Then I should see only 2 trades
-    And clicking the toggle again should show all 7 trades
+    When I remove the "New" pill
+    Then I should see only 7 trades

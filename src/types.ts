@@ -209,6 +209,13 @@ export interface ShopFilter {
     readonly shop?: string | undefined;
 }
 
+/** Explains an empty result list and offers a way out, e.g. "4 matching trades outside Redstone" */
+export interface EmptyResultsHint {
+    readonly message: string;
+    readonly actionLabel: string;
+    readonly onAction: () => void;
+}
+
 // ============================================================================
 // Sort Types
 // ============================================================================

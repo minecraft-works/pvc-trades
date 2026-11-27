@@ -73,7 +73,7 @@ Feature: Daily Deals Dashboard
   Scenario: Trades new since the last visit appear in the new-only filter
     Given I have a previous snapshot missing some trades
     When I reload the app
-    And I click the "New" quick filter
+    And I turn on the "New since last visit" filter in the Buying menu
     Then only the 2 trades missing from the previous snapshot should be listed
 
   @dashboard @new-trades

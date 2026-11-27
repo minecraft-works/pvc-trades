@@ -21,16 +21,18 @@ import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
     DeviationResult,
+    EmptyResultsHint,
     FilterResult,
     QuickFilters,
-    ShopFilter,
     SortColumn,
     SortDirection,
     Trade,
 } from '../types.js';
 import { isFilledShulker } from '../valuation/item-identity.js';
 import { confidentOnly, isEstimate } from './deviation.js';
+import { findLens, type Lens, paysWithLens, receivesFromLens } from './lenses.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
+import type { SearchScope } from './scope.js';
 import { matchesShopFilter } from './shop-filter.js';
 
 /** "Deals only" shows trades at least this much below market */
@@ -68,17 +70,22 @@ export interface SearchSortDeps {
     /** Get a DOM element by id (throws if missing) */
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T;
     /** Render filtered results via virtual scroller (lazy: bound after renderer init) */
-    renderResults: (results: readonly FilterResult[], wantRegex: Readonly<RegExp> | undefined, giveRegex: Readonly<RegExp> | undefined) => void;
+    renderResults: (
+        results: readonly FilterResult[],
+        wantRegex: Readonly<RegExp> | undefined,
+        giveRegex: Readonly<RegExp> | undefined,
+        emptyHint?: EmptyResultsHint
+    ) => void;
     /** Update sort arrow indicators in header (lazy: bound after renderer init) */
     updateSortArrows: () => void;
     /** Update the deals badge count (lazy: bound after favoritesUI init) */
     updateDealsBadge: (count: number) => void;
     /** Whether "cart only" filter is active (lazy) */
     isFilterCartOnly: () => boolean;
-    /** Quick-bar toggles (lazy) */
-    getQuickFilters: () => QuickFilters;
-    /** Shop or owner the results are limited to, if any */
-    getShopFilter: () => ShopFilter | undefined;
+    /** Lenses, shop filter and trade filters (lazy) */
+    getScope: () => SearchScope;
+    /** Remove the lenses, from the empty-results hint */
+    clearLenses: () => void;
     /** Called after every search, e.g. to sync the URL and quick-bar state */
     onSearched: () => void;
 }
@@ -180,22 +187,22 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     }
 
     /**
-     * Whether header toggles or quick filters exclude a trade before text matching
+     * Whether header toggles, the shop filter or trade filters exclude a trade before text matching
      * @param trade - Trade to check
+     * @param scope - Current search scope
      * @returns True if the trade should be hidden
      */
-    function isExcludedByFilters(trade: Trade): boolean {
-        const shopFilter = deps.getShopFilter();
-        if (shopFilter && !matchesShopFilter(trade, shopFilter)) { return true; }
+    function isExcludedByFilters(trade: Trade, scope: SearchScope): boolean {
+        if (scope.shop && !matchesShopFilter(trade, scope.shop)) { return true; }
         if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
         if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }
-        return isExcludedByQuickFilters(trade, deps.getQuickFilters());
+        return isExcludedByQuickFilters(trade, scope.filters);
     }
 
     /**
-     * Whether the quick-bar toggles exclude a trade
+     * Whether the trade filters exclude a trade
      * @param trade - Trade to check
-     * @param filters - Current quick-bar toggles
+     * @param filters - Current trade filters
      * @returns True if the trade should be hidden
      */
     function isExcludedByQuickFilters(trade: Trade, filters: QuickFilters): boolean {
@@ -207,23 +214,60 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         return deviation === undefined || deviation.percent > DEALS_ONLY_MAX_PERCENT;
     }
 
+    /**
+     * The empty-results hint when only the lenses hide matching trades
+     * @param outsideCount - Trades that match everything but the lenses
+     * @param lenses - Active lenses
+     * @returns Hint, or undefined when nothing is hidden by a lens
+     */
+    function buildLensHint(outsideCount: number, lenses: readonly Lens[]): EmptyResultsHint | undefined {
+        if (outsideCount === 0 || lenses.length === 0) { return undefined; }
+        const names = lenses.map(lens => lens.label).join(' and ');
+        const trades = outsideCount === 1 ? '1 matching trade' : `${outsideCount.toLocaleString()} matching trades`;
+        return {
+            message: `${trades} outside ${names}`,
+            actionLabel: lenses.length === 1 ? 'Remove lens' : 'Remove lenses',
+            onAction: deps.clearLenses,
+        };
+    }
+
+    /**
+     * Trades matching the search, and how many more only the lenses hide
+     * @param scope - Current search scope
+     * @param wantQuery - Buying text
+     * @param giveQuery - Paying text
+     * @returns Matching results and the count hidden by the lenses
+     */
+    function collectResults(scope: SearchScope, wantQuery: string, giveQuery: string): { readonly results: readonly FilterResult[]; readonly outsideLensCount: number } {
+        const buyLens = findLens(scope.buyLens);
+        const payLens = findLens(scope.payLens);
+        const results: FilterResult[] = [];
+        let outsideLensCount = 0;
+        for (const trade of deps.getAllTrades()) {
+            const result = isExcludedByFilters(trade, scope) ? undefined : filterTrade(trade, wantQuery, giveQuery);
+            if (!result) { continue; }
+            const isOutside = (buyLens !== undefined && !receivesFromLens(trade, buyLens)) || (payLens !== undefined && !paysWithLens(trade, payLens));
+            if (isOutside) {
+                outsideLensCount++;
+            } else {
+                results.push(result);
+            }
+        }
+        return { results, outsideLensCount };
+    }
+
     function search(): void {
         const wantQuery = deps.getInputValue('searchWant');
         const giveQuery = deps.getInputValue('searchGive');
+        const scope = deps.getScope();
 
         // Exact queries ("emerald") highlight the name inside the quotes
         const wantRegex = wantQuery ? getCachedRegex(parseExactQuery(wantQuery) ?? wantQuery) : undefined;
         const giveRegex = giveQuery ? getCachedRegex(parseExactQuery(giveQuery) ?? giveQuery) : undefined;
-        let results: FilterResult[] = [];
+        const collected = collectResults(scope, wantQuery, giveQuery);
+        let results = collected.results;
 
-        for (const trade of deps.getAllTrades()) {
-            if (isExcludedByFilters(trade)) { continue; }
-
-            const result = filterTrade(trade, wantQuery, giveQuery);
-            if (result) { results.push(result); }
-        }
-
-        if (deps.getQuickFilters().bestPerItem) {
+        if (scope.filters.bestPerItem) {
             const deviationCalc = deps.getDeviation();
             results = [...pickBestPerItem(
                 results,
@@ -234,7 +278,9 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         }
 
         const sortedResults = sortResults(results);
-        deps.renderResults(sortedResults, wantRegex, giveRegex);
+        const lenses = [findLens(scope.buyLens), findLens(scope.payLens)].filter(lens => lens !== undefined);
+        const hint = sortedResults.length === 0 ? buildLensHint(collected.outsideLensCount, lenses) : undefined;
+        deps.renderResults(sortedResults, wantRegex, giveRegex, hint);
 
         // Update deals badge with count of trades meeting thresholds
         const dealsCount = countDeals(sortedResults);

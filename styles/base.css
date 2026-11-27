@@ -7,6 +7,8 @@
     --color-text-muted: #aaa;
     --color-text-dimmed: #666;
     --color-accent: #4fc3f7;
+    --color-scope-what: #b39ddb;
+    --color-scope-who: var(--color-accent);
     --color-good-deal: #4caf50;
     --color-bad-deal: #ff6b6b;
     --color-nether: #ff6b4a;

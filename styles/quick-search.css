@@ -1,45 +1,67 @@
-/* --- Shop filter chip (search meta row) --- */
+/* --- Scope pills (search meta row): what is narrowing the results --- */
 
-/* Filled and borderless, so it reads as the active filter rather than another toggle */
-.shop-filter {
+/* Filled and borderless, coloured by dimension: violet = lens, blue = shop, neutral = filter */
+.scope-pill {
+    --pill-color: var(--color-text);
+    --pill-tint: rgb(224 224 224 / 12%);
+
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    flex-shrink: 1;
     min-width: 0;
-    max-width: 50%;
-    padding: 0 2px 0 10px;
-    font-size: 0.72rem;
+    max-width: 100%;
+    font-size: 0.75rem;
     line-height: 20px;
     border-radius: 999px;
-    background: rgb(79 195 247 / 14%);
-    color: var(--color-text);
+    background: var(--pill-tint);
 }
 
-.shop-filter-prefix {
+.scope-pill--what {
+    --pill-color: var(--color-scope-what);
+    --pill-tint: rgb(179 157 219 / 18%);
+}
+
+.scope-pill--who {
+    --pill-color: var(--color-scope-who);
+    --pill-tint: rgb(79 195 247 / 14%);
+}
+
+.scope-pill-body {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+    padding: 2px 2px 2px 10px;
+    border: none;
+    border-radius: 999px 0 0 999px;
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.scope-pill-body:hover .scope-pill-label {
+    text-decoration: underline;
+}
+
+.scope-pill-prefix {
     flex-shrink: 0;
     color: var(--color-text-muted);
 }
 
-.shop-filter-label {
+.scope-pill-label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--pill-color);
 }
 
-/* Divider between the shop filter and the quick toggles */
-.shop-filter:not(.hidden) + .quick-bar {
-    padding-left: 8px;
-    border-left: 1px solid var(--color-border);
-}
-
-.shop-filter-clear {
+.scope-pill-clear {
     flex-shrink: 0;
     width: 20px;
     height: 20px;
+    margin-right: 2px;
     padding: 0;
     border: none;
     border-radius: 50%;
@@ -49,28 +71,90 @@
     cursor: pointer;
 }
 
-.shop-filter-clear:hover {
+.scope-pill-clear:hover {
     background: var(--color-bg-tertiary);
     color: var(--color-text);
 }
 
-/* --- Shop and owner suggestions under the item names --- */
+/* --- Field menus: lenses, shops and filters besides the item names --- */
 
-/* Shop names and details need more room than the narrow mobile Buying field */
+/* Menus and shop names need more room than the narrow mobile fields */
+.search-suggestions--menu,
 #searchWant-suggestions {
-    min-width: min(300px, calc(100vw - 48px));
+    min-width: min(320px, calc(100vw - 48px));
     overflow-x: hidden;
 }
 
-.search-suggestions li.search-suggestion-action {
+.search-suggestions--menu {
+    max-height: min(60vh, 380px);
+}
+
+.search-suggestions li.search-suggestion-action,
+.search-suggestions li.search-suggestion-toggle,
+.search-suggestions li.search-suggestion-submenu,
+.search-suggestions li.search-suggestion-back {
     display: flex;
-    flex-wrap: wrap;
     align-items: baseline;
     gap: 0 6px;
 }
 
-.search-suggestions li:not(.search-suggestion-action) + .search-suggestion-action {
+.search-suggestions li.search-suggestion-action {
+    flex-wrap: wrap;
+}
+
+/* Divider between item names and the lens, shop and filter rows */
+.search-suggestions li:not([class]) + li:is(.search-suggestion-action, .search-suggestion-toggle) {
     border-top: 1px solid var(--color-border);
+}
+
+.search-suggestions li.search-suggestion-heading,
+.search-suggestions li.search-suggestion-heading:hover {
+    margin-top: 4px;
+    padding: 6px 10px 2px;
+    border-top: 1px solid var(--color-border);
+    background: none;
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: default;
+}
+
+.search-suggestions li.search-suggestion-back {
+    grid-column: 1 / -1;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.search-suggestions li.search-suggestion-back:is(:hover, [aria-selected="true"]) {
+    color: var(--color-bg);
+}
+
+.search-suggestion--what .suggestion-icon {
+    color: var(--color-scope-what);
+}
+
+.search-suggestion--who .suggestion-icon,
+.search-suggestion-toggle[aria-checked="true"] .suggestion-icon {
+    color: var(--color-accent);
+}
+
+.search-suggestions li.is-current {
+    font-weight: 600;
+}
+
+.search-suggestions li.is-current .suggestion-label::after {
+    content: " ✓";
+}
+
+.search-suggestions li.is-empty {
+    opacity: 0.55;
+}
+
+.suggestion-icon {
+    flex-shrink: 0;
+    width: 1.3em;
+    text-align: center;
 }
 
 .suggestion-label {
@@ -90,6 +174,47 @@
 .search-suggestions li:hover .suggestion-detail,
 .search-suggestions li[aria-selected="true"] .suggestion-detail {
     color: inherit;
+}
+
+.search-suggestions li:hover .suggestion-icon,
+.search-suggestions li[aria-selected="true"] .suggestion-icon {
+    color: inherit;
+}
+
+/* Lens grid: two columns of tiles, the trade count under the name */
+.search-suggestions--grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+}
+
+.search-suggestions--grid li.search-suggestion-action {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 6px;
+    padding: 5px 10px;
+}
+
+.search-suggestions--grid .search-suggestion-action .suggestion-icon {
+    grid-row: span 2;
+    font-size: 1.1rem;
+}
+
+.search-suggestions--grid .search-suggestion-action .suggestion-detail {
+    margin-left: 0;
+}
+
+/* --- Empty results: what a lens is hiding --- */
+
+.no-results-action {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-accent);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 /* --- Shop name and owner on the map, route and cart --- */

@@ -9,7 +9,7 @@ import { mockConfigRoute } from '../../tests/helpers/test-config';
 import { Given, Then, When } from './fixtures';
 
 const SELECTOR_TRADE_ROW = '.trade-row';
-const SELECTOR_SHOP_FILTER = '#shop-filter';
+const SELECTOR_SHOP_PILL = '#scope-pills [data-pill="shop"]';
 
 /** Ann sells iron cheaply at the Iron Mine; Ben's Smithy pays double. Ann's own outlet must not count. */
 const FLIP_SHOP_DATA = {
@@ -78,15 +78,15 @@ When('I choose the shop suggestion {string}', async ({ page }, name: string) => 
 });
 
 Then('the shop filter should show {string}', async ({ page }, label: string) => {
-    await expect(page.locator(`${SELECTOR_SHOP_FILTER} .shop-filter-label`)).toHaveText(label);
+    await expect(page.locator(`${SELECTOR_SHOP_PILL} .scope-pill-label`)).toHaveText(label);
 });
 
 Then('the shop filter should be hidden', async ({ page }) => {
-    await expect(page.locator(SELECTOR_SHOP_FILTER)).toBeHidden();
+    await expect(page.locator(SELECTOR_SHOP_PILL)).toHaveCount(0);
 });
 
 When('I remove the shop filter', async ({ page }) => {
-    await page.locator(`${SELECTOR_SHOP_FILTER} .shop-filter-clear`).click();
+    await page.locator(`${SELECTOR_SHOP_PILL} .scope-pill-clear`).click();
 });
 
 Then('{int} trade(s) should be displayed', async ({ page }, count: number) => {

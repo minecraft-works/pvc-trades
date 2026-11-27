@@ -24,6 +24,7 @@ import type { DeviationResult } from '../search/index.js';
 import { formatUnitPrice } from '../search/query.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
+    EmptyResultsHint,
     FilterResult,
     Item,
     SortColumn,
@@ -62,7 +63,7 @@ export interface TradeRendererHandler {
     /** Render the table header with sort arrows and filter toggles */
     renderHeader: () => void;
     /** Render trade results using virtual scrolling */
-    renderResults: (results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined) => void;
+    renderResults: (results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined, emptyHint?: EmptyResultsHint) => void;
     /** Update sort arrow indicators in the header */
     updateSortArrows: () => void;
     /** Whether the "cart only" filter is active */
@@ -461,7 +462,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         return row;
     }
 
-    function renderResults(results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined): void {
+    function renderResults(results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined, emptyHint?: EmptyResultsHint): void {
         const container = getElement('results');
 
         // Update global regex state for the row renderer
@@ -477,7 +478,10 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         if (results.length === 0) {
             virtualList?.destroy();
             virtualList = undefined;
-            replaceContent(container, html`<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2><p>Try a different search term</p></div></div>`);
+            const hint = emptyHint
+                ? html`<p class="no-results-hint">${emptyHint.message} · <button type="button" class="no-results-action" @click=${emptyHint.onAction}>${emptyHint.actionLabel}</button></p>`
+                : html`<p>Try a different search term</p>`;
+            replaceContent(container, html`<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2>${hint}</div></div>`);
             return;
         }
 

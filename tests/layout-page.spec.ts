@@ -90,28 +90,32 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         await waitForAppReady(page);
     });
 
-    test('search inputs share one row and the actions move to the quick-filter row on mobile', async ({ page }) => {
+    test('search inputs share one row and the actions move to the pill row on mobile', async ({ page }) => {
         const searchBox = page.locator('.search-box');
         const flexWrap = await searchBox.evaluate(element => getComputedStyle(element).flexWrap);
         expect(flexWrap).toBe('nowrap');
-        
+
+        // A filter pill gives the pill row its height
+        await page.keyboard.press('Alt+Digit2');
+        await expect(page.locator('#scope-pills .scope-pill')).toHaveCount(1);
+
         const wantBox = await page.locator('#searchWant').boundingBox();
         const giveBox = await page.locator('#searchGive').boundingBox();
         const buttonBox = await page.locator('#open-matrix').boundingBox();
-        const quickBarBox = await page.locator('#quick-bar').boundingBox();
+        const pillsBox = await page.locator('#scope-pills').boundingBox();
         
         expect(wantBox).toBeTruthy();
         expect(giveBox).toBeTruthy();
         expect(buttonBox).toBeTruthy();
-        expect(quickBarBox).toBeTruthy();
+        expect(pillsBox).toBeTruthy();
         
         // Both inputs on the same row (within 2px)
         expect(Math.abs(wantBox!.y - giveBox!.y)).toBeLessThanOrEqual(2);
-        // The exchange-rates button sits below the inputs, level with the quick filters
+        // The exchange-rates button sits below the inputs, level with the pills
         expect(buttonBox!.y).toBeGreaterThan(wantBox!.y + wantBox!.height);
         const buttonCenter = buttonBox!.y + buttonBox!.height / 2;
-        expect(buttonCenter).toBeGreaterThan(quickBarBox!.y);
-        expect(buttonCenter).toBeLessThan(quickBarBox!.y + quickBarBox!.height);
+        expect(buttonCenter).toBeGreaterThan(pillsBox!.y);
+        expect(buttonCenter).toBeLessThan(pillsBox!.y + pillsBox!.height);
     });
 
     test('table header adjusts columns for mobile', async ({ page }) => {

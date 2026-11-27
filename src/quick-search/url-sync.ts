@@ -1,7 +1,7 @@
 /**
- * Keeps the Buying/Paying search and the shop filter in the URL
- * (`?buy=…&pay=…&owner=…&shop=…`), so probes can be bookmarked or shared
- * and Back/Forward step between earlier probes.
+ * Keeps the Buying/Paying search and the search scope in the URL
+ * (`?buy=…&pay=…&lens=…&paylens=…&owner=…&shop=…&filters=…`), so probes can
+ * be bookmarked or shared and Back/Forward step between earlier probes.
  *
  * While typing, the current history entry is updated in place; once a search
  * has been unchanged for a moment it is "settled" and the next change starts
@@ -12,19 +12,18 @@
 
 import { QUICK_SEARCH } from '../constants.js';
 import { buildSearchHref, readSearchTerms } from '../search/query.js';
-import { buildShopFilterHref, readShopFilter } from '../search/shop-filter.js';
-import type { ShopFilter } from '../types.js';
+import { buildScopeHref, isScopeActive, readScope, type SearchScope } from '../search/scope.js';
 
 /** Search state kept in the URL */
 export interface UrlSearchState {
     readonly buy: string;
     readonly pay: string;
-    readonly shop: ShopFilter | undefined;
+    readonly scope: SearchScope;
 }
 
 /** Dependencies from the host module */
 export interface UrlSyncDeps {
-    /** Current raw search terms and shop filter */
+    /** Current raw search terms and scope */
     getState: () => UrlSearchState;
     /** Put the state into the search fields; `runSearch` re-runs the search */
     applyState: (state: UrlSearchState, runSearch: boolean) => void;
@@ -37,7 +36,7 @@ export interface UrlSync {
 }
 
 function readState(search: string): UrlSearchState {
-    return { ...readSearchTerms(search), shop: readShopFilter(search) };
+    return { ...readSearchTerms(search), scope: readScope(search) };
 }
 
 /**
@@ -50,7 +49,7 @@ export function createUrlSync(deps: UrlSyncDeps): UrlSync {
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
     const initial = readState(globalThis.location.search);
-    if (initial.buy || initial.pay || initial.shop) {
+    if (initial.buy || initial.pay || isScopeActive(initial.scope)) {
         deps.applyState(initial, false);
     }
 
@@ -61,8 +60,8 @@ export function createUrlSync(deps: UrlSyncDeps): UrlSync {
     });
 
     function record(): void {
-        const { buy, pay, shop } = deps.getState();
-        const href = buildShopFilterHref(buildSearchHref(globalThis.location.href, buy, pay), shop);
+        const { buy, pay, scope } = deps.getState();
+        const href = buildScopeHref(buildSearchHref(globalThis.location.href, buy, pay), scope);
         if (href === globalThis.location.href) { return; }
 
         if (settled) {

@@ -1,7 +1,7 @@
 /**
- * Fast-probing helpers: quick bar (deals only, best per item), exact-match
- * queries, autocomplete, URL history, per-item prices and the "+" key on
- * result rows.
+ * Fast-probing helpers: the field menus (lenses, filters), scope pills,
+ * exact-match queries, autocomplete, URL history, per-item prices and the
+ * "+" key on result rows.
  */
 
 import type { Page } from '@playwright/test';
@@ -12,7 +12,21 @@ import { mockConfigRoute } from './helpers/test-config';
 const ROW = '.trade-row';
 const WANT = '#searchWant';
 const GIVE = '#searchGive';
+const WANT_MENU = '#searchWant-suggestions';
 const EMERALD_TYPE = 'EMERALD';
+
+const pill = (id: string): string => `#scope-pills [data-pill="${id}"]`;
+
+/**
+ * Click a field and tick one of the filter rows in its menu.
+ * @param page - Page
+ * @param label - Filter row text
+ */
+async function turnOnInMenu(page: Page, label: string): Promise<void> {
+    await page.locator(WANT).click();
+    await page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: label }).click();
+    await page.keyboard.press('Escape');
+}
 
 function recipe(resultType: string, resultAmount: number, costType: string, costAmount: number, stock = 5) {
     return {
@@ -102,7 +116,7 @@ async function resultNames(page: Page): Promise<string[]> {
     return names.map(name => name.replace('ℹ', '').trim());
 }
 
-test.describe('Quick bar', () => {
+test.describe('Trade filters', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 
     test('deals only keeps trades at least 75% below market', async ({ page }) => {
@@ -113,22 +127,114 @@ test.describe('Quick bar', () => {
                 recipes: [recipe('COOKED_BEEF', 1, EMERALD_TYPE, price)],
             })),
         });
-        await page.locator('#deals-only-toggle').click();
+        await turnOnInMenu(page, 'Deals');
         await expect(page.locator(ROW)).toHaveCount(1);
         await expect(page.locator(`${ROW} .dev`)).toHaveText(['−83%']);
+        await expect(page).toHaveURL(/[?&]filters=deals/);
 
         await page.keyboard.press('Alt+Digit1');
         await expect(page.locator(ROW)).toHaveCount(4);
+        await expect(page.locator('#scope-pills')).toBeHidden();
     });
 
     test('best per item keeps only the cheapest offer for each item', async ({ page }) => {
         await page.keyboard.press('Alt+Digit2');
-        await expect(page.locator('#best-per-item-toggle')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator(pill('filter-best'))).toContainText('Best per item');
         const names = await resultNames(page);
         expect(names).toHaveLength(4);
         expect(new Set(names).size).toBe(4);
         const beefRow = page.locator(ROW).filter({ hasText: 'Cooked beef' });
         await expect(beefRow.locator('.dev')).toHaveText('−33%');
+    });
+
+    test('the Paying menu only offers filters that apply to payments', async ({ page }) => {
+        await page.locator(GIVE).click();
+        const filters = page.locator('#searchGive-suggestions .search-suggestion-toggle');
+        await expect(filters.filter({ hasText: 'Deals' })).toHaveCount(1);
+        await expect(filters.filter({ hasText: 'Best per item' })).toHaveCount(0);
+    });
+});
+
+test.describe('Lenses', () => {
+    test.beforeEach(async ({ page }) => { await openApp(page); });
+
+    test('clicking Buying opens its menu, and a lens keeps only its items', async ({ page }) => {
+        await page.locator(WANT).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Lenses' }).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Food' }).click();
+
+        await expect(page.locator(ROW)).toHaveCount(4);
+        expect(new Set(await resultNames(page))).toEqual(new Set(['Cooked beef']));
+        await expect(page.locator(pill('lens-buy'))).toContainText('buying Food');
+        await expect(page).toHaveURL(/[?&]lens=food/);
+    });
+
+    test('typing offers matching lenses after the item names', async ({ page }) => {
+        await page.locator(WANT).fill('ores');
+        const lensRow = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Ores & Minerals' });
+        await expect(lensRow).toContainText('lens · 2 trades');
+        await lensRow.click();
+
+        await expect(page.locator(WANT)).toHaveValue('');
+        const names = await resultNames(page);
+        expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual(['Diamond', 'Iron ingot']);
+    });
+
+    test('Backspace in an empty Buying field removes the last pill', async ({ page }) => {
+        await openApp(page, '?lens=food&filters=best');
+        const pills = page.locator('#scope-pills .scope-pill');
+        await expect(pills).toHaveCount(2);
+
+        await page.locator(WANT).focus();
+        await page.keyboard.press('Backspace');
+        await expect(pills).toHaveCount(1);
+        await expect(page.locator(pill('lens-buy'))).toBeVisible();
+        await page.keyboard.press('Backspace');
+        await expect(pills).toHaveCount(0);
+        await expect(page.locator(ROW)).toHaveCount(7);
+    });
+
+    test('swap moves the lens to Paying; the empty-results hint removes it', async ({ page }) => {
+        await openApp(page, '?lens=food');
+        await expect(page.locator(ROW)).toHaveCount(4);
+
+        await page.locator('#swap-search').click();
+        await expect(page).toHaveURL(/[?&]paylens=food/);
+        await expect(page.locator(pill('lens-pay'))).toContainText('paying with Food');
+        await expect(page.locator('.no-results-hint')).toContainText('7 matching trades outside Food');
+
+        await page.locator('.no-results-action').click();
+        await expect(page.locator(ROW)).toHaveCount(7);
+        await expect(page.locator('#scope-pills')).toBeHidden();
+    });
+
+    test('a menu over a search keeps it: Esc closes the menu, and a submenu filters only what is typed after it', async ({ page }) => {
+        await page.locator(WANT).fill('Cooked beef');
+        await page.locator(WANT).click();
+        await expect(page.locator(WANT_MENU)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator(WANT_MENU)).toBeHidden();
+        await expect(page.locator(WANT)).toHaveValue('Cooked beef');
+
+        await page.locator(WANT).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Lenses' }).click();
+        await page.keyboard.type('fo');
+        const lenses = page.locator(`${WANT_MENU} .search-suggestion-action`);
+        await expect(lenses).toHaveText([/Food/]);
+        await lenses.first().click();
+
+        await expect(page.locator(WANT)).toHaveValue('Cooked beef');
+        await expect(page.locator(pill('lens-buy'))).toBeVisible();
+        await expect(page.locator(ROW)).toHaveCount(4);
+    });
+
+    test('removing a pill moves focus to the next pill, then back to the field', async ({ page }) => {
+        await openApp(page, '?lens=food&filters=best');
+        await page.locator(`${pill('lens-buy')} .scope-pill-clear`).click();
+        const bestClear = page.locator(`${pill('filter-best')} .scope-pill-clear`);
+        await expect(bestClear).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(page.locator(WANT)).toBeFocused();
     });
 });
 
@@ -155,13 +261,13 @@ test.describe('Shulkers only', () => {
         await expect(page.locator(ROW)).toHaveCount(2);
 
         await page.keyboard.press('Alt+Digit3');
-        await expect(page.locator('#shulkers-only-toggle')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator(pill('filter-shulkers'))).toBeVisible();
         await expect(page.locator(ROW)).toHaveCount(1);
         await expect(page.locator(`${ROW} .result-amt`)).toHaveText('1728');
     });
 
     test('without a search it lists every trade with a filled shulker box on either side', async ({ page }) => {
-        await page.locator('#shulkers-only-toggle').click();
+        await turnOnInMenu(page, 'Shulker boxes');
         await expect(page.locator(ROW)).toHaveCount(2);
         const names = await resultNames(page);
         expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual(['Diamond', 'Sand']);

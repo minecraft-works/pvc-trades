@@ -357,10 +357,6 @@ When('I click the dashboard toggle button', async ({ page }) => {
     await page.locator(DASHBOARD_TOGGLE_SELECTOR).click();
 });
 
-When('I click the "New" quick filter', async ({ page }) => {
-    await page.locator('#new-only-toggle').click();
-});
-
 When('I click {string} on the dashboard', async ({ page }, label: string) => {
     await page.locator(DASHBOARD_SECTIONS_SELECTOR).getByRole('button', { name: label }).click();
 });

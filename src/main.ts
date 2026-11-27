@@ -55,12 +55,10 @@ import { prefetchLeaflet } from './map/leaflet.js';
 import { getTradeKey } from './map/map-math.js';
 import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
 import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
-import type { ActionSuggestion, Autocomplete } from './quick-search/autocomplete.js';
+import type { Autocomplete } from './quick-search/autocomplete.js';
 import { createAutocomplete } from './quick-search/autocomplete.js';
-import type { QuickBar } from './quick-search/quick-bar.js';
-import { createQuickBar } from './quick-search/quick-bar.js';
-import type { ShopFilterChip } from './quick-search/shop-chip.js';
-import { createShopFilterChip } from './quick-search/shop-chip.js';
+import { createFieldMenu, type FieldMenuDeps } from './quick-search/field-menu.js';
+import { createScopePills, handleFilterShortcut, type ScopePills } from './quick-search/scope-pills.js';
 import type { UrlSearchState, UrlSync } from './quick-search/url-sync.js';
 import { createUrlSync } from './quick-search/url-sync.js';
 import type { TradeRendererHandler } from './rendering/index.js';
@@ -68,9 +66,10 @@ import { createTradeRendererHandler } from './rendering/index.js';
 import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
 import { collectItemNames } from './search/query.js';
-import { collectShopLocations, collectShopSuggestions, rankShopSuggestions, type ShopLocation, type ShopSuggestion, summarizeOwner, summarizeShopAt } from './search/shop-filter.js';
+import { EMPTY_SCOPE, removeLastPill } from './search/scope.js';
+import { collectShopLocations, collectShopSuggestions, type ShopLocation, type ShopSuggestion, summarizeOwner, summarizeShopAt } from './search/shop-filter.js';
 import { getConfig } from './stores/index.js';
-import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
+import { cartStore, favoritesStore, navigationStore, playerPositionService, searchScopeStore, snapshotStore } from './stores/index.js';
 import type { ShopFilter, Trade } from './types.js';
 import { findFlips,type Flip } from './valuation/flips.js';
 
@@ -106,11 +105,12 @@ let renderer: TradeRendererHandler;
 let searchHandler: SearchSortHandler;
 
 // Quick search helpers (initialized in DOMContentLoaded)
-let quickBar: QuickBar;
+let scopePills: ScopePills;
 let urlSync: UrlSync;
 let wantAutocomplete: Autocomplete;
 let giveAutocomplete: Autocomplete;
-let shopFilterChip: ShopFilterChip;
+// True while URL state is being applied, which runs its own search (or none before data loads)
+let applyingSearchState = false;
 let suggestionSource: { trades: readonly Trade[]; names: ReturnType<typeof collectItemNames> } | undefined;
 let shopSuggestionSource: { trades: readonly Trade[]; suggestions: readonly ShopSuggestion[] } | undefined;
 let shopLocationSource: { trades: readonly Trade[]; locations: readonly ShopLocation[] } | undefined;
@@ -371,26 +371,16 @@ function getSuggestionNames(kind: 'want' | 'give'): readonly string[] {
     return suggestionSource.names[kind];
 }
 
-/** Shop and owner suggestions listed under the item names */
-const MAX_SHOP_SUGGESTIONS = 3;
-
 /**
- * Shop and owner suggestions for typed text, recomputed only when the trade list changes
- * @param query - Typed text
- * @returns Suggestions that limit the results to a shop or owner
+ * Shop and owner suggestions, recomputed only when the trade list changes
+ * @returns One suggestion per owner and per named shop
  */
-function getShopActions(query: string): readonly ActionSuggestion[] {
+function getShopSuggestions(): readonly ShopSuggestion[] {
     const trades = dataLoader.getAllTrades();
     if (shopSuggestionSource?.trades !== trades) {
         shopSuggestionSource = { trades, suggestions: collectShopSuggestions(trades) };
     }
-    return rankShopSuggestions(shopSuggestionSource.suggestions, query, MAX_SHOP_SUGGESTIONS).map(suggestion => ({
-        icon: suggestion.kind === 'shop' ? '🏪' : '👤',
-        label: suggestion.label,
-        detail: suggestion.detail,
-        actionLabel: suggestion.kind === 'shop' ? 'Show only this shop' : 'Show only shops of this player',
-        accept: () => { shopFilterChip.set(suggestion.filter); },
-    }));
+    return shopSuggestionSource.suggestions;
 }
 
 /**
@@ -406,7 +396,7 @@ function getShopLocations(): readonly ShopLocation[] {
 }
 
 /**
- * Show all trades of one shop: clears the search terms and sets the shop filter
+ * Show all trades of one shop: clears the search terms, lenses and filters and sets the shop filter
  * @param filter - Shop or owner to show
  */
 function showShopTrades(filter: ShopFilter): void {
@@ -414,12 +404,12 @@ function showShopTrades(filter: ShopFilter): void {
     mapOpenedFromCart = false;
     document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG)?.close();
     document.querySelector<HTMLDialogElement>(`#${DIALOG_IDS.MATRIX}`)?.close();
-    applySearchState({ buy: '', pay: '', shop: filter }, true);
+    applySearchState({ buy: '', pay: '', scope: { ...EMPTY_SCOPE, shop: filter } }, true);
 }
 
 /**
- * Put search terms and the shop filter into the search UI, e.g. from the URL
- * @param state - Buying/Paying terms and shop filter
+ * Put search terms and the search scope into the search UI, e.g. from the URL
+ * @param state - Buying/Paying terms and scope
  * @param runSearch - Whether to re-run the search
  */
 function applySearchState(state: UrlSearchState, runSearch: boolean): void {
@@ -427,7 +417,9 @@ function applySearchState(state: UrlSearchState, runSearch: boolean): void {
     const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
     wantInput.value = state.buy;
     giveInput.value = state.pay;
-    shopFilterChip.set(state.shop);
+    applyingSearchState = true;
+    searchScopeStore.set(state.scope);
+    applyingSearchState = false;
     updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
     updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
     wantAutocomplete.close();
@@ -435,22 +427,45 @@ function applySearchState(state: UrlSearchState, runSearch: boolean): void {
     if (runSearch) { searchHandler.search(); }
 }
 
-/** Set up autocomplete, the quick bar and URL sync (must run before data loads) */
+/** Redraw the pills and open menus, and re-run the search, after the scope changed */
+function onScopeChanged(): void {
+    scopePills.render();
+    wantAutocomplete.refresh();
+    giveAutocomplete.refresh();
+    if (!applyingSearchState) { searchHandler.search(); }
+}
+
+/** Set up the field menus, scope pills and URL sync (must run before data loads) */
 function setupQuickSearch(): void {
     const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
     const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
 
-    wantAutocomplete = createAutocomplete(wantInput, () => getSuggestionNames('want'), getShopActions);
-    giveAutocomplete = createAutocomplete(giveInput, () => getSuggestionNames('give'));
+    const menuDeps: FieldMenuDeps = {
+        getShopSuggestions,
+        getTrades: () => dataLoader.getAllTrades(),
+        getScope: () => searchScopeStore.get(),
+        setLens: (side, lens) => { searchScopeStore.setLens(side, lens); },
+        setShop: (shop) => { searchScopeStore.setShop(shop); },
+        toggleFilter: (key) => { searchScopeStore.toggleFilter(key); },
+        removeLast: (side) => {
+            const next = removeLastPill(searchScopeStore.get(), side);
+            if (next) { searchScopeStore.set(next); }
+            return next !== undefined;
+        },
+    };
+    wantAutocomplete = createAutocomplete(wantInput, () => getSuggestionNames('want'), createFieldMenu('buy', menuDeps));
+    giveAutocomplete = createAutocomplete(giveInput, () => getSuggestionNames('give'), createFieldMenu('pay', menuDeps));
 
-    quickBar = createQuickBar(getElement('quick-bar'), {
-        search: () => { searchHandler.search(); },
+    scopePills = createScopePills(getElement('scope-pills'), {
+        getScope: () => searchScopeStore.get(),
+        setScope: (scope) => { searchScopeStore.set(scope); },
+        openMenu: (side, submenuId) => { (side === 'buy' ? wantAutocomplete : giveAutocomplete).openMenu(submenuId); },
+        focusField: (side) => { getElement(side === 'buy' ? SEARCH_WANT_ID : SEARCH_GIVE_ID).focus(); },
     });
-
-    shopFilterChip = createShopFilterChip(getElement('shop-filter'), () => { searchHandler.search(); });
+    searchScopeStore.onChange(onScopeChanged);
 
     urlSync = createUrlSync({
-        getState: () => ({ buy: wantInput.value, pay: giveInput.value, shop: shopFilterChip.get() }),
+        getState: () => ({ buy: wantInput.value, pay: giveInput.value, scope: searchScopeStore.get() }),
         applyState: applySearchState,
     });
 }
@@ -479,7 +494,7 @@ function setupSearchInputHandlers(): void {
     getElement('swap-search').addEventListener('click', swapSearchFields);
 }
 
-/** Swap the Buying and Paying search terms and re-run the search */
+/** Swap the Buying and Paying search terms and lenses, and re-run the search */
 function swapSearchFields(): void {
     const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
     const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
@@ -488,7 +503,8 @@ function swapSearchFields(): void {
     giveInput.value = wantValue;
     updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
     updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
-    searchHandler.search();
+    // Re-runs the search through the scope listener
+    searchScopeStore.swapLenses();
 }
 
 /**
@@ -514,10 +530,10 @@ function isSlashSearchShortcut(event: KeyboardEvent): boolean {
         && !isTextEntryTarget(event.target) && !document.querySelector('dialog[open]');
 }
 
-/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1…3 quick bar) */
+/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1…4 trade filters) */
 function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
-        if (!document.querySelector('dialog[open]') && quickBar.handleShortcut(event)) {
+        if (!document.querySelector('dialog[open]') && handleFilterShortcut(event, key => { searchScopeStore.toggleFilter(key); })) {
             event.preventDefault();
             return;
         }
@@ -641,8 +657,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSortArrows: () => renderer.updateSortArrows(),
         updateDealsBadge: (count) => favoritesUI.updateDealsBadge(count),
         isFilterCartOnly: () => renderer.isFilterCartOnly(),
-        getQuickFilters: () => quickBar.getFilters(),
-        getShopFilter: () => shopFilterChip.get(),
+        getScope: () => searchScopeStore.get(),
+        clearLenses: () => { searchScopeStore.set({ ...searchScopeStore.get(), buyLens: undefined, payLens: undefined }); },
         onSearched: () => {
             urlSync.record();
         },
@@ -662,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
         getAllTrades: () => dataLoader.getAllTrades(),
         getDeviation: () => dataLoader.getDeviation(),
         search: () => searchHandler.search(),
-        showNewTrades: () => { quickBar.setFilter('newOnly', true); },
+        showNewTrades: () => { searchScopeStore.setFilter('newOnly', true); },
         updateClearButtonVisibility,
         snapshotStore,
         favoritesStore,

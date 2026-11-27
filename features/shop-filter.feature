@@ -24,6 +24,15 @@ Feature: Shop and owner filter
     And more than 1 trade should be displayed
     And the address should not contain "owner="
 
+  @shops @search
+  Scenario: Browsing all shops and owners from the Buying menu
+    Given the app is loaded with mock shop data
+    When I open "Shops & owners" in the Buying menu
+    Then the menu should list the owner "DiamondOwner"
+    When I choose "Diamond Dealer" in the menu
+    Then the shop filter should show "Diamond Dealer"
+    And 1 trade should be displayed
+
   @shops @map
   Scenario: The map names the shop and lists all its trades
     Given the app is loaded with mock shop data

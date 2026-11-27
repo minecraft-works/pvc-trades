@@ -14,14 +14,14 @@
         <div class="search-box">
             <div class="search-input-wrapper">
                 <label for="searchWant" class="visually-hidden">Search for items to buy</label>
-                <input type="text" id="searchWant" placeholder="Buying..." autofocus aria-keyshortcuts="/ Control+F" title="Tab: go to Paying · Esc: clear · ↓: suggestions or results · / or Ctrl+F: jump here · Alt+1…4: quick filters">
+                <input type="text" id="searchWant" placeholder="Buying..." autofocus aria-keyshortcuts="/ Control+F Alt+ArrowDown" title="Click or Alt+↓: lenses, shops and filters · Tab: go to Paying · Esc: clear · ↓: suggestions or results · / or Ctrl+F: jump here · Alt+1…4: filters">
                 <button id="clear-search-want" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear buying search">✕</button>
                 <button id="add-to-watchlist" type="button" title="Add search to watchlist" aria-label="Add to watchlist">☆</button>
             </div>
-            <button id="swap-search" type="button" title="Swap search terms" aria-label="Swap search terms">⇄</button>
+            <button id="swap-search" type="button" title="Swap search terms and lenses" aria-label="Swap search terms and lenses">⇄</button>
             <div class="search-input-wrapper">
                 <label for="searchGive" class="visually-hidden">Search by cost item</label>
-                <input type="text" id="searchGive" placeholder="Paying..." title="Esc: clear · ↓: suggestions or results · Quote a name (&quot;emerald&quot;) for an exact match">
+                <input type="text" id="searchGive" placeholder="Paying..." aria-keyshortcuts="Alt+ArrowDown" title="Click or Alt+↓: lenses, shops and filters · Esc: clear · ↓: suggestions or results · Quote a name (&quot;emerald&quot;) for an exact match">
                 <button id="clear-search-give" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear paying search">✕</button>
             </div>
         </div>
@@ -33,8 +33,7 @@
             </button>
         </div>
         <div class="search-meta">
-            <div id="shop-filter" class="shop-filter hidden" role="status" aria-label="Shop filter"></div>
-            <div id="quick-bar" class="quick-bar" role="toolbar" aria-label="Quick filters"></div>
+            <div id="scope-pills" class="scope-pills hidden" role="list" aria-label="Active lenses, shop and filters"></div>
             <p id="data-freshness" class="data-freshness"></p>
         </div>
     </div>
