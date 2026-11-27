@@ -34,7 +34,7 @@ src/
 │   ├── deviation.ts         # Deviation calculation helpers
 │   └── query.ts             # Pure fast-search helpers (exact queries, URL terms, suggestions)
 ├── quick-search/        # Fast-probing UI: autocomplete, quick bar, URL history
-├── valuation/           # Item values, item identity (variants, shulkers), statistics
+├── valuation/           # Item values, item identity (variants, shulkers, base units), statistics, currency graph
 └── stores/              # Class-based state stores
     ├── cart-store.ts         # Cart items, quantities, persistence
     ├── navigation-store.ts   # Nav state, progress, player position
@@ -291,7 +291,7 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 | **Overworld** | Main Minecraft dimension (green coords in UI) |
 | **Nether** | Hell dimension with 8:1 coordinate ratio (red coords in UI) |
 | **Trade** | A shop offer: give items to receive items |
-| **Deviation** | How much a trade's price differs from the median price of the same item, in the same currency when possible (see ADR-018) |
+| **Deviation** | How much a trade's price differs from the median price of the same item, in the same currency when possible (see ADR-018); otherwise an estimate marked "≈" (ADR-019) |
 | **Core Blocks** | Base currencies: Emerald, Diamond, Gold, Iron, Netherite blocks |
 | **Route** | Optimized order to visit shops in cart |
 | **Independent Shops** | Shops >16 blocks apart with different owners (prevents price manipulation) |
@@ -432,6 +432,7 @@ Significant design decisions are documented in `docs/adr/`. Consult these before
 - [ADR-010](docs/adr/010-tile-loading-minimization.md) - Limiting requests to the external map server
 - [ADR-011](docs/adr/011-player-position-interpolation.md) - Smooth player position interpolation
 - [ADR-018](docs/adr/018-trade-deviation-model.md) - Trade deviation model (item identity, same-currency comparison)
+- [ADR-019](docs/adr/019-exchange-rate-model.md) - One exchange-rate model (blocks as base units, in-stock only, currency graph with sell ≤ buy)
 
 **Key principles:**
 - **ADR-003**: Test-specific logic belongs in test fixtures, not production code

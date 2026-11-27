@@ -1,9 +1,9 @@
 # ADR-019: One Exchange-Rate Model
 
 ## Status
-**Proposed** - 2026-11. Would amend [ADR-001](001-price-aggregation-design.md) (decision 4, "market prices vs fixed ratios") and [ADR-018](018-trade-deviation-model.md) (decision 3, same-currency comparison).
+**Implemented** - 2026-11. Supersedes [ADR-001](001-price-aggregation-design.md) decision 4 ("market prices vs fixed ratios") and amends [ADR-018](018-trade-deviation-model.md) decision 3 (same-currency comparison).
 
-## Context
+## Context (before this ADR)
 
 Prices are compared in three places, and each place has its own rules:
 
@@ -50,98 +50,91 @@ On the same trade, the emerald basis and the same-currency basis give opposite v
 
 **7. There are no timestamps.** The feed has `shopName, shopOwner, location, world, recipes`, and recipes have only `resultItem, item1, item2, stock`. Stale sold-out trades cannot be aged out from the feed.
 
-## Decision (proposed)
+## Decision
 
-One model in `src/valuation/`, read by every feature.
+One model in `src/valuation/`, built once per data refresh by `buildValuation()` and read by every feature.
 
-### 1. Canonical units: fixed, reversible crafting always wins
+### 1. Base units: reversible crafting always wins
 
-- A conversion that crafts both ways (block ↔ 9 base) means block and base are **the same currency**. Every quantity is converted to base units **once**, when the valuation input is built (`toValuationInput` / `getPairPrice`), on both the cost and the result side. Pair keys, medians, flips and rates only ever see base units.
-- One-way or lossy recipes (quartz block = 4 quartz, which cannot be uncrafted) are **not** merged. `block_conversions.json` gets a `reversible` flag (default `true`; `false` for quartz).
+- A block that crafts back into its base (block ↔ 9 base) **is** its base. `toBaseUnit()` converts every item stack once, in `getItemComponents()`, so pair keys, medians, flips and rates only ever see base units. A shulker box with "28 Emerald + 4 Emerald block" is 64 Emerald.
+- One-way recipes are not merged. `block_conversions.json` has a `reversible` flag (default `true`; `false` for the quartz block).
 - Market prices *between* a block and its base are ignored, because crafting is free.
 
-### 2. One market book
+### 2. One market, in-stock trades only
 
-`calculatePairPrices` and the buy/sell arrays of `calculateItemValues` are replaced by one `MarketBook`. For each ordered pair `(item, currency)` in base units, it holds observations: per-unit price, location, owner and in stock.
+- `calculatePairPrices()` (per-unit prices per `result|cost` pair, in base units) is the single market. **Only in-stock trades count**, everywhere. The table hides sold-out trades, nobody can act on them, and without timestamps stale ones cannot be aged out.
+- Trust uses one rule: ≥ `minIndependentShopsPerItem` independent shops (ADR-001 clustering), or ≥ `minIndependentShops` when core currencies are involved. Core currencies are recognised in base units too, so "Gold ingot" is core because "Gold Block" is.
 
-- **Ask** of X in C: shops that sell X for C.
-- **Bid** of X in C: shops that buy X for C (price = C received per X).
-- **Trust:** one rule for every consumer, applied per side. A side needs ≥ `minIndependentShopsPerItem` independent shops, or ≥ `minIndependentShops` for core currencies (`countIndependentShops`, ADR-001 clustering). The side's value is the median.
-- **Sold-out trades:** see open question A.
+### 3. Currency graph (`currency-graph.ts`)
 
-### 3. Currency graph
-
-Nodes are the base core currencies: Emerald, Diamond, Netherite ingot, Gold ingot and Iron ingot. Edges are direct quotes from the market book (ask and bid). When a direct side is missing or untrusted, a path is composed through other currencies:
-
-- an **ask chain multiplies asks**, and a **bid chain multiplies bids**. So **bid ≤ ask holds by construction** whenever each edge has bid ≤ ask;
-- the shortest path wins, with ties going to the most evidence (the smallest shop count along the path);
-- a crossed direct edge (bid > ask) is not used as a rate. It is listed as a flip.
-
-The **mid rate** is `√(bid × ask)`. It is used wherever one number is needed: ranking flips by value and converting values.
+- **Nodes** are the core currencies in base units (Netherite ingot, Diamond, Emerald, Gold ingot, Iron ingot). Other items also count when they pay for **≥ 5 different goods at ≥ 3 independent shops**: on live data, Bb coin, Playtime certificate and Inactivity ticket. Nodes without a single trusted market are left out.
+- **Buy** of A in B is the median price of shops selling A for B. **Sell** is the median of what shops pay in B for A. Each side needs enough independent shops on its own.
+- When a side has no trusted direct market, it is composed along the **shortest chain** of markets, at most 3. Ties go to the best-backed weakest link. Buy multiplies buy rates and sell multiplies sell rates. The rate is marked "≈" and the tooltip names the currencies passed through.
+- **Sell ≤ Buy always.** If the two sides cross, which is possible when they come from different shops or paths, both show the mid rate `√(buy × sell)` and the tooltip says so. The crossing itself shows up as a flip.
+- The **mid rate** anchors currencies in emeralds. `calculateItemValues()` treats anchored currencies like emeralds, so every good priced in any currency is valued at the rates the Rates tab shows.
 
 ### 4. Consumers
 
 | Feature | Reads |
 |---------|-------|
-| Rates tab and converter | Currency graph: Buy = ask, Sell = bid |
-| Deal % | Same-currency market (base units), then the cross-currency fallback (open question B) |
-| Flips | Market book pairs in base units, so "buy for 9 Diamond, sell for 1 Diamond block" pairs up. Profit uses the mid rate in emeralds. |
-| Emerald values (`getTrustedItemValue`) | The item's best-backed quote, converted with the mid rate. This replaces the iterative emerald-only derivation. |
+| Rates tab and converter | `presentRate()`: Buy and Sell from the currency graph; custom currencies in their own table; the converter offers every currency and its block |
+| Deal % | Same item in the same currency (base units) first. Otherwise an **estimate**: both sides in emeralds at graph rates, shown as "≈−40%" in lighter italics with a tooltip saying so |
+| Deals filter, watchlist alerts, deals badge, dashboard and snapshot baseline | Same-currency judgements only (`confidentOnly()`); estimates never trigger them |
+| Sort by Deal | Estimates come after same-currency judgements, in either direction |
+| Flips | Pairs in base units, so "buy for 1 Diamond block, sell for 12 Diamond" pairs up. Profit is counted in a currency rather than a good, in blocks when that reads better. Each leg is shown as its shop lists it. |
 
-### 5. Presentation
+### 5. Presentation (`rate-presentation.ts`)
 
-- Show the more valuable item first, so the amount is always ≥ 1. Never show "0.06 Netherite".
-- Use whole blocks where it reads better: if the amount is ≥ 9 base units and the currency has a reversible block, show blocks. Examples: "1 Netherite ingot = 16 / 8 Diamond block" and "1 Diamond = 16 Emerald block".
-- Rounding: whole numbers from 10 up, and two significant digits below 10 (5.2). Snap to a whole number when within 2%.
-- The converter accepts any amount and uses the same formatting. A rate composed through a path is marked "≈" and the tooltip shows the path.
+- The more valuable currency comes first, so amounts are ≥ 1.
+- Blocks are used when the amount is ≥ 64 base units, or when every amount is a whole number of blocks. So "1 Netherite ingot = 16 / 8 Diamond block", while "13 Emerald" stays in emeralds.
+- Rounding: whole numbers from 10 up, two significant digits below 10, and snap to a whole number when within 2%.
 
-## Open questions for the user
+### Not changed
 
-| # | Question | Options | Recommendation |
-|---|----------|---------|----------------|
-| A | Do sold-out trades count towards market prices? | (1) Count them, as today. (2) In stock only. (3) Count them only towards trust, not the median. | **(2)**. The table hides sold-out trades and they can't be acted on. Without timestamps, stale ones can't be aged out. Cost: 126 trades lose their Deal %. |
-| B | How should Deal % work without a same-currency market (≈ 650 in-stock trades after the merge)? | (1) Emerald fallback via the exchange rate, as today. (2) Convert with the price level of goods. (3) Show "—" and put the other currency's typical price in the tooltip. (4) Show a value marked "≈" that is excluded from the Deals filter and the dashboard. | **(4)**, converted with the exchange rate. The verdict stays visible but no longer creates 339 shaky "deals". |
-| C | Should custom currencies (Bb coin, Playtime certificate…) become graph nodes once they have trusted quotes against a core currency? | Yes / later | Later. |
+- **Lot sizes:** the bulk discount is real, so "64 for 1 Diamond" against "1,728 for 9 Diamond" is still +200%.
+- `calculateItemValues()` keeps its transitive derivation for goods; only its anchors changed.
 
-## Expected effect (live data, in-stock trades, Deal %)
+## Results (live data, 2026-11-27, in-stock trades)
 
-| Variant | Trades judged | Deal % changed (≥ 5 pts) | Same-currency basis | ≤ −20% | ≥ +300% |
-|---------|---------------|--------------------------|---------------------|--------|---------|
-| Today | 3,207 | — | 2,198 | 755 | 254 |
-| Merge block → base | 3,207 | 844 | 2,561 | 780 | 250 |
-| Merge + in stock only | 3,081 | 1,463 | 2,375 | 816 | 231 |
+| Metric | Before | After |
+|--------|--------|-------|
+| Trades judged | 3,207 | 3,081 (2,348 same-currency, 733 estimates "≈") |
+| Deal % changed | — | 1,575 trades (1,465 by ≥ 5 points); median change 35 points |
+| Deals ≤ −75% (Deals filter) | 206 | 136 |
+| Deals ≤ −20% | 755 | 589 |
+| ≥ +300% (incl. estimates) | 254 | 237 |
+| Flips | 136 | 172 (109 in Emerald, 61 in Diamond; 36 pair a block leg with a base leg) |
 
-The Rates tab changes from "1 Netherite ingot = 17.2 / 8.8 Diamond block, 1 Diamond = 8 / 18.3 Gold block" to "16 / 8 Diamond block, 23 / 8 Gold block" (all trades; with in-stock trades only, the Gold rate is 24 / 6). Sell ≤ Buy then holds for every pair.
+Gunpowder: 1,728 for 9 Diamond goes from −10% to **0%**, the same as 1,728 for 1 Diamond block.
+
+| Rates tab | Before | After |
+|-----------|--------|-------|
+| 1 Netherite ingot | 17.2 / 8.8 Diamond block | 16 / 8 Diamond block |
+| 1 Diamond | 16 / 16 Emerald block | 19 / 16 Emerald block |
+| 1 Gold | 2 / 0.88 Emerald block (per block) | ≈ 3.2 / 0.67 Emerald (per ingot, via Diamond) |
+| Emerald ↔ Iron | 1 Emerald block = 1 / 6.75 Iron block (sell > buy) | 1 Emerald = — / 1 Iron ingot |
+| Other currencies | — | 1 Diamond = 8 / 8 Bb coin; 1 Playtime certificate = 32 / 16 Diamond block; 1 Inactivity ticket = — / 2 Diamond |
 
 ## Alternatives considered
 
 | Alternative | Why not |
 |-------------|---------|
-| Keep the market price for blocks and fall back to crafting (ADR-001 §4) | Block markets are thin and noisy (see finding 2), and the crafting conversion is free both ways |
-| Fix only the formula in `buildExchangeMatrix` (`buy(A) / sell(B)`) | Fixes Sell > Buy, but still routes through emeralds: 17.2 instead of 16, and it does not help Deal % or flips |
-| Derive one emerald value for everything, including currencies, from goods | Gives a wrong converter for real currency exchanges (≈ 41 vs 144 em/diamond) |
+| Keep the market price for blocks and fall back to crafting (ADR-001 §4) | Block markets are thin and noisy (finding 2), and crafting is free both ways |
+| Fix only the matrix formula (`buy(A) / sell(B)`) | Fixes Sell > Buy, but still routes through emeralds (17.2 instead of 16) and does not help Deal % or flips |
+| Convert estimates at the price level of goods (≈ 41 em/diamond) | Better than the exchange rate (×2.5 vs ×3.5 typical error) but still too weak to count as a deal, and it would need a second, unexplained rate |
+| Hide cross-currency Deal % ("—") | Loses useful orientation; marking it "≈" and excluding it from deals keeps it visible without harm |
+| Count sold-out trades, or only for trust | They cannot be acted on and cannot be aged out without timestamps |
 | Weight medians by lot size | The bulk discount is real; that is a separate question |
 
 ## Consequences
 
 **Positive**
-- One rule for units, one for trust and one for sold-out trades, so block and base give the same Deal %.
-- Sell ≤ Buy by construction, and rates follow the direct markets.
-- Flips across block and base become visible.
+- One rule each for units, trust and sold-out trades, so block and base give the same Deal %.
+- Sell ≤ Buy in every rate, and rates follow the direct markets.
+- Deals, alerts and the dashboard rely only on same-currency comparisons.
+- Flips across block and base become visible, counted in real currencies.
 
 **Negative**
-- Deal % changes for about 850–1,450 in-stock trades. The snapshot baseline key must be versioned again (as in ADR-018 §4), or the dashboard reports false price drops.
-- Rewrites `item-values.ts`, `ratio-graph.ts` and part of `statistics.ts`. Their existing unit tests must be revisited.
-
-## Implementation plan (after approval)
-
-1. Canonical units in `item-identity.ts`, plus the `reversible` flag in `block_conversions.json` and its Zod schema.
-2. `MarketBook` and per-side quotes (`valuation/market-book.ts`).
-3. Currency graph with ask/bid chains (`valuation/currency-graph.ts`), replacing `ratio-graph.ts`.
-4. Switch Deal %, Rates and flips over, then version the snapshot key.
-5. Unit tests:
-   - block and base give the same Deal %;
-   - bid ≤ ask on composed paths;
-   - transitive rates;
-   - reversible conversions win and quartz is not merged.
-6. Before/after report on live data, including the Rates table.
+- 126 in-stock trades lose their Deal % because their market existed only in sold-out trades.
+- The snapshot baseline key moved to `shop-trades-snapshot-dev4`, so the dashboard starts a new baseline once.
+- `ratio-graph.ts` (`buildRatioGraph`, `buildExchangeMatrix`) and `hasEnoughIndependentData` were removed.

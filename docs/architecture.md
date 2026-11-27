@@ -178,8 +178,8 @@ see [ADR-009](adr/009-tile-caching-strategy.md)).
 | Category | Functions |
 |----------|-----------|
 | Search | `matchesQuery`, `getRegex`, `filterTrade`, `sortResults` |
-| Values | `calculateItemValues`, `getTrustedItemValue`, `getRatio` |
-| Ratios | `buildRatioGraph`, `buildExchangeMatrix`, `buildDirectionalEmeraldValues` |
+| Values | `calculateItemValues`, `calculatePairPrices`, `getTrustedItemValue` |
+| Rates | `src/valuation/`: `buildValuation`, `buildCurrencyGraph`, `presentRate` (ADR-019) |
 | Route | `computeOptimalOrder`, `twoOptOptimize`, `calculateRouteDistance` |
 | Coordinates | `getTileCoords`, `toLeafletCoords`, `clampToCircle` |
 | Utilities | `median`, `formatName`, `highlight`, `escapeHtml` |
