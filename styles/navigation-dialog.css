@@ -1,0 +1,513 @@
+/* ============================================================================
+ * Navigation Dialog (Circular Map with Floating Timeline)
+ * ============================================================================ */
+
+#nav-dialog {
+    background: transparent;
+    border: none;
+    padding: 0;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+
+    /* Square dialog like map-dialog */
+    width: min(calc(100vw - 20px), 80vh, 768px);
+    height: min(calc(100vw - 20px), 80vh, 768px);
+    overflow: visible;
+}
+
+#nav-dialog::backdrop {
+    background: rgb(0 0 0 / 85%);
+}
+
+#nav-dialog-map-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #1a1a2e;
+    box-shadow: 0 0 0 3px var(--color-border), 0 8px 32px rgb(0 0 0 / 50%);
+}
+
+/* Leaflet tile rendering for nav dialog */
+#nav-dialog-map-container .leaflet-tile,
+#nav-dialog-map-container .leaflet-image-layer {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+}
+
+#nav-dialog-map-container.zoomed-out .leaflet-tile,
+#nav-dialog-map-container.zoomed-out .leaflet-image-layer {
+    image-rendering: auto;
+}
+
+#nav-dialog-map-container .leaflet-tile-container {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+#nav-dialog-map-container .leaflet-map-pane {
+    transform: translate3d(0, 0, 0);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom {
+    border: none;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom a {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 18px;
+}
+
+#nav-dialog-map-container .leaflet-control-zoom a:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+#nav-dialog-map-container .leaflet-control-zoom-in {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+#nav-dialog-map-container .leaflet-control-zoom-out {
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+/* Shop tooltip when player is nearby */
+.nav-shop-tooltip {
+    position: absolute;
+    top: 50%;
+    right: -20px;
+    transform: translateY(-50%);
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--border-radius-lg);
+    padding: 16px 20px;
+    min-width: 200px;
+    max-width: 280px;
+    z-index: 1002;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+    animation: tooltip-appear 0.2s ease-out;
+}
+
+.nav-shop-tooltip.hidden {
+    display: none;
+}
+
+@keyframes tooltip-appear {
+    from {
+        opacity: 0;
+        transform: translateY(-50%) translateX(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+    }
+}
+
+.nav-shop-tooltip h4 {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.nav-shop-tooltip ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.nav-shop-tooltip li {
+    padding: 6px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+.nav-shop-tooltip li:last-child {
+    border-bottom: none;
+}
+
+.nav-shop-tooltip .item-name {
+    color: var(--color-text);
+}
+
+.nav-shop-tooltip .item-qty {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* Live distance display below map */
+.nav-dialog-distance {
+    position: absolute;
+    bottom: -70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: var(--color-text);
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.nav-dialog-distance .distance-label {
+    color: var(--color-text-muted);
+}
+
+.nav-dialog-distance .distance-value {
+    font-weight: 600;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+}
+
+/* Navigation info rows */
+.nav-info-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-info-label {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-info-coords {
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.nav-info-item {
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.nav-info-distance {
+    font-family: var(--font-mono);
+    color: var(--color-good);
+    font-weight: 600;
+}
+
+.nav-dialog-distance.hidden {
+    display: none;
+}
+
+/* Close navigation button */
+#close-nav {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-text-dimmed);
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    transition: all 0.15s ease;
+}
+
+#close-nav:hover {
+    background: var(--color-bg-tertiary);
+    color: #fff;
+}
+
+/* Follow mode toggle button - top left with hit area */
+.nav-follow-toggle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-accent);
+    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    transition: all 0.15s ease;
+    padding: 0; /* Hit area padding via pseudo-element */
+}
+
+.nav-follow-toggle::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+}
+
+.nav-follow-toggle:hover {
+    background: var(--color-bg-tertiary);
+    transform: scale(1.05);
+}
+
+/* Active state when in follow mode */
+.nav-follow-toggle[data-mode="follow"] {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+
+/* Manual mode styling */
+.nav-follow-toggle[data-mode="manual"] {
+    color: var(--color-text-dimmed);
+    opacity: 0.8;
+}
+
+/* Re-center button for nav dialog */
+.nav-dialog-recenter {
+    position: absolute;
+    bottom: 10px;
+    right: calc(50% - 50px);
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-accent);
+    cursor: pointer;
+    z-index: 1001;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-dialog-recenter:hover {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.nav-dialog-recenter.hidden {
+    display: none;
+}
+
+/* View controls container - top left, below follow toggle */
+.nav-view-controls {
+    position: absolute;
+    top: 48px;
+    left: 8px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    z-index: 1001;
+}
+
+/* Common styles for view control buttons */
+.nav-view-mode-toggle,
+.nav-world-toggle {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    color: var(--color-text);
+    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.nav-view-mode-toggle:hover,
+.nav-world-toggle:hover {
+    background: var(--color-bg-tertiary);
+    transform: scale(1.05);
+}
+
+/* Auto mode - highlighted to show it's active */
+.nav-view-mode-toggle[data-mode="auto"] {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-color: var(--color-accent);
+}
+
+/* Manual mode - dimmed */
+.nav-view-mode-toggle[data-mode="manual"] {
+    color: var(--color-text-dimmed);
+    opacity: 0.85;
+}
+
+/* Overworld view - normal */
+.nav-world-toggle[data-world="overworld"] {
+    /* Default styling */
+}
+
+/* Nether view - red tint */
+.nav-world-toggle[data-world="the_nether"] {
+    background: var(--color-bg-nether);
+    color: var(--color-nether);
+    border-color: var(--color-nether);
+}
+
+/* Disable world toggle in auto mode */
+.nav-world-toggle[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Player markers: Leaflet positions the outer element; the inner dot scales with zoom */
+.leaflet-player-marker .player-dot {
+    position: absolute;
+    inset: 0;
+    background: #4caf50;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
+    transform: scale(var(--marker-scale, 1));
+    transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+
+/* Player name label (shared between map and edge markers) */
+.player-name {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: #fff;
+    background: rgb(0 0 0 / 70%);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    left: 16px;
+    right: auto;
+}
+
+/* Label on left side (for markers on right edge) */
+.player-name.label-left {
+    left: auto;
+    right: 16px;
+}
+
+/* Label above (for markers near bottom edge) */
+.player-name.label-top {
+    top: auto;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+}
+
+/* Label below (for markers near top edge) */
+.player-name.label-bottom {
+    top: calc(100% + 4px);
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+}
+
+/* Edge markers: the name points from the rim toward the map centre.
+   Anchored at the marker centre and rotated around it; labels that would
+   read upside down are turned half around and end at the marker instead. */
+.player-name.label-radial {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform-origin: 0 0;
+    transform: rotate(var(--label-angle, 0deg)) translate(9px, -50%);
+}
+
+.player-name.label-radial.label-radial-end {
+    transform: rotate(var(--label-angle, 0deg)) translate(calc(-100% - 9px), -50%);
+}
+
+/* Player markers on circle edge (outside map, as DOM elements).
+   Placed with an inline transform from the top-left corner of the dialog. */
+.player-edge-marker {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    /* width and height set dynamically based on distance */
+    background: #ff9800;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
+    z-index: 1001;
+    pointer-events: auto;
+    opacity: 0.9;
+    cursor: pointer;
+}
+
+/* Players (dot and name) are clickable on the shop map: the map flies to them */
+#map-dialog .player-edge-marker .player-name,
+#map-dialog .leaflet-player-marker .player-name {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+#map-dialog .player-edge-marker:hover {
+    opacity: 1;
+    z-index: 1003;
+}
+
+#map-dialog .player-edge-marker:hover .player-name,
+#map-dialog .leaflet-player-marker:hover .player-name,
+#map-dialog .is-selected .player-name {
+    background: var(--color-accent);
+    color: #0d1b24;
+}
+
+/* The selected player gets the same blue ring as a selected shop */
+#map-dialog .leaflet-player-marker.is-selected .player-dot,
+#map-dialog .player-edge-marker.is-selected {
+    border-color: #fff;
+    box-shadow:
+        0 0 0 4px rgb(79 195 247 / 60%),
+        0 2px 6px rgb(0 0 0 / 70%);
+    opacity: 1;
+}

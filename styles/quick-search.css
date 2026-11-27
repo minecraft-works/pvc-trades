@@ -1,0 +1,187 @@
+/* --- Shop filter chip (search meta row) --- */
+
+/* Filled and borderless, so it reads as the active filter rather than another toggle */
+.shop-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 50%;
+    padding: 0 2px 0 10px;
+    font-size: 0.72rem;
+    line-height: 20px;
+    border-radius: 999px;
+    background: rgb(79 195 247 / 14%);
+    color: var(--color-text);
+}
+
+.shop-filter-prefix {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.shop-filter-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* Divider between the shop filter and the quick toggles */
+.shop-filter:not(.hidden) + .quick-bar {
+    padding-left: 8px;
+    border-left: 1px solid var(--color-border);
+}
+
+.shop-filter-clear {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+
+.shop-filter-clear:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+/* --- Shop and owner suggestions under the item names --- */
+
+/* Shop names and details need more room than the narrow mobile Buying field */
+#searchWant-suggestions {
+    min-width: min(300px, calc(100vw - 48px));
+    overflow-x: hidden;
+}
+
+.search-suggestions li.search-suggestion-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
+}
+
+.search-suggestions li:not(.search-suggestion-action) + .search-suggestion-action {
+    border-top: 1px solid var(--color-border);
+}
+
+.suggestion-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-detail {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
+.search-suggestions li:hover .suggestion-detail,
+.search-suggestions li[aria-selected="true"] .suggestion-detail {
+    color: inherit;
+}
+
+/* --- Shop name and owner on the map, route and cart --- */
+
+/* Inside the round map, clear of the player edge markers on the rim */
+.map-shop-info {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1002;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 4px 10px;
+    width: max-content;
+    max-width: 66%;
+    padding: 6px 8px 6px 14px;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    color: #fff;
+    background: rgb(16 18 22 / 92%);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 18px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 55%);
+    backdrop-filter: blur(4px);
+}
+
+.map-shop-name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.map-shop-owner {
+    font-size: 0.8rem;
+    color: #c8c8c8;
+}
+
+.map-shop-trades-btn {
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: #0d1b24;
+    cursor: pointer;
+}
+
+.map-shop-trades-btn:hover {
+    filter: brightness(1.12);
+}
+
+.map-shop-sold-out {
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 999px;
+}
+
+/* Hover label of the shop dots on the map */
+.leaflet-tooltip.map-shop-tooltip {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text);
+    background: rgb(16 18 22 / 94%);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 50%);
+}
+
+.leaflet-tooltip-top.map-shop-tooltip::before {
+    border-top-color: rgb(16 18 22 / 94%);
+}
+
+.stop-shop,
+.cart-item-shop {
+    color: var(--color-text-dimmed);
+}
+
+.cart-item-shop {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+
+.nav-shop-tooltip .tooltip-shop {
+    margin: -8px 0 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}

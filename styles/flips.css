@@ -1,0 +1,142 @@
+/* --- Flips tab of the exchange-rates dialog --- */
+
+.matrix-flips {
+    padding: 12px 16px 16px;
+}
+
+.flips-intro,
+.flips-empty {
+    margin: 0 0 10px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.flip-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.flip-card {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+}
+
+.flip-head,
+.flip-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.flip-head {
+    margin-bottom: 8px;
+}
+
+.flip-item,
+.flip-profit,
+.flip-leg-rate,
+.flip-shop {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.flip-item {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.flip-profit {
+    max-width: 55%;
+    font-weight: 700;
+    color: var(--color-good-deal);
+}
+
+/* Both legs share one grid so verb, rate, uses and shop line up */
+.flip-legs {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 38%);
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 6px 8px;
+    background: var(--color-bg-secondary);
+    border-radius: 6px;
+}
+
+.flip-leg {
+    display: contents;
+}
+
+.flip-leg-verb {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.flip-leg-uses {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-align: right;
+    color: var(--color-accent);
+}
+
+.flip-shop {
+    justify-self: end;
+    max-width: 100%;
+    padding: 0;
+    font-size: 0.78rem;
+    text-align: right;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.flip-shop:hover {
+    color: var(--color-accent);
+}
+
+.flip-foot {
+    align-items: center;
+    margin-top: 8px;
+}
+
+.flip-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+
+.flip-add {
+    flex-shrink: 0;
+    min-height: 28px;
+    padding: 3px 12px;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+}
+
+.flip-add:hover:not(:disabled) {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.flip-add:disabled {
+    border-color: var(--color-good-deal);
+    color: var(--color-good-deal);
+    cursor: default;
+}

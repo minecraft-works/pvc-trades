@@ -9,6 +9,8 @@ ls:
     .js: kebab-case
   scripts:
     .ts: kebab-case
+  styles:
+    .css: kebab-case
   features:
     .feature: kebab-case
     .ts: kebab-case

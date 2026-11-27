@@ -1,0 +1,241 @@
+/* Search: fields with the action buttons beside them, quick filters below.
+   On small screens the actions move to the quick-filter row (see the media query). */
+.search-container {
+    display: grid;
+    grid-template: "box actions" auto "meta meta" auto / minmax(0, 1fr) auto;
+    column-gap: 4px;
+    max-width: 1200px;
+    margin: 0 auto var(--spacing-lg);
+    background: var(--color-bg-secondary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-sm);
+    position: sticky;
+    top: 10px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+}
+
+.search-box {
+    grid-area: box;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.search-actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.search-box:focus-within {
+    border-color: var(--color-accent);
+}
+
+.data-freshness {
+    margin: 0 8px 0 auto;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.search-meta {
+    grid-area: meta;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: var(--spacing-sm);
+    padding: 0 2px;
+}
+
+.quick-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.quick-toggle {
+    min-height: 24px;
+    padding: 2px 12px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.quick-toggle:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+}
+
+.quick-toggle[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.search-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 110;
+    max-height: 260px;
+    margin: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+}
+
+.search-suggestions li {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.search-suggestions li:hover,
+.search-suggestions li[aria-selected="true"] {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.unit-price {
+    margin-left: auto;
+    padding-left: 6px;
+    flex-shrink: 0;
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
+.data-freshness:empty {
+    display: none;
+}
+
+.data-freshness.stale {
+    color: var(--color-warning, #ffb74d);
+}
+
+.no-results .retry-load-btn {
+    margin-top: 12px;
+    padding: 6px 16px;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--border-radius-sm, 4px);
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+}
+
+#searchWant,
+#searchGive {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    font-size: 1rem;
+}
+
+/* Search input wrapper - contains input and add-to-watchlist button */
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    background: var(--color-input-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border);
+}
+
+/* Highlight the field only while typing in it; its buttons show their own ring */
+.search-input-wrapper:has(> input:focus) {
+    border-color: var(--color-accent);
+}
+
+.search-input-wrapper #searchWant:focus,
+.search-input-wrapper #searchGive:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+#add-to-watchlist {
+    position: relative;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+    padding: 0 8px;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    opacity: 0.6;
+}
+
+#add-to-watchlist:hover {
+    color: #ffd700;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Full opacity while focused, so the focus ring keeps its real color */
+#add-to-watchlist:focus-visible,
+.clear-search-btn:focus-visible {
+    opacity: 1;
+}
+
+.clear-search-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    padding: 0 6px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.clear-search-btn:hover {
+    opacity: 1;
+    color: var(--color-text);
+}
+
+.clear-search-btn.hidden {
+    display: none;
+}
+
+#searchGive {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius);
+    color: var(--color-text);
+}
+
+.search-input-wrapper #searchWant {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+    color: var(--color-text);
+}
+
+#searchWant:focus,
+#searchGive:focus {
+    border-color: var(--color-accent);
+}
+
+#searchWant::placeholder,
+#searchGive::placeholder {
+    color: var(--color-text-dimmed);
+}
