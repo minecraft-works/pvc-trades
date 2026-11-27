@@ -104,6 +104,8 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     const newTradeKeys = new Set<string>();
     let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let lastUpdated: Date | undefined;
+    /** Raw body of the last processed shop data, to skip refreshes that bring no changes */
+    let lastPayload: string | undefined;
 
     /**
      * Build the item-value calculation input from current trades. Trades that
@@ -158,7 +160,8 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     async function refreshShopData(): Promise<number> {
         try {
             const config = getConfig();
-            const response = await fetch(config.dataUrl);
+            // Revalidate with the server: unchanged data comes back as a 304 from the HTTP cache
+            const response = await fetch(config.dataUrl, { cache: 'no-cache' });
 
             if (!response.ok) {
                 console.warn('Failed to refresh shop data:', response.status);
@@ -166,7 +169,14 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
                 return 0;
             }
 
-            const json: unknown = await response.json();
+            const payload = await response.text();
+            if (payload === lastPayload) {
+                lastUpdated = new Date();
+                showFreshness(false);
+                return newTradeKeys.size;
+            }
+
+            const json: unknown = JSON.parse(payload);
             const parsed = ShopDataSchema.safeParse(json);
             if (!parsed.success) {
                 console.warn('Invalid shop data format');
@@ -175,6 +185,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             }
 
             const data = parsed.data;
+            lastPayload = payload;
 
             // Track existing trade keys before processing new data
             const existingTradeKeys = new Set(allTrades.map(t => getTradeKey(t)));
@@ -246,7 +257,8 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
                 throw new Error('Failed to load shop data');
             }
 
-            const dataJson: unknown = await dataResponse.json();
+            const payload = await dataResponse.text();
+            const dataJson: unknown = JSON.parse(payload);
             const mappingJson: unknown = await mappingResponse.json();
 
             const dataParsed = ShopDataSchema.safeParse(dataJson);
@@ -257,6 +269,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             }
 
             const data = dataParsed.data;
+            lastPayload = payload;
             mappingRules = mappingParsed.data;
             processShops(data.data);
 
