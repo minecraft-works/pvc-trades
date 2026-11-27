@@ -68,10 +68,6 @@ export interface TradeRendererHandler {
     renderResults: (results: readonly FilterResult[], wantRegex: RegExp | undefined, giveRegex: RegExp | undefined) => void;
     /** Update sort arrow indicators in the header */
     updateSortArrows: () => void;
-    /** Whether the "new trades only" filter is active */
-    isFilterNewOnly: () => boolean;
-    /** Turn the "new trades only" filter on or off and re-run the search */
-    setFilterNewOnly: (enabled: boolean) => void;
     /** Whether the "cart only" filter is active */
     isFilterCartOnly: () => boolean;
 }
@@ -237,7 +233,6 @@ function onActivate(element: Readonly<Element>, handler: () => void): void {
  */
 export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRendererHandler {
     // Internal filter and rendering state
-    let filterNewOnly = false;
     let filterCartOnly = false;
     let virtualScroller: VirtualScroller<FilterResult> | undefined;
     let currentWantRegex: RegExp | undefined;
@@ -288,7 +283,6 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             <span class="col header stock-header" role="columnheader" tabindex="0" data-col="stock" data-label="Stock">Stock</span>
             <span class="col header distance-header" role="columnheader" tabindex="0" data-col="distance" data-label="Dist" title="Overworld distance from 0, 0 (Nether coordinates ×8)">Dist</span>
             <span class="col header world-header" role="columnheader" tabindex="0" data-col="world" data-label="W" title="World">W</span>
-            <span class="col new-col-header" role="columnheader" tabindex="0" title="Show only new trades">🆕</span>
             <span class="col cart-col-header" role="columnheader" tabindex="0" title="Show only trades in cart">🛒</span>
         `;
 
@@ -306,12 +300,6 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
                 favHeader.classList.toggle('active');
                 deps.search();
             });
-        }
-
-        // New items filter toggle
-        const newHeader = header.querySelector('.new-col-header');
-        if (newHeader) {
-            onActivate(newHeader, () => { setFilterNewOnly(!filterNewOnly); });
         }
 
         // Cart filter toggle
@@ -429,7 +417,6 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             <span class="col stock ${stockClass}" role="gridcell">${t.displayStock}</span>
             <span class="col coord distance" role="gridcell" title="${distanceTitle}">${Math.round(getOverworldDistanceFromOrigin(t))}</span>
             <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
-            <span class="col new-col" role="gridcell"></span>
             <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${escapeHtml(info.tradeKey)}" title="Add to cart (+ on a focused row)" aria-label="Add ${safeName} to cart">+</button>
         `;
     }
@@ -523,22 +510,10 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         }
     }
 
-    /**
-     * Turn the "new trades only" filter on or off and re-run the search
-     * @param enabled - Whether only new trades should be shown
-     */
-    function setFilterNewOnly(enabled: boolean): void {
-        filterNewOnly = enabled;
-        document.querySelector('#table-header .new-col-header')?.classList.toggle('active', enabled);
-        deps.search();
-    }
-
     return {
         renderHeader,
         renderResults,
         updateSortArrows,
-        setFilterNewOnly,
-        isFilterNewOnly: () => filterNewOnly,
         isFilterCartOnly: () => filterCartOnly,
     };
 }

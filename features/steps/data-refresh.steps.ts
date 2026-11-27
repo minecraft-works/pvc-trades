@@ -349,7 +349,7 @@ Then('the data should have been fetched again', async ({ page }) => {
 });
 
 When('I click the new items filter toggle', async ({ page }) => {
-    await page.locator('.new-col-header').click();
+    await page.locator('#new-only-toggle').click();
 });
 
 Then('I should see only {int} trades', async ({ page }, expectedCount: number) => {
@@ -358,7 +358,7 @@ Then('I should see only {int} trades', async ({ page }, expectedCount: number) =
 });
 
 Then('clicking the toggle again should show all {int} trades', async ({ page }, expectedCount: number) => {
-    await page.locator('.new-col-header').click();
+    await page.locator('#new-only-toggle').click();
     const tradeRows = page.locator(SELECTOR_TRADE_ROW).filter({ visible: true });
     await expect(tradeRows).toHaveCount(expectedCount);
 });

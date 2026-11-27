@@ -1,8 +1,8 @@
 /**
- * Quick bar under the search fields: the "Deals only", "Best per item" and
- * "Shulkers" toggles.
+ * Quick bar under the search fields: the "Deals only", "Best per item",
+ * "Shulkers" and "New" toggles.
  *
- * Keyboard: Alt+1, Alt+2 and Alt+3 toggle them in that order.
+ * Keyboard: Alt+1 … Alt+4 toggle them in that order.
  *
  * @module quick-search/quick-bar
  */
@@ -20,7 +20,9 @@ export interface QuickBarDeps {
 export interface QuickBar {
     /** Current toggle state for the search */
     getFilters: () => QuickFilters;
-    /** Handle Alt+1…3; returns true if the event was a quick-bar shortcut */
+    /** Turn a toggle on or off (e.g. from the dashboard) and re-run the search */
+    setFilter: (filter: keyof QuickFilters, enabled: boolean) => void;
+    /** Handle Alt+1…4; returns true if the event was a quick-bar shortcut */
     handleShortcut: (event: KeyboardEvent) => boolean;
 }
 
@@ -40,6 +42,7 @@ const TOGGLES: readonly ToggleSpec[] = [
     },
     { filter: 'bestPerItem', id: 'best-per-item-toggle', label: 'Best per item', title: 'Only the cheapest offer for each item' },
     { filter: 'shulkersOnly', id: 'shulkers-only-toggle', label: 'Shulkers', title: 'Only trades that buy or sell a filled shulker box' },
+    { filter: 'newOnly', id: 'new-only-toggle', label: 'New', title: 'Only trades that are new since your last visit' },
 ];
 
 /**
@@ -49,7 +52,14 @@ const TOGGLES: readonly ToggleSpec[] = [
  * @returns Quick bar handler
  */
 export function createQuickBar(container: HTMLElement, deps: QuickBarDeps): QuickBar {
-    const state: Record<keyof QuickFilters, boolean> = { dealsOnly: false, bestPerItem: false, shulkersOnly: false };
+    const state: Record<keyof QuickFilters, boolean> = { dealsOnly: false, bestPerItem: false, shulkersOnly: false, newOnly: false };
+
+    function setFilter(filter: keyof QuickFilters, enabled: boolean): void {
+        state[filter] = enabled;
+        const index = TOGGLES.findIndex(spec => spec.filter === filter);
+        buttons[index]?.setAttribute('aria-pressed', String(enabled));
+        deps.search();
+    }
 
     const buttons = TOGGLES.map((spec, index) => {
         const button = document.createElement('button');
@@ -59,11 +69,7 @@ export function createQuickBar(container: HTMLElement, deps: QuickBarDeps): Quic
         button.textContent = spec.label;
         button.title = `${spec.title} (Alt+${index + 1})`;
         button.setAttribute('aria-pressed', 'false');
-        button.addEventListener('click', () => {
-            state[spec.filter] = !state[spec.filter];
-            button.setAttribute('aria-pressed', String(state[spec.filter]));
-            deps.search();
-        });
+        button.addEventListener('click', () => { setFilter(spec.filter, !state[spec.filter]); });
         container.append(button);
         return button;
     });
@@ -79,6 +85,7 @@ export function createQuickBar(container: HTMLElement, deps: QuickBarDeps): Quic
 
     return {
         getFilters: () => ({ ...state }),
+        setFilter,
         handleShortcut,
     };
 }

@@ -195,6 +195,8 @@ export interface QuickFilters {
     readonly bestPerItem: boolean;
     /** Only trades that buy or sell a filled shulker box */
     readonly shulkersOnly: boolean;
+    /** Only trades that are new since the last visit */
+    readonly newOnly: boolean;
 }
 
 /** Limits the results to one player's shops, or to one of their shops */

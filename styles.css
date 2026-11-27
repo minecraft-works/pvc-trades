@@ -347,7 +347,7 @@ body {
     display: grid;
 
     /* Match trade-row: star, #, name, #, name, deal, stock, dist, world, new, cart */
-    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 28px 36px;
+    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
     gap: 2px 0;
 }
 
@@ -362,7 +362,7 @@ body {
     margin-top: 2px; /* Gap between rows (was grid gap before) */
 
     /* Match header's column definition exactly: star, #, name, #, name, deal, stock, dist, world, new, cart */
-    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 28px 36px;
+    grid-template-columns: 28px 45px minmax(100px, 1fr) 50px minmax(100px, 1fr) 70px 50px 80px 40px 36px;
     cursor: pointer;
     position: relative; /* For ::before indicator */
 }
@@ -432,7 +432,7 @@ body {
     border-radius: 4px 0 0 4px;
 }
 
-.trade-row:hover > .col:not(.add-to-cart-btn, .new-col) {
+.trade-row:hover > .col:not(.add-to-cart-btn) {
     background: #333;
 }
 
@@ -2909,14 +2909,14 @@ mark {
         font-size: 0.85rem;
     }
 
-    /* Compact 11-column layout: star, #, name, #, name, deal, stock, dist, world, new, cart.
+    /* Compact 10-column layout: star, #, name, #, name, deal, stock, dist, world, cart.
        The world track collapses to 0 so the names get the space; Nether rows tint the distance instead. */
     #table-header {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 22px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 24px;
     }
 
     .trade-row {
-        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 22px 24px;
+        grid-template-columns: 22px 28px 1fr 28px 1fr 40px 34px 42px 0 24px;
     }
 
     #table-header .col.world-header,
@@ -3261,25 +3261,6 @@ mark {
     color: #ffd700 !important;
 }
 
-/* New items filter header */
-.new-col-header {
-    cursor: pointer;
-    filter: grayscale(100%);
-    transition: filter 0.2s;
-}
-
-.new-col-header:hover {
-    filter: grayscale(50%);
-}
-
-.new-col-header.active {
-    filter: none;
-}
-
-/* Empty new column in trade rows */
-.new-col {
-    background: transparent;
-}
 
 .favorites-badge {
     position: absolute;

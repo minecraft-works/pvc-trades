@@ -56,8 +56,8 @@ function involvesFilledShulker(trade: Readonly<Trade>): boolean {
 /**
  * Dependencies injected from the host module.
  *
- * Renderer deps (`renderResults`, `updateSortArrows`, `isFilterNewOnly`,
- * `isFilterCartOnly`) are lazy callbacks — the renderer is created after
+ * Renderer deps (`renderResults`, `updateSortArrows`, `isFilterCartOnly`)
+ * are lazy callbacks — the renderer is created after
  * the search handler but before any user interaction triggers `search()`.
  */
 export interface SearchSortDeps {
@@ -77,8 +77,6 @@ export interface SearchSortDeps {
     updateSortArrows: () => void;
     /** Update the deals badge count (lazy: bound after favoritesUI init) */
     updateDealsBadge: (count: number) => void;
-    /** Whether "new trades only" filter is active (lazy) */
-    isFilterNewOnly: () => boolean;
     /** Whether "cart only" filter is active (lazy) */
     isFilterCartOnly: () => boolean;
     /** Quick-bar toggles (lazy) */
@@ -193,7 +191,6 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     function isExcludedByFilters(trade: Trade): boolean {
         const shopFilter = deps.getShopFilter();
         if (shopFilter && !matchesShopFilter(trade, shopFilter)) { return true; }
-        if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
         if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }
         return isExcludedByQuickFilters(trade, deps.getQuickFilters());
@@ -206,6 +203,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
      * @returns True if the trade should be hidden
      */
     function isExcludedByQuickFilters(trade: Trade, filters: QuickFilters): boolean {
+        if (filters.newOnly && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (filters.shulkersOnly && !involvesFilledShulker(trade)) { return true; }
         if (!filters.dealsOnly) { return false; }
         const deviation = deps.getDeviation()(trade);
