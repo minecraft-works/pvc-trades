@@ -48,7 +48,7 @@ import {
     type SortDirection,
     type Trade,
 } from './types.js';
-import { describeItemStack, getItemStackNames, parseShulkerContents } from './valuation/item-identity.js';
+import { describeItemStack, getItemStackNames, getShulkerLabel, parseShulkerContents } from './valuation/item-identity.js';
 
 export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
 
@@ -331,10 +331,11 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
     // Searchable cost text also covers shulker contents ("cobblestone" finds a shulker of it)
     const costNames = [item1, item2].flatMap(item => (item ? getItemStackNames(item) : []));
+    const resultLabel = isShulker ? getShulkerLabel(resultItem) : undefined;
 
     return {
         stock: recipe.stock,
-        resultText: resultName.toLowerCase(),
+        resultText: (resultLabel ? `${resultName} ${resultLabel}` : resultName).toLowerCase(),
         costText: costNames.join(' ').toLowerCase(),
         item1,
         item2,
@@ -345,6 +346,7 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
         shulkerItems,
         resultName,
         resultAmount,
+        resultLabel,
         costName
     };
 }
@@ -442,7 +444,7 @@ function checkWantQueryMatch(
     if (!wantQuery) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
-    if (nameMatches(trade.resultText, wantQuery)) {
+    if (nameMatches(trade.resultText, wantQuery) || (trade.resultLabel !== undefined && nameMatches(trade.resultLabel, wantQuery))) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
     const shulkerMatch = findMatchingShulkerItem(trade.shulkerItems, wantQuery);

@@ -112,9 +112,34 @@ export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerP
 export function describeItemStack(item: Readonly<Item>): { readonly amount: number; readonly name: string } {
     if (!isFilledShulker(item)) { return { amount: item.amount, name: formatName(item) }; }
     const contents = parseShulkerContents(item.lore ?? []).items;
+    const label = getShulkerLabel(item);
+    const labelSuffix = label ? ` “${label}”` : '';
     const [only] = contents;
-    if (contents.length === 1 && only) { return { amount: only.total * item.amount, name: only.name }; }
-    return { amount: item.amount, name: `${formatName(item)} (${contents.map(content => content.name).join(', ')})` };
+    if (contents.length === 1 && only) { return { amount: only.total * item.amount, name: `${only.name}${labelSuffix}` }; }
+    const boxName = formatName({ ...item, name: '' });
+    return { amount: item.amount, name: `${boxName}${labelSuffix} (${contents.map(content => content.name).join(', ')})` };
+}
+
+/**
+ * The name a seller gave a filled shulker box, e.g. "mending" on a box of
+ * enchanted books. Names that only repeat the box type or its contents are
+ * skipped.
+ *
+ * @param item - Item stack
+ * @returns The seller's name, or undefined
+ *
+ * @example
+ * getShulkerLabel({ type: 'SHULKER_BOX', name: 'mending', amount: 1, lore: ['- 1x ENCHANTED_BOOK'] }) // 'mending'
+ * getShulkerLabel({ type: 'SHULKER_BOX', name: 'Sand', amount: 1, lore: ['- 64x SAND'] })             // undefined
+ */
+export function getShulkerLabel(item: Readonly<Item>): string | undefined {
+    const label = item.name.trim();
+    if (!label || !isFilledShulker(item)) { return undefined; }
+    const lower = label.toLowerCase();
+    const contents = parseShulkerContents(item.lore ?? []).items;
+    const isRedundant = lower === formatName({ ...item, name: '' }).toLowerCase()
+        || contents.some(content => content.name.toLowerCase() === lower);
+    return isRedundant ? undefined : label;
 }
 
 /**

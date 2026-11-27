@@ -155,6 +155,13 @@ const diamondsForShulkerOf = (content: string): Trade => ({
     costName: 'Shulker box',
 });
 
+const namedBoxRecipe = (name: string, lore: string[]): Recipe => ({
+    resultItem: { type: 'SHULKER_BOX', amount: 1, name, lore },
+    item1: { type: 'DIAMOND', name: '', amount: 8 },
+    item2: undefined,
+    stock: 2
+});
+
 // Test fixtures
 const TEST_BLOCK_CONVERSIONS: BlockConversions = {
     [EMERALD_BLOCK]: { base: EMERALD_LOWER, multiplier: 9 },
@@ -1489,6 +1496,33 @@ describe('processTrade', () => {
         expect(trade.resultName).toBe('Gunpowder');
         expect(trade.resultAmount).toBe(128);
         expect(trade.displayStock).toBe(384);
+    });
+
+    describe('seller-named shulker boxes', () => {
+        const shop: Shop = { location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] };
+        const mendingBooks = processTrade(namedBoxRecipe('mending', ['- 1x ENCHANTED_BOOK']), shop, []);
+
+        test('keep the item name and carry the seller name as a label', () => {
+            expect(mendingBooks.resultName).toBe('Enchanted book');
+            expect(mendingBooks.resultLabel).toBe('mending');
+        });
+
+        test('can be found by their label, also with an exact query', () => {
+            expect(filterTrade(mendingBooks, 'mending', '')).toBeDefined();
+            expect(filterTrade(mendingBooks, '"mending"', '')).toBeDefined();
+            expect(filterTrade(mendingBooks, 'silk touch', '')).toBeUndefined();
+        });
+
+        test('skip names that only repeat the contents or the box type', () => {
+            expect(processTrade(namedBoxRecipe('Sand', [LORE_GUNPOWDER.replace('GUNPOWDER', 'SAND')]), shop, []).resultLabel).toBeUndefined();
+            expect(processTrade(namedBoxRecipe('shulker box', [LORE_GUNPOWDER]), shop, []).resultLabel).toBeUndefined();
+        });
+
+        test('show their label in the cost column', () => {
+            const paidWithBooks = { ...createTrade(1, 1, DIAMOND_TITLE, 1), item1: { type: 'SHULKER_BOX', name: 'silk touch', amount: 1, lore: ['- 1x ENCHANTED_BOOK'] } };
+            expect(formatTradeCost(paidWithBooks)).toBe('1× Enchanted book “silk touch”');
+            expect(filterTrade(paidWithBooks, '', '"silk touch"')).toBeDefined();
+        });
     });
 });
 

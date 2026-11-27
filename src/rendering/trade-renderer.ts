@@ -123,6 +123,22 @@ function getUnitPriceHtml(t: Trade, displayAmount: number): string {
 }
 
 /**
+ * The seller's name for a shulker box, shown after the item name
+ * @param label - Seller-given box name, if any
+ * @param displayName - Item name shown in the cell
+ * @param regex - Search highlight, if the Buying query matched
+ * @returns HTML for the label (empty without one) and the cell's tooltip
+ */
+function getResultLabel(label: string | undefined, displayName: string, regex: RegExp | undefined): { html: string; title: string } {
+    if (!label) { return { html: '', title: displayName }; }
+    const text = regex ? highlight(label, regex) : escapeHtml(label);
+    return {
+        html: `<span class="item-label" title="Name the seller gave this shulker box">“${text}”</span>`,
+        title: `${displayName} “${label}”`,
+    };
+}
+
+/**
  * Get world abbreviation and full title
  * @param world - World name string to categorize
  * @returns World abbreviation and full title for display
@@ -378,7 +394,9 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
         const { costAmt, costName } = getCostDisplayInfo(t);
         const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
-        const resultDisplay = matchResult && currentWantRegex ? highlight(displayName, currentWantRegex) : escapeHtml(displayName);
+        const wantHighlight = matchResult ? currentWantRegex : undefined;
+        const resultDisplay = wantHighlight ? highlight(displayName, wantHighlight) : escapeHtml(displayName);
+        const resultLabel = getResultLabel(t.resultLabel, displayName, wantHighlight);
         const { devClass, devText, dealTitle } = getDeviationDisplayInfo(t);
         const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
         const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
@@ -392,7 +410,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         return `
             <button class="col ${info.starClass}" role="gridcell" data-item="${safeName}" title="${starTitle}" aria-label="${starTitle}: ${safeName}">★</button>
             <span class="col result-amt" role="gridcell">${displayAmount}</span>
-            <span class="col result-name" role="gridcell" title="${escapeHtml(displayName)}"><span class="name-text">${resultDisplay}</span>${resultInfoIcon}</span>
+            <span class="col result-name" role="gridcell" title="${escapeHtml(resultLabel.title)}"><span class="name-text">${resultDisplay}</span>${resultLabel.html}${resultInfoIcon}</span>
             <span class="col cost-amt" role="gridcell">${costAmt}</span>
             <span class="col cost-name" role="gridcell" title="${escapeHtml(costName)}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPriceHtml(t, displayAmount)}</span>
             <span class="col dev ${devClass}" role="gridcell" title="${escapeHtml(dealTitle)}">${devText}</span>

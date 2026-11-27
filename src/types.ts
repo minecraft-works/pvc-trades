@@ -164,6 +164,8 @@ export interface Trade {
     readonly shulkerItems: readonly ShulkerItem[] | undefined;
     readonly resultName: string;
     readonly resultAmount: number;
+    /** Name the seller gave a filled shulker box, e.g. "mending" on a box of books */
+    readonly resultLabel?: string | undefined;
     readonly costName: string;
 }
 

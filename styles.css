@@ -494,6 +494,17 @@ body {
     white-space: nowrap;
 }
 
+/* Name a seller gave a shulker box, e.g. "mending" on a box of books */
+.item-label {
+    margin-left: 4px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
 .trade-row > .col.cost-amt,
 .trade-row > .col.result-amt,
 .trade-row > .col.stock,

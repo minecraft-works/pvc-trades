@@ -36,6 +36,19 @@ function diamondsForShulkerOf(content: string) {
 }
 
 /**
+ * A shulker box of enchanted books that the seller named, for 8 diamonds.
+ * @param name - Name the seller gave the box
+ * @returns Raw recipe in data.json shape
+ */
+function bookBox(name: string) {
+    return {
+        resultItem: { type: 'SHULKER_BOX', name, amount: 1, lore: Array.from({ length: 27 }, () => '- 1x ENCHANTED_BOOK') },
+        item1: { type: 'DIAMOND', name: '', amount: 8 },
+        stock: 2,
+    };
+}
+
+/**
  * Three shops far apart. Cooked beef for emeralds is sold at 2, 4 and 3
  * emeralds, so the median is 3 and the cheapest offer is −33%.
  */
@@ -135,6 +148,21 @@ test.describe('Shulkers only', () => {
         await expect(page.locator(ROW)).toHaveCount(2);
         const names = await resultNames(page);
         expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual(['Diamond', 'Sand']);
+    });
+});
+
+test.describe('Seller-named shulker boxes', () => {
+    test('show the seller name next to the item and can be searched by it', async ({ page }) => {
+        await openApp(page, '', {
+            data: [{ location: '0.0, 64.0, 0.0', world: 'world', recipes: [bookBox('mending'), bookBox('silk touch')] }],
+        });
+        await expect(page.locator(`${ROW} .item-label`)).toHaveCount(2);
+        const labels = await page.locator(`${ROW} .item-label`).allInnerTexts();
+        expect(labels.toSorted((a, b) => a.localeCompare(b))).toEqual(['“mending”', '“silk touch”']);
+
+        await page.locator(WANT).fill('mending');
+        await expect(page.locator(ROW)).toHaveCount(1);
+        await expect(page.locator(`${ROW} .item-label mark`)).toHaveText('mending');
     });
 });
 
