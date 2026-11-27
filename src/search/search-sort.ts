@@ -22,11 +22,13 @@ import {
     getRegex,
     getTotalCostAmount,
     getTradeKey,
+    isFilledShulker,
 } from '../library.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
     DeviationResult,
     FilterResult,
+    QuickFilters,
     SortColumn,
     SortDirection,
     Trade,
@@ -35,6 +37,15 @@ import { parseExactQuery, pickBestPerItem } from './query.js';
 
 /** "Deals only" shows trades at least this much below market */
 const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
+
+/**
+ * Whether a trade buys or sells a filled shulker box
+ * @param trade - Trade to check
+ * @returns True if any side of the trade is a shulker box with contents
+ */
+function involvesFilledShulker(trade: Readonly<Trade>): boolean {
+    return [trade.resultItem, trade.item1, trade.item2].some(item => item !== undefined && isFilledShulker(item));
+}
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -68,8 +79,8 @@ export interface SearchSortDeps {
     isFilterNewOnly: () => boolean;
     /** Whether "cart only" filter is active (lazy) */
     isFilterCartOnly: () => boolean;
-    /** Quick-bar toggles: only good deals, and only the best offer per item (lazy) */
-    getQuickFilters: () => { readonly dealsOnly: boolean; readonly bestPerItem: boolean };
+    /** Quick-bar toggles (lazy) */
+    getQuickFilters: () => QuickFilters;
     /** Called after every search, e.g. to sync the URL and quick-bar state */
     onSearched: () => void;
 }
@@ -179,7 +190,18 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
         if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }
-        if (!deps.getQuickFilters().dealsOnly) { return false; }
+        return isExcludedByQuickFilters(trade, deps.getQuickFilters());
+    }
+
+    /**
+     * Whether the quick-bar toggles exclude a trade
+     * @param trade - Trade to check
+     * @param filters - Current quick-bar toggles
+     * @returns True if the trade should be hidden
+     */
+    function isExcludedByQuickFilters(trade: Trade, filters: QuickFilters): boolean {
+        if (filters.shulkersOnly && !involvesFilledShulker(trade)) { return true; }
+        if (!filters.dealsOnly) { return false; }
         const deviation = deps.getDeviation()(trade);
         return deviation === undefined || deviation.percent > DEALS_ONLY_MAX_PERCENT;
     }

@@ -26,7 +26,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | `Enter` | Result row | Open the shop on the map |
 | `+` | Result row | Add the trade to the cart |
 | `Esc` | Result row | Back to the Buying field |
-| `Alt+1` / `Alt+2` | Anywhere | Toggle "Deals only" (≤ −20%) / "Best per item" |
+| `Alt+1` / `Alt+2` / `Alt+3` | Anywhere | Toggle "Deals only" (≤ −20%) / "Best per item" / "Shulkers" (only trades with a filled shulker box) |
 | `Ctrl+Shift+X` | Anywhere | Swap the Buying and Paying terms |
 
 Put a name in double quotes (`"emerald"`) for an exact match: it matches Emerald but not Emerald block.

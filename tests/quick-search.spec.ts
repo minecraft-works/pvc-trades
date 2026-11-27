@@ -102,6 +102,42 @@ test.describe('Quick bar', () => {
     });
 });
 
+test.describe('Shulkers only', () => {
+    const SHULKER_DATA = {
+        data: [{
+            location: '0.0, 64.0, 0.0', world: 'world', recipes: [
+                recipe('SAND', 16, EMERALD_TYPE, 1),
+                {
+                    resultItem: { type: 'SHULKER_BOX', name: '', amount: 1, lore: Array.from({ length: 27 }, () => '- 64x SAND') },
+                    item1: { type: 'EMERALD_BLOCK', name: '', amount: 5 },
+                    stock: 2,
+                },
+                diamondsForShulkerOf('Cobblestone'),
+                recipe('COOKED_BEEF', 1, EMERALD_TYPE, 2),
+            ],
+        }],
+    };
+
+    test.beforeEach(async ({ page }) => { await openApp(page, '', SHULKER_DATA); });
+
+    test('a Buying search keeps only filled shulker boxes of that item', async ({ page }) => {
+        await page.locator(WANT).fill('sand');
+        await expect(page.locator(ROW)).toHaveCount(2);
+
+        await page.keyboard.press('Alt+Digit3');
+        await expect(page.locator('#shulkers-only-toggle')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator(ROW)).toHaveCount(1);
+        await expect(page.locator(`${ROW} .result-amt`)).toHaveText('1728');
+    });
+
+    test('without a search it lists every trade with a filled shulker box on either side', async ({ page }) => {
+        await page.locator('#shulkers-only-toggle').click();
+        await expect(page.locator(ROW)).toHaveCount(2);
+        const names = await resultNames(page);
+        expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual(['Diamond', 'Sand']);
+    });
+});
+
 test.describe('Autocomplete', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 

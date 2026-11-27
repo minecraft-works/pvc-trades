@@ -42,7 +42,12 @@ function normalizeType(type: string): string {
     return type.replace('minecraft:', '').toUpperCase();
 }
 
-function isShulkerWithContents(item: Readonly<Item>): boolean {
+/**
+ * Whether an item is a shulker box with listed contents
+ * @param item - Item stack
+ * @returns True for a filled shulker box
+ */
+export function isFilledShulker(item: Readonly<Item>): boolean {
     return normalizeType(item.type).includes('SHULKER_BOX') && (item.lore?.length ?? 0) > 0;
 }
 
@@ -105,7 +110,7 @@ export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerP
  * describeItemStack({ type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x SAND'] }) // { amount: 64, name: 'Sand' }
  */
 export function describeItemStack(item: Readonly<Item>): { readonly amount: number; readonly name: string } {
-    if (!isShulkerWithContents(item)) { return { amount: item.amount, name: formatName(item) }; }
+    if (!isFilledShulker(item)) { return { amount: item.amount, name: formatName(item) }; }
     const contents = parseShulkerContents(item.lore ?? []).items;
     const [only] = contents;
     if (contents.length === 1 && only) { return { amount: only.total * item.amount, name: only.name }; }
@@ -119,7 +124,7 @@ export function describeItemStack(item: Readonly<Item>): { readonly amount: numb
  * @returns Display names (any case)
  */
 export function getItemStackNames(item: Readonly<Item>): readonly string[] {
-    const contents = isShulkerWithContents(item) ? parseShulkerContents(item.lore ?? []).items.map(content => content.name) : [];
+    const contents = isFilledShulker(item) ? parseShulkerContents(item.lore ?? []).items.map(content => content.name) : [];
     return [formatName(item), ...contents];
 }
 
@@ -154,7 +159,7 @@ export function getValuationName(item: Readonly<Item>): string | undefined {
  * // [{ name: 'Sand', amount: 64 }]
  */
 export function getItemComponents(item: Readonly<Item>): readonly ItemComponent[] | undefined {
-    if (isShulkerWithContents(item)) {
+    if (isFilledShulker(item)) {
         const contents = parseShulkerContents(item.lore ?? []).items;
         if (contents.length === 0) { return undefined; }
         return contents.map(content => ({ name: content.name, amount: content.total * item.amount }));

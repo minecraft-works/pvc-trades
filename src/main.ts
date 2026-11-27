@@ -415,7 +415,7 @@ function isSlashSearchShortcut(event: KeyboardEvent): boolean {
         && !isTextEntryTarget(event.target) && !document.querySelector('dialog[open]');
 }
 
-/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1/Alt+2 quick bar) */
+/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1…3 quick bar) */
 function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
         if (!document.querySelector('dialog[open]') && quickBar.handleShortcut(event)) {

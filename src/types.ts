@@ -175,6 +175,16 @@ export interface FilterResult {
     readonly displayAmount: number;
 }
 
+/** Quick-bar toggles applied on top of the text search */
+export interface QuickFilters {
+    /** Only trades at least 20% below market */
+    readonly dealsOnly: boolean;
+    /** Only the cheapest offer for each item */
+    readonly bestPerItem: boolean;
+    /** Only trades that buy or sell a filled shulker box */
+    readonly shulkersOnly: boolean;
+}
+
 // ============================================================================
 // Sort Types
 // ============================================================================

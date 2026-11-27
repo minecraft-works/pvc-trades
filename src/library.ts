@@ -555,7 +555,7 @@ export function sortResults(
 // Valuation Re-exports (implementations moved to src/valuation/)
 // ============================================================================
 
-export { getItemComponents, getPairKey, getPairPrice, getValuationName, parseShulkerContents, toValuationInput, valueItemStack } from './valuation/item-identity.js';
+export { getItemComponents, getPairKey, getPairPrice, getValuationName, isFilledShulker, parseShulkerContents, toValuationInput, valueItemStack } from './valuation/item-identity.js';
 export { calculateItemValues, calculatePairPrices } from './valuation/item-values.js';
 export { buildExchangeMatrix,buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
 export { countIndependentShops, getTrustedItemValue, getTrustedPairPrice, hasEnoughIndependentData, median } from './valuation/statistics.js';
