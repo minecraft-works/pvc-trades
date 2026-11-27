@@ -54,11 +54,21 @@
     /* Narrower ✕ and ☆ inside the fields leave more room for the text */
     .search-input-wrapper button {
         min-width: 28px;
+        padding: 0 6px;
     }
 
-    /* Buying holds the ✕ and ☆, so it gets a bit more of the row */
-    .search-box > .search-input-wrapper:first-child {
-        flex-grow: 1.3;
+    /* The field in use grows so its text has room; both are equal otherwise */
+    .search-box > .search-input-wrapper {
+        transition: flex-grow 0.15s ease-out;
+    }
+
+    .search-box > .search-input-wrapper:focus-within {
+        flex-grow: 2.5;
+    }
+
+    /* The other field keeps its little room for its text; its buttons return when it's used */
+    .search-box:has(> .search-input-wrapper:focus-within) > .search-input-wrapper:not(:focus-within) > button {
+        display: none;
     }
 
     /* Compact 10-column layout: star, #, name, #, name, deal, stock, dist, world, cart.

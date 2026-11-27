@@ -497,6 +497,11 @@ function setupSearchInputHandlers(): void {
         searchHandler.clearSearchInput(SEARCH_GIVE_ID, CLEAR_SEARCH_GIVE_ID);
     });
     getElement('swap-search').addEventListener('click', swapSearchFields);
+    // Pressing a button in a field leaves the focus where it is, so the field in
+    // use (wider on phones) doesn't resize under the pointer before the click lands
+    for (const button of document.querySelectorAll('.search-input-wrapper > button')) {
+        button.addEventListener('mousedown', (event) => { event.preventDefault(); });
+    }
 }
 
 /** Swap the Buying and Paying search terms and lenses, and re-run the search */
