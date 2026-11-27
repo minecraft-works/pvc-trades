@@ -2361,6 +2361,12 @@ describe('getTradeKey', () => {
         expect(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 5))).not.toBe(getTradeKey(createTrade(2, 9, DIAMOND_TITLE, 5)));
         expect(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 5))).toBe(getTradeKey(createTrade(1, 5, DIAMOND_TITLE, 99)));
     });
+
+    test('identical shulker boxes the seller named differently get different keys', () => {
+        const shop: Shop = { location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] };
+        const books = ['mending', 'silk touch', 'sweeping edge iii'].map(name => processTrade(namedBoxRecipe(name, ['- 1x ENCHANTED_BOOK']), shop, []));
+        expect(new Set(books.map(getTradeKey)).size).toBe(3);
+    });
 });
 
 describe('shulker box costs', () => {

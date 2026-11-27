@@ -164,6 +164,15 @@ test.describe('Seller-named shulker boxes', () => {
         await expect(page.locator(ROW)).toHaveCount(1);
         await expect(page.locator(`${ROW} .item-label mark`)).toHaveText('mending');
     });
+
+    test('each named box opens its own details', async ({ page }) => {
+        await openApp(page, '', {
+            data: [{ location: '0.0, 64.0, 0.0', world: 'world', recipes: [bookBox('mending'), bookBox('silk touch'), bookBox('sweeping edge iii')] }],
+        });
+        const silkRow = page.locator(ROW).filter({ has: page.locator('.item-label', { hasText: 'silk touch' }) });
+        await silkRow.locator('.result-name .info-icon').click();
+        await expect(page.locator('#trade-details-content .trade-detail-name')).toHaveText('Silk touch');
+    });
 });
 
 test.describe('Autocomplete', () => {

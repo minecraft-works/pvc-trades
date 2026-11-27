@@ -31,6 +31,7 @@ export function isNether(world: string): boolean {
 /** Item fields that distinguish otherwise identical trades */
 interface TradeKeyItem {
     readonly amount: number;
+    readonly name?: string | undefined;
     readonly lore?: readonly string[] | undefined;
     readonly enchant?: Readonly<Record<string, number>> | undefined;
 }
@@ -52,7 +53,11 @@ function hashString(text: string): string {
 function itemExtras(item: TradeKeyItem | undefined): string {
     if (!item) { return ''; }
     const enchant = Object.entries(item.enchant ?? {}).map(([key, level]) => `${key}=${level}`).toSorted((a, b) => a.localeCompare(b));
-    return [...(item.lore ?? []), ...enchant].join('\n');
+    const extras = [...(item.lore ?? []), ...enchant];
+    if (extras.length === 0) { return ''; }
+    // A filled shulker box shows its contents, so its name ("mending") is only kept here
+    if (item.name) { extras.push(`name=${item.name}`); }
+    return extras.join('\n');
 }
 
 /**
