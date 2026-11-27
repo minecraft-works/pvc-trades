@@ -13,6 +13,7 @@
 import { html, nothing, render } from 'lit-html';
 
 import { openDialog } from '../dialogs/dialog-utilities.js';
+import { createAutocomplete } from '../quick-search/autocomplete.js';
 import type { FavoritesStore } from '../stores/favorites-store.js';
 import {
     FAVORITE_POPOVER_SELECTOR,
@@ -67,6 +68,8 @@ export interface FavoritesUIDependencies {
     favoritesStore: FavoritesStore;
     /** Callback to trigger search refresh after favorite changes */
     triggerSearch: () => void;
+    /** Item names to suggest while typing an item to watch */
+    getItemNames: () => readonly string[];
 }
 
 /**
@@ -183,7 +186,9 @@ function createAddRow(): HTMLDivElement {
     addRow.className = 'favorites-item favorites-item-add';
     render(html`
         <div class="favorites-item-content">
-            <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name...">
+            <div class="favorites-name-field">
+                <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name..." aria-label="Item to watch">
+            </div>
             <select class="favorites-threshold-select" id="favorites-new-threshold-select" title="Only show trades with deviation at or below this value">
                 <option value="" selected>Deal</option>
                 <option value="-25">≤-25%</option>
@@ -273,7 +278,7 @@ function clearAddForm(input: Element | null): void {
  * @returns Handler object with favorites UI lifecycle and rendering functions
  */
 export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies): FavoritesUIHandler {
-    const { favoritesStore, triggerSearch } = dependencies;
+    const { favoritesStore, triggerSearch, getItemNames } = dependencies;
 
     // Local state for the popover
     const state: FavoritesUIState = {
@@ -345,6 +350,35 @@ export function createFavoritesUIHandler(dependencies: FavoritesUIDependencies):
 
     function renderFavoritesDialog(): void {
         renderDialog(favoritesStore);
+        setupAddRowAutocomplete();
+    }
+
+    /**
+     * Item-name suggestions for the add row (rebuilt with the list); Enter
+     * adds the item unless it picks a suggestion
+     */
+    function setupAddRowAutocomplete(): void {
+        const input = document.querySelector('#favorites-new-item-input');
+        const row = input?.closest('.favorites-item');
+        if (!(input instanceof HTMLInputElement) || !(row instanceof HTMLElement)) { return; }
+        const autocomplete = createAutocomplete(input, getItemNames);
+        input.addEventListener('keydown', (event) => {
+            // Esc with suggestions open closes just them, not the dialog
+            if (event.key === 'Escape' && input.getAttribute('aria-expanded') === 'true') {
+                event.preventDefault();
+                autocomplete.close();
+                return;
+            }
+            if (autocomplete.handleKeydown(event)) { return; }
+            if (event.key === 'Enter' && !event.isComposing) {
+                event.preventDefault();
+                addNewFromInlineRow(row);
+            }
+        });
+        // The add row is the last one in a scrolling list: keep its suggestions in view
+        input.addEventListener('input', () => {
+            input.parentElement?.querySelector('.search-suggestions:not(.hidden)')?.scrollIntoView({ block: 'nearest' });
+        });
     }
 
     /**

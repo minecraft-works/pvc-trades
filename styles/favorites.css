@@ -223,7 +223,23 @@
 /* Add row: input and dropdown side by side */
 .favorites-item-add .favorites-item-content {
     flex-direction: row;
-    align-items: center;
+    align-items: flex-start;
+}
+
+/* Item name with its suggestions, which open in place (the list scrolls
+   and the dialog clips anything that floats out of it) */
+.favorites-name-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.favorites-name-field .search-suggestions {
+    position: static;
+    max-height: 180px;
+    box-shadow: none;
 }
 
 /* Display mode: name and threshold side by side */

@@ -25,6 +25,8 @@ const FAVORITES_EMPTY_SELECTOR = '.favorites-empty';
 const FAVORITES_ITEM_SELECTOR = '.favorites-item';
 const FAVORITES_ADD_ROW_SELECTOR = '.favorites-item-add';
 const ADD_INPUT_SELECTOR = '#favorites-new-item-input';
+/** Visible item-name suggestions under the add input */
+const ADD_SUGGESTIONS_SELECTOR = '#favorites-new-item-input-suggestions:not(.hidden) [role="option"]';
 const ADD_DROPDOWN_SELECTOR = '#favorites-new-threshold-select';
 const ADD_SAVE_BTN_SELECTOR = '.add-favorite-btn';
 const EDIT_INPUT_SELECTOR = '.favorites-item-name-input';
@@ -279,6 +281,10 @@ When('I type {string} in the add input', async ({ page }, text: string) => {
     lastClickedItemName = text.toLowerCase();
 });
 
+When('I press {string} in the add input', async ({ page }, key: string) => {
+    await page.locator(ADD_INPUT_SELECTOR).press(key);
+});
+
 // ============================================================================
 // WHEN Steps - Edit Row Interactions
 // ============================================================================
@@ -342,6 +348,18 @@ Then('the add row threshold should be {string}', async ({ page }, expectedValue:
 
 Then('the add input should be cleared', async ({ page }) => {
     await expect(page.locator(ADD_INPUT_SELECTOR)).toHaveValue('');
+});
+
+Then('the add input should contain {string}', async ({ page }, text: string) => {
+    await expect(page.locator(ADD_INPUT_SELECTOR)).toHaveValue(text);
+});
+
+Then('the add input should suggest {string}', async ({ page }, name: string) => {
+    await expect(page.locator(ADD_SUGGESTIONS_SELECTOR).first()).toHaveText(name);
+});
+
+Then('the add input should suggest nothing', async ({ page }) => {
+    await expect(page.locator(ADD_SUGGESTIONS_SELECTOR)).toHaveCount(0);
 });
 
 Then('I should see the add row at the bottom', async ({ page }) => {

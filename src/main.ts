@@ -669,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
     favoritesUI = createFavoritesUIHandler({
         favoritesStore,
         triggerSearch: searchHandler.triggerSearch,
+        getItemNames: () => getSuggestionNames('want'),
     });
     favoritesUI.setupFavoritesDialog();
     favoritesUI.updateFavoritesBadge();

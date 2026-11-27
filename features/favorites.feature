@@ -40,6 +40,25 @@ Feature: Favorites Watchlist
     Then the star should remain hollow
     And the item should not be in my favorites
 
+  @favorites @add @autocomplete
+  Scenario: Typing in the add row suggests item names
+    When I open the favorites dialog
+    And I type "bla" in the add input
+    Then the add input should suggest "Blaze rod"
+    When I press "ArrowDown" in the add input
+    And I press "Enter" in the add input
+    Then the add input should contain "Blaze rod"
+    When I press "Enter" in the add input
+    Then "Blaze rod" should be in my favorites
+
+  @favorites @add @autocomplete
+  Scenario: Escape closes the suggestions but not the dialog
+    When I open the favorites dialog
+    And I type "bla" in the add input
+    And I press "Escape" in the add input
+    Then the add input should suggest nothing
+    And I should see the favorites dialog
+
   # ============================================================================
   # Editing Favorites from Trade Rows (Star Opens Dialog in Edit Mode)
   # ============================================================================
