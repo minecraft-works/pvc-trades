@@ -278,3 +278,26 @@ describe('Cross-module consistency', () => {
         }
     });
 });
+
+describe('getTileCoords', () => {
+    test('calculates tile for positive coordinates', () => {
+        expect(getTileCoords(0, 0)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(100, 200)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(511, 511)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(512, 512)).toEqual({ tileX: 1, tileZ: 1 });
+        expect(getTileCoords(1024, 1536)).toEqual({ tileX: 2, tileZ: 3 });
+    });
+
+    test('calculates tile for negative coordinates', () => {
+        expect(getTileCoords(-1, -1)).toEqual({ tileX: -1, tileZ: -1 });
+        expect(getTileCoords(-69, 64)).toEqual({ tileX: -1, tileZ: 0 });
+        expect(getTileCoords(-512, -512)).toEqual({ tileX: -1, tileZ: -1 });
+        expect(getTileCoords(-513, -513)).toEqual({ tileX: -2, tileZ: -2 });
+    });
+
+    test('respects custom tile size for coords calculation', () => {
+        expect(getTileCoords(256, 256, 256)).toEqual({ tileX: 1, tileZ: 1 });
+        expect(getTileCoords(100, 100, 128)).toEqual({ tileX: 0, tileZ: 0 });
+        expect(getTileCoords(128, 128, 128)).toEqual({ tileX: 1, tileZ: 1 });
+    });
+});
