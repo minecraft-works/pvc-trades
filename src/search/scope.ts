@@ -29,7 +29,11 @@ export interface SearchScope {
     readonly filters: QuickFilters;
 }
 
-/** A trade filter in the field menus and pill row */
+/**
+ * A trade filter in the Buying menu and pill row. Filters, like the shop
+ * filter, apply to the whole trade, so only the Buying field (the main
+ * entry point) offers them; the Paying menu only offers lenses.
+ */
 export interface TradeFilterSpec {
     readonly key: keyof QuickFilters;
     /** Value in the URL `filters` list */
@@ -39,8 +43,6 @@ export interface TradeFilterSpec {
     /** Menu text, when it needs more words than the pill */
     readonly menuLabel: string;
     readonly title: string;
-    /** Fields whose menu offers the filter */
-    readonly sides: readonly SearchSide[];
     /** Words that find the filter while typing */
     readonly keywords: readonly string[];
 }
@@ -52,22 +54,22 @@ export const TRADE_FILTERS: readonly TradeFilterSpec[] = [
     {
         key: 'dealsOnly', param: 'deals', label: `Deals ≤ −${DEALS_PERCENT}%`, menuLabel: `Deals ≤ −${DEALS_PERCENT}%`,
         title: `Only trades at least ${DEALS_PERCENT}% below market`,
-        sides: ['buy', 'pay'], keywords: ['deals', 'cheap', 'discount', 'bargain'],
+        keywords: ['deals', 'cheap', 'discount', 'bargain'],
     },
     {
         key: 'bestPerItem', param: 'best', label: 'Best per item', menuLabel: 'Best per item',
         title: 'Only the cheapest offer for each item',
-        sides: ['buy'], keywords: ['best', 'cheapest', 'lowest'],
+        keywords: ['best', 'cheapest', 'lowest'],
     },
     {
         key: 'shulkersOnly', param: 'shulkers', label: 'Shulkers', menuLabel: 'Shulker boxes',
         title: 'Only trades that buy or sell a filled shulker box',
-        sides: ['buy', 'pay'], keywords: ['shulkers', 'box', 'bulk'],
+        keywords: ['shulkers', 'box', 'bulk'],
     },
     {
         key: 'newOnly', param: 'new', label: 'New', menuLabel: 'New since last visit',
         title: 'Only trades that are new since your last visit',
-        sides: ['buy', 'pay'], keywords: ['new', 'recent', 'fresh'],
+        keywords: ['new', 'recent', 'fresh'],
     },
 ];
 
@@ -168,22 +170,19 @@ export function removeLastPill(scope: SearchScope, side: SearchSide): SearchScop
 }
 
 /**
- * Trade filters a field's menu offers that match typed text, by label first
- * and then by keyword.
+ * Trade filters that match typed text, by label first and then by keyword.
  *
  * @param query - Typed text
- * @param side - Field being typed in
  * @param limit - Maximum filters to return
  * @returns Best matching filters
  *
  * @example
- * rankTradeFilters('cheap', 'buy', 2) // [Deals, Best per item]
+ * rankTradeFilters('cheap', 2) // [Deals, Best per item]
  */
-export function rankTradeFilters(query: string, side: SearchSide, limit: number): readonly TradeFilterSpec[] {
+export function rankTradeFilters(query: string, limit: number): readonly TradeFilterSpec[] {
     const q = query.trim().toLowerCase();
     if (!q) { return []; }
     return TRADE_FILTERS
-        .filter(spec => spec.sides.includes(side))
         .map(spec => {
             const labelRank = textMatchRank(spec.menuLabel.toLowerCase(), q);
             const keywordRank = spec.keywords.some(keyword => keyword.startsWith(q)) ? 2 : -1;

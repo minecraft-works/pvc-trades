@@ -147,12 +147,32 @@ test.describe('Trade filters', () => {
         await expect(beefRow.locator('.dev')).toHaveText('−33%');
     });
 
-    test('the Paying menu only offers filters that apply to payments', async ({ page }) => {
+    test('the Paying menu only offers lenses, straight away', async ({ page }) => {
         await page.locator(GIVE).click();
-        const filters = page.locator('#searchGive-suggestions .search-suggestion-toggle');
-        await expect(filters.filter({ hasText: 'Deals' })).toHaveCount(1);
-        await expect(filters.filter({ hasText: 'Best per item' })).toHaveCount(0);
+        const menu = page.locator('#searchGive-suggestions');
+        await expect(menu.locator('.search-suggestion-action')).toHaveCount(12);
+        await expect(menu.locator('.search-suggestion-toggle, .search-suggestion-submenu')).toHaveCount(0);
+
+        await menu.locator('.search-suggestion-action', { hasText: 'Ores & Minerals' }).click();
+        await expect(page.locator(pill('lens-pay'))).toContainText('paying with Ores & Minerals');
     });
+
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 740 }]) {
+        test(`clicking outside an open menu only closes it (${viewport.width}px)`, async ({ page }) => {
+            await page.setViewportSize(viewport);
+            const row = await page.locator(ROW).last().boundingBox();
+            expect(row).toBeTruthy();
+
+            await page.locator(WANT).click();
+            await expect(page.locator(WANT_MENU)).toBeVisible();
+            await page.mouse.click(row!.x + row!.width / 2, row!.y + row!.height / 2);
+
+            await expect(page.locator(WANT_MENU)).toBeHidden();
+            await expect(page.locator(WANT)).not.toBeFocused();
+            await expect(page.locator('dialog[open]')).toHaveCount(0);
+            await expect(page.locator('.search-menu-backdrop')).toBeHidden();
+        });
+    }
 });
 
 test.describe('Lenses', () => {

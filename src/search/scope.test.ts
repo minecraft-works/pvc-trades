@@ -63,11 +63,7 @@ describe('removeLastPill', () => {
 
 describe('rankTradeFilters', () => {
     test('finds filters by label or keyword', () => {
-        expect(rankTradeFilters('best', 'buy', 3).map(spec => spec.key)).toEqual(['bestPerItem']);
-        expect(rankTradeFilters('cheap', 'buy', 3).map(spec => spec.key)).toEqual(['dealsOnly', 'bestPerItem']);
-    });
-
-    test('only offers the filters of the field being typed in', () => {
-        expect(rankTradeFilters('cheap', 'pay', 3).map(spec => spec.key)).toEqual(['dealsOnly']);
+        expect(rankTradeFilters('best', 3).map(spec => spec.key)).toEqual(['bestPerItem']);
+        expect(rankTradeFilters('cheap', 3).map(spec => spec.key)).toEqual(['dealsOnly', 'bestPerItem']);
     });
 });

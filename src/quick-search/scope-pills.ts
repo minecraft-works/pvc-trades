@@ -100,15 +100,14 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
         }
         for (const spec of TRADE_FILTERS) {
             if (!scope.filters[spec.key]) { continue; }
-            const side: SearchSide = spec.sides.includes('buy') ? 'buy' : 'pay';
             pills.push({
-                side,
+                side: 'buy',
                 id: `filter-${spec.param}`,
                 tone: 'how',
                 prefix: undefined,
                 label: spec.label,
                 description: `Filter ${spec.menuLabel}`,
-                edit: () => { deps.openMenu(side); },
+                edit: () => { deps.openMenu('buy'); },
                 remove: () => { deps.setScope({ ...deps.getScope(), filters: { ...deps.getScope().filters, [spec.key]: false } }); },
             });
         }

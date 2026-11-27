@@ -81,6 +81,8 @@ export interface FieldMenu {
     readonly getActions: (query: string) => readonly MenuEntry[];
     /** Rows of the menu opened by a click or Alt+↓ */
     readonly getRootMenu: () => readonly MenuEntry[];
+    /** Grid for a menu of short tiles (Paying's lenses); list by default */
+    readonly rootLayout?: 'list' | 'grid';
     /** Remove the field's last pill (Backspace in an empty field); true if one was removed */
     readonly removeLast?: () => boolean;
 }
@@ -116,6 +118,47 @@ const CLOSED: Mode = { kind: 'closed' };
 const ARIA_LABEL = 'aria-label';
 
 let instanceCount = 0;
+
+/**
+ * Layer behind an open list, shared by both fields. A click or tap outside
+ * the list only closes it, instead of also opening what lies underneath
+ * (a trade row, the map) — on a phone the list covers most of the page.
+ */
+let backdrop: HTMLElement | undefined;
+/** Closes the list that is open, if any */
+let dismissOpenList: (() => void) | undefined;
+
+function getBackdrop(): HTMLElement {
+    if (backdrop) { return backdrop; }
+    const element = document.createElement('div');
+    element.className = 'search-menu-backdrop hidden';
+    element.setAttribute('aria-hidden', 'true');
+    // Keep focus in the field: its blur would close the list before the click lands here
+    element.addEventListener('mousedown', (event) => { event.preventDefault(); });
+    element.addEventListener('click', () => { dismissOpenList?.(); });
+    document.body.append(element);
+    backdrop = element;
+    return element;
+}
+
+/**
+ * Show the backdrop for an open list
+ * @param dismiss - Closes that list
+ */
+function showBackdrop(dismiss: () => void): void {
+    dismissOpenList = dismiss;
+    getBackdrop().classList.remove('hidden');
+}
+
+/**
+ * Hide the backdrop when the list it belongs to closes
+ * @param dismiss - Closes that list
+ */
+function hideBackdrop(dismiss: () => void): void {
+    if (dismissOpenList !== dismiss) { return; }
+    dismissOpenList = undefined;
+    getBackdrop().classList.add('hidden');
+}
 
 function appendParts(option: HTMLLIElement, icon: string, label: string, detail: string): void {
     const iconElement = document.createElement('span');
@@ -249,12 +292,20 @@ export function createAutocomplete(
     function renderList(): void {
         list.replaceChildren(...suggestions.map((suggestion, index) => createOption(suggestion, index)));
         const isOpen = suggestions.length > 0;
+        const isGrid = (mode.kind === 'submenu' && mode.submenu.layout === 'grid') || (mode.kind === 'root' && menu.rootLayout === 'grid');
         list.classList.toggle('hidden', !isOpen);
         list.classList.toggle('search-suggestions--menu', mode.kind === 'root' || mode.kind === 'submenu');
-        list.classList.toggle('search-suggestions--grid', mode.kind === 'submenu' && mode.submenu.layout === 'grid');
+        list.classList.toggle('search-suggestions--grid', isGrid);
         list.setAttribute(ARIA_LABEL, mode.kind === 'typing' || mode.kind === 'closed' ? 'Item suggestions' : 'Search options');
         input.setAttribute('aria-expanded', String(isOpen));
+        if (isOpen) { showBackdrop(dismiss); } else { hideBackdrop(dismiss); }
         renderHighlight();
+    }
+
+    /** Close the list and leave the field (also hides a phone's keyboard) */
+    function dismiss(): void {
+        close();
+        input.blur();
     }
 
     function show(next: Mode, entries: readonly Suggestion[], highlight = -1): void {

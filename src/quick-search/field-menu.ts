@@ -1,6 +1,8 @@
 /**
- * What the Buying and Paying field menus offer: lenses for that side, shops
- * and owners, and the trade filters that apply to it. Builds the rows the
+ * What the Buying and Paying field menus offer. Buying is the main entry
+ * point: lenses on the received item, shops and owners, and the trade
+ * filters (all three narrow the whole trade). Paying only offers lenses on
+ * the cost items, shown straight away as a grid. Builds the rows the
  * autocomplete shows; the choices go to the search scope (see ADR-023).
  *
  * @module quick-search/field-menu
@@ -140,8 +142,12 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
     };
 
     function getRootMenu(): readonly MenuEntry[] {
+        if (side === 'pay') {
+            // Paying only has lenses: show them straight away
+            return [{ kind: 'heading', label: 'Pay with' }, ...lensSubmenu.getEntries('')];
+        }
         const scope = deps.getScope();
-        const activeLens = findLens(getScopeLens(scope, side));
+        const activeLens = findLens(scope.buyLens);
         const ownerCount = deps.getShopSuggestions().filter(suggestion => suggestion.kind === 'owner').length;
         return [
             { kind: 'submenu', icon: '◈', label: 'Lenses', detail: activeLens?.label ?? `${LENSES.length}`, tone: 'what', submenu: lensSubmenu },
@@ -151,17 +157,19 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
                 tone: 'who', submenu: shopSubmenu,
             },
             { kind: 'heading', label: 'Filters' },
-            ...TRADE_FILTERS.filter(spec => spec.sides.includes(side)).map(spec => filterToggle(spec)),
+            ...TRADE_FILTERS.map(spec => filterToggle(spec)),
         ];
     }
 
     function getActions(query: string): readonly MenuEntry[] {
+        const lenses = rankLenses(query, MAX_TYPED_LENSES).map(lens => lensAction(lens, true));
+        if (side === 'pay') { return lenses; }
         return [
-            ...rankLenses(query, MAX_TYPED_LENSES).map(lens => lensAction(lens, true)),
+            ...lenses,
             ...rankShopSuggestions(deps.getShopSuggestions(), query, MAX_TYPED_SHOPS).map(suggestion => shopAction(suggestion)),
-            ...rankTradeFilters(query, side, MAX_TYPED_FILTERS).map(spec => filterToggle(spec)),
+            ...rankTradeFilters(query, MAX_TYPED_FILTERS).map(spec => filterToggle(spec)),
         ];
     }
 
-    return { getActions, getRootMenu, removeLast: () => deps.removeLast(side) };
+    return { getActions, getRootMenu, rootLayout: side === 'pay' ? 'grid' : 'list', removeLast: () => deps.removeLast(side) };
 }

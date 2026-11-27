@@ -10,8 +10,11 @@
             "bar actions" auto
             "fresh fresh" auto / minmax(0, 1fr) auto;
         column-gap: 8px;
-        top: 5px;
-        position: static;  /* Disable sticky on mobile to prevent keyboard freeze */
+
+        /* Not sticky on mobile (prevents a keyboard freeze), but still positioned,
+           so the open field menu stays above its backdrop */
+        position: relative;
+        top: 0;
     }
 
     /* Dashboard mobile */
@@ -104,6 +107,11 @@
     /* The Paying menu is wider than its field, so it grows to the left */
     #searchGive-suggestions {
         left: auto;
+    }
+
+    /* Dim the page behind an open field menu: a tap there only closes the menu */
+    .search-menu-backdrop {
+        background: rgb(0 0 0 / 40%);
     }
 
     .data-freshness {

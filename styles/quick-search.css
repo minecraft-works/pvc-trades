@@ -78,6 +78,14 @@
 
 /* --- Field menus: lenses, shops and filters besides the item names --- */
 
+/* Catches a click outside an open menu, so it only closes the menu (see autocomplete.ts).
+   Below the search bar (z-index 100), so the fields and pills stay usable */
+.search-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+}
+
 /* Menus and shop names need more room than the narrow mobile fields */
 .search-suggestions--menu,
 #searchWant-suggestions {
@@ -203,6 +211,14 @@
 
 .search-suggestions--grid .search-suggestion-action .suggestion-detail {
     margin-left: 0;
+}
+
+/* The Paying menu's "Pay with" heading spans the lens grid */
+.search-suggestions--grid li.search-suggestion-heading,
+.search-suggestions--grid li.search-suggestion-heading:hover {
+    grid-column: 1 / -1;
+    margin-top: 0;
+    border-top: none;
 }
 
 /* --- Empty results: what a lens is hiding --- */

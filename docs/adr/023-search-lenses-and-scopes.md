@@ -50,13 +50,20 @@ Music & Discs, Collectibles & Rarities.
 
 There are no new buttons. Each search field is the picker for its side:
 
-- **Click the field or press Alt+↓** to open its menu: *Lenses ›*,
+- **Click Buying or press Alt+↓** to open its menu: *Lenses ›*,
   *Shops & owners ›* (a browsable list of all owners and shops) and the
   filters as tick rows that stay open.
-- **Typing** lists item names first, then matching lenses ("redst" → Redstone),
-  shops and owners, and filters ("cheap" → Deals, Best per item).
-- The menus are side-aware. Lenses on Buying check the received item, lenses on
-  Paying check the cost items. *Best per item* is only offered on Buying.
+- **Click Paying** to open its menu, which shows the "Pay with" lens grid
+  straight away.
+- **Typing** in Buying lists item names first, then matching lenses ("redst" →
+  Redstone), shops and owners, and filters ("cheap" → Deals, Best per item).
+  Typing in Paying only adds matching lenses.
+- Shops and trade filters narrow the whole trade, not one side, so they live
+  only in the Buying menu (the main entry point). Paying offers only what is
+  about payment: lenses that check the cost items.
+- A click or tap outside an open menu only closes it. A backdrop catches it,
+  so it doesn't also open the trade row or map underneath; on phones, where
+  the menu covers most of the page, the backdrop dims the page.
 - ↓ in a field still moves into the results, as before. The menu needs a click
   or Alt+↓, so `/` and Ctrl+F only focus the field.
 
