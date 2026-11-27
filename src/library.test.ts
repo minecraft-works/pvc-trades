@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 
 import { applyMapping, enchantsMatch, filterTrade, formatTradeCost, formatTradeCostNames, getCostParts, getRegex, highlightSegments, matchesQuery, parseLocation, processTrade, sortResults } from './library.js';
 import { aggregateShoppingList } from './routing/navigation-helpers.js';
-import { createTrade, namedBoxRecipe, plainItem } from './test-fixtures.js';
+import { bundleRecipe, createTrade, namedBoxRecipe, plainItem } from './test-fixtures.js';
 import type { FilterResult, Item, MappingRule, Recipe, Shop, Trade } from './types.js';
 
 // String constants to avoid duplication
@@ -538,6 +538,33 @@ describe('processTrade', () => {
             const paidWithBooks = { ...createTrade(1, 1, DIAMOND_TITLE, 1), item1: { type: 'SHULKER_BOX', name: 'silk touch', amount: 1, lore: ['- 1x ENCHANTED_BOOK'] } };
             expect(formatTradeCost(paidWithBooks)).toBe('1× Enchanted book “silk touch”');
             expect(filterTrade(paidWithBooks, '', '"silk touch"')).toBeDefined();
+        });
+    });
+
+    describe('seller-named bundles', () => {
+        const shop: Shop = { location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] };
+        const cocaCola = processTrade(bundleRecipe('BLUE_BUNDLE', 'Coca-Cola'), shop, []);
+
+        test('show as a bundle with the seller name as a label', () => {
+            expect(cocaCola.resultName).toBe('Blue bundle');
+            expect(cocaCola.resultLabel).toBe('Coca-Cola');
+        });
+
+        test('can be found as a bundle and by their name', () => {
+            expect(filterTrade(cocaCola, 'bundle', '')).toBeDefined();
+            expect(filterTrade(cocaCola, 'coca', '')).toBeDefined();
+        });
+
+        test('an unnamed bundle is just a bundle', () => {
+            const plain = processTrade(bundleRecipe('BUNDLE', ''), shop, []);
+            expect(plain.resultName).toBe('Bundle');
+            expect(plain.resultLabel).toBeUndefined();
+        });
+
+        test('show their label in the cost column', () => {
+            const paidWithArt = { ...createTrade(1, 1, DIAMOND_TITLE, 1), item1: { type: 'BUNDLE', name: 'Galaxy', amount: 1 } };
+            expect(formatTradeCost(paidWithArt)).toBe('1× Bundle “Galaxy”');
+            expect(filterTrade(paidWithArt, '', '"galaxy"')).toBeDefined();
         });
     });
 });

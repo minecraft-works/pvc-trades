@@ -76,6 +76,19 @@ export const namedBoxRecipe = (name: string, lore: readonly string[]): Readonly<
     stock: 2
 });
 
+/**
+ * A bundle (whose contents the shop data never lists) for 24 diamonds
+ * @param type - Bundle type, e.g. 'BUNDLE' or 'BLUE_BUNDLE'
+ * @param name - Name the seller gave it ('' for none)
+ * @returns The recipe
+ */
+export const bundleRecipe = (type: string, name: string): Readonly<Recipe> => ({
+    resultItem: { type, name, amount: 1 },
+    item1: { type: 'DIAMOND', name: '', amount: 24 },
+    item2: undefined,
+    stock: 1
+});
+
 const TEST_BLOCK_CONVERSIONS: Readonly<BlockConversions> = {
     [EMERALD_BLOCK]: { base: EMERALD_LOWER, multiplier: 9 },
     [DIAMOND_BLOCK]: { base: DIAMOND_LOWER, multiplier: 9 },

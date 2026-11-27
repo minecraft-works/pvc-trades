@@ -68,6 +68,11 @@ describe('item identity for valuation', () => {
         expect(getValuationName({ type: 'POTION', name: 'Berry Juice', amount: 1 })).toBe('Berry juice');
     });
 
+    test('named bundles cannot be priced (their contents are unknown), plain bundles can', () => {
+        expect(getValuationName({ type: 'BLUE_BUNDLE', name: 'Coca-Cola', amount: 1, enchant: {} })).toBeUndefined();
+        expect(getValuationName({ type: 'BUNDLE', name: '', amount: 1, enchant: {} })).toBe('Bundle');
+    });
+
     test('filled shulker boxes are broken down into their contents', () => {
         const shulker = { type: 'SHULKER_BOX', name: '', amount: 2, lore: [LORE_GUNPOWDER, LORE_GUNPOWDER, '- 10x SAND'] };
         expect(getItemComponents(shulker)).toEqual([

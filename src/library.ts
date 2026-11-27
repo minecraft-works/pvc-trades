@@ -22,7 +22,7 @@ import {
     type SortDirection,
     type Trade,
 } from './types.js';
-import { describeItemStack, getItemStackNames, getShulkerLabel, parseShulkerContents } from './valuation/item-identity.js';
+import { describeItemStack, getItemLabel, getItemStackNames, getTypeName, isBundle, parseShulkerContents } from './valuation/item-identity.js';
 
 // ============================================================================
 // Query Matching Functions
@@ -264,7 +264,8 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
         loreText = lore.join(' ').toLowerCase();
         isShulker = true;
     } else {
-        resultName = formatName(resultItem);
+        // A named bundle shows as a bundle, with its name as the label
+        resultName = isBundle(resultItem) ? getTypeName(resultItem) : formatName(resultItem);
         resultAmount = resultItem.amount;
     }
 
@@ -272,7 +273,7 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
     const displayStock = isShulker ? recipe.stock * resultAmount : recipe.stock;
     // Searchable cost text also covers shulker contents ("cobblestone" finds a shulker of it)
     const costNames = [item1, item2].flatMap(item => (item ? getItemStackNames(item) : []));
-    const resultLabel = isShulker ? getShulkerLabel(resultItem) : undefined;
+    const resultLabel = getItemLabel(resultItem);
 
     return {
         stock: recipe.stock,

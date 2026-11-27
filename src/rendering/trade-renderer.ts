@@ -147,8 +147,8 @@ function getShopTitle(t: Trade): string {
 }
 
 /**
- * The seller's name for a shulker box, shown after the item name
- * @param label - Seller-given box name, if any
+ * The seller's name for a shulker box or bundle, shown after the item name
+ * @param label - Seller-given name, if any
  * @param displayName - Item name shown in the cell
  * @param regex - Search highlight, if the Buying query matched
  * @returns The label (nothing without one) and the cell's tooltip
@@ -156,7 +156,7 @@ function getShopTitle(t: Trade): string {
 function getResultLabel(label: string | undefined, displayName: string, regex: RegExp | undefined): { content: TemplateResult | typeof nothing; title: string } {
     if (!label) { return { content: nothing, title: displayName }; }
     return {
-        content: html`<span class="item-label" title="Name the seller gave this shulker box">“${highlight(label, regex)}”</span>`,
+        content: html`<span class="item-label" title="Name the seller gave it">“${highlight(label, regex)}”</span>`,
         title: `${displayName} “${label}”`,
     };
 }

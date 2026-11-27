@@ -49,6 +49,16 @@ function bookBox(name: string) {
 }
 
 /**
+ * A bundle of map art that the seller named
+ * @param name - Name the seller gave the bundle
+ * @param diamonds - Price in diamonds
+ * @returns Raw recipe in data.json shape
+ */
+function artBundle(name: string, diamonds: number) {
+    return { resultItem: { type: 'BUNDLE', name, amount: 1 }, item1: { type: 'DIAMOND', name: '', amount: diamonds }, stock: 1 };
+}
+
+/**
  * Three shops far apart. Cooked beef for emeralds is sold at 2, 4 and 3
  * emeralds, so the median is 3 and the cheapest offer is −33%.
  */
@@ -179,6 +189,23 @@ test.describe('Seller-named shulker boxes', () => {
         const silkRow = page.locator(ROW).filter({ has: page.locator('.item-label', { hasText: 'silk touch' }) });
         await silkRow.locator('.result-name .info-icon').click();
         await expect(page.locator('#trade-details-content .trade-detail-name')).toHaveText('Silk touch');
+    });
+});
+
+test.describe('Seller-named bundles', () => {
+    test('show as a bundle with the seller name, and without a Deal %', async ({ page }) => {
+        await openApp(page, '', {
+            data: [0, 1, 2].map(index => ({
+                location: `${index * 1000}.0, 64.0, 0.0`, world: 'world', shopOwner: `Artist${index}`,
+                recipes: [artBundle(index === 0 ? 'Coca-Cola' : `Art ${index}`, 4 + index)],
+            })),
+        });
+        const cocaCola = page.locator(ROW).filter({ has: page.locator('.item-label', { hasText: 'Coca-Cola' }) });
+        await expect(cocaCola.locator('.result-name .name-text')).toHaveText('Bundle');
+        await expect(cocaCola.locator('.dev')).toHaveText('—');
+
+        await page.locator(WANT).fill('coca');
+        await expect(page.locator(ROW)).toHaveCount(1);
     });
 });
 

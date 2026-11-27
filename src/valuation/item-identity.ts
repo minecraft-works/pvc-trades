@@ -53,6 +53,25 @@ export function isFilledShulker(item: Readonly<Item>): boolean {
     return normalizeType(item.type).includes('SHULKER_BOX') && (item.lore?.length ?? 0) > 0;
 }
 
+/**
+ * Whether an item is a bundle (any colour). The shop data never lists what
+ * is inside a bundle, unlike shulker boxes.
+ * @param item - Item stack
+ * @returns True for a bundle
+ */
+export function isBundle(item: Readonly<Item>): boolean {
+    return /(?:^|_)BUNDLE$/.test(normalizeType(item.type));
+}
+
+/**
+ * A bundle the seller named: its contents decide its worth, and they are unknown
+ * @param item - Item stack
+ * @returns True for a bundle with a seller-given name
+ */
+function isNamedBundle(item: Readonly<Item>): boolean {
+    return getItemLabel(item) !== undefined && isBundle(item);
+}
+
 function enchantSignature(item: Readonly<Item>): string {
     const entries = Object.entries(item.enchant ?? {}).filter(([, level]) => typeof level === 'number');
     if (entries.length === 0) { return ''; }
@@ -103,60 +122,77 @@ export function parseShulkerContents(lore: readonly string[]): Readonly<ShulkerP
 /**
  * Describe an item stack for display: a filled shulker box with one kind of
  * content shows as that content ("1728 Cobblestone"); a mixed shulker lists
- * its contents; anything else uses the item's own name and amount.
+ * its contents; a named bundle shows as a bundle with its name; anything else
+ * uses the item's own name and amount.
  *
  * @param item - Item stack
  * @returns Display amount and name
  *
  * @example
  * describeItemStack({ type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x SAND'] }) // { amount: 64, name: 'Sand' }
+ * describeItemStack({ type: 'BLUE_BUNDLE', name: 'Coca-Cola', amount: 1 })             // { amount: 1, name: 'Blue bundle “Coca-Cola”' }
  */
 export function describeItemStack(item: Readonly<Item>): { readonly amount: number; readonly name: string } {
-    if (!isFilledShulker(item)) { return { amount: item.amount, name: formatName(item) }; }
-    const contents = parseShulkerContents(item.lore ?? []).items;
-    const label = getShulkerLabel(item);
+    const label = getItemLabel(item);
     const labelSuffix = label ? ` “${label}”` : '';
+    if (!isFilledShulker(item)) {
+        return { amount: item.amount, name: isBundle(item) ? `${getTypeName(item)}${labelSuffix}` : formatName(item) };
+    }
+    const contents = parseShulkerContents(item.lore ?? []).items;
     const [only] = contents;
     if (contents.length === 1 && only) { return { amount: only.total * item.amount, name: `${only.name}${labelSuffix}` }; }
-    const boxName = formatName({ ...item, name: '' });
-    return { amount: item.amount, name: `${boxName}${labelSuffix} (${contents.map(content => content.name).join(', ')})` };
+    return { amount: item.amount, name: `${getTypeName(item)}${labelSuffix} (${contents.map(content => content.name).join(', ')})` };
 }
 
 /**
- * The name a seller gave a filled shulker box, e.g. "mending" on a box of
- * enchanted books. Names that only repeat the box type or its contents are
- * skipped.
+ * The item's type name, ignoring any name the seller gave it
+ * @param item - Item stack
+ * @returns e.g. "Blue bundle", "Shulker box"
+ */
+export function getTypeName(item: Readonly<Item>): string {
+    return formatName({ ...item, name: '' });
+}
+
+/**
+ * The name a seller gave a filled shulker box or a bundle, e.g. "mending" on
+ * a box of enchanted books or "Coca-Cola" on a bundle of map art. Names that
+ * only repeat the item type or the box contents are skipped.
  *
  * @param item - Item stack
- * @returns The seller's name, or undefined
+ * @returns The seller's name, or undefined (also for other items)
  *
  * @example
- * getShulkerLabel({ type: 'SHULKER_BOX', name: 'mending', amount: 1, lore: ['- 1x ENCHANTED_BOOK'] }) // 'mending'
- * getShulkerLabel({ type: 'SHULKER_BOX', name: 'Sand', amount: 1, lore: ['- 64x SAND'] })             // undefined
+ * getItemLabel({ type: 'SHULKER_BOX', name: 'mending', amount: 1, lore: ['- 1x ENCHANTED_BOOK'] }) // 'mending'
+ * getItemLabel({ type: 'SHULKER_BOX', name: 'Sand', amount: 1, lore: ['- 64x SAND'] })             // undefined
+ * getItemLabel({ type: 'BUNDLE', name: 'Coca-Cola', amount: 1 })                                   // 'Coca-Cola'
  */
-export function getShulkerLabel(item: Readonly<Item>): string | undefined {
+export function getItemLabel(item: Readonly<Item>): string | undefined {
     const label = item.name.trim();
-    if (!label || !isFilledShulker(item)) { return undefined; }
+    if (!label || !(isFilledShulker(item) || isBundle(item))) { return undefined; }
     const lower = label.toLowerCase();
-    const contents = parseShulkerContents(item.lore ?? []).items;
-    const isRedundant = lower === formatName({ ...item, name: '' }).toLowerCase()
+    const contents = isFilledShulker(item) ? parseShulkerContents(item.lore ?? []).items : [];
+    const isRedundant = lower === getTypeName(item).toLowerCase()
         || contents.some(content => content.name.toLowerCase() === lower);
     return isRedundant ? undefined : label;
 }
 
 /**
- * Names an item stack can be found by: its own name plus any shulker contents.
+ * Names an item stack can be found by: its own name, plus shulker contents
+ * or the type of a named bundle.
  *
  * @param item - Item stack
  * @returns Display names (any case)
  */
 export function getItemStackNames(item: Readonly<Item>): readonly string[] {
+    if (isNamedBundle(item)) { return [getTypeName(item), formatName(item)]; }
     const contents = isFilledShulker(item) ? parseShulkerContents(item.lore ?? []).items.map(content => content.name) : [];
     return [formatName(item), ...contents];
 }
 
 /**
  * Get the name an item is priced under, or undefined if it cannot be priced.
+ * Named bundles cannot: their worth is their contents, which the shop data
+ * doesn't list.
  *
  * @param item - Item to identify
  * @returns Valuation name, e.g. "Diamond pickaxe [efficiency 5, unbreaking 3]"
@@ -164,6 +200,7 @@ export function getItemStackNames(item: Readonly<Item>): readonly string[] {
  * @example
  * getValuationName({ type: 'DIAMOND', name: '', amount: 1 })            // 'Diamond'
  * getValuationName({ type: 'POTION', name: '', amount: 1 })             // undefined
+ * getValuationName({ type: 'BUNDLE', name: 'Coca-Cola', amount: 1 })    // undefined
  * getValuationName({ type: 'IRON_SWORD', name: '', amount: 1, enchant: { sharpness: 2 } }) // 'Iron sword [sharpness 2]'
  */
 export function getValuationName(item: Readonly<Item>): string | undefined {
@@ -171,6 +208,7 @@ export function getValuationName(item: Readonly<Item>): string | undefined {
     if (UNIDENTIFIABLE_TYPES.has(normalizeType(item.type)) && !signature && !item.name) {
         return undefined;
     }
+    if (isNamedBundle(item)) { return undefined; }
     return formatName(item) + signature;
 }
 
