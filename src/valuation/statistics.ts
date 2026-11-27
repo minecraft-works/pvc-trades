@@ -26,6 +26,34 @@ import { getPairKey } from './item-identity.js';
 /** Default independent shops required for non-core items */
 const DEFAULT_MIN_ITEM_SHOPS = 2;
 
+/**
+ * Price arrays only grow (calculateItemValues appends while it iterates), so an
+ * array's length identifies its contents. Statistics are cached per array and
+ * recomputed when the length or the cluster distance changes.
+ */
+interface CachedStat {
+    readonly length: number;
+    readonly clusterDistance: number;
+    readonly value: number | undefined;
+}
+
+const medianCache = new WeakMap<readonly unknown[], CachedStat>();
+const independentShopsCache = new WeakMap<readonly unknown[], CachedStat>();
+const combinedShopsCache = new WeakMap<ItemValueEntry, CachedStat & { readonly sellLength: number }>();
+
+function cached(
+    cache: WeakMap<readonly unknown[], CachedStat>,
+    array: readonly unknown[],
+    clusterDistance: number,
+    compute: () => number | undefined
+): number | undefined {
+    const hit = cache.get(array);
+    if (hit?.length === array.length && hit.clusterDistance === clusterDistance) { return hit.value; }
+    const value = compute();
+    cache.set(array, { length: array.length, clusterDistance, value });
+    return value;
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -44,6 +72,10 @@ const DEFAULT_MIN_ITEM_SHOPS = 2;
  */
 export function median(array: readonly PriceEntry[] | readonly number[]): number | undefined {
     if (array.length === 0) { return undefined; }
+    return cached(medianCache, array, 0, () => computeMedian(array));
+}
+
+function computeMedian(array: readonly PriceEntry[] | readonly number[]): number | undefined {
     const prices = array.map(p => typeof p === 'object' ? p.price : p);
     const sorted: readonly number[] = prices.toSorted((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
@@ -76,6 +108,10 @@ export function median(array: readonly PriceEntry[] | readonly number[]): number
  */
 export function countIndependentShops(priceArray: readonly PriceEntry[]): number {
     const maxDistance = configStore.get().analysis.shopClusterDistance;
+    return cached(independentShopsCache, priceArray, maxDistance, () => computeIndependentShops(priceArray, maxDistance)) ?? 0;
+}
+
+function computeIndependentShops(priceArray: readonly PriceEntry[], maxDistance: number): number {
     const clusters: { readonly anchor: Coordinates; readonly owner: string | undefined }[] = [];
 
     for (const entry of priceArray) {
@@ -198,6 +234,22 @@ export function getTrustedPairPrice(
 // Private Helpers
 // ============================================================================
 
+/**
+ * Independent shops across both sides of an entry.
+ * @param entry - Item value entry
+ * @returns Number of independent shop clusters among buy and sell prices
+ */
+function countCombinedShops(entry: ItemValueEntry): number {
+    const maxDistance = configStore.get().analysis.shopClusterDistance;
+    const hit = combinedShopsCache.get(entry);
+    if (hit?.length === entry.buyPrices.length && hit.sellLength === entry.sellPrices.length && hit.clusterDistance === maxDistance) {
+        return hit.value ?? 0;
+    }
+    const value = computeIndependentShops([...entry.buyPrices, ...entry.sellPrices], maxDistance);
+    combinedShopsCache.set(entry, { length: entry.buyPrices.length, sellLength: entry.sellPrices.length, clusterDistance: maxDistance, value });
+    return value;
+}
+
 function getMedianValue(
     buyPrices: readonly PriceEntry[],
     sellPrices: readonly PriceEntry[]
@@ -227,7 +279,7 @@ function getEntryValue(
     minItemShops: number
 ): number | undefined {
     if (!isCoreBlock) {
-        if (countIndependentShops([...entry.buyPrices, ...entry.sellPrices]) < minItemShops) { return undefined; }
+        if (countCombinedShops(entry) < minItemShops) { return undefined; }
         return getMedianValue(entry.buyPrices, entry.sellPrices);
     }
     return getMedianValue(
