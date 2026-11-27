@@ -10,9 +10,10 @@
  */
 
 import type * as L from 'leaflet';
+import { html } from 'lit-html';
 
 import { createEdgeMarker, resolvePlayerLabelPositions, spreadAngles, updateEdgeMarker } from '../dialogs/index.js';
-import { escapeHtml } from '../library.js';
+import { renderToElement } from '../rendering/render.js';
 import type { Player } from '../types.js';
 import { leaflet } from './leaflet.js';
 
@@ -78,7 +79,7 @@ export function createPlayerLayer(options: PlayerLayerOptions): PlayerLayer {
         const marker = leaflet().marker([0, 0], {
             icon: leaflet().divIcon({
                 className: 'leaflet-player-marker',
-                html: `<span class="player-dot"></span><span class="player-name">${escapeHtml(player.name)}</span>`,
+                html: renderToElement(html`<span class="player-dot"></span><span class="player-name">${player.name}</span>`),
                 iconSize: [12, 12],
                 iconAnchor: [6, 6],
             }),

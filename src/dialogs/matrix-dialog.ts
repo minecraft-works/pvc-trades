@@ -10,8 +10,10 @@
  * @module dialogs/matrix-dialog
  */
 
+import { html, nothing, type TemplateResult } from 'lit-html';
+
 import { DIALOG_IDS, SELECTORS } from '../constants.js';
-import { escapeHtml } from '../library.js';
+import { replaceContent } from '../rendering/render.js';
 import type { ExchangeMatrix, ItemValues } from '../types.js';
 import { buildExchangeMatrix } from '../valuation/ratio-graph.js';
 import { type FlipsPanelDeps, renderFlipsPanel } from './flips-panel.js';
@@ -42,9 +44,9 @@ const KEY_PAIRS: [string, string][] = [
     ['Emerald Block', 'Iron Block'],
 ];
 
-const DIALOG_HEADER_HTML = '<header><h2>Exchange Rates</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
+const DIALOG_HEADER = html`<header><h2>Exchange Rates</h2><button id="close-matrix" aria-label="Close">&times;</button></header>`;
 
-const RATES_HINT_HTML = '<p class="rates-hint"><strong>Buy</strong> is what one item costs at a shop, <strong>Sell</strong> what a shop pays you for it.</p>';
+const RATES_HINT = html`<p class="rates-hint"><strong>Buy</strong> is what one item costs at a shop, <strong>Sell</strong> what a shop pays you for it.</p>`;
 
 /** Both sides of the market */
 interface Matrices {
@@ -68,12 +70,12 @@ function toDisplayName(label: string): string {
 /**
  * Icon and name of a currency
  * @param label - Currency label
- * @returns HTML with an icon (when known) and the display name
+ * @returns Template with an icon (when known) and the display name
  */
-function itemWithIcon(label: string): string {
+function itemWithIcon(label: string): TemplateResult {
     const url = ITEM_ICONS[label];
-    const icon = url ? `<img src="${url}" alt="" class="matrix-icon" aria-hidden="true">` : '';
-    return `${icon}<span>${escapeHtml(toDisplayName(label))}</span>`;
+    const icon = url ? html`<img src="${url}" alt="" class="matrix-icon" aria-hidden="true">` : nothing;
+    return html`${icon}<span>${toDisplayName(label)}</span>`;
 }
 
 /**
@@ -129,19 +131,19 @@ function orientPair(pair: readonly [string, string], matrices: Matrices): [strin
 /**
  * Build the key rates table
  * @param matrices - Buy and sell matrices
- * @returns HTML for the key rates section
+ * @returns Template for the key rates section
  */
-function buildKeyRates(matrices: Matrices): string {
+function buildKeyRates(matrices: Matrices): TemplateResult {
     const rows = KEY_PAIRS.map(pair => {
         const [item, unit] = orientPair(pair, matrices);
-        return `<div class="rate-table-row" role="row">
+        return html`<div class="rate-table-row" role="row">
             <span class="rate-item" role="cell">${itemWithIcon(item)}</span>
             <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.buy, item, unit))}</span>
             <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.sell, item, unit))}</span>
             <span class="rate-unit" role="cell">${itemWithIcon(unit)}</span>
         </div>`;
-    }).join('');
-    return `<section class="converter-section">
+    });
+    return html`<section class="converter-section">
         <h3 class="converter-section-title">Key rates</h3>
         <div class="rate-table" role="table" aria-label="Key rates">
             <div class="rate-table-row rate-table-head" role="row">
@@ -159,23 +161,21 @@ function buildKeyRates(matrices: Matrices): string {
  * Build the <option> elements for a currency select dropdown
  * @param labels - All available currency labels
  * @param selected - Currently selected label to mark as selected
- * @returns HTML string of <option> elements
+ * @returns Templates of <option> elements
  */
-function buildCurrencyOptions(labels: readonly string[], selected: string): string {
-    return labels
-        .map(label => `<option value="${escapeHtml(label)}"${label === selected ? ' selected' : ''}>${escapeHtml(toDisplayName(label))}</option>`)
-        .join('');
+function buildCurrencyOptions(labels: readonly string[], selected: string): TemplateResult[] {
+    return labels.map(label => html`<option value="${label}" ?selected=${label === selected}>${toDisplayName(label)}</option>`);
 }
 
 /**
  * Build the converter
  * @param labels - Available currency labels for the dropdowns
- * @returns HTML string for the converter section
+ * @returns Template for the converter section
  */
-function buildConverter(labels: readonly string[]): string {
+function buildConverter(labels: readonly string[]): TemplateResult {
     const from = labels.find(label => label === 'Netherite Ingot') ?? labels[0] ?? '';
     const to = labels.find(label => label === 'Diamond Block') ?? labels[1] ?? '';
-    return `<section class="converter-section">
+    return html`<section class="converter-section">
         <h3 class="converter-section-title">Convert</h3>
         <div class="converter-custom">
             <div class="converter-row">
@@ -257,24 +257,24 @@ export function renderExchangeMatrix(
 ): void {
     const closeDialog = (): void => { getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close(); };
     if (!itemValues || itemValues.size === 0) {
-        container.innerHTML = `${DIALOG_HEADER_HTML}<p class="muted">No price data available</p>`;
+        replaceContent(container, html`${DIALOG_HEADER}<p class="muted">No price data available</p>`);
         container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', closeDialog);
         return;
     }
 
     const matrices: Matrices = { buy: buildExchangeMatrix(itemValues, 'buy'), sell: buildExchangeMatrix(itemValues, 'sell') };
-    const flipsTab = flips ? '<button class="matrix-tab" data-tab="flips" title="Buy at one shop, sell to another for profit">Flips</button>' : '';
-    container.innerHTML = `${DIALOG_HEADER_HTML}
+    const flipsTab = flips ? html`<button class="matrix-tab" data-tab="flips" title="Buy at one shop, sell to another for profit">Flips</button>` : nothing;
+    replaceContent(container, html`${DIALOG_HEADER}
         <div class="matrix-tabs">
             <button class="matrix-tab matrix-tab--active" data-tab="rates">Rates</button>
             ${flipsTab}
         </div>
         <div class="matrix-rates">
-            ${RATES_HINT_HTML}
+            ${RATES_HINT}
             ${buildKeyRates(matrices)}
             ${buildConverter(matrices.buy.labels)}
         </div>
-        <div class="matrix-flips hidden"></div>`;
+        <div class="matrix-flips hidden"></div>`);
 
     wireConverter(container, matrices);
 

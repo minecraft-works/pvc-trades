@@ -7,8 +7,9 @@
  * @module dashboard/dashboard-ui
  */
 
+import { html, nothing, render, type TemplateResult } from 'lit-html';
+
 import { DASHBOARD } from '../constants.js';
-import { escapeHtml } from '../library.js';
 import { getTradeKey } from '../map/map-math.js';
 import type { DeviationResult } from '../search/index.js';
 import type { DashboardData, FavoriteItem,PriceDrop, Trade, TradeSnapshot, WatchlistHit } from '../types.js';
@@ -91,36 +92,44 @@ function formatDeviationText(deviation: number): string {
 }
 
 /**
- * Build the delta comparison HTML for a watchlist hit.
+ * Build the delta comparison for a watchlist hit.
  * @param hit - Watchlist hit with current and optional previous deviation
- * @returns HTML string showing deviation change, or empty string if no prior data
+ * @returns Template showing deviation change, or nothing if no prior data
  */
-function buildWatchlistDelta(hit: WatchlistHit): string {
-    if (hit.previousDeviation === undefined) { return ''; }
+function buildWatchlistDelta(hit: WatchlistHit): TemplateResult | typeof nothing {
+    if (hit.previousDeviation === undefined) { return nothing; }
     const diff = hit.currentDeviation - hit.previousDeviation;
     const previousText = formatDeviationText(hit.previousDeviation);
     if (diff < 0) {
-        return `<span class="${DELTA_CLASS} improved">(was ${previousText}) ↓ better</span>`;
+        return html`<span class="${DELTA_CLASS} improved">(was ${previousText}) ↓ better</span>`;
     }
     if (diff > 0) {
-        return `<span class="${DELTA_CLASS}">(was ${previousText}) ↑ worse</span>`;
+        return html`<span class="${DELTA_CLASS}">(was ${previousText}) ↑ worse</span>`;
     }
-    return `<span class="${DELTA_CLASS}">(unchanged)</span>`;
+    return html`<span class="${DELTA_CLASS}">(unchanged)</span>`;
 }
 
 /**
- * Render a single watchlist hit item as HTML.
- * @param hit - Watchlist hit to render
- * @returns HTML string for a single watchlist item
+ * Link that searches for an item.
+ * @param itemName - Item to search for
+ * @returns Template for the item name link
  */
-function renderWatchlistItem(hit: WatchlistHit): string {
+function itemLink(itemName: string): TemplateResult {
+    return html`<span class="dashboard-item-name dashboard-item-link" data-search="${itemName}" title="Search for ${itemName}">${itemName}</span>`;
+}
+
+/**
+ * Render a single watchlist hit item.
+ * @param hit - Watchlist hit to render
+ * @returns Template for a single watchlist item
+ */
+function renderWatchlistItem(hit: WatchlistHit): TemplateResult {
     const deviationClass = hit.currentDeviation < 0 ? 'good' : 'bad';
     const deviationText = formatDeviationText(hit.currentDeviation);
-    const deltaHtml = buildWatchlistDelta(hit);
-    return `<div class="dashboard-item">
-        <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(hit.itemName)}" title="Search for ${escapeHtml(hit.itemName)}">${escapeHtml(hit.itemName)}</span>
+    return html`<div class="dashboard-item">
+        ${itemLink(hit.itemName)}
         <span class="dashboard-item-dev ${deviationClass}">${deviationText}</span>
-        ${deltaHtml}
+        ${buildWatchlistDelta(hit)}
     </div>`;
 }
 
@@ -137,11 +146,10 @@ function buildWatchlistSection(hits: readonly WatchlistHit[]): HTMLDivElement {
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
     const sorted = [...hits].toSorted((a, b) => a.currentDeviation - b.currentDeviation);
-    const items = sorted.map(hit => renderWatchlistItem(hit)).join('');
-    section.innerHTML = `
+    render(html`
         <div class="dashboard-section-title">🔥 Watchlist Deals (${hits.length})</div>
-        <div class="dashboard-section-items dashboard-items-grid">${items}</div>
-    `;
+        <div class="dashboard-section-items dashboard-items-grid">${sorted.map(hit => renderWatchlistItem(hit))}</div>
+    `, section);
     return section;
 }
 
@@ -160,21 +168,21 @@ function buildNewTradesSection(newTrades: readonly Trade[]): HTMLDivElement {
     const shown = sorted.slice(0, DASHBOARD.MAX_NEW_ITEMS);
     const hiddenCount = sorted.length - shown.length;
 
-    const items = shown.map(([name, count]) => `<span class="dashboard-new-item">
-            <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(name)}" title="Search for ${escapeHtml(name)}">${escapeHtml(name)}</span>${count > 1 ? ` <span class="${DELTA_CLASS}">×${count}</span>` : ''}
-        </span>`).join('');
-    const more = hiddenCount > 0 ? `<span class="dashboard-new-item ${DELTA_CLASS}">+${plural(hiddenCount, 'more item')}</span>` : '';
+    const items = shown.map(([name, count]) => html`<span class="dashboard-new-item">
+            ${itemLink(name)}${count > 1 ? html` <span class="${DELTA_CLASS}">×${count}</span>` : nothing}
+        </span>`);
+    const more = hiddenCount > 0 ? html`<span class="dashboard-new-item ${DELTA_CLASS}">+${plural(hiddenCount, 'more item')}</span>` : nothing;
     const total = newTrades.length;
 
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
-    section.innerHTML = `
+    render(html`
         <div class="dashboard-section-title">🆕 New Trades (${total})</div>
         <div class="dashboard-summary">${plural(total, 'new listing')} appeared
             <button type="button" class="dashboard-show-new">Show all new trades</button>
         </div>
         <div class="dashboard-section-items dashboard-new-items">${items}${more}</div>
-    `;
+    `, section);
     return section;
 }
 
@@ -203,16 +211,16 @@ function buildPriceDropsSection(drops: readonly PriceDrop[]): HTMLDivElement | u
     const dropItems = belowMedian.map(drop => {
         const deviationText = formatDeviationText(drop.newDeviation);
         const oldText = formatDeviationText(drop.oldDeviation);
-        return `<div class="dashboard-item">
-            <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(drop.itemName)}" title="Search for ${escapeHtml(drop.itemName)}">${escapeHtml(drop.itemName)}</span>
+        return html`<div class="dashboard-item">
+            ${itemLink(drop.itemName)}
             <span class="dashboard-item-dev good">${deviationText}</span>
             <span class="${DELTA_CLASS} improved">(was ${oldText})</span>
         </div>`;
-    }).join('');
-    section.innerHTML = `
+    });
+    render(html`
         <div class="dashboard-section-title">📉 Price Drops (${belowMedian.length})</div>
         <div class="dashboard-section-items dashboard-items-grid">${dropItems}</div>
-    `;
+    `, section);
     return section;
 }
 
@@ -223,7 +231,7 @@ function buildPriceDropsSection(drops: readonly PriceDrop[]): HTMLDivElement | u
  * @param newTrades - Trades behind `data.newTradeKeys`
  */
 function appendDashboardSections(sectionsElement: Element, data: DashboardData, newTrades: readonly Trade[]): void {
-    sectionsElement.innerHTML = '';
+    sectionsElement.replaceChildren();
 
     if (data.watchlistHits.length > 0) {
         sectionsElement.append(buildWatchlistSection(data.watchlistHits));

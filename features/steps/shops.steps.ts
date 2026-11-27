@@ -131,8 +131,10 @@ When('I click the shop {string} on the map', async ({ page }, shop: string) => {
         const map = (globalThis as unknown as { __leafletMap: { eachLayer: (callback: (layer: Dot) => void) => void } }).__leafletMap;
         let target: Dot | undefined;
         map.eachLayer(layer => {
-            const content = layer.getTooltip?.()?.getContent();
-            if (typeof content === 'string' && content.includes(`<strong>${name}</strong>`)) { target = layer; }
+            // The tooltip content is a function that renders the label element on demand
+            const tooltipContent = layer.getTooltip?.()?.getContent();
+            const content: unknown = typeof tooltipContent === 'function' ? tooltipContent(layer) : tooltipContent;
+            if (content instanceof HTMLElement && content.querySelector('strong')?.textContent === name) { target = layer; }
         });
         target?.fire('click');
         return target !== undefined;

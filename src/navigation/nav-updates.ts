@@ -8,13 +8,14 @@
  */
 
 import type * as L from 'leaflet';
+import { html, type TemplateResult } from 'lit-html';
 
 import { NAVIGATION } from '../constants.js';
 import { debugInterpolation } from '../debug.js';
-import { escapeHtml } from '../library.js';
 import { TILE_CONFIG } from '../map/index.js';
 import { leaflet } from '../map/leaflet.js';
 import { getTradeKey, getWorldId, isNether, toLeafletCoordsRelative } from '../map/map-math.js';
+import { replaceContent } from '../rendering/render.js';
 import { getZoomForHeight } from '../routing/navigation-helpers.js';
 import { calculateRouteDistance, toViewCoords } from '../routing/route-optimizer.js';
 import type { RouteStop } from '../types.js';
@@ -69,36 +70,36 @@ export interface NavUpdatesHandler {
 // ============================================================================
 
 /**
- * Build HTML snippets for the distance-to-next-stop display.
+ * Build the distance-to-next-stop display.
  *
  * @param playerPos - Current player position
  * @param playerPos.x - Player X coordinate
  * @param playerPos.z - Player Z coordinate
  * @param playerPos.world - Player world identifier
  * @param stop - The next route stop
- * @returns Distance HTML for inline display and expanded dialog
+ * @returns Distance templates for inline display and expanded dialog
  */
-function buildStopDistanceHtml(
+function buildStopDistance(
     playerPos: { x: number; z: number; world: string },
     stop: RouteStop,
-): { distanceHtml: string; dialogHtml: string } {
+): { distance: TemplateResult; dialog: TemplateResult } {
     const stopWorld = getWorldId(stop.world);
     const isNetherShop = stopWorld.includes('nether');
     const distance = calculateRouteDistance(
         playerPos.x, playerPos.z, playerPos.world,
         stop.x, stop.z, stop.world,
     );
-    const itemName = escapeHtml(stop.cartItem?.trade.resultName ?? 'Next stop');
+    const itemName = stop.cartItem?.trade.resultName ?? 'Next stop';
     const quantity = stop.cartItem?.quantity ?? 1;
     const distanceText = Math.round(distance).toLocaleString();
     const worldIndicator = isNetherShop ? '🔥 ' : '';
-    const distanceHtml = `<span class="distance-label">→ ${worldIndicator}${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`;
+    const distanceLine = html`<span class="distance-label">→ ${worldIndicator}${itemName}:</span><span class="distance-value">${distanceText} blocks</span>`;
 
     const coordsText = isNetherShop
         ? `${stop.x}, ${stop.y}, ${stop.z} (Nether → OW: ${stop.displayX}, ${stop.displayZ})`
         : `${stop.x}, ${stop.y}, ${stop.z}`;
     const buyText = `${quantity}× ${itemName}`;
-    const dialogHtml = `
+    const dialog = html`
         <div class="nav-info-row">
             <span class="nav-info-label">📍</span>
             <span class="nav-info-coords">${coordsText}</span>
@@ -112,7 +113,7 @@ function buildStopDistanceHtml(
             <span class="nav-info-distance">${Math.round(distance).toLocaleString()} blocks</span>
         </div>
     `;
-    return { distanceHtml, dialogHtml };
+    return { distance: distanceLine, dialog };
 }
 
 /**
@@ -251,14 +252,14 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             ? state.currentRoute
             : deps.computeRoute(deps.navigationStore.playerPosition, true);
 
-        const COMPLETE_HTML = '<span class="distance-label">Route complete! 🎉</span>';
+        const complete = html`<span class="distance-label">Route complete! 🎉</span>`;
         const currentStop = route[0];
-        const { distanceHtml, dialogHtml } = currentStop
-            ? buildStopDistanceHtml(deps.navigationStore.playerPosition, currentStop)
-            : { distanceHtml: COMPLETE_HTML, dialogHtml: COMPLETE_HTML };
+        const { distance, dialog } = currentStop
+            ? buildStopDistance(deps.navigationStore.playerPosition, currentStop)
+            : { distance: complete, dialog: complete };
 
-        if (liveDistance) { liveDistance.innerHTML = distanceHtml; }
-        if (dialogDistance) { dialogDistance.innerHTML = dialogHtml; }
+        if (liveDistance) { replaceContent(liveDistance, distance); }
+        if (dialogDistance) { replaceContent(dialogDistance, dialog); }
     }
 
     // ── Auto-advance ────────────────────────────────────────────────

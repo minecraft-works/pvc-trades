@@ -7,7 +7,9 @@
  * @module navigation/shop-tooltip
  */
 
-import { escapeHtml } from '../library.js';
+import { html, nothing, type TemplateResult } from 'lit-html';
+
+import { replaceContent } from '../rendering/render.js';
 import { calculateRouteDistance } from '../routing/route-optimizer.js';
 import type { PlayerPosition } from '../stores/navigation-store.js';
 import type { CartItem,RouteStop } from '../types.js';
@@ -92,23 +94,23 @@ function findNearestShop(
 }
 
 /**
- * Render the shopping list tooltip HTML
+ * Render the shopping list tooltip content
  * @param items - Shopping cart items to render in the tooltip
- * @returns HTML string for the tooltip content
+ * @returns Template for the tooltip content
  */
-function renderTooltipContent(items: CartItem[]): string {
-    const itemsHtml = items.map(cartItem =>
-        `<li><span class="item-name">${escapeHtml(cartItem.trade.resultName)}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
-    ).join('');
+function renderTooltipContent(items: CartItem[]): TemplateResult {
+    const itemRows = items.map(cartItem =>
+        html`<li><span class="item-name">${cartItem.trade.resultName}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
+    );
     // All items are at the same location, so they share the shop
     const shop = items[0]?.trade;
     const shopLabel = shop?.shopName ?? shop?.shopOwner;
-    const shopHtml = shopLabel ? `<p class="tooltip-shop">🏪 ${escapeHtml(shopLabel)}</p>` : '';
+    const shopLine = shopLabel ? html`<p class="tooltip-shop">🏪 ${shopLabel}</p>` : nothing;
 
-    return `
+    return html`
         <h4>🛒 Shopping List</h4>
-        ${shopHtml}
-        <ul>${itemsHtml}</ul>
+        ${shopLine}
+        <ul>${itemRows}</ul>
     `;
 }
 
@@ -152,7 +154,7 @@ export function createShopTooltipHandler(
      * @param items - Cart items to render inside the tooltip
      */
     function showTooltip(tooltip: Element, items: CartItem[]): void {
-        tooltip.innerHTML = renderTooltipContent(items);
+        replaceContent(tooltip, renderTooltipContent(items));
         tooltip.classList.remove('hidden');
 
         // Clear existing timer

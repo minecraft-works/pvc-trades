@@ -10,7 +10,7 @@ import { beforeAll, describe, expect, test, vi } from 'vitest';
 
 import { computeDashboardData, formatRelativeTime } from './dashboard/dashboard-data.js';
 import { formatName } from './formatting.js';
-import { applyMapping, enchantsMatch, escapeHtml, filterTrade, formatTradeCost, formatTradeCostNames, getCostParts, getRegex, highlight, matchesQuery, parseLocation, processTrade, sortResults } from './library.js';
+import { applyMapping, enchantsMatch, filterTrade, formatTradeCost, formatTradeCostNames, getCostParts, getRegex, highlightSegments, matchesQuery, parseLocation, processTrade, sortResults } from './library.js';
 import { calculateFitZoom, clampToCircle, fromLeafletCoordsRelative, getTileOffset, getTradeKey, getWorldId, isNether, shouldSwitchMapWorld, toLeafletCoords, toLeafletCoordsRelative } from './map/map-math.js';
 import { getZoomForHeight } from './routing/navigation-helpers.js';
 import { createDeviationCalculator } from './search/deviation.js';
@@ -410,24 +410,40 @@ describe('parseShulkerContents', () => {
     });
 });
 
-describe('highlight', () => {
+describe('highlightSegments', () => {
     test('highlights matching text', () => {
         const regex = /diamond/i;
-        expect(highlight('Diamond block', regex)).toBe('<mark>Diamond</mark> block');
+        expect(highlightSegments('Diamond block', regex)).toEqual([
+            { text: 'Diamond', match: true },
+            { text: ' block', match: false },
+        ]);
     });
 
-    test('escapes HTML in text', () => {
+    test('keeps markup characters as plain text', () => {
         const regex = /test/i;
-        expect(highlight('<script>test</script>', regex)).toBe('&lt;script&gt;<mark>test</mark>&lt;/script&gt;');
+        expect(highlightSegments('<script>test</script>', regex)).toEqual([
+            { text: '<script>', match: false },
+            { text: 'test', match: true },
+            { text: '</script>', match: false },
+        ]);
     });
 
-    test('never matches inside escaped entities', () => {
-        expect(highlight('Bert & Ernie', /amp/i)).toBe('Bert &amp; Ernie');
-        expect(highlight('<<Sponsor Token>>', /lt/i)).toBe('&lt;&lt;Sponsor Token&gt;&gt;');
+    test('matches the raw text, not HTML entities', () => {
+        expect(highlightSegments('Bert & Ernie', /amp/i)).toEqual([{ text: 'Bert & Ernie', match: false }]);
+        expect(highlightSegments('<<Sponsor Token>>', /lt/i)).toEqual([{ text: '<<Sponsor Token>>', match: false }]);
     });
 
-    test('escapes the highlighted match itself', () => {
-        expect(highlight('Bert & Ernie', /&/)).toBe('Bert <mark>&amp;</mark> Ernie');
+    test('highlights special characters', () => {
+        expect(highlightSegments('Bert & Ernie', /&/)).toEqual([
+            { text: 'Bert ', match: false },
+            { text: '&', match: true },
+            { text: ' Ernie', match: false },
+        ]);
+    });
+
+    test('highlights only the first match unless the regex is global', () => {
+        expect(highlightSegments('ab ab', /ab/).filter(segment => segment.match)).toHaveLength(1);
+        expect(highlightSegments('ab ab', /ab/g).filter(segment => segment.match)).toHaveLength(2);
     });
 });
 
@@ -458,24 +474,6 @@ describe('formatTradeCost', () => {
             .toBe('5× Diamond block + 3× Emerald block');
         expect(formatTradeCostNames({ item1: plainItem('DIAMOND_BLOCK', 5), item2: plainItem('EMERALD_BLOCK', 3) }))
             .toBe('Diamond block + Emerald block');
-    });
-});
-
-describe('escapeHtml', () => {
-    test('escapes angle brackets', () => {
-        expect(escapeHtml('<div>')).toBe('&lt;div&gt;');
-    });
-
-    test('escapes ampersand', () => {
-        expect(escapeHtml('a & b')).toBe('a &amp; b');
-    });
-
-    test('escapes quotes', () => {
-        expect(escapeHtml('"hello"')).toBe('&quot;hello&quot;');
-    });
-
-    test('escapes single quotes', () => {
-        expect(escapeHtml("it's")).toBe('it&#39;s');
     });
 });
 

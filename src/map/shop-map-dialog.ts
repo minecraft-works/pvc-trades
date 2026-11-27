@@ -10,10 +10,11 @@
  */
 
 import type * as L from 'leaflet';
+import { html } from 'lit-html';
 
 import { SELECTORS } from '../constants.js';
 import { getWorldDisplayName } from '../dialogs/index.js';
-import { escapeHtml } from '../library.js';
+import { renderToElement } from '../rendering/render.js';
 import type { ShopLocation, ShopSummary } from '../search/shop-filter.js';
 import { playerPositionService } from '../stores/player-position-service.js';
 import { getTileCoords } from '../tile-coords.js';
@@ -492,7 +493,7 @@ function addShopMarkers(map: L.Map, parameters: ShopMapSetupParameters): () => v
         const owner = shop.shopName && shop.shopOwner ? ` · ${shop.shopOwner}` : '';
         markers.push(leaflet().marker([lat, lng], { icon, keyboard: false, zIndexOffset: Z_SHOP_DOT })
             // No trade count here: the pill's "All N trades" counts every shop with this name
-            .bindTooltip(`<strong>${escapeHtml(name)}</strong>${escapeHtml(owner)}`, {
+            .bindTooltip(() => renderToElement(html`<strong>${name}</strong>${owner}`), {
                 className: 'map-shop-tooltip',
                 direction: 'top',
                 offset: [0, -half],

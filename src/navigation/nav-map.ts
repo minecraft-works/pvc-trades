@@ -13,6 +13,7 @@
  */
 
 import type * as L from 'leaflet';
+import { html } from 'lit-html';
 
 import { CSS_CLASSES, WORLDS } from '../constants.js';
 import { debugMap, debugTiles } from '../debug.js';
@@ -24,6 +25,7 @@ import {
 } from '../map/index.js';
 import { leaflet } from '../map/leaflet.js';
 import { getTradeKey, isNether, toLeafletCoordsRelative } from '../map/map-math.js';
+import { renderToElement, replaceContent } from '../rendering/render.js';
 import { buildMarkerContent, buildStopTooltip } from '../routing/navigation-helpers.js';
 import { toViewCoords } from '../routing/route-optimizer.js';
 import { getTileCoords } from '../tile-coords.js';
@@ -336,7 +338,7 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
             });
 
             const marker = leaflet().marker([lat, lng], { icon: markerIcon })
-                .bindTooltip(buildStopTooltip(stop, isCompleted), { permanent: false, direction: 'top', offset: [0, -18] })
+                .bindTooltip(() => renderToElement(html`${buildStopTooltip(stop, isCompleted)}`), { permanent: false, direction: 'top', offset: [0, -18] })
                 .addTo(state.map);
 
             marker.on('click', () => deps.toggleStopCompletion(stop, allStops));
@@ -382,13 +384,13 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
         globalThis.__navCurrentRoute = state.currentRoute;
 
         if (route.length === 0) {
-            container.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`;
+            replaceContent(container, html`<p class="${CSS_CLASSES.CART_EMPTY}" style="text-align: center; padding: 20px; color: var(--color-text-muted);">No route to display</p>`);
             state.currentWorldRoute = [];
             debugMap('Empty route, no map displayed');
             return;
         }
 
-        container.innerHTML = '';
+        container.replaceChildren();
         const worldToShow = targetWorld ?? deps.navigationStore.viewWorld;
         state.mapWorld = worldToShow;
         // Use optimized route order for display rather than unordered cart insertion order

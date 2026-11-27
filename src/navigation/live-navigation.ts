@@ -7,6 +7,8 @@
  * @module navigation/live-navigation
  */
 
+import { html } from 'lit-html';
+
 import {
     CSS_CLASSES,
     DIALOG_IDS,
@@ -20,6 +22,7 @@ import {
 } from '../map/index.js';
 import { loadLeaflet } from '../map/leaflet.js';
 import { getWorldId } from '../map/map-math.js';
+import { replaceContent } from '../rendering/render.js';
 import { calculateTotalRouteDistance, hasPositionMoved } from '../routing/navigation-helpers.js';
 import type { Player,RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
@@ -498,10 +501,10 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
         const navDistance = document.querySelector('#nav-distance');
 
         if (navTimeline instanceof HTMLElement) {
-            navTimeline.innerHTML = '';
+            navTimeline.replaceChildren();
 
             if (route.length === 0) {
-                navTimeline.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Add items to cart to see route</p>`;
+                replaceContent(navTimeline, html`<p class="${CSS_CLASSES.CART_EMPTY}">Add items to cart to see route</p>`);
             } else {
                 deps.syncNavProgressWithCart(route);
                 renderTimelineStops(navTimeline, route);
@@ -515,7 +518,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             } else {
                 const totalDistance = calculateTotalRouteDistance(route);
                 const netherDistance = Math.round(totalDistance / 8);
-                navDistance.innerHTML = `<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`;
+                replaceContent(navDistance, html`<span class="dist-label">Distance:</span><span class="dist-ow">${Math.round(totalDistance).toLocaleString()}</span><span class="dist-nether">${netherDistance.toLocaleString()}</span>`);
             }
         }
     }

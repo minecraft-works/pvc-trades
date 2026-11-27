@@ -5,7 +5,10 @@
  * @module dialogs/flips-panel
  */
 
-import { escapeHtml, getCostParts } from '../library.js';
+import { html, type TemplateResult } from 'lit-html';
+
+import { getCostParts } from '../library.js';
+import { replaceContent } from '../rendering/render.js';
 import type { Trade } from '../types.js';
 import type { Flip, FlipLeg } from '../valuation/flips.js';
 
@@ -42,29 +45,29 @@ function shopLabel(trade: Trade): string {
  * @param leg - The shop visit
  * @param currency - Currency name as shown in the table
  * @param index - Flip index, for the click handler
- * @returns Row HTML
+ * @returns Row template
  */
-function buildLeg(verb: 'Buy' | 'Sell', leg: FlipLeg, currency: string, index: number): string {
+function buildLeg(verb: 'Buy' | 'Sell', leg: FlipLeg, currency: string, index: number): TemplateResult {
     const rate = `${formatNumber(leg.itemAmount)} for ${formatNumber(leg.currencyAmount)} ${currency}`;
     const shop = shopLabel(leg.trade);
     const owner = leg.trade.shopOwner && leg.trade.shopName ? ` by ${leg.trade.shopOwner}` : '';
-    return `<div class="flip-leg">
+    return html`<div class="flip-leg">
         <span class="flip-leg-verb">${verb}</span>
-        <span class="flip-leg-rate" title="${escapeHtml(rate)}">${escapeHtml(rate)}</span>
+        <span class="flip-leg-rate" title="${rate}">${rate}</span>
         <span class="flip-leg-uses" title="Use this trade ${leg.uses} times">×${leg.uses}</span>
-        <button type="button" class="flip-shop" data-flip="${index}" data-leg="${verb.toLowerCase()}" title="${escapeHtml(`${shop}${owner}`)} · show on map">${escapeHtml(shop)}</button>
+        <button type="button" class="flip-shop" data-flip="${index}" data-leg="${verb.toLowerCase()}" title="${shop}${owner} · show on map">${shop}</button>
     </div>`;
 }
 
-function buildCard(flip: Flip, index: number, inCart: boolean): string {
+function buildCard(flip: Flip, index: number, inCart: boolean): TemplateResult {
     // Same names as the trade table (no enchantment signature on currencies)
     const item = flip.buy.trade.resultName;
     const currency = getCostParts(flip.buy.trade)[0]?.name ?? flip.currency;
     const profit = `+${formatNumber(flip.profit)} ${currency}`;
-    return `<li class="flip-card">
+    return html`<li class="flip-card">
         <div class="flip-head">
-            <span class="flip-item" title="${escapeHtml(item)}">${escapeHtml(item)}</span>
-            <span class="flip-profit" title="${escapeHtml(profit)} per trip, after paying for everything bought">${escapeHtml(profit)}</span>
+            <span class="flip-item" title="${item}">${item}</span>
+            <span class="flip-profit" title="${profit} per trip, after paying for everything bought">${profit}</span>
         </div>
         <div class="flip-legs">
             ${buildLeg('Buy', flip.buy, currency, index)}
@@ -72,7 +75,7 @@ function buildCard(flip: Flip, index: number, inCart: boolean): string {
         </div>
         <div class="flip-foot">
             <span class="flip-meta">+${Math.round(flip.margin * 100)}% · ${formatDistance(flip.distance)} apart</span>
-            <button type="button" class="flip-add" data-flip="${index}" aria-label="Add both trades to the cart"${inCart ? ' disabled' : ''}>${inCart ? '✓ In cart' : '+ Cart'}</button>
+            <button type="button" class="flip-add" data-flip="${index}" aria-label="Add both trades to the cart" ?disabled=${inCart}>${inCart ? '✓ In cart' : '+ Cart'}</button>
         </div>
     </li>`;
 }
@@ -85,12 +88,12 @@ function buildCard(flip: Flip, index: number, inCart: boolean): string {
 export function renderFlipsPanel(panel: HTMLElement, deps: FlipsPanelDeps): void {
     const flips = deps.getFlips().slice(0, MAX_FLIPS_SHOWN);
     if (flips.length === 0) {
-        panel.innerHTML = '<p class="muted flips-empty">No flips right now. Check back after the next shop update.</p>';
+        replaceContent(panel, html`<p class="muted flips-empty">No flips right now. Check back after the next shop update.</p>`);
         return;
     }
 
-    panel.innerHTML = `<p class="flips-intro">Buy at one shop, sell to another for more. Profit is per trip, within stock.</p>
-        <ul class="flip-list">${flips.map((flip, index) => buildCard(flip, index, deps.isInCart(flip))).join('')}</ul>`;
+    replaceContent(panel, html`<p class="flips-intro">Buy at one shop, sell to another for more. Profit is per trip, within stock.</p>
+        <ul class="flip-list">${flips.map((flip, index) => buildCard(flip, index, deps.isInCart(flip)))}</ul>`);
 
     panel.addEventListener('click', event => {
         if (!(event.target instanceof Element)) { return; }

@@ -9,12 +9,14 @@
  * @module rendering/trade-renderer
  */
 
+import { html, nothing, render, type TemplateResult } from 'lit-html';
+
 import {
     COLUMNS,
     CSS_CLASSES,
     SORT,
 } from '../constants.js';
-import { escapeHtml, formatTradeCostNames, getCostParts, highlight } from '../library.js';
+import { formatTradeCostNames, getCostParts, highlightSegments } from '../library.js';
 import { getTradeKey, isNether } from '../map/map-math.js';
 import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
 import type { DeviationResult } from '../search/index.js';
@@ -27,6 +29,7 @@ import type {
     SortDirection,
     Trade,
 } from '../types.js';
+import { replaceContent } from './render.js';
 import { createVirtualList, type VirtualList } from './virtual-list.js';
 
 // ============================================================================
@@ -101,14 +104,35 @@ function getCostDisplayInfo(t: Trade): { costAmt: string; costName: string } {
  * received; otherwise the cost column already is the per-item price.
  * @param t - Trade
  * @param displayAmount - Number of items received (shulker contents counted)
- * @returns HTML for the badge, or an empty string
+ * @returns The badge, or nothing
  */
-function getUnitPriceHtml(t: Trade, displayAmount: number): string {
+function getUnitPrice(t: Trade, displayAmount: number): TemplateResult | typeof nothing {
     const [cost, ...rest] = getCostParts(t);
     // Mixed shulkers keep their own name, so the badge would be meaningless
-    if (!cost || rest.length > 0 || displayAmount <= 1 || cost.name.includes('(')) { return ''; }
+    if (!cost || rest.length > 0 || displayAmount <= 1 || cost.name.includes('(')) { return nothing; }
     const text = formatUnitPrice(cost.amount, displayAmount);
-    return text ? `<span class="unit-price" title="Price per item">${text}</span>` : '';
+    return text ? html`<span class="unit-price" title="Price per item">${text}</span>` : nothing;
+}
+
+/**
+ * Text with the search matches wrapped in <mark>
+ * @param text - Text to show
+ * @param regex - Search highlight, if the query matched this text
+ * @returns The text, highlighted when there is a regex
+ */
+function highlight(text: string, regex: RegExp | undefined): TemplateResult | string {
+    if (!regex) { return text; }
+    const parts = highlightSegments(text, regex).map(segment => segment.match ? mark(segment.text) : segment.text);
+    return html`${parts}`;
+}
+
+/**
+ * A search match
+ * @param text - Matched text
+ * @returns The text in a <mark>
+ */
+function mark(text: string): TemplateResult {
+    return html`<mark>${text}</mark>`;
 }
 
 /**
@@ -126,13 +150,12 @@ function getShopTitle(t: Trade): string {
  * @param label - Seller-given box name, if any
  * @param displayName - Item name shown in the cell
  * @param regex - Search highlight, if the Buying query matched
- * @returns HTML for the label (empty without one) and the cell's tooltip
+ * @returns The label (nothing without one) and the cell's tooltip
  */
-function getResultLabel(label: string | undefined, displayName: string, regex: RegExp | undefined): { html: string; title: string } {
-    if (!label) { return { html: '', title: displayName }; }
-    const text = regex ? highlight(label, regex) : escapeHtml(label);
+function getResultLabel(label: string | undefined, displayName: string, regex: RegExp | undefined): { content: TemplateResult | typeof nothing; title: string } {
+    if (!label) { return { content: nothing, title: displayName }; }
     return {
-        html: `<span class="item-label" title="Name the seller gave this shulker box">“${text}”</span>`,
+        content: html`<span class="item-label" title="Name the seller gave this shulker box">“${highlight(label, regex)}”</span>`,
         title: `${displayName} “${label}”`,
     };
 }
@@ -247,7 +270,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const header = getElement('table-header');
         // The row role only once it has cells: an empty row is invalid ARIA
         header.setAttribute('role', 'row');
-        header.innerHTML = `
+        replaceContent(header, html`
             <span class="col fav-col-header" role="columnheader" tabindex="0" title="Show only watchlist items">★<span id="favorites-badge" class="favorites-badge hidden"></span></span>
             <span class="col header amt" role="columnheader" tabindex="0" data-col="result-amt" data-label="#" aria-label="Item amount">#</span>
             <span class="col header" role="columnheader" tabindex="0" data-col="result-name" data-label="Item">Item</span>
@@ -258,7 +281,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             <span class="col header distance-header" role="columnheader" tabindex="0" data-col="distance" data-label="Dist" title="Overworld distance from 0, 0 (Nether coordinates ×8)">Dist</span>
             <span class="col header world-header" role="columnheader" tabindex="0" data-col="world" data-label="W" title="World">W</span>
             <span class="col cart-col-header" role="columnheader" tabindex="0" title="Show only trades in cart">🛒</span>
-        `;
+        `);
 
         for (const element of header.querySelectorAll<HTMLElement>('.header')) {
             onActivate(element, () => {
@@ -355,43 +378,55 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
     }
 
     /**
-     * Build the inner HTML for a trade row
+     * Build the content of a trade row
      * @param result - Filter result containing trade and match data
      * @param info - Pre-computed row class and key data
      * @param info.isFavorite - Whether the result item is favorited
      * @param info.starClass - CSS class string for the star button
      * @param info.inCartClass - CSS class string suffix for cart button
      * @param info.tradeKey - Unique key for the trade
-     * @returns Inner HTML string for the trade row
+     * @returns Template for the row's cells
      */
-    function buildTradeRowHTML(result: FilterResult, info: { isFavorite: boolean; starClass: string; inCartClass: string; tradeKey: string }): string {
+    function buildTradeRowTemplate(result: FilterResult, info: { isFavorite: boolean; starClass: string; inCartClass: string; tradeKey: string }): TemplateResult {
         const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
         const { costAmt, costName } = getCostDisplayInfo(t);
-        const costDisplay = matchCost && currentGiveRegex ? highlight(costName, currentGiveRegex) : escapeHtml(costName);
+        const costDisplay = highlight(costName, matchCost ? currentGiveRegex : undefined);
         const wantHighlight = matchResult ? currentWantRegex : undefined;
-        const resultDisplay = wantHighlight ? highlight(displayName, wantHighlight) : escapeHtml(displayName);
+        const resultDisplay = highlight(displayName, wantHighlight);
         const resultLabel = getResultLabel(t.resultLabel, displayName, wantHighlight);
         const { devClass, devText, dealTitle } = getDeviationDisplayInfo(t);
         const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
         const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
-        const resultInfoIcon = itemHasDetails(t.resultItem) ? '<button class="info-icon" data-info="result" title="View details">ℹ</button>' : '';
-        const costInfoIcon = (itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2))) ? '<button class="info-icon" data-info="cost" title="View details">ℹ</button>' : '';
+        const resultInfoIcon = itemHasDetails(t.resultItem) ? html`<button class="info-icon" data-info="result" title="View details">ℹ</button>` : nothing;
+        const costInfoIcon = (itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2))) ? html`<button class="info-icon" data-info="cost" title="View details">ℹ</button>` : nothing;
         const starTitle = info.isFavorite ? 'Edit favorite' : 'Add to favorites';
-        const safeName = escapeHtml(t.resultName);
         const coordsTitle = `X: ${t.x}, Y: ${t.y}, Z: ${t.z}`;
-        const distanceTitle = escapeHtml((isNether(t.world) ? `${coordsTitle} (Nether; distance shown in overworld blocks)` : coordsTitle) + getShopTitle(t));
+        const distanceTitle = (isNether(t.world) ? `${coordsTitle} (Nether; distance shown in overworld blocks)` : coordsTitle) + getShopTitle(t);
 
-        return `
-            <button class="col ${info.starClass}" role="gridcell" data-item="${safeName}" title="${starTitle}" aria-label="${starTitle}: ${safeName}">★</button>
+        const onStarClick = (event: Event): void => {
+            event.stopPropagation();
+            deps.openDialogForItem(t.resultName);
+        };
+        const onCartClick = (event: Event): void => {
+            event.stopPropagation();
+            const cartButton = event.currentTarget;
+            if (!(cartButton instanceof HTMLElement)) { return; }
+            cartStore.add(t);
+            cartButton.classList.add('in-cart', 'added');
+            setTimeout(() => cartButton.classList.remove('added'), 200);
+        };
+
+        return html`
+            <button class="col ${info.starClass}" role="gridcell" data-item="${t.resultName}" title="${starTitle}" aria-label="${starTitle}: ${t.resultName}" @click=${onStarClick}>★</button>
             <span class="col result-amt" role="gridcell">${displayAmount}</span>
-            <span class="col result-name" role="gridcell" title="${escapeHtml(resultLabel.title)}"><span class="name-text">${resultDisplay}</span>${resultLabel.html}${resultInfoIcon}</span>
+            <span class="col result-name" role="gridcell" title="${resultLabel.title}"><span class="name-text">${resultDisplay}</span>${resultLabel.content}${resultInfoIcon}</span>
             <span class="col cost-amt" role="gridcell">${costAmt}</span>
-            <span class="col cost-name" role="gridcell" title="${escapeHtml(costName)}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPriceHtml(t, displayAmount)}</span>
-            <span class="col dev ${devClass}" role="gridcell" title="${escapeHtml(dealTitle)}">${devText}</span>
+            <span class="col cost-name" role="gridcell" title="${costName}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPrice(t, displayAmount)}</span>
+            <span class="col dev ${devClass}" role="gridcell" title="${dealTitle}">${devText}</span>
             <span class="col stock ${stockClass}" role="gridcell">${t.displayStock}</span>
             <span class="col coord distance" role="gridcell" title="${distanceTitle}">${Math.round(getOverworldDistanceFromOrigin(t))}</span>
             <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
-            <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${escapeHtml(info.tradeKey)}" title="Add to cart (+ on a focused row)" aria-label="Add ${safeName} to cart">+</button>
+            <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${info.tradeKey}" title="Add to cart (+ on a focused row)" aria-label="Add ${t.resultName} to cart" @click=${onCartClick}>+</button>
         `;
     }
 
@@ -417,26 +452,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         row.dataset.tradeKey = tradeKey;
 
         const info = applyTradeRowClasses(row, tradeKey, t);
-        row.innerHTML = buildTradeRowHTML(result, { ...info, tradeKey });
-
-        // Star button click handler (opens favorites dialog)
-        const starButton = row.querySelector('.favorite-star');
-        if (starButton) {
-            starButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                deps.openDialogForItem(t.resultName);
-            });
-        }
-
-        const cartButton = row.querySelector('.add-to-cart-btn');
-        if (cartButton) {
-            cartButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                cartStore.add(t);
-                cartButton.classList.add('in-cart', 'added');
-                setTimeout(() => cartButton.classList.remove('added'), 200);
-            });
-        }
+        // A new element per row: rendered once, never diffed
+        render(buildTradeRowTemplate(result, { ...info, tradeKey }), row);
 
         return row;
     }
@@ -457,7 +474,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         if (results.length === 0) {
             virtualList?.destroy();
             virtualList = undefined;
-            container.innerHTML = '<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2><p>Try a different search term</p></div></div>';
+            replaceContent(container, html`<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2><p>Try a different search term</p></div></div>`);
             return;
         }
 

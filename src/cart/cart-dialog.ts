@@ -8,9 +8,12 @@
  * @module cart/cart-dialog
  */
 
+import { html, nothing, render } from 'lit-html';
+
 import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
-import { escapeHtml, formatTradeCost } from '../library.js';
+import { formatTradeCost } from '../library.js';
 import { getTradeKey, isNether } from '../map/map-math.js';
+import { replaceContent } from '../rendering/render.js';
 import { aggregateShoppingList } from '../routing/navigation-helpers.js';
 import { computeOptimalOrder, toOverworldEquivalent } from '../routing/route-optimizer.js';
 import { cartStore, navigationStore } from '../stores/index.js';
@@ -300,43 +303,34 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
         }
 
         const shopName = trade.shopName ?? trade.shopOwner;
-        itemElement.innerHTML = `
-            <span class="cart-item-info">
-                <strong>${trade.resultAmount}× ${escapeHtml(trade.resultName)}</strong>
-                <span class="cart-item-cost">← ${escapeHtml(formatTradeCost(trade))}</span>
-                ${shopName ? `<span class="cart-item-shop">🏪 ${escapeHtml(shopName)}</span>` : ''}
-            </span>
-            <span class="cart-item-controls">
-                <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
-                <span class="qty-display">${quantity}</span>
-                <button class="qty-btn qty-plus" aria-label="Increase quantity">+</button>
-                <button class="remove-btn" aria-label="Remove from cart">×</button>
-            </span>
-        `;
-
-        const minusButton = itemElement.querySelector('.qty-minus');
-        const plusButton = itemElement.querySelector('.qty-plus');
-        const removeButton = itemElement.querySelector('.remove-btn');
-
-        if (!minusButton || !plusButton || !removeButton) { return itemElement; }
-
-        minusButton.addEventListener('click', () => {
+        const onMinus = (): void => {
             if (quantity > 0) {
                 cartStore.updateQuantity(trade, -1);
                 renderCartDialog();
             }
-        });
-
-        plusButton.addEventListener('click', () => {
+        };
+        const onPlus = (): void => {
             cartStore.updateQuantity(trade, 1);
             renderCartDialog();
-        });
-
-        removeButton.addEventListener('click', () => {
+        };
+        const onRemove = (): void => {
             cartStore.remove(trade);
             refreshCartButtonStates();
             renderCartDialog();
-        });
+        };
+        render(html`
+            <span class="cart-item-info">
+                <strong>${trade.resultAmount}× ${trade.resultName}</strong>
+                <span class="cart-item-cost">← ${formatTradeCost(trade)}</span>
+                ${shopName ? html`<span class="cart-item-shop">🏪 ${shopName}</span>` : nothing}
+            </span>
+            <span class="cart-item-controls">
+                <button class="qty-btn qty-minus" aria-label="Decrease quantity" @click=${onMinus}>−</button>
+                <span class="qty-display">${quantity}</span>
+                <button class="qty-btn qty-plus" aria-label="Increase quantity" @click=${onPlus}>+</button>
+                <button class="remove-btn" aria-label="Remove from cart" @click=${onRemove}>×</button>
+            </span>
+        `, itemElement);
 
         return itemElement;
     }
@@ -398,7 +392,7 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
         const dot = document.createElement('button');
         dot.className = 'timeline-dot';
         dot.setAttribute('aria-label', status === 'completed' ? 'Mark incomplete' : 'Mark complete');
-        dot.innerHTML = status === 'completed' ? '✓' : '';
+        dot.textContent = status === 'completed' ? '✓' : '';
 
         if (stop.type === 'shop') {
             dot.addEventListener('click', (event) => {
@@ -435,11 +429,11 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
 
         // Shop name trails the item so narrow screens cut it first
         const shopLabel = item.trade.shopName ?? item.trade.shopOwner;
-        const shopText = shopLabel ? `<span class="stop-shop"> · ${escapeHtml(shopLabel)}</span>` : '';
-        const stopText = `<span class="stop-text">${item.quantity}× ${escapeHtml(item.trade.resultName)}${shopText}</span>`;
-        content.innerHTML = forNavPanel
+        const shopText = shopLabel ? html`<span class="stop-shop"> · ${shopLabel}</span>` : nothing;
+        const stopText = html`<span class="stop-text">${item.quantity}× ${item.trade.resultName}${shopText}</span>`;
+        render(forNavPanel
             ? stopText
-            : `${stopText}<span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;
+            : html`${stopText}<span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`, content);
 
         content.classList.add('clickable');
         content.addEventListener('click', () => {
@@ -467,12 +461,12 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
         const clearCartButton = getElement('clear-cart');
         const isCartTabActive = document.querySelector('#tab-cart')?.classList.contains('active') ?? true;
 
-        itemsContainer.innerHTML = '';
-        costsContainer.innerHTML = '';
-        gainsContainer.innerHTML = '';
+        itemsContainer.replaceChildren();
+        costsContainer.replaceChildren();
+        gainsContainer.replaceChildren();
 
         if (cartStore.isEmpty) {
-            itemsContainer.innerHTML = `<p class="${CSS_CLASSES.CART_EMPTY}">Your cart is empty</p>`;
+            replaceContent(itemsContainer, html`<p class="${CSS_CLASSES.CART_EMPTY}">Your cart is empty</p>`);
             clearCartButton.classList.add('hidden');
             return;
         }

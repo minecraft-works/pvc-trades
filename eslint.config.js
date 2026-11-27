@@ -8,6 +8,34 @@ import functional from 'eslint-plugin-functional';
 import jsdoc from 'eslint-plugin-jsdoc';
 import regexp from 'eslint-plugin-regexp';
 
+// Mutation guards — ban common AI drift patterns
+const MUTATION_GUARD_SELECTORS = [
+    {
+        selector: 'UnaryExpression[operator="delete"]',
+        message: 'Use object spread or Map.delete() instead of delete operator.'
+    },
+    {
+        selector: 'CallExpression[callee.property.name="sort"][arguments.length=0]',
+        message: 'Always pass an explicit comparator to .sort() — bare sort mutates and is locale-dependent.'
+    },
+    {
+        selector: 'CallExpression[callee.object.name="Object"][callee.property.name="assign"]',
+        message: 'Use object spread { ...a, ...b } instead of Object.assign().'
+    }
+];
+
+// String HTML — shop data is untrusted; lit-html templates escape interpolated values
+const STRING_HTML_SELECTORS = [
+    {
+        selector: 'AssignmentExpression > MemberExpression.left[property.name=/^(innerHTML|outerHTML)$/]',
+        message: 'Do not build HTML strings: render a lit-html `html` template (replaceContent() / render() from src/rendering/render.ts), or use textContent / replaceChildren().'
+    },
+    {
+        selector: 'CallExpression[callee.property.name="insertAdjacentHTML"]',
+        message: 'Do not build HTML strings: render a lit-html `html` template (replaceContent() / render() from src/rendering/render.ts), or use append() / before() / after().'
+    }
+];
+
 export default tseslint.config(
     // Ignore generated and build files
     {
@@ -141,7 +169,7 @@ export default tseslint.config(
             // Immutability (functional plugin) — core vibe-coding drift guard
             'functional/immutable-data': ['error', {
                 ignoreImmediateMutation: true,
-                ignoreAccessorPattern: ['**.dataset.**', '**.style.**', '**.classList.**', '**.textContent', '**.innerHTML', '**.scrollTop', '**.value']
+                ignoreAccessorPattern: ['**.dataset.**', '**.style.**', '**.classList.**', '**.textContent', '**.scrollTop', '**.value']
             }],
             'functional/no-let': ['error', { allowInForLoopInit: true }],
             'functional/prefer-immutable-types': ['error', {
@@ -202,20 +230,7 @@ export default tseslint.config(
             'regexp/no-useless-backreference': 'error',
 
             // Mutation guards — ban common AI drift patterns
-            'no-restricted-syntax': ['error',
-                {
-                    selector: 'UnaryExpression[operator="delete"]',
-                    message: 'Use object spread or Map.delete() instead of delete operator.'
-                },
-                {
-                    selector: 'CallExpression[callee.property.name="sort"][arguments.length=0]',
-                    message: 'Always pass an explicit comparator to .sort() — bare sort mutates and is locale-dependent.'
-                },
-                {
-                    selector: 'CallExpression[callee.object.name="Object"][callee.property.name="assign"]',
-                    message: 'Use object spread { ...a, ...b } instead of Object.assign().'
-                }
-            ],
+            'no-restricted-syntax': ['error', ...MUTATION_GUARD_SELECTORS],
 
             // Complexity rules - STRICT
             'complexity': ['error', { max: 12 }],
@@ -290,6 +305,14 @@ export default tseslint.config(
             // Prefer nullish coalescing over ||, optional chains over &&-guards
             '@typescript-eslint/prefer-nullish-coalescing': 'error',
             '@typescript-eslint/prefer-optional-chain': 'error'
+        }
+    },
+    // Production code renders DOM with lit-html instead of HTML strings (tests may read/write innerHTML)
+    {
+        files: ['src/**/*.ts'],
+        ignores: ['src/**/*.test.ts'],
+        rules: {
+            'no-restricted-syntax': ['error', ...MUTATION_GUARD_SELECTORS, ...STRING_HTML_SELECTORS]
         }
     },
     // Stores intentionally mutate state (ADR-005: class-based store pattern)

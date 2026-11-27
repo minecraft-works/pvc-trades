@@ -11,10 +11,12 @@
  * @module data/data-loader
  */
 
+import { html } from 'lit-html';
 import { z } from 'zod/mini';
 
 import { processTrade } from '../library.js';
 import { getTradeKey } from '../map/map-math.js';
+import { replaceContent } from '../rendering/render.js';
 import { createDeviationCalculator } from '../search/index.js';
 import { getConfig, loadBaseItems, loadConfig, loadFixedRatios } from '../stores/index.js';
 import type {
@@ -219,17 +221,18 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     /** Replace the results with a load error and a retry button */
     function showLoadError(): void {
         const results = deps.getElement('results');
+        const retryLoad = (): void => {
+            replaceContent(results, html`<div class="no-results" role="row"><p role="gridcell">Loading…</p></div>`);
+            void loadShops();
+        };
         // A message inside the trade grid is a row with one cell
-        results.innerHTML = `
+        replaceContent(results, html`
             <div class="no-results" role="row"><div role="gridcell"><div role="alert">
                 <h2>Couldn't load shop data</h2>
                 <p>Check your connection and try again.</p>
-                <button type="button" class="retry-load-btn">Retry</button>
-            </div></div></div>`;
-        results.querySelector('.retry-load-btn')?.addEventListener('click', () => {
-            results.innerHTML = '<div class="no-results" role="row"><p role="gridcell">Loading…</p></div>';
-            void loadShops();
-        });
+                <button type="button" class="retry-load-btn" @click=${retryLoad}>Retry</button>
+            </div></div></div>
+        `);
     }
 
     async function loadShops(): Promise<void> {

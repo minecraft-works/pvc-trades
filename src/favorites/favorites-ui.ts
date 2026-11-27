@@ -10,8 +10,9 @@
  * @module favorites/favorites-ui
  */
 
+import { html, nothing, render } from 'lit-html';
+
 import { openDialog } from '../dialogs/dialog-utilities.js';
-import { escapeHtml } from '../library.js';
 import type { FavoritesStore } from '../stores/favorites-store.js';
 import {
     FAVORITE_POPOVER_SELECTOR,
@@ -146,41 +147,41 @@ function createFavoriteItemElement(fav: { itemName: string; maxDeviation?: numbe
 
     const { text: thresholdText, value: thresholdValue } = buildThresholdValues(fav.maxDeviation);
 
-    item.innerHTML = `
+    render(html`
         <div class="favorites-item-content">
             <div class="favorites-item-display">
-                <span class="favorites-item-name">${escapeHtml(fav.itemName)}</span>
-                ${thresholdText ? `<span class="favorites-item-threshold">${thresholdText}</span>` : ''}
+                <span class="favorites-item-name">${fav.itemName}</span>
+                ${thresholdText ? html`<span class="favorites-item-threshold">${thresholdText}</span>` : nothing}
             </div>
             <div class="favorites-item-edit hidden">
-                <input type="text" class="favorites-item-name-input" value="${escapeHtml(fav.itemName)}">
+                <input type="text" class="favorites-item-name-input" value="${fav.itemName}">
                 <select class="favorites-threshold-select" title="Only show trades with deviation at or below this value">
-                    <option value=""${thresholdValue === '' ? ' selected' : ''}>Deal</option>
-                    <option value="-25"${thresholdValue === '-25' ? ' selected' : ''}>≤-25%</option>
-                    <option value="-50"${thresholdValue === '-50' ? ' selected' : ''}>≤-50%</option>
-                    <option value="-75"${thresholdValue === '-75' ? ' selected' : ''}>≤-75%</option>
-                    <option value="-100"${thresholdValue === '-100' ? ' selected' : ''}>≤-100%</option>
+                    <option value="" ?selected=${thresholdValue === ''}>Deal</option>
+                    <option value="-25" ?selected=${thresholdValue === '-25'}>≤-25%</option>
+                    <option value="-50" ?selected=${thresholdValue === '-50'}>≤-50%</option>
+                    <option value="-75" ?selected=${thresholdValue === '-75'}>≤-75%</option>
+                    <option value="-100" ?selected=${thresholdValue === '-100'}>≤-100%</option>
                 </select>
             </div>
         </div>
         <div class="favorites-item-actions">
-            <button class="remove-favorite" data-item="${escapeHtml(fav.itemName)}" title="Remove">🗑️</button>
-            <button class="save-favorite hidden" data-item="${escapeHtml(fav.itemName)}" title="Save">💾</button>
-            <button class="edit-favorite" data-item="${escapeHtml(fav.itemName)}" title="Edit">✏️</button>
+            <button class="remove-favorite" data-item="${fav.itemName}" title="Remove">🗑️</button>
+            <button class="save-favorite hidden" data-item="${fav.itemName}" title="Save">💾</button>
+            <button class="edit-favorite" data-item="${fav.itemName}" title="Edit">✏️</button>
         </div>
-    `;
+    `, item);
 
     return item;
 }
 
 /**
- * Create the "add new item" row HTML
+ * Create the "add new item" row
  * @returns A new HTMLDivElement for adding favorites at the bottom of the list
  */
 function createAddRow(): HTMLDivElement {
     const addRow = document.createElement('div');
     addRow.className = 'favorites-item favorites-item-add';
-    addRow.innerHTML = `
+    render(html`
         <div class="favorites-item-content">
             <input type="text" class="favorites-item-name-input" id="favorites-new-item-input" placeholder="Enter item name...">
             <select class="favorites-threshold-select" id="favorites-new-threshold-select" title="Only show trades with deviation at or below this value">
@@ -194,7 +195,7 @@ function createAddRow(): HTMLDivElement {
         <div class="favorites-item-actions">
             <button class="add-favorite-btn" title="Add to watchlist">💾</button>
         </div>
-    `;
+    `, addRow);
     return addRow;
 }
 
@@ -217,7 +218,7 @@ function renderDialog(favoritesStore: FavoritesStore): void {
     empty.classList.toggle('hidden', favorites.length > 0);
 
     // Clear and rebuild list
-    list.innerHTML = '';
+    list.replaceChildren();
 
     // Render existing favorites
     for (const fav of favorites) {

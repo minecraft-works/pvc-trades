@@ -164,55 +164,42 @@ function splitPreservingEscapes(string_: string): readonly string[] {
 }
 
 // ============================================================================
-// HTML Utilities
+// Search Highlighting
 // ============================================================================
 
-const HTML_ESCAPE_MAP: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-};
-
-/**
- * Escape special HTML characters to prevent XSS.
- * 
- * @param text - Raw text to escape
- * @returns HTML-safe string
- * 
- * @example
- * escapeHtml('<script>alert(1)</script>') // '&lt;script&gt;alert(1)&lt;/script&gt;'
- */
-export function escapeHtml(text: string): string {
-    return text.replaceAll(/[&<>"']/g, c => HTML_ESCAPE_MAP[c] ?? c);
+/** A piece of text, flagged when it matched the search */
+export interface HighlightSegment {
+    readonly text: string;
+    readonly match: boolean;
 }
 
 /**
- * Highlight matching text with <mark> tags.
- * Matching runs on the raw text and each segment is HTML-escaped, so queries
- * can never match inside an escaped entity (e.g. "amp" in "&amp;").
+ * Split text into plain and matching segments for search highlighting
+ * (the renderer wraps matches in <mark>). Empty segments are left out.
  * Highlights only the first match unless the regex has the global flag.
  * 
  * @param text - Text to highlight in
  * @param regex - Pattern to match and highlight
- * @returns HTML string with matches wrapped in <mark>
+ * @returns Segments that together spell out `text`
  * 
  * @example
- * highlight('Diamond Pickaxe', /diamond/i) // '<mark>Diamond</mark> Pickaxe'
+ * highlightSegments('Diamond Pickaxe', /diamond/i)
+ * // [{ text: 'Diamond', match: true }, { text: ' Pickaxe', match: false }]
  */
-export function highlight(text: string, regex: Readonly<RegExp>): string {
+export function highlightSegments(text: string, regex: Readonly<RegExp>): readonly HighlightSegment[] {
     const matcher = new RegExp(regex.source, regex.global ? regex.flags : `${regex.flags}g`);
-    let html = '';
+    const segments: HighlightSegment[] = [];
     let lastIndex = 0;
     for (const match of text.matchAll(matcher)) {
         if (match[0] !== '') {
-            html += `${escapeHtml(text.slice(lastIndex, match.index))}<mark>${escapeHtml(match[0])}</mark>`;
+            if (match.index > lastIndex) { segments.push({ text: text.slice(lastIndex, match.index), match: false }); }
+            segments.push({ text: match[0], match: true });
             lastIndex = match.index + match[0].length;
             if (!regex.global) { break; }
         }
     }
-    return html + escapeHtml(text.slice(lastIndex));
+    if (lastIndex < text.length) { segments.push({ text: text.slice(lastIndex), match: false }); }
+    return segments;
 }
 
 // ============================================================================

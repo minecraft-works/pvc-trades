@@ -21,7 +21,7 @@ import * as fc from 'fast-check';
 import { beforeAll,describe, expect, test } from 'vitest';
 
 import { formatName } from './formatting.js';
-import { escapeHtml, filterTrade, getRegex, highlight, matchesQuery, parseLocation, sortResults } from './library.js';
+import { filterTrade, getRegex, highlightSegments, matchesQuery, parseLocation, sortResults } from './library.js';
 import { clampToCircle, getTileOffset, getWorldId, isNether } from './map/map-math.js';
 import { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, twoOptOptimize } from './routing/route-optimizer.js';
 import { getTileCoords } from './tile-coords.js';
@@ -36,43 +36,6 @@ beforeAll(() => {
 // ============================================================================
 // Tier 1: Text/Safety Functions
 // ============================================================================
-
-describe('escapeHtml properties', () => {
-    test('output never contains dangerous HTML characters', () => {
-        fc.assert(
-            fc.property(fc.string(), (input) => {
-                const escaped = escapeHtml(input);
-                // These characters must never appear unescaped
-                expect(escaped).not.toMatch(/[<>"']/);
-                // Ampersand only allowed as part of entity (e.g., &amp;)
-                const ampersands = escaped.match(/&/g) ?? [];
-                const entities = escaped.match(/&(?:amp|lt|gt|quot|#39);/g) ?? [];
-                expect(ampersands.length).toBe(entities.length);
-            })
-        );
-    });
-
-    test('escaping is idempotent for safe strings', () => {
-        // Strings without special chars should be unchanged
-        fc.assert(
-            fc.property(
-                fc.string().filter((s) => !/[&<>"']/.test(s)),
-                (safeString) => {
-                    expect(escapeHtml(safeString)).toBe(safeString);
-                }
-            )
-        );
-    });
-
-    test('output length is >= input length', () => {
-        // Escaping replaces single chars with longer entities
-        fc.assert(
-            fc.property(fc.string(), (input) => {
-                expect(escapeHtml(input).length).toBeGreaterThanOrEqual(input.length);
-            })
-        );
-    });
-});
 
 describe('matchesQuery properties', () => {
     test('never throws on arbitrary unicode input', () => {
@@ -192,32 +155,32 @@ describe('formatName properties', () => {
     });
 });
 
-describe('highlight properties', () => {
-    test('output length >= input length', () => {
+describe('highlightSegments properties', () => {
+    test('segments spell out the input text', () => {
         fc.assert(
             fc.property(
                 fc.string().filter((s) => s.length > 0),
                 fc.string().filter((s) => s.length > 0 && /^[a-z]+$/i.test(s)),
                 (text, pattern) => {
                     const regex = new RegExp(pattern, 'gi');
-                    const result = highlight(text, regex);
-                    expect(result.length).toBeGreaterThanOrEqual(text.length);
+                    const segments = highlightSegments(text, regex);
+                    expect(segments.map(segment => segment.text).join('')).toBe(text);
                 }
             )
         );
     });
 
-    test('mark tags are properly balanced', () => {
+    test('only matching segments are marked, and no segment is empty', () => {
         fc.assert(
             fc.property(
                 fc.string().filter((s) => s.length > 0),
                 fc.string().filter((s) => s.length > 0 && /^[a-z]+$/i.test(s)),
                 (text, pattern) => {
                     const regex = new RegExp(pattern, 'gi');
-                    const result = highlight(text, regex);
-                    const opens = (result.match(/<mark>/g) ?? []).length;
-                    const closes = (result.match(/<\/mark>/g) ?? []).length;
-                    expect(opens).toBe(closes);
+                    for (const segment of highlightSegments(text, regex)) {
+                        expect(segment.text).not.toBe('');
+                        if (segment.match) { expect(segment.text.toLowerCase()).toBe(pattern.toLowerCase()); }
+                    }
                 }
             )
         );
