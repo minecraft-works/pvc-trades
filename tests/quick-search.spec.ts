@@ -95,13 +95,20 @@ async function resultNames(page: Page): Promise<string[]> {
 test.describe('Quick bar', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 
-    test('deals only keeps trades at least 20% below market', async ({ page }) => {
+    test('deals only keeps trades at least 75% below market', async ({ page }) => {
+        // Beef from four independent shops: 1, 4, 8 and 8 emeralds (median 6)
+        await openApp(page, '', {
+            data: [1, 4, 8, 8].map((price, index) => ({
+                location: `${index * 1000}.0, 64.0, 0.0`, world: 'world', shopOwner: `Owner${index}`,
+                recipes: [recipe('COOKED_BEEF', 1, EMERALD_TYPE, price)],
+            })),
+        });
         await page.locator('#deals-only-toggle').click();
         await expect(page.locator(ROW)).toHaveCount(1);
-        await expect(page.locator(`${ROW} .dev`)).toHaveText(['−33%']);
+        await expect(page.locator(`${ROW} .dev`)).toHaveText(['−83%']);
 
         await page.keyboard.press('Alt+Digit1');
-        await expect(page.locator(ROW)).toHaveCount(7);
+        await expect(page.locator(ROW)).toHaveCount(4);
     });
 
     test('best per item keeps only the cheapest offer for each item', async ({ page }) => {
@@ -200,6 +207,12 @@ test.describe('Autocomplete', () => {
 
         await expect(page.locator(WANT)).toHaveValue('Sand');
         await expect(page.locator(GIVE)).toBeFocused();
+    });
+
+    test('Shift+Tab in Paying goes straight back to Buying', async ({ page }) => {
+        await page.locator(GIVE).focus();
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.locator(WANT)).toBeFocused();
     });
 
     test('Escape closes suggestions and clears the field', async ({ page }) => {

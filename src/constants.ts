@@ -100,7 +100,7 @@ export const DASHBOARD = {
 /** Fast-probing helpers: quick bar, autocomplete and URL history */
 export const QUICK_SEARCH = {
     /** "Deals only" keeps trades at or below this deviation */
-    DEALS_ONLY_MAX_PERCENT: -20,
+    DEALS_ONLY_MAX_PERCENT: -75,
     /** Maximum autocomplete suggestions */
     MAX_SUGGESTIONS: 8,
     /** Minimum typed characters before suggestions appear */

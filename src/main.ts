@@ -337,10 +337,25 @@ function handleSearchFieldKeydown(event: KeyboardEvent, input: HTMLInputElement,
         firstRow.focus();
         return;
     }
-    if (event.key === 'Tab' && !event.shiftKey && input.id === SEARCH_WANT_ID) {
+    const tabTarget = getSearchFieldTabTarget(event, input);
+    if (tabTarget) {
         event.preventDefault();
-        focusSearchField(getElement<HTMLInputElement>(SEARCH_GIVE_ID));
+        focusSearchField(getElement<HTMLInputElement>(tabTarget));
     }
+}
+
+/**
+ * Tab in Buying goes to Paying and Shift+Tab in Paying back to Buying,
+ * past the ☆ and ⇄ buttons between them
+ * @param event - Keydown in a search field
+ * @param input - The search field
+ * @returns Id of the field to focus, or undefined for normal tabbing
+ */
+function getSearchFieldTabTarget(event: KeyboardEvent, input: HTMLInputElement): string | undefined {
+    if (event.key !== 'Tab') { return undefined; }
+    if (!event.shiftKey && input.id === SEARCH_WANT_ID) { return SEARCH_GIVE_ID; }
+    if (event.shiftKey && input.id === SEARCH_GIVE_ID) { return SEARCH_WANT_ID; }
+    return undefined;
 }
 
 /**

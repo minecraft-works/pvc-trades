@@ -106,13 +106,17 @@ body {
     border-radius: 0 calc(var(--border-radius) - 1px) calc(var(--border-radius) - 1px) 0;
 }
 
-/* Search */
+/* Search: fields with the action buttons beside them, quick filters below.
+   On small screens the actions move to the quick-filter row (see the media query). */
 .search-container {
+    display: grid;
+    grid-template: "box actions" auto "meta meta" auto / minmax(0, 1fr) auto;
+    column-gap: 4px;
     max-width: 1200px;
     margin: 0 auto var(--spacing-lg);
     background: var(--color-bg-secondary);
     border-radius: var(--border-radius-lg);
-    padding: var(--spacing-sm) 4px;
+    padding: var(--spacing-sm);
     position: sticky;
     top: 10px;
     z-index: 100;
@@ -120,6 +124,14 @@ body {
 }
 
 .search-box {
+    grid-area: box;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.search-actions {
+    grid-area: actions;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -138,23 +150,26 @@ body {
 }
 
 .search-meta {
+    grid-area: meta;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 4px;
-    padding: 0 4px;
+    margin-top: var(--spacing-sm);
+    padding: 0 2px;
 }
 
 .quick-bar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
 }
 
 .quick-toggle {
-    padding: 2px 8px;
-    font-size: 0.72rem;
+    min-height: 24px;
+    padding: 2px 12px;
+    font-size: 0.78rem;
+    line-height: 1.2;
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: transparent;
@@ -606,7 +621,8 @@ mark {
 }
 
 /* Search box buttons - icon-only style */
-.search-box button {
+.search-box button,
+.search-actions button {
     height: 36px;
     min-width: 36px;
     padding: 0;
@@ -622,7 +638,8 @@ mark {
     transition: color 0.15s, transform 0.1s;
 }
 
-.search-box button:hover {
+.search-box button:hover,
+.search-actions button:hover {
     color: var(--color-accent);
     transform: scale(1.1);
     filter: none;
@@ -2873,7 +2890,8 @@ mark {
     }
 
     .search-container {
-        padding: 12px;
+        grid-template: "box box" auto "meta actions" auto / minmax(0, 1fr) auto;
+        column-gap: 8px;
         top: 5px;
         position: static;  /* Disable sticky on mobile to prevent keyboard freeze */
     }
@@ -2897,16 +2915,27 @@ mark {
         padding: 8px 10px;
     }
 
-    #open-matrix {
-        flex: 0 0 auto;
-        padding: 8px 10px;
-        font-size: 0.85rem;
+    /* Actions share the quick-filter row, so the search fields get the full width */
+    .search-actions {
+        align-self: center;
+        margin-top: var(--spacing-sm);
+        gap: 2px;
     }
 
-    #open-cart {
-        flex: 0 0 auto;
-        padding: 8px 10px;
-        font-size: 0.85rem;
+    .search-actions button {
+        height: 30px;
+        min-width: 30px;
+        font-size: 1rem;
+    }
+
+    /* Narrower ✕ and ☆ inside the fields leave more room for the text */
+    .search-input-wrapper button {
+        min-width: 28px;
+    }
+
+    /* Buying holds the ✕ and ☆, so it gets a bit more of the row */
+    .search-box > .search-input-wrapper:first-child {
+        flex-grow: 1.3;
     }
 
     /* Compact 10-column layout: star, #, name, #, name, deal, stock, dist, world, cart.
@@ -2936,6 +2965,7 @@ mark {
     }
 
     .search-meta {
+        min-width: 0;
         flex-wrap: wrap;
         row-gap: 2px;
     }
@@ -2965,11 +2995,10 @@ mark {
         display: none;
     }
 
-    /* Smaller add button on mobile */
-    .add-to-cart-btn {
-        width: 22px;
-        height: 22px;
+    /* Add button fills the end of the row, like on desktop */
+    .trade-row > .add-to-cart-btn {
         font-size: 0.9rem;
+        padding: 0 !important;
     }
 
     .cart-col-header {
@@ -2985,7 +3014,6 @@ mark {
     .col.distance {
         font-size: 0.65rem;
         padding-left: 4px !important;
-        border-radius: 0 4px 4px 0;
     }
 
     /* Add inner padding between deal, stock, and coords for visual separation */

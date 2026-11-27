@@ -189,7 +189,7 @@ export interface FilterResult {
 
 /** Quick-bar toggles applied on top of the text search */
 export interface QuickFilters {
-    /** Only trades at least 20% below market */
+    /** Only trades at least 75% below market */
     readonly dealsOnly: boolean;
     /** Only the cheapest offer for each item */
     readonly bestPerItem: boolean;

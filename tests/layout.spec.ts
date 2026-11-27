@@ -511,27 +511,28 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         await waitForAppReady(page);
     });
 
-    test('search inputs stay on single row on mobile', async ({ page }) => {
+    test('search inputs share one row and the actions move to the quick-filter row on mobile', async ({ page }) => {
         const searchBox = page.locator('.search-box');
         const flexWrap = await searchBox.evaluate(element => getComputedStyle(element).flexWrap);
         expect(flexWrap).toBe('nowrap');
         
-        // Verify all 3 items are on the same row (same Y position)
-        const searchWant = page.locator('#searchWant');
-        const searchGive = page.locator('#searchGive');
-        const openMatrix = page.locator('#open-matrix');
-        
-        const wantBox = await searchWant.boundingBox();
-        const giveBox = await searchGive.boundingBox();
-        const buttonBox = await openMatrix.boundingBox();
+        const wantBox = await page.locator('#searchWant').boundingBox();
+        const giveBox = await page.locator('#searchGive').boundingBox();
+        const buttonBox = await page.locator('#open-matrix').boundingBox();
+        const quickBarBox = await page.locator('#quick-bar').boundingBox();
         
         expect(wantBox).toBeTruthy();
         expect(giveBox).toBeTruthy();
         expect(buttonBox).toBeTruthy();
+        expect(quickBarBox).toBeTruthy();
         
-        // All items should have the same Y position (within 2px tolerance)
+        // Both inputs on the same row (within 2px)
         expect(Math.abs(wantBox!.y - giveBox!.y)).toBeLessThanOrEqual(2);
-        expect(Math.abs(giveBox!.y - buttonBox!.y)).toBeLessThanOrEqual(2);
+        // The exchange-rates button sits below the inputs, level with the quick filters
+        expect(buttonBox!.y).toBeGreaterThan(wantBox!.y + wantBox!.height);
+        const buttonCenter = buttonBox!.y + buttonBox!.height / 2;
+        expect(buttonCenter).toBeGreaterThan(quickBarBox!.y);
+        expect(buttonCenter).toBeLessThan(quickBarBox!.y + quickBarBox!.height);
     });
 
     test('table header adjusts columns for mobile', async ({ page }) => {
@@ -543,12 +544,12 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
         expect(columnCount).toBe(10);
     });
 
-    test('search container has reduced padding on mobile', async ({ page }) => {
+    test('search container keeps a compact padding on mobile', async ({ page }) => {
         const container = page.locator('.search-container');
         const padding = await container.evaluate(element => getComputedStyle(element).padding);
         
-        // Mobile padding should be 12px (vs 20px on desktop)
-        expect(padding).toBe('12px');
+        // Same compact 8px as on desktop, so the search fields get the width
+        expect(padding).toBe('8px');
     });
 
     test('adjacent columns do not overlap horizontally on mobile', async ({ page }) => {
