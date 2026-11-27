@@ -5,6 +5,7 @@ import {
     estimateLabelWidth,
     getLabelRect,
     getRadialLabelRotation,
+    pickNamedRimMarkers,
     positionToCssClass,
     rectsOverlap,
     resolvePlayerLabelPositions,
@@ -25,6 +26,18 @@ describe('getRadialLabelRotation', () => {
         expect(getRadialLabelRotation(0)).toEqual({ degrees: 0, flipped: true });
         // Bottom edge: same turn, reading down toward the marker
         expect(getRadialLabelRotation(-Math.PI / 2)).toEqual({ degrees: 90, flipped: true });
+    });
+});
+
+describe('pickNamedRimMarkers', () => {
+    test('a small map names only the nearest players', () => {
+        // Radius 100 px leaves room for two names
+        expect(pickNamedRimMarkers([300, 100, 200, 400], 100)).toEqual([false, true, true, false]);
+    });
+
+    test('a large map names everyone', () => {
+        const distances = Array.from({ length: 50 }, (_unused, index) => index);
+        expect(pickNamedRimMarkers(distances, 550).every(Boolean)).toBe(true);
     });
 });
 

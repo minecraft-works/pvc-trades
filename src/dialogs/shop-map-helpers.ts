@@ -285,6 +285,33 @@ export function spreadAngles(angles: readonly number[], minSeparation: number): 
     return result;
 }
 
+/** Share of the round map that rim names may cover */
+const RIM_NAME_COVERAGE = 0.1;
+/** Area of one rim name at most (CSS max-width 80px × label height) */
+const RIM_NAME_AREA_PX = 80 * LABEL_HEIGHT;
+
+/**
+ * Which rim markers show their name. Names run into the map, so a small
+ * (phone) map names only the nearest players and shows the rest as dots;
+ * a large map has room for every name.
+ *
+ * @param distances - Distance of each off-map player from the map centre
+ * @param mapRadiusPx - Radius of the round map in pixels
+ * @returns Whether each player is named, in input order
+ *
+ * @example
+ * pickNamedRimMarkers([300, 100, 200], 100) // budget 2: [false, true, true]
+ */
+export function pickNamedRimMarkers(distances: readonly number[], mapRadiusPx: number): boolean[] {
+    const budget = Math.floor(RIM_NAME_COVERAGE * Math.PI * mapRadiusPx ** 2 / RIM_NAME_AREA_PX);
+    const named = distances.map(() => false);
+    const nearestFirst = distances
+        .map((distance, index) => ({ distance, index }))
+        .toSorted((a, b) => a.distance - b.distance);
+    for (const { index } of nearestFirst.slice(0, budget)) { named[index] = true; }
+    return named;
+}
+
 /**
  * Move an edge marker to its place on the rim and point its name inward.
  * Positions are set with a transform, which the browser can update every

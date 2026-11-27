@@ -495,6 +495,23 @@
     z-index: 1003;
 }
 
+/* Rim markers without room for a name (small maps): just a dot, named on hover */
+#map-dialog .player-edge-marker.is-unnamed .player-name {
+    display: none;
+}
+
+#map-dialog .player-edge-marker.is-unnamed:hover .player-name {
+    display: block;
+}
+
+/* Bigger touch target than the small dot */
+#map-dialog .player-edge-marker::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+}
+
 #map-dialog .player-edge-marker:hover .player-name,
 #map-dialog .leaflet-player-marker:hover .player-name,
 #map-dialog .is-selected .player-name {

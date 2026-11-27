@@ -190,17 +190,34 @@
         padding-right: 8px !important;
     }
 
-    /* Map dialog responsive - shrink with viewport like table does */
+    /* Map dialog: the round map fills the width, leaving room on the sides for the
+       rim markers and above/below for the shop card and coordinates, which move
+       off the map so they don't cover it */
     #map-dialog {
-        width: calc(100vw - 20px);
-        height: calc(100vw - 20px);
-        max-width: 90vh;
-        max-height: 90vh;
+        width: min(calc(100vw - 40px), calc(100dvh - 240px));
+        height: min(calc(100vw - 40px), calc(100dvh - 240px));
+        max-width: none;
+        max-height: none;
+    }
+
+    #map-dialog .map-shop-info {
+        top: auto;
+        bottom: calc(100% + 24px);
+        max-width: calc(100% - 88px);
+    }
+
+    #close-map {
+        top: auto;
+        right: 0;
+        bottom: calc(100% + 24px);
+        width: 40px;
+        height: 40px;
     }
 
     #map-coords {
+        bottom: auto;
+        top: calc(100% + 24px);
         font-size: 0.8rem;
-        margin-top: 8px;
     }
 
     /* Cart dialog mobile */
