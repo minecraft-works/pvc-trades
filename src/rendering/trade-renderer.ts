@@ -276,6 +276,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
 
     function renderHeader(): void {
         const header = getElement('table-header');
+        // The row role only once it has cells: an empty row is invalid ARIA
+        header.setAttribute('role', 'row');
         header.innerHTML = `
             <span class="col fav-col-header" role="columnheader" tabindex="0" title="Show only watchlist items">★<span id="favorites-badge" class="favorites-badge hidden"></span></span>
             <span class="col header amt" role="columnheader" tabindex="0" data-col="result-amt" data-label="#" aria-label="Item amount">#</span>
@@ -501,7 +503,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             // which would keep a page-high empty scroll area under the message
             container.style.removeProperty('padding-top');
             container.style.removeProperty('padding-bottom');
-            container.innerHTML = '<div class="no-results"><h2>No trades found</h2><p>Try a different search term</p></div>';
+            container.innerHTML = '<div class="no-results" role="row"><div role="gridcell"><h2>No trades found</h2><p>Try a different search term</p></div></div>';
             return;
         }
 

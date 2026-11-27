@@ -595,11 +595,13 @@ mark {
     grid-column: 1 / -1;
     text-align: center;
     padding: 60px 20px;
-    color: var(--color-text-dimmed);
+
+    /* #888 on the page background: 5.3:1, readable for body text */
+    color: #888;
 }
 
 .no-results h2 {
-    color: #888;
+    color: var(--color-text-muted);
     margin-bottom: 10px;
 }
 
