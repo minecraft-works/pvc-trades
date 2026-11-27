@@ -2894,7 +2894,11 @@ mark {
     }
 
     .search-container {
-        grid-template: "box box" auto "meta actions" auto / minmax(0, 1fr) auto;
+        grid-template:
+            "box box" auto
+            "chip chip" auto
+            "bar actions" auto
+            "fresh fresh" auto / minmax(0, 1fr) auto;
         column-gap: 8px;
         top: 5px;
         position: static;  /* Disable sticky on mobile to prevent keyboard freeze */
@@ -2919,10 +2923,12 @@ mark {
         padding: 8px 10px;
     }
 
-    /* Actions share the quick-filter row, so the search fields get the full width */
+    /* Actions share the quick-filter row, so the search fields get the full width;
+       they sit beside the first line of pills when the pills wrap
+       (centred on it: buttons are 30px, pills 24px) */
     .search-actions {
-        align-self: center;
-        margin-top: var(--spacing-sm);
+        align-self: start;
+        margin-top: calc(var(--spacing-sm) - 3px);
         gap: 2px;
     }
 
@@ -2963,20 +2969,23 @@ mark {
         color: var(--color-nether);
     }
 
-    /* No room for per-item prices; quick bar scrolls sideways in one row */
+    /* No room for per-item prices */
     .unit-price {
         display: none;
     }
 
+    /* The chip, quick filters and freshness note become rows of the search
+       grid, so the actions always line up with the quick filters */
     .search-meta {
-        min-width: 0;
-        flex-wrap: wrap;
-        row-gap: 2px;
+        display: contents;
     }
 
-    /* The chip gets its own line here, so no divider */
+    /* The chip gets its own row here, so no divider */
     .shop-filter {
+        grid-area: chip;
+        justify-self: start;
         max-width: 100%;
+        margin-top: var(--spacing-sm);
     }
 
     .shop-filter:not(.hidden) + .quick-bar {
@@ -2985,13 +2994,24 @@ mark {
     }
 
     .quick-bar {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: none;
+        grid-area: bar;
+        align-self: start;
+        min-width: 0;
+        margin-top: var(--spacing-sm);
+
+        /* Pills wrap onto more lines rather than hiding off-screen */
+        flex-wrap: wrap;
+        row-gap: 6px;
     }
 
     .quick-toggle {
         flex-shrink: 0;
+    }
+
+    .data-freshness {
+        grid-area: fresh;
+        margin: 4px 0 0;
+        text-align: left;
     }
 
     /* Only worth the space when a refresh failed */
