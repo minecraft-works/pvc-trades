@@ -55,6 +55,17 @@ let shopMapAnimFrameId: number | undefined;
 /** Current shop map tile reference coords (for coordinate conversion) */
 let shopMapTileX = 0;
 let shopMapTileZ = 0;
+/** Tiles of the open shop map */
+let shopMapTileContext: ShopMapTileContext | undefined;
+
+/** Flight to a player: seconds for a short hop, extra per doubling of the distance (in screens), and at most */
+const FLIGHT_MIN_SECONDS = 0.5;
+const FLIGHT_SECONDS_PER_DOUBLING = 0.25;
+const FLIGHT_MAX_SECONDS = 1.6;
+/** Underlay is started this much around a flight's route (0.5 = half its size on each side) */
+const FLIGHT_UNDERLAY_PADDING = 0.5;
+/** Least time between underlay checks while the map moves */
+const UNDERLAY_MOVE_CHECK_MS = 100;
 
 // Leaflet zoom thresholds for LOD switching
 /**
@@ -273,18 +284,19 @@ function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
 }
 
 /**
- * When a zoom animation starts, fetch the tiles the map will show when it
- * ends, so they come from the browser cache by the time they are added.
- * These are the same requests the map makes at the end of the zoom.
+ * Fetch the tiles a view will show into the browser cache, so they appear
+ * at once when the map gets there. These are the same requests the map makes
+ * when it arrives.
  * @param context - Tile context
- * @param event - Leaflet zoom animation event with the target zoom and centre
+ * @param center - Centre of the view
+ * @param zoom - Zoom of the view
  */
-function prefetchZoomTarget(context: ShopMapTileContext, event: L.ZoomAnimEvent): void {
+function prefetchView(context: ShopMapTileContext, center: L.LatLngExpression, zoom: number): void {
     if (!leafletMap) { return; }
     const half = leafletMap.getSize().divideBy(2);
-    const center = leafletMap.project(event.center, event.zoom);
-    const target = L.latLngBounds(leafletMap.unproject(center.subtract(half), event.zoom), leafletMap.unproject(center.add(half), event.zoom));
-    for (const level of getLevelsToLoad(event.zoom)) {
+    const centerPoint = leafletMap.project(center, zoom);
+    const target = L.latLngBounds(leafletMap.unproject(centerPoint.subtract(half), zoom), leafletMap.unproject(centerPoint.add(half), zoom));
+    for (const level of getLevelsToLoad(zoom)) {
         const added = context.addedToMap.get(level);
         forEachTile(getTileRange(context, level, target), (lx, lz) => {
             const url = getTileUrl(context.worldId, level, lx, lz);
@@ -295,6 +307,17 @@ function prefetchZoomTarget(context: ShopMapTileContext, event: L.ZoomAnimEvent)
             image.src = url;
         });
     }
+}
+
+/**
+ * Put the coarse underlay under an area. Runs while the map moves (flights,
+ * long drags) for the view, so a zoomed-out view never stays empty; the
+ * underlay is a few big tiles, so this adds few requests.
+ * @param context - Tile context
+ * @param bounds - Area to cover
+ */
+function loadUnderlay(context: ShopMapTileContext, bounds: L.LatLngBounds): void {
+    forEachTile(getTileRange(context, UNDERLAY_LEVEL, bounds), (lx, lz) => { loadTileAtLevel(context, UNDERLAY_LEVEL, lx, lz); });
 }
 
 /**
@@ -312,17 +335,35 @@ function getPlayerLeafletCoords(player: Player, tileX: number, tileZ: number): {
 }
 
 /**
- * Pan the shop map to where a player is now, keeping the zoom. A pan moves
- * the map layer as a whole, so the ~1000 markers are not repositioned on
- * every frame (as they would be with flyTo, which changes the zoom per frame).
+ * Fly the shop map to where a player is now: zoom out, travel, zoom back in
+ * to the current zoom. Nearby players need little or no zoom-out.
  * @param name - Name of the clicked player
  */
-function panToPlayer(name: string): void {
+function flyToPlayer(name: string): void {
     const player = cachedPlayers.find(candidate => candidate.name === name);
     if (!leafletMap || !player) { return; }
     const { lat, lng } = getPlayerLeafletCoords(player, shopMapTileX, shopMapTileZ);
-    // animate: true also animates pans longer than one screen
-    leafletMap.panTo([lat, lng], { animate: true, duration: 0.6 });
+    const destination = L.latLng(lat, lng);
+    const zoom = leafletMap.getZoom();
+    // Fetch the destination's tiles, and start the coarse underlay around the
+    // route so the zoomed-out middle of the flight isn't empty. Not more than
+    // that: a big batch of requests delays the destination's tiles.
+    if (shopMapTileContext) {
+        prefetchView(shopMapTileContext, destination, zoom);
+        loadUnderlay(shopMapTileContext, leafletMap.getBounds().extend(destination).pad(FLIGHT_UNDERLAY_PADDING));
+    }
+    leafletMap.flyTo(destination, zoom, { duration: getFlightDuration(leafletMap, destination) });
+}
+
+/**
+ * Flight time: short hops are quick, long trips take a little longer
+ * @param map - Shop map
+ * @param destination - Where the flight ends
+ * @returns Duration in seconds
+ */
+function getFlightDuration(map: L.Map, destination: L.LatLng): number {
+    const screens = map.latLngToContainerPoint(destination).distanceTo(map.getSize().divideBy(2)) / Math.max(map.getSize().x, 1);
+    return Math.min(FLIGHT_MAX_SECONDS, FLIGHT_MIN_SECONDS + Math.log2(1 + screens) * FLIGHT_SECONDS_PER_DOUBLING);
 }
 
 /**
@@ -494,11 +535,19 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
         levels: levelSwitcher,
         prefetched: new Set<string>(),
     };
+    shopMapTileContext = context;
     
     const loadTiles = () => loadVisibleShopMapTiles(context);
     leafletMap.on('moveend', loadTiles);
     leafletMap.on('zoomend', loadTiles);
-    leafletMap.on('zoomanim', (event: L.ZoomAnimEvent) => { prefetchZoomTarget(context, event); });
+    leafletMap.on('zoomanim', (event: L.ZoomAnimEvent) => { prefetchView(context, event.center, event.zoom); });
+    let lastUnderlayCheck = 0;
+    leafletMap.on('move', () => {
+        const now = performance.now();
+        if (now - lastUnderlayCheck < UNDERLAY_MOVE_CHECK_MS) { return; }
+        lastUnderlayCheck = now;
+        loadUnderlay(context, map.getBounds());
+    });
 
     // Marker sizes follow the zoom: set to the target size when a zoom
     // animation starts, so CSS animates the size alongside the map. Continuous
@@ -718,7 +767,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
         const shopInfo = document.querySelector<HTMLElement>('#map-shop-info');
         if (shopInfo) { renderPlayerInfo(shopInfo, name, getOwnerSummary(name), showShopTrades); }
         showSelectedPlayerCoords();
-        panToPlayer(name);
+        flyToPlayer(name);
     }
     onPlayerClick = selectPlayer;
     
