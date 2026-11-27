@@ -2,7 +2,9 @@
  * Item Value Calculation
  *
  * Calculates emerald-equivalent values for all items using direct trades
- * and iterative transitive derivation.
+ * and iterative transitive derivation. Currencies can be anchored to fixed
+ * values from the currency graph (ADR-019), so every item priced in any
+ * currency is valued at the same exchange rates the Rates tab shows.
  *
  * @module valuation/item-values
  */
@@ -33,19 +35,26 @@ import { countIndependentShops,getTrustedItemValue } from './statistics.js';
  *
  * @param trades - Array of processed trades
  * @param baseCurrency - Base currency name (usually 'Emerald')
+ * @param anchors - Fixed values in the base currency for other currencies
+ *                  (lowercase name → value); trades between anchored
+ *                  currencies are left to the currency graph
  * @returns Map of item names to value entries with buy/sell prices
  *
  * @example
- * const values = calculateItemValues(trades, 'Emerald');
- * const diamondValue = getTrustedItemValue('Diamond', values);
+ * const values = calculateItemValues(trades, 'Emerald', new Map([['diamond', 144]]));
+ * const sandValue = getTrustedItemValue('Sand', values);
  */
-export function calculateItemValues(trades: readonly TradeInput[], baseCurrency: string): ItemValues {
+export function calculateItemValues(
+    trades: readonly TradeInput[],
+    baseCurrency: string,
+    anchors: ReadonlyMap<string, number> = new Map()
+): ItemValues {
     const config = configStore.get();
-    const values = new Map<string, ItemValueEntry>();
+    const context: ValuationContext = { baseCurrency, anchors, values: new Map() };
 
     // Phase 1: Direct trades with base currency (including item2 trades)
     for (const trade of trades) {
-        processDirectTrade(trade, baseCurrency, values);
+        processDirectTrade(trade, context);
     }
 
     // Phase 2: Extend using known item values as intermediaries
@@ -63,18 +72,18 @@ export function calculateItemValues(trades: readonly TradeInput[], baseCurrency:
         // from contributing more data points, which starves core-block trust
         // filters. Tracked per side so an item with only sell data can still gain
         // buy data (and vice versa).
-        const known = snapshotKnownSides(values, config.analysis.minIndependentShops);
+        const known = snapshotKnownSides(context.values, config.analysis.minIndependentShops);
 
         for (const trade of trades) {
             // Each trade contributes at most one derived price across all iterations
-            if (!applied.has(trade) && deriveTransitiveValue(trade, baseCurrency, values, known)) {
+            if (!applied.has(trade) && deriveTransitiveValue(trade, context, known)) {
                 applied.add(trade);
                 changed = true;
             }
         }
     }
 
-    return values;
+    return context.values;
 }
 
 /**
@@ -104,18 +113,37 @@ export function calculatePairPrices(trades: readonly TradeInput[]): PairPrices {
 // Private Helpers
 // ============================================================================
 
+interface ValuationContext {
+    readonly baseCurrency: string;
+    readonly anchors: ReadonlyMap<string, number>;
+    readonly values: Map<string, ItemValueEntry>;
+}
+
+/**
+ * Express an amount in the base currency when the item is the base currency,
+ * a block of it, or an anchored currency
+ * @param itemName - Item name
+ * @param amount - Number of units
+ * @param context - Base currency and anchors
+ * @returns Whether the item has a fixed value, and the amount in base units
+ */
 function normalizeToBaseCurrency(
     itemName: string,
     amount: number,
-    baseCurrency: string
+    context: ValuationContext
 ): NormalizeResult {
     const blockConversions = blockConversionsStore.get();
     const itemNorm = itemName.toLowerCase();
-    const baseNorm = baseCurrency.toLowerCase();
+    const baseNorm = context.baseCurrency.toLowerCase();
 
     // Direct match
     if (itemNorm === baseNorm) {
         return { matches: true, amount };
+    }
+
+    const anchor = context.anchors.get(itemNorm);
+    if (anchor !== undefined) {
+        return { matches: true, amount: amount * anchor };
     }
 
     // Check if item is a block version of base currency
@@ -131,6 +159,17 @@ function normalizeToBaseCurrency(
     }
 
     return { matches: false, amount };
+}
+
+/**
+ * Value of one unit: fixed for the base currency and anchors, otherwise the trusted market value so far
+ * @param itemName - Item name
+ * @param context - Base currency, anchors and values so far
+ * @returns Value in the base currency, or undefined
+ */
+function valueOf(itemName: string, context: ValuationContext): number | undefined {
+    const fixed = normalizeToBaseCurrency(itemName, 1, context);
+    return fixed.matches ? fixed.amount : getTrustedItemValue(itemName, context.values);
 }
 
 function toPriceEntry(price: number, source: TradeInput): PriceEntry {
@@ -158,73 +197,64 @@ function addValue(
     }
 }
 
-function processDirectTrade(
-    trade: TradeInput,
-    baseCurrency: string,
-    values: Map<string, ItemValueEntry>
-): void {
+function processDirectTrade(trade: TradeInput, context: ValuationContext): void {
     // For trades with item2, we need different handling
     if (trade.item2) {
-        return processDirectTradeWithItem2(trade, baseCurrency, values);
+        return processDirectTradeWithItem2(trade, context);
     }
 
     const item1Name = trade.item1Name;
-    const costAsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
-    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
+    const costAsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, context);
+    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, context);
 
     if (costAsBase.matches === resultAsBase.matches) { return; }
 
     if (costAsBase.matches) {
         const pricePerItem = costAsBase.amount / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerItem, 'buy', trade);
+        addValue(context.values, trade.resultName, pricePerItem, 'buy', trade);
     } else if (resultAsBase.matches) {
         const pricePerItem = resultAsBase.amount / trade.costAmount;
-        addValue(values, item1Name, pricePerItem, 'sell', trade);
+        addValue(context.values, item1Name, pricePerItem, 'sell', trade);
     }
 }
 
-function processDirectTradeWithItem2(
-    trade: TradeInput,
-    baseCurrency: string,
-    values: Map<string, ItemValueEntry>
-): void {
+function processDirectTradeWithItem2(trade: TradeInput, context: ValuationContext): void {
     if (!trade.item2) { return; }
 
     const item1Name = trade.item1Name;
     const item2Name = formatName(trade.item2);
 
-    const item1AsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, baseCurrency);
-    const item2AsBase = normalizeToBaseCurrency(item2Name, trade.item2.amount, baseCurrency);
-    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, baseCurrency);
+    const item1AsBase = normalizeToBaseCurrency(item1Name, trade.costAmount, context);
+    const item2AsBase = normalizeToBaseCurrency(item2Name, trade.item2.amount, context);
+    const resultAsBase = normalizeToBaseCurrency(trade.resultName, trade.resultAmount, context);
 
     // Both inputs are base currency -> derive result value
     if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
         const totalCost = item1AsBase.amount + item2AsBase.amount;
         const pricePerItem = totalCost / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerItem, 'buy', trade);
+        addValue(context.values, trade.resultName, pricePerItem, 'buy', trade);
     }
     // Result is base currency, both inputs are not -> can't derive individual values
 }
 
 function deriveTransitiveValue(
     trade: TradeInput,
-    baseCurrency: string,
-    values: Map<string, ItemValueEntry>,
+    context: ValuationContext,
     known: KnownSides
 ): boolean {
     // For trades with item2, we need different handling
     if (trade.item2) {
-        return deriveTransitiveValueWithItem2(trade, baseCurrency, values, known);
+        return deriveTransitiveValueWithItem2(trade, context, known);
     }
 
-    const costIsBase = normalizeToBaseCurrency(trade.item1Name, 1, baseCurrency).matches;
-    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
+    const costIsBase = normalizeToBaseCurrency(trade.item1Name, 1, context).matches;
+    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, context).matches;
     if (costIsBase || resultIsBase) { return false; }
 
     for (const direction of getDerivationOrder(trade, known)) {
         const derived = direction === 'buy'
-            ? deriveBuyPrice(trade, values)
-            : deriveSellPrice(trade, values);
+            ? deriveBuyPrice(trade, context)
+            : deriveSellPrice(trade, context);
         if (derived) { return true; }
     }
     return false;
@@ -254,26 +284,25 @@ function getDerivationOrder(trade: TradeInput, known: KnownSides): readonly ('bu
     return [];
 }
 
-function deriveBuyPrice(trade: TradeInput, values: Map<string, ItemValueEntry>): boolean {
-    const costValue = getTrustedItemValue(trade.item1Name, values);
+function deriveBuyPrice(trade: TradeInput, context: ValuationContext): boolean {
+    const costValue = valueOf(trade.item1Name, context);
     if (costValue === undefined) { return false; }
     const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
-    addValue(values, trade.resultName, pricePerResult, 'buy', trade);
+    addValue(context.values, trade.resultName, pricePerResult, 'buy', trade);
     return true;
 }
 
-function deriveSellPrice(trade: TradeInput, values: Map<string, ItemValueEntry>): boolean {
-    const resultValue = getTrustedItemValue(trade.resultName, values);
+function deriveSellPrice(trade: TradeInput, context: ValuationContext): boolean {
+    const resultValue = valueOf(trade.resultName, context);
     if (resultValue === undefined) { return false; }
     const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
-    addValue(values, trade.item1Name, pricePerCost, 'sell', trade);
+    addValue(context.values, trade.item1Name, pricePerCost, 'sell', trade);
     return true;
 }
 
 function deriveTransitiveValueWithItem2(
     trade: TradeInput,
-    baseCurrency: string,
-    values: Map<string, ItemValueEntry>,
+    context: ValuationContext,
     known: KnownSides
 ): boolean {
     if (!trade.item2) { return false; }
@@ -282,22 +311,22 @@ function deriveTransitiveValueWithItem2(
     const item2Name = formatName(trade.item2);
     const resultKey = trade.resultName.toLowerCase();
 
-    const item1IsBase = normalizeToBaseCurrency(item1Name, 1, baseCurrency).matches;
-    const item2IsBase = normalizeToBaseCurrency(item2Name, 1, baseCurrency).matches;
-    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, baseCurrency).matches;
+    const item1IsBase = normalizeToBaseCurrency(item1Name, 1, context).matches;
+    const item2IsBase = normalizeToBaseCurrency(item2Name, 1, context).matches;
+    const resultIsBase = normalizeToBaseCurrency(trade.resultName, 1, context).matches;
 
     // If already handled in direct phase, skip
     if ((item1IsBase && item2IsBase) || resultIsBase) { return false; }
     if (known.buy.has(resultKey)) { return false; }
 
-    const item1Value = getTrustedItemValue(item1Name, values);
-    const item2Value = getTrustedItemValue(item2Name, values);
+    const item1Value = valueOf(item1Name, context);
+    const item2Value = valueOf(item2Name, context);
 
     // If we know both input values but the result's buy side was not yet covered
     if (item1Value !== undefined && item2Value !== undefined) {
         const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
         const pricePerResult = totalCostValue / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerResult, 'buy', trade);
+        addValue(context.values, trade.resultName, pricePerResult, 'buy', trade);
         return true;
     }
 
@@ -333,4 +362,3 @@ function snapshotKnownSides(values: ReadonlyMap<string, ItemValueEntry>, minShop
     }
     return { any: new Set(values.keys()), buy, sell, coverage };
 }
-

@@ -22,7 +22,7 @@
 │  │  • shop-trades-nav-player (string)                          │  │
 │  │  • shop-trades-nav-tab (string)                             │  │
 │  │  • shop-trades-nav-mode (NavigationMode)                    │  │
-│  │  • shop-trades-snapshot-dev3 (CompactSnapshotHistory)       │  │
+│  │  • shop-trades-snapshot-dev4 (CompactSnapshotHistory)       │  │
 │  │  • shop-trades-favorites (FavoriteItem[])                   │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -178,8 +178,8 @@ see [ADR-009](adr/009-tile-caching-strategy.md)).
 | Category | Functions |
 |----------|-----------|
 | Search | `matchesQuery`, `getRegex`, `filterTrade`, `sortResults` |
-| Values | `calculateItemValues`, `getTrustedItemValue`, `getRatio` |
-| Ratios | `buildRatioGraph`, `buildExchangeMatrix`, `buildDirectionalEmeraldValues` |
+| Values | `calculateItemValues`, `calculatePairPrices`, `getTrustedItemValue` |
+| Rates | `src/valuation/`: `buildValuation`, `buildCurrencyGraph`, `presentRate` (ADR-019) |
 | Route | `computeOptimalOrder`, `twoOptOptimize`, `calculateRouteDistance` |
 | Coordinates | `getTileCoords`, `toLeafletCoords`, `clampToCircle` |
 | Utilities | `median`, `formatName`, `highlight`, `escapeHtml` |
@@ -308,7 +308,7 @@ let navStopMarkers: L.Marker[] = [];
 | `shop-trades-nav-player` | `string` | Saved player name |
 | `shop-trades-nav-tab` | `string` | Active cart dialog tab |
 | `shop-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
-| `shop-trades-snapshot-dev3` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
+| `shop-trades-snapshot-dev4` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
 | `shop-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
 
 ## External Dependencies

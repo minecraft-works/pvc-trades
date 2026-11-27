@@ -8,6 +8,7 @@
 import { escapeHtml, getCostParts } from '../library.js';
 import type { Trade } from '../types.js';
 import type { Flip, FlipLeg } from '../valuation/flips.js';
+import { currencyDisplayName, formatAmount, presentAmount } from '../valuation/rate-presentation.js';
 
 /** Most flips listed; the rest are rarely worth a trip */
 const MAX_FLIPS_SHOWN = 50;
@@ -37,15 +38,19 @@ function shopLabel(trade: Trade): string {
 }
 
 /**
- * One aligned row: verb, rate, number of uses, shop
+ * One aligned row: verb, rate, number of uses, shop. The rate is written as
+ * the shop lists it, so a leg paid in blocks shows blocks.
  * @param verb - Buy or Sell
  * @param leg - The shop visit
- * @param currency - Currency name as shown in the table
  * @param index - Flip index, for the click handler
  * @returns Row HTML
  */
-function buildLeg(verb: 'Buy' | 'Sell', leg: FlipLeg, currency: string, index: number): string {
-    const rate = `${formatNumber(leg.itemAmount)} for ${formatNumber(leg.currencyAmount)} ${currency}`;
+function buildLeg(verb: 'Buy' | 'Sell', leg: FlipLeg, index: number): string {
+    const cost = getCostParts(leg.trade)[0] ?? { amount: leg.trade.item1.amount, name: leg.trade.costName };
+    const result = { amount: leg.trade.resultAmount, name: leg.trade.resultName };
+    // Buying: the shop gives the item for currency; selling: the shop gives currency for the item
+    const [items, currency] = verb === 'Buy' ? [result, cost] : [cost, result];
+    const rate = `${formatNumber(items.amount)} for ${formatNumber(currency.amount)} ${currency.name}`;
     const shop = shopLabel(leg.trade);
     const owner = leg.trade.shopOwner && leg.trade.shopName ? ` by ${leg.trade.shopOwner}` : '';
     return `<div class="flip-leg">
@@ -57,18 +62,18 @@ function buildLeg(verb: 'Buy' | 'Sell', leg: FlipLeg, currency: string, index: n
 }
 
 function buildCard(flip: Flip, index: number, inCart: boolean): string {
-    // Same names as the trade table (no enchantment signature on currencies)
     const item = flip.buy.trade.resultName;
-    const currency = getCostParts(flip.buy.trade)[0]?.name ?? flip.currency;
-    const profit = `+${formatNumber(flip.profit)} ${currency}`;
+    // Profit is counted in base units; show it in blocks when that reads better
+    const shown = presentAmount(flip.profit, flip.currency);
+    const profit = `+${formatAmount(shown.amount)} ${currencyDisplayName(shown.unit)}`;
     return `<li class="flip-card">
         <div class="flip-head">
             <span class="flip-item" title="${escapeHtml(item)}">${escapeHtml(item)}</span>
             <span class="flip-profit" title="${escapeHtml(profit)} per trip, after paying for everything bought">${escapeHtml(profit)}</span>
         </div>
         <div class="flip-legs">
-            ${buildLeg('Buy', flip.buy, currency, index)}
-            ${buildLeg('Sell', flip.sell, currency, index)}
+            ${buildLeg('Buy', flip.buy, index)}
+            ${buildLeg('Sell', flip.sell, index)}
         </div>
         <div class="flip-foot">
             <span class="flip-meta">+${Math.round(flip.margin * 100)}% · ${formatDistance(flip.distance)} apart</span>

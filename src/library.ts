@@ -23,7 +23,7 @@
  *   Sorting                   sortTrades(), compareByColumn()
  * 
  * RE-EXPORTED MODULES
- *   src/valuation/            statistics, ratio-graph, item-values, item-identity (shulker parsing)
+ *   src/valuation/            statistics, item-values, item-identity (shulker parsing), currency-graph, valuation
  *   src/map/map-math          coordinate conversions, tile offsets, zoom
  *   src/routing/              route-optimizer, navigation-helpers
  *   src/interpolation/        player position interpolation
@@ -571,8 +571,7 @@ export function sortResults(
 
 export { getItemComponents, getPairKey, getPairPrice, getValuationName, isFilledShulker, parseShulkerContents, toValuationInput, valueItemStack } from './valuation/item-identity.js';
 export { calculateItemValues, calculatePairPrices } from './valuation/item-values.js';
-export { buildExchangeMatrix,buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
-export { countIndependentShops, getTrustedItemValue, getTrustedPairPrice, hasEnoughIndependentData, median } from './valuation/statistics.js';
+export { countIndependentShops, getTrustedItemValue, getTrustedPairPrice, median } from './valuation/statistics.js';
 
 // ============================================================================
 // Map Utilities Re-exports (implementations moved to src/map/map-math.ts)

@@ -181,6 +181,7 @@ Coverage thresholds are enforced in `vitest.config.js`.
 - [ADR-009: Map Tiles Loaded Directly From the Map Server](docs/adr/009-tile-caching-strategy.md)
 - [ADR-010: Limiting Requests to the External Map Server](docs/adr/010-tile-loading-minimization.md)
 - [ADR-018: Trade Deviation Model](docs/adr/018-trade-deviation-model.md)
+- [ADR-019: One Exchange-Rate Model](docs/adr/019-exchange-rate-model.md)
 
 ## Troubleshooting
 

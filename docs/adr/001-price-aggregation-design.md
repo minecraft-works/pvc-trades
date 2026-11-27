@@ -1,7 +1,7 @@
 # ADR-001: Price Aggregation and Market Analysis Design
 
 ## Status
-**Implemented** - 2024. Extended by [ADR-018](018-trade-deviation-model.md) (item identity, minimum evidence for all items, same-currency comparison).
+**Implemented** - 2024. Extended by [ADR-018](018-trade-deviation-model.md) (item identity, minimum evidence for all items, same-currency comparison). Decision 4 is superseded by [ADR-019](019-exchange-rate-model.md): crafting a block back into its base is free, so blocks always count as their base.
 
 ## Context
 

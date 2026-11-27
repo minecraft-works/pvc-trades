@@ -2,14 +2,16 @@
  * Item Identity for Valuation
  *
  * Decides which items can share a market price. Enchanted variants get their
- * own price key, shulker boxes are valued by their contents, and items whose
- * variant is missing from the shop data (potion effect, book contents, stored
+ * own price key, shulker boxes are valued by their contents, blocks that craft
+ * back into their base are counted in base units, and items whose variant is
+ * missing from the shop data (potion effect, book contents, stored
  * enchantments) cannot be priced at all.
  *
  * @module valuation/item-identity
  */
 
 import { formatName } from '../formatting.js';
+import { blockConversionsStore } from '../stores/block-conversions-store.js';
 import type { Item, ShulkerItem, ShulkerParseResult, Trade, TradeInput } from '../types.js';
 
 /**
@@ -173,8 +175,28 @@ export function getValuationName(item: Readonly<Item>): string | undefined {
 }
 
 /**
- * Break an item stack into priced components. A filled shulker box becomes its
- * contents (multiplied by the number of boxes).
+ * Express an amount in base units when the item is a block that crafts back
+ * into its base, so "1 Diamond block" and "9 Diamond" are the same thing
+ * everywhere prices are compared (ADR-019). One-way recipes (quartz) are kept.
+ *
+ * @param name - Valuation name
+ * @param amount - Number of units
+ * @returns The same quantity in base units
+ *
+ * @example
+ * toBaseUnit('Diamond block', 2) // { name: 'Diamond', amount: 18 }
+ * toBaseUnit('Quartz block', 1)  // { name: 'Quartz block', amount: 1 }
+ */
+export function toBaseUnit(name: string, amount: number): ItemComponent {
+    const conversion = blockConversionsStore.get()[name.toLowerCase()];
+    if (!conversion || conversion.reversible === false) { return { name, amount }; }
+    const base = conversion.base.toLowerCase();
+    return { name: base.charAt(0).toUpperCase() + base.slice(1), amount: amount * conversion.multiplier };
+}
+
+/**
+ * Break an item stack into priced components, in base units. A filled shulker
+ * box becomes its contents (multiplied by the number of boxes).
  *
  * @param item - Item stack to break down
  * @returns Components, or undefined if any part cannot be priced
@@ -187,10 +209,16 @@ export function getItemComponents(item: Readonly<Item>): readonly ItemComponent[
     if (isFilledShulker(item)) {
         const contents = parseShulkerContents(item.lore ?? []).items;
         if (contents.length === 0) { return undefined; }
-        return contents.map(content => ({ name: content.name, amount: content.total * item.amount }));
+        const merged = new Map<string, ItemComponent>();
+        for (const content of contents) {
+            const component = toBaseUnit(content.name, content.total * item.amount);
+            const key = component.name.toLowerCase();
+            merged.set(key, { name: component.name, amount: (merged.get(key)?.amount ?? 0) + component.amount });
+        }
+        return [...merged.values()];
     }
     const name = getValuationName(item);
-    return name === undefined ? undefined : [{ name, amount: item.amount }];
+    return name === undefined ? undefined : [toBaseUnit(name, item.amount)];
 }
 
 /**

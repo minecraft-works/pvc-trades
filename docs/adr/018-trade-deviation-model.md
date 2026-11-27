@@ -1,7 +1,7 @@
 # ADR-018: Trade Deviation Model (Item Identity and Same-Currency Comparison)
 
 ## Status
-**Implemented** - 2026-11. Extends [ADR-001](001-price-aggregation-design.md).
+**Implemented** - 2026-11. Extends [ADR-001](001-price-aggregation-design.md). Amended by [ADR-019](019-exchange-rate-model.md): blocks count as their base in the same-currency comparison, only in-stock trades count, and the emerald fallback is shown as an estimate.
 
 ## Context
 

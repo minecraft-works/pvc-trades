@@ -73,17 +73,16 @@ The base value items used for price comparison:
 
 ### Item Value
 The calculated worth of an item in emerald-equivalent units, derived through:
-1. **Phase 1 — Direct trades**: trades where one side is emerald (or emerald block)
-2. **Phase 2 — Transitive derivation**: iteratively using known item values as intermediaries (e.g., Diamond Block → Netherite Ingot)
-3. **Block conversions**: bidirectional derivation via block_conversions.json (ingot × 9 ↔ block ÷ 9)
+1. **Base units**: blocks that craft back into their base count as that base (1 Diamond block = 9 Diamond); one-way recipes such as quartz blocks stay separate
+2. **Phase 1 — Direct trades**: trades where one side is a currency (emerald, or a currency valued by the currency graph)
+3. **Phase 2 — Transitive derivation**: iteratively using known item values as intermediaries
 
-### Ratio Graph
-A data structure mapping item-to-item conversion rates, built from:
-- Fixed conversions (9 ingots = 1 block, bidirectional)
-- Trade data (what shops actually exchange)
-- Transitive derivation (items priced through intermediary currencies)
+Only in-stock trades count (ADR-019).
 
-Used by `buildRatioGraph()` for deviation calculations and `buildExchangeMatrix()` for the NxN matrix dialog.
+### Currency Graph
+Exchange rates between currencies (ADR-019): the core currencies plus any item used to pay for at least 5 different goods at 3 or more independent shops (coins, certificates). Buy and Sell come from the direct market between two currencies when it is trusted; otherwise they are composed through other currencies (buy along buy rates, sell along sell rates). Sell is never above Buy: a crossed market shows the mid rate.
+
+Used by `buildCurrencyGraph()` for the 💱 Rates tab and converter, and to value currencies in emeralds for Deal % estimates and flips.
 
 ### Trusted Value
 A price value with high confidence, derived from independent shops with sufficient data points. For core currencies, requires ≥3 independent shops (>16 blocks apart, different owners). Values can come from direct trades, block conversions (ingot × 9), or transitive derivation through known intermediaries.
