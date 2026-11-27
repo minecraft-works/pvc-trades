@@ -40,7 +40,7 @@ Then('I should see the result item name', async ({ page }) => {
     expect(text?.length).toBeGreaterThan(0);
 });
 
-Then('I should see the result item amount', async ({ _page }) => {
+Then('I should see the result item amount', async () => {
     // Amount display has been removed from the trade details dialog
     // This step is kept for backwards compatibility but does nothing
 });

@@ -48,7 +48,9 @@ for (let n = 0; n < 256; n++) {
 function crc32(data: Buffer): Buffer {
     let crc = 0xFF_FF_FF_FF;
     for (const byte of data) {
-        crc = crcTable[(crc ^ byte) & (0xFF)] ^ (crc >>> 8);
+        const entry = crcTable[(crc ^ byte) & (0xFF)];
+        if (entry === undefined) { throw new Error('CRC table is not fully populated'); }
+        crc = entry ^ (crc >>> 8);
     }
     crc = crc ^ 0xFF_FF_FF_FF;
     const result = Buffer.alloc(4);
@@ -168,7 +170,8 @@ async function setupLoadTest(page: Page): Promise<TileMetrics> {
         const startTime = Date.now();
         
         // Simulate network latency (10-50ms) using crypto for consistent test behavior
-        const delay = (crypto.getRandomValues(new Uint8Array(1))[0] % 40) + 10;
+        const [randomByte = 0] = crypto.getRandomValues(new Uint8Array(1));
+        const delay = (randomByte % 40) + 10;
         await new Promise(resolve => setTimeout(resolve, delay));
         
         const loadTime = Date.now() - startTime;
@@ -372,13 +375,12 @@ test.describe('Tile Loading Performance', () => {
                     jsHeapSizeLimit: number;
                 } 
             };
-            if (performance_.memory) {
-                return {
-                    usedHeap: Math.round(performance_.memory.usedJSHeapSize / 1024 / 1024),
-                    totalHeap: Math.round(performance_.memory.totalJSHeapSize / 1024 / 1024),
-                    heapLimit: Math.round(performance_.memory.jsHeapSizeLimit / 1024 / 1024)
-                };
-            }
+            const memory = performance_.memory;
+            return memory ? {
+                usedHeap: Math.round(memory.usedJSHeapSize / 1024 / 1024),
+                totalHeap: Math.round(memory.totalJSHeapSize / 1024 / 1024),
+                heapLimit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024)
+            } : undefined;
         });
         
         console.log(`Memory after loading ${metrics.requestCount} tiles:`);

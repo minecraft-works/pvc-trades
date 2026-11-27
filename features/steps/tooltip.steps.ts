@@ -41,7 +41,7 @@ const TOOLTIP_TEST_SHOP_DATA = {
 // ============================================================================
 
 Given('I have a shop with {int} items in my cart from a single shop', async ({ page, playerMock }, count: number) => {
-    playerMock.updatePosition(0, 64, 0, 'World');
+    playerMock.setPosition(0, 0, 'World', 64);
     
     // Mock data.json with tooltip test data
     await page.route('**/data.json', async (route) => {
@@ -75,24 +75,24 @@ Given('I am within {int} blocks of the shop', async ({ playerMock }, distance: n
     // Move player near the shop at 100, 100
     const nearX = 100 + distance - 5; // Slightly closer than the threshold
     const nearZ = 100;
-    playerMock.updatePosition(nearX, 64, nearZ, 'World');
+    playerMock.setPosition(nearX, nearZ, 'World', 64);
 });
 
 Given('I am more than {int} blocks from the shop', async ({ playerMock }, distance: number) => {
     // Move player far from shop
     const farX = 100 + distance + 100;
     const farZ = 100 + distance + 100;
-    playerMock.updatePosition(farX, 64, farZ, 'World');
+    playerMock.setPosition(farX, farZ, 'World', 64);
 });
 
 Given('the tooltip is visible', async ({ playerMock }) => {
     // Move close to shop
-    playerMock.updatePosition(95, 64, 95, 'World');
+    playerMock.setPosition(95, 95, 'World', 64);
 });
 
 Given('I am navigating toward a shop', async ({ playerMock }) => {
     // Start somewhat far from the shop
-    playerMock.updatePosition(200, 64, 200, 'World');
+    playerMock.setPosition(200, 200, 'World', 64);
 });
 
 // eslint-disable-next-line no-empty-pattern
@@ -180,14 +180,14 @@ When('I enter the {int}-block radius around the shop', async ({ playerMock }, ra
     // Move player within radius of shop at 100, 100
     const x = 100 + radius - 10;
     const z = 100;
-    playerMock.updatePosition(x, 64, z, 'World');
+    playerMock.setPosition(x, z, 'World', 64);
 });
 
 When('I leave the {int}-block radius', async ({ playerMock }, radius: number) => {
     // Move player outside radius
     const x = 100 + radius + 50;
     const z = 100 + radius + 50;
-    playerMock.updatePosition(x, 64, z, 'World');
+    playerMock.setPosition(x, z, 'World', 64);
 });
 
 When('I wait for {int} seconds', async ({ page }, seconds: number) => {
@@ -196,16 +196,16 @@ When('I wait for {int} seconds', async ({ page }, seconds: number) => {
 
 When('I am navigating and approach the shop', async ({ playerMock }) => {
     // Simulate approaching
-    playerMock.updatePosition(150, 64, 150, 'World');
-    playerMock.updatePosition(120, 64, 120, 'World');
-    playerMock.updatePosition(105, 64, 105, 'World');
+    playerMock.setPosition(150, 150, 'World', 64);
+    playerMock.setPosition(120, 120, 'World', 64);
+    playerMock.setPosition(105, 105, 'World', 64);
 });
 
 When('I approach and leave the shop', async ({ playerMock }) => {
     // Approach
-    playerMock.updatePosition(105, 64, 105, 'World');
+    playerMock.setPosition(105, 105, 'World', 64);
     // Leave
-    playerMock.updatePosition(300, 64, 300, 'World');
+    playerMock.setPosition(300, 300, 'World', 64);
 });
 
 When(String.raw`player enters within {int} blocks of \({int}, {int})`, async ({ playerMock }, distance: number, x: number, z: number) => {

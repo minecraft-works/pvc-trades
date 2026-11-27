@@ -90,7 +90,6 @@ Then('nether shop markers should be visible with nether styling', async ({ page 
 Then('only overworld tiles should be loaded', async ({ page }) => {
     // Verify the map is using overworld tiles by checking the exposed world
     const mapWorld = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         return globalThis.__navMapWorld;
     });
     
@@ -100,7 +99,6 @@ Then('only overworld tiles should be loaded', async ({ page }) => {
 Then('the map should use the nether world', async ({ page }) => {
     // When the player is in nether, the map auto-detects and shows nether tiles
     const mapWorld = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         return globalThis.__navMapWorld;
     });
     
@@ -117,7 +115,6 @@ Then('the nether shop marker should be positioned at 8x nether coordinates', asy
     // Wait for route to be set
     await expect.poll(async () => {
         return await page.evaluate(() => {
-            // @ts-expect-error - exposed for testing
             return globalThis.__navCurrentWorldRoute;
         });
     }, { timeout: DEFAULT_TIMEOUT }).not.toBeNull();
@@ -301,14 +298,12 @@ Then('the distance should be calculated using 8x nether coordinates', async ({ p
     // Wait for the route to be populated
     await expect.poll(async () => {
         return await page.evaluate(() => {
-            // @ts-expect-error - exposed for testing
             return globalThis.__navCurrentWorldRoute?.length ?? 0;
         });
     }, { timeout: DEFAULT_TIMEOUT }).toBeGreaterThan(0);
     
     // Get the nether shop's coordinates and the displayed distance
     const data = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         const route = globalThis.__navCurrentWorldRoute;
         if (!route) { return; }
         // Find nether shop
@@ -417,13 +412,9 @@ When('I hover over the nether shop marker', async ({ page }) => {
     
     // Get the map center tile info and marker position to calculate where to pan
     const markerInfo = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         const map = globalThis.__navMap;
-        // @ts-expect-error - exposed for testing  
         const route = globalThis.__navCurrentRoute;
-        // @ts-expect-error - exposed for testing
         const centerTileX = globalThis.__navMapCenterTileX;
-        // @ts-expect-error - exposed for testing
         const centerTileZ = globalThis.__navMapCenterTileZ;
         
         if (!map || !route) { return; }
@@ -447,7 +438,6 @@ When('I hover over the nether shop marker', async ({ page }) => {
     if (markerInfo) {
         // Pan the map to center on the nether marker
         await page.evaluate((coords) => {
-            // @ts-expect-error - exposed for testing
             const map = globalThis.__navMap;
             if (map) {
                 map.setView([coords.lat, coords.lng], map.getZoom());

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { extractText, parseChatlog } from './chatlog-parser.js';
+import { extractText, parseChatlog,type ParsedChatMessage } from './chatlog-parser.js';
 
 // ============================================================================
 // Helpers — build Minecraft text components matching ChatPatches format
@@ -118,6 +118,22 @@ function makeAfkMessage(text: string, epochMs = 1_000_000): ReturnType<typeof ma
     return makeMessage({ text: '', extra: [{ text }] }, epochMs);
 }
 
+type ChatPatchesMessage = ReturnType<typeof makeMessage>;
+
+/**
+ * Get a parsed message by index, failing the test when it does not exist.
+ * @param results - Parsed chatlog messages
+ * @param index - Index of the message to return
+ * @returns The parsed message at `index`
+ */
+function entryAt(results: readonly ParsedChatMessage[], index: number): ParsedChatMessage {
+    const entry = results[index];
+    if (entry === undefined) {
+        throw new Error(`Expected a parsed message at index ${index}`);
+    }
+    return entry;
+}
+
 /**
  * Build a same-IP warning + alt-names pair.
  * @param player - Player name who triggered the same-IP warning
@@ -125,7 +141,7 @@ function makeAfkMessage(text: string, epochMs = 1_000_000): ReturnType<typeof ma
  * @param epochMs - Timestamp for the warning message
  * @returns A two-element array of ChatPatches messages: the warning and the alt-names message
  */
-function makeSameIpPair(player: string, altNames: string, epochMs = 1_000_000) {
+function makeSameIpPair(player: string, altNames: string, epochMs = 1_000_000): [ChatPatchesMessage, ChatPatchesMessage] {
     return [
         makeMessage(
             { text: '', extra: [{ text: `Warning: ${player} has the same IP as the following players:` }] },
@@ -144,7 +160,7 @@ function makeSameIpPair(player: string, altNames: string, epochMs = 1_000_000) {
 
 describe('extractText', () => {
     test('returns empty string for undefined', () => {
-        expect(extractText()).toBe('');
+        expect(extractText(undefined)).toBe('');
     });
 
     test('returns plain string as-is', () => {
@@ -228,15 +244,15 @@ describe('parseChatlog — player chat', () => {
         const chatlog = { messages: [makePlayerChat('Lord [REU] ❤ Notchian', 'hi')] };
         const results = parseChatlog(chatlog);
 
-        expect(results[0].player).toBe('Lord [REU] Notchian');
-        expect(results[0].message).toBe('hi');
+        expect(entryAt(results, 0).player).toBe('Lord [REU] Notchian');
+        expect(entryAt(results, 0).message).toBe('hi');
     });
 
     test('preserves full text field', () => {
         const chatlog = { messages: [makePlayerChat('Alex', 'test message')] };
         const results = parseChatlog(chatlog);
 
-        expect(results[0].text).toBe('Alex › test message');
+        expect(entryAt(results, 0).text).toBe('Alex › test message');
     });
 });
 
@@ -274,7 +290,7 @@ describe('parseChatlog — join and leave', () => {
         const chatlog = { messages: [makeJoinMessage('.DotPlayer99')] };
         const results = parseChatlog(chatlog);
 
-        expect(results[0].player).toBe('.DotPlayer99');
+        expect(entryAt(results, 0).player).toBe('.DotPlayer99');
     });
 });
 
@@ -301,7 +317,7 @@ describe('parseChatlog — same IP warning', () => {
         const chatlog = { messages: [warning, alts] };
         const results = parseChatlog(chatlog);
 
-        expect(results[0].altNames).toBe('.AltAccount1, .AltAccount2');
+        expect(entryAt(results, 0).altNames).toBe('.AltAccount1, .AltAccount2');
     });
 
     test('skips the alt-names follow-up line (no duplicate entry)', () => {
@@ -311,8 +327,8 @@ describe('parseChatlog — same IP warning', () => {
         const results = parseChatlog(chatlog);
 
         expect(results).toHaveLength(2);
-        expect(results[0].type).toBe('same_ip');
-        expect(results[1].type).toBe('player_chat');
+        expect(entryAt(results, 0).type).toBe('same_ip');
+        expect(entryAt(results, 1).type).toBe('player_chat');
     });
 
     test('handles IP warning at end of messages array', () => {
@@ -321,7 +337,7 @@ describe('parseChatlog — same IP warning', () => {
         const results = parseChatlog(chatlog);
 
         expect(results).toHaveLength(1);
-        expect(results[0].altNames).toBe('');
+        expect(entryAt(results, 0).altNames).toBe('');
     });
 });
 
@@ -431,15 +447,15 @@ describe('parseChatlog — mixed messages', () => {
         const results = parseChatlog(chatlog);
 
         // player_chat has message, no altNames
-        expect(results[0].message).toBe('hi');
-        expect(results[0].altNames).toBeUndefined();
+        expect(entryAt(results, 0).message).toBe('hi');
+        expect(entryAt(results, 0).altNames).toBeUndefined();
 
         // join has no message, no altNames
-        expect(results[1].message).toBeUndefined();
-        expect(results[1].altNames).toBeUndefined();
+        expect(entryAt(results, 1).message).toBeUndefined();
+        expect(entryAt(results, 1).altNames).toBeUndefined();
 
         // leave has no message, no altNames
-        expect(results[2].message).toBeUndefined();
-        expect(results[2].altNames).toBeUndefined();
+        expect(entryAt(results, 2).message).toBeUndefined();
+        expect(entryAt(results, 2).altNames).toBeUndefined();
     });
 });

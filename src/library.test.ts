@@ -273,7 +273,7 @@ describe('enchantsMatch', () => {
     });
 
     test('undefined rule enchants', () => {
-        expect(enchantsMatch({ 'minecraft:efficiency': 1 })).toBe(false);
+        expect(enchantsMatch({ 'minecraft:efficiency': 1 }, undefined)).toBe(false);
     });
 
     test('multiple enchants all match', () => {
@@ -2810,6 +2810,20 @@ function deviationByCoord(atX100: number, other: number) {
     return (t: Trade) => t.x === 100 ? { percent: atX100 } : { percent: other };
 }
 
+/**
+ * Get an item by index, failing the test when it does not exist.
+ * @param items - Items to index into
+ * @param index - Index of the item to return
+ * @returns The item at `index`
+ */
+function itemAt<T>(items: readonly T[], index: number): T {
+    const item = items[index];
+    if (item === undefined) {
+        throw new Error(`Expected an item at index ${index}`);
+    }
+    return item;
+}
+
 describe('computeDashboardData', () => {
     const BASE_SNAPSHOT: TradeSnapshot = {
         timestamp: Date.now() - 3_600_000,
@@ -2856,8 +2870,8 @@ describe('computeDashboardData', () => {
         const result = computeDashboardData([trade], fixedPercent(5), snapshot, []);
 
         expect(result.priceDrops).toHaveLength(1);
-        expect(result.priceDrops[0].oldDeviation).toBe(20);
-        expect(result.priceDrops[0].newDeviation).toBe(5);
+        expect(itemAt(result.priceDrops, 0).oldDeviation).toBe(20);
+        expect(itemAt(result.priceDrops, 0).newDeviation).toBe(5);
     });
 
     test('ignores price changes below threshold', () => {
@@ -2876,19 +2890,19 @@ describe('computeDashboardData', () => {
     test('detects watchlist hits for favorited items', () => {
         const trade = makeDashboardTrade({ resultName: 'Diamond' });
         const favorites: FavoriteItem[] = [
-            { itemName: 'diamond', maxDeviation: 10 },
+            { itemName: 'diamond', maxDeviation: 10, addedAt: 1 },
         ];
         const result = computeDashboardData([trade], fixedPercent(-5), BASE_SNAPSHOT, favorites);
 
         expect(result.watchlistHits).toHaveLength(1);
-        expect(result.watchlistHits[0].itemName).toBe('Diamond');
-        expect(result.watchlistHits[0].currentDeviation).toBe(-5);
+        expect(itemAt(result.watchlistHits, 0).itemName).toBe('Diamond');
+        expect(itemAt(result.watchlistHits, 0).currentDeviation).toBe(-5);
     });
 
     test('excludes watchlist items exceeding maxDeviation', () => {
         const trade = makeDashboardTrade({ resultName: 'Diamond' });
         const favorites: FavoriteItem[] = [
-            { itemName: 'diamond', maxDeviation: -10 },
+            { itemName: 'diamond', maxDeviation: -10, addedAt: 1 },
         ];
         // Current deviation is 5%, maxDeviation is -10% — does not meet threshold
         const result = computeDashboardData([trade], fixedPercent(5), BASE_SNAPSHOT, favorites);
@@ -2902,16 +2916,16 @@ describe('computeDashboardData', () => {
     });
 
     test('keeps best deal per favorite item', () => {
-        const trade1 = makeDashboardTrade({ resultName: 'Diamond', x: 100, costAmount: 2 });
-        const trade2 = makeDashboardTrade({ resultName: 'Diamond', x: 200, costAmount: 1 });
+        const trade1 = makeDashboardTrade({ resultName: 'Diamond', x: 100 });
+        const trade2 = makeDashboardTrade({ resultName: 'Diamond', x: 200 });
         const favorites: FavoriteItem[] = [
-            { itemName: 'diamond', maxDeviation: undefined },
+            { itemName: 'diamond', maxDeviation: undefined, addedAt: 1 },
         ];
 
         const result = computeDashboardData([trade1, trade2], percentByX(10, -5), BASE_SNAPSHOT, favorites);
 
         expect(result.watchlistHits).toHaveLength(1);
-        expect(result.watchlistHits[0].currentDeviation).toBe(-5);
+        expect(itemAt(result.watchlistHits, 0).currentDeviation).toBe(-5);
     });
 
     test('sorts price drops by improvement magnitude', () => {
@@ -2931,8 +2945,8 @@ describe('computeDashboardData', () => {
 
         expect(result.priceDrops).toHaveLength(2);
         // trade2 improved more: 50→10 (40pp) vs trade1: 30→20 (10pp)
-        expect(result.priceDrops[0].itemName).toBe('Iron ingot');
-        expect(result.priceDrops[1].itemName).toBe('Diamond');
+        expect(itemAt(result.priceDrops, 0).itemName).toBe('Iron ingot');
+        expect(itemAt(result.priceDrops, 1).itemName).toBe('Diamond');
     });
 
     test('excludes price drops when a better deal already exists for the same item', () => {
@@ -2973,8 +2987,8 @@ describe('computeDashboardData', () => {
         const result = computeDashboardData([tradeA, tradeB], deviationByCoord(-30, -50), snapshot, []);
 
         expect(result.priceDrops).toHaveLength(1);
-        expect(result.priceDrops[0].newDeviation).toBe(-50);
-        expect(result.priceDrops[0].oldDeviation).toBe(0);
+        expect(itemAt(result.priceDrops, 0).newDeviation).toBe(-50);
+        expect(itemAt(result.priceDrops, 0).oldDeviation).toBe(0);
     });
 
     test('excludes out-of-stock trades from price drops', () => {
@@ -3000,7 +3014,7 @@ describe('computeDashboardData', () => {
     test('excludes out-of-stock trades from watchlist hits', () => {
         const trade = makeDashboardTrade({ resultName: 'Diamond', stock: 0, displayStock: 0 });
         const favorites: FavoriteItem[] = [
-            { itemName: 'diamond', maxDeviation: 10 },
+            { itemName: 'diamond', maxDeviation: 10, addedAt: 1 },
         ];
         const result = computeDashboardData([trade], fixedPercent(-5), BASE_SNAPSHOT, favorites);
 

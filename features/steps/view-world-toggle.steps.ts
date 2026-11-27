@@ -384,7 +384,6 @@ Given('the map is in follow mode and centered on the player', async ({ page }) =
         }
         
         const map = (globalThis as unknown as { __navMap?: L.Map }).__navMap;
-        // @ts-expect-error - internal Leaflet method
         const latLng = map?.containerPointToLatLng([
             marker.getBoundingClientRect().left - document.querySelector('#nav-dialog-map-container')!.getBoundingClientRect().left,
             marker.getBoundingClientRect().top - document.querySelector('#nav-dialog-map-container')!.getBoundingClientRect().top

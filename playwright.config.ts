@@ -9,6 +9,10 @@ const bddTestDir = defineBddConfig({
     tags: 'not @skip',
 });
 
+// Each worktree can run its own dev server: PORT=5199 npm run test:e2e
+const PORT = Number(process.env.PORT ?? 5173);
+const BASE_URL = `http://localhost:${String(PORT)}/pvc-trades/`;
+
 export default defineConfig({
     // BDD tests have their own testDir, regular tests use 'tests' dir
     testDir: bddTestDir,
@@ -28,7 +32,7 @@ export default defineConfig({
     ],
     
     use: {
-        baseURL: 'http://localhost:5173/pvc-trades/',
+        baseURL: BASE_URL,
         trace: 'retain-on-failure',
         video: 'retain-on-failure',
         screenshot: 'only-on-failure',
@@ -60,8 +64,8 @@ export default defineConfig({
 
     // Start dev server before running tests
     webServer: {
-        command: 'npm run dev',
-        url: 'http://localhost:5173/pvc-trades/',
+        command: `npm run dev -- --port ${String(PORT)} --strictPort`,
+        url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 30000,
     },

@@ -140,7 +140,7 @@ async function setupDashboardMock(page: import('@playwright/test').Page): Promis
  * @param timestampOverride
  */
 function buildFullSnapshot(overrides: Record<string, { deviationPercent?: number; stock?: number }> = {}, timestampOverride?: number): object {
-    const baseTrades: Record<string, { deviationPercent?: number; stock: number }> = {
+    const baseTrades: Record<string, { deviationPercent?: number; stock?: number }> = {
         [MOCK_TRADE_KEYS.cheapDiamonds]:  { deviationPercent: -43, stock: 10 },
         [MOCK_TRADE_KEYS.fairDiamonds]:   { deviationPercent: -14, stock: 20 },
         [MOCK_TRADE_KEYS.priceyDiamonds]: { deviationPercent: 14,  stock: 15 },
@@ -182,10 +182,8 @@ function extractSnapshots(parsed: Record<string, unknown>): { timestamp: number;
             for (const [index, key] of keys.entries()) {
                 const value = cs.v[index];
                 if (value) {
-                    trades[key] = {
-                        deviationPercent: value[0] ?? undefined,
-                        stock: value[1],
-                    };
+                    const [deviationPercent, stock] = value;
+                    trades[key] = deviationPercent === null ? { stock } : { deviationPercent, stock };
                 }
             }
             return { timestamp: cs.t, trades };

@@ -284,6 +284,7 @@ describe('PlayerInterpolator', () => {
         }
 
         expect(pos).toBeDefined();
+        if (pos === undefined) { throw new Error('Expected a display position'); }
         // Attraction point = 104 (last observation, no extrapolation).
         // After ~960ms, critically damped spring (ωn=5) is ~98% converged.
         expect(pos.x).toBeCloseTo(104, 0);
@@ -339,6 +340,7 @@ describe('PlayerInterpolator', () => {
             pos = interpolator.getDisplayPosition(1000 + index * 16);
         }
         expect(pos).toBeDefined();
+        if (pos === undefined) { throw new Error('Expected a display position'); }
         expect(pos.x).toBeCloseTo(100, 0);
         expect(pos.z).toBeCloseTo(200, 0);
     });
@@ -406,6 +408,7 @@ describe('PlayerInterpolator', () => {
             pos = interpolator.getDisplayPosition(2000 + index * 16);
         }
         expect(pos).toBeDefined();
+        if (pos === undefined) { throw new Error('Expected a display position'); }
         // Attraction point is z=-4. Display converges to it (no extrapolation beyond).
         expect(pos.z).toBeCloseTo(-4, 0);
     });
@@ -444,6 +447,7 @@ describe('PlayerInterpolator', () => {
             pos = interpolator.getDisplayPosition(1000 + index * 16);
         }
         expect(pos).toBeDefined();
+        if (pos === undefined) { throw new Error('Expected a display position'); }
         expect(pos.y).toBeCloseTo(100, 0);
     });
 

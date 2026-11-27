@@ -20,15 +20,18 @@ vi.mock('../library.js', () => ({
 describe('getPlayerWorld', () => {
     it('returns normalized world ID when player has world field', () => {
         const player: Player = {
+            uuid: 'test-uuid',
             name: 'TestPlayer',
             position: { x: 100, y: 64, z: 200 },
-            world: 'world_nether'
+            world: 'world_nether',
+            foreign: false
         };
         expect(getPlayerWorld(player)).toBe('the_nether');
     });
 
     it('returns overworld for player without world field and foreign=false', () => {
         const player: Player = {
+            uuid: 'test-uuid',
             name: 'TestPlayer',
             position: { x: 100, y: 64, z: 200 },
             foreign: false
@@ -38,6 +41,7 @@ describe('getPlayerWorld', () => {
 
     it('returns nether for player without world field and foreign=true', () => {
         const player: Player = {
+            uuid: 'test-uuid',
             name: 'TestPlayer',
             position: { x: 100, y: 64, z: 200 },
             foreign: true
@@ -46,15 +50,18 @@ describe('getPlayerWorld', () => {
     });
 
     it('returns overworld for player without world field and undefined foreign', () => {
-        const player: Player = {
+        // Deliberately omits the required foreign flag to cover malformed API data
+        const player = {
+            uuid: 'test-uuid',
             name: 'TestPlayer',
             position: { x: 100, y: 64, z: 200 }
-        };
+        } as Player;
         expect(getPlayerWorld(player)).toBe('overworld');
     });
 
     it('prefers world field over foreign flag', () => {
         const player: Player = {
+            uuid: 'test-uuid',
             name: 'TestPlayer',
             position: { x: 100, y: 64, z: 200 },
             world: 'world_the_end',

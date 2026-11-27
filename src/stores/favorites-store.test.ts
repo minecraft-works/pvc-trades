@@ -71,7 +71,7 @@ describe('FavoritesStore', () => {
             store.add('Diamond');
             const stored = JSON.parse(mockLocalStorage.getItem(STORAGE_KEYS.FAVORITES) ?? '[]') as FavoriteItem[];
             expect(stored).toHaveLength(1);
-            expect(stored[0].itemName).toBe('diamond');
+            expect(stored[0]?.itemName).toBe('diamond');
         });
     });
 

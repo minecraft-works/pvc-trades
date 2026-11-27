@@ -263,7 +263,6 @@ Then('the map should be showing {string} world', async ({ page }, expectedWorld:
     
     // Check the navMapWorld variable exposed for testing
     const actualWorld = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         return globalThis.__navMapWorld;
     });
     expect(actualWorld).toBe(normalizedExpected);
@@ -314,7 +313,6 @@ Then('the map should switch to {string} world', async ({ page }, expectedWorld: 
     // Wait for map world to change
     await expect.poll(async () => {
         return await page.evaluate(() => {
-            // @ts-expect-error - exposed for testing
             return globalThis.__navMapWorld;
         });
     }, { timeout: 5000, intervals: [100, 200, 500, 1000] }).toBe(normalizedExpected);
@@ -328,7 +326,6 @@ Then('the map should stay on {string} world', async ({ page }, expectedWorld: st
     await page.waitForTimeout(1000);
     
     const actualWorld = await page.evaluate(() => {
-        // @ts-expect-error - exposed for testing
         return globalThis.__navMapWorld;
     });
     expect(actualWorld).toBe(normalizedExpected);
@@ -382,7 +379,6 @@ When('I wait for map to switch to {string}', async ({ page }, expectedWorld: str
     
     await expect.poll(async () => {
         return await page.evaluate(() => {
-            // @ts-expect-error - exposed for testing
             return globalThis.__navMapWorld;
         });
     }, { timeout: 10_000, intervals: [100, 200, 500, 1000] }).toBe(normalizedExpected);

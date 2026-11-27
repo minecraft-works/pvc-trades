@@ -51,7 +51,7 @@ function makeTrade(overrides: Partial<Trade> = {}): Trade {
  * @returns A DeviationResult with the given percent value
  */
 function makeDeviation(percent: number): DeviationResult {
-    return { percent, direction: percent < 0 ? 'better' : 'worse' } as DeviationResult;
+    return { percent, ratio: 1 + percent / 100, text: `${percent}%`, isGood: percent < 0 };
 }
 
 /**
@@ -498,7 +498,7 @@ describe('SnapshotStore', () => {
 
         test('preserves null deviation through compact format', () => {
             const original: TradeSnapshot[] = [
-                makeSnapshot(1000, { a: { deviationPercent: undefined, stock: 5 } }),
+                makeSnapshot(1000, { a: { stock: 5 } }),
             ];
 
             const packed = packSnapshots(original);

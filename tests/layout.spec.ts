@@ -14,7 +14,7 @@ import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // Test configuration
-const BASE_URL = 'http://localhost:5173';
+const BASE_URL = `http://localhost:${process.env.PORT ?? '5173'}`;
 const VIEWPORT = { width: 1280, height: 720 };
 const MOBILE_VIEWPORT = { width: 375, height: 667 };
 
@@ -335,6 +335,9 @@ test.describe('CSS Layout - Trade Rows', () => {
             for (let index = 0; index < boxes.length - 1; index++) {
                 const current = boxes[index];
                 const next = boxes[index + 1];
+                if (current === undefined || next === undefined) {
+                    throw new Error(`Missing column box at index ${index}`);
+                }
                 const currentEnd = current.box.x + current.box.width;
                 
                 expect(
@@ -587,6 +590,9 @@ test.describe('CSS Layout - Mobile Responsiveness', () => {
             for (let index = 0; index < boxes.length - 1; index++) {
                 const current = boxes[index];
                 const next = boxes[index + 1];
+                if (current === undefined || next === undefined) {
+                    throw new Error(`Missing column box at index ${index}`);
+                }
                 const currentEnd = current.box.x + current.box.width;
                 
                 expect(
@@ -1073,7 +1079,7 @@ test.describe('Map Dialog - Backdrop Close Behavior', () => {
 
         // Two fingers on the backdrop left of the map, moving apart
         const cdp = await page.context().newCDPSession(page);
-        const touch = (type: string, points: readonly (readonly [number, number])[]) => cdp.send('Input.dispatchTouchEvent', {
+        const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: readonly (readonly [number, number])[]) => cdp.send('Input.dispatchTouchEvent', {
             type, touchPoints: points.map(([x, y], id) => ({ x, y, id })),
         });
         await touch('touchStart', [[20, 300], [20, 340]]);

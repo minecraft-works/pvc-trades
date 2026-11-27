@@ -100,7 +100,7 @@ describe('getTileCoordsAtZoom', () => {
     });
 
     test('matches getTileCoords at max zoom', () => {
-        const testCases = [
+        const testCases: [number, number][] = [
             [0, 0], [100, 200], [512, 512], [-100, -100], [1000, -500]
         ];
         
@@ -155,7 +155,7 @@ describe('parseLocation', () => {
 
     test('handles null and undefined', () => {
         expect(parseLocation(null)).toEqual({ x: 0, y: 0, z: 0 });
-        expect(parseLocation()).toEqual({ x: 0, y: 0, z: 0 });
+        expect(parseLocation(undefined)).toEqual({ x: 0, y: 0, z: 0 });
     });
 
     test('handles empty string', () => {
@@ -231,7 +231,7 @@ describe('isCoordInTile', () => {
 
 describe('Cross-module consistency', () => {
     test('getTileCoordsAtZoom at max zoom matches getTileCoords', () => {
-        const testCoords = [
+        const testCoords: [number, number][] = [
             [0, 0], [512, 0], [0, 512], [-512, -512],
             [1000, 2000], [-1000, 2000], [50_000, -50_000]
         ];
@@ -247,7 +247,7 @@ describe('Cross-module consistency', () => {
     });
 
     test('tile bounds are consistent with coordinate calculation', () => {
-        const testCoords = [
+        const testCoords: [number, number][] = [
             [100, 200], [600, -100], [-300, 400], [8000, 8000]
         ];
         
@@ -264,7 +264,7 @@ describe('Cross-module consistency', () => {
     });
 
     test('isCoordInTile is consistent with getTileCoords', () => {
-        const testCoords = [
+        const testCoords: [number, number][] = [
             [100, 200], [600, -100], [-300, 400], [0, 0], [511, 511]
         ];
         

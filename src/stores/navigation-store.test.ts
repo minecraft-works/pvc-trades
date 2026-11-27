@@ -306,8 +306,8 @@ describe('NavigationStore', () => {
         });
 
         test('returns correct stop after advancing', () => {
-            const stop1 = createMockShopStop({ key: 'shop-1' });
-            const stop2 = createMockShopStop({ key: 'shop-2' });
+            const stop1 = createMockShopStop({ x: 100 });
+            const stop2 = createMockShopStop({ x: 300 });
             navigationStore.setWorldRoute([stop1, stop2]);
             navigationStore.advanceToNextStop();
             expect(navigationStore.currentStop).toBe(stop2);

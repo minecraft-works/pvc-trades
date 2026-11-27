@@ -25,8 +25,9 @@ for (let n = 0; n < 256; n++) {
 function crc32(data: Buffer): Buffer {
     let crc = 0xFF_FF_FF_FF;
     for (const datum of data) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- CRC table is fully populated (256 entries)
-        crc = crcTable[(crc ^ datum) & 0xFF]! ^ (crc >>> 8);
+        const entry = crcTable[(crc ^ datum) & 0xFF];
+        if (entry === undefined) { throw new Error('CRC table is not fully populated'); }
+        crc = entry ^ (crc >>> 8);
     }
     crc = crc ^ 0xFF_FF_FF_FF;
     const result = Buffer.alloc(4);

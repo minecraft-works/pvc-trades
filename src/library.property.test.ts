@@ -38,11 +38,12 @@ import {
     median,
     nearestNeighborOrder,
     parseLocation,
+    type RoutePoint,
     sortResults,
     toOverworldEquivalent,
     twoOptOptimize,
 } from './library.js';
-import type { FilterResult, Item,RoutePoint, Trade } from './types.js';
+import type { FilterResult, Item, Trade } from './types.js';
 
 // Configure fast-check globally: 500 runs per property
 beforeAll(() => {
@@ -186,7 +187,7 @@ describe('formatName properties', () => {
                     const item: Item = { type: name, name: '', amount: 1 };
                     const result = formatName(item);
                     if (result.length > 0) {
-                        expect(result[0]).toBe(result[0].toUpperCase());
+                        expect(result.charAt(0)).toBe(result.charAt(0).toUpperCase());
                     }
                 }
             )
@@ -317,8 +318,13 @@ describe('median properties', () => {
                 (numbers) => {
                     // Use fast-check's shuffled array instead of Math.random
                     const reversed = [...numbers].toReversed();
+                    const forward = median(numbers);
+                    const backward = median(reversed);
+                    if (forward === undefined || backward === undefined) {
+                        throw new Error('median of a non-empty array must be defined');
+                    }
                     // Add 0 to coerce -0 to +0 before comparing
-                    expect(median(numbers) + 0).toEqual(median(reversed) + 0);
+                    expect(forward + 0).toEqual(backward + 0);
                 }
             )
         );
@@ -835,7 +841,7 @@ const tradeArb = fc.constantFrom('Diamond', 'Emerald', 'Gold Ingot', 'Iron Ingot
         item1: fc.constant(mockItem),
         resultItem: fc.constant(mockItem),
         loreText: fc.constant(''),
-        shulkerItems: fc.constant(),
+        shulkerItems: fc.constant(undefined),
     })
 ) as fc.Arbitrary<Trade>;
 
@@ -893,7 +899,7 @@ describe('sortResults properties', () => {
         fc.assert(
             fc.property(
                 fc.array(filterResultArb, { minLength: 0, maxLength: 20 }),
-                fc.constantFrom('result-amt', 'cost-amt', 'stock', 'deviation'),
+                fc.constantFrom('result-amt', 'cost-amt', 'stock', 'dev'),
                 fc.constantFrom('asc', 'desc'),
                 (results, column, direction) => {
                     const sorted = sortResults(results, column, direction);

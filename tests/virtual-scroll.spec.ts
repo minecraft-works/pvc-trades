@@ -16,7 +16,7 @@ import { expect,test } from './helpers/global-setup';
 import { mockConfigRoute } from './helpers/test-config';
 
 // Test configuration
-const BASE_URL = 'http://localhost:5173';
+const BASE_URL = `http://localhost:${process.env.PORT ?? '5173'}`;
 const VIEWPORT = { width: 1280, height: 720 };
 
 // Generate a large mock dataset to test virtualization

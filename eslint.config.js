@@ -96,11 +96,7 @@ export default tseslint.config(
             ecmaVersion: 2022,
             sourceType: 'module',
             parserOptions: {
-                projectService: {
-                    allowDefaultProject: ['*.test.ts', 'src/*.test.ts', 'src/stores/*.test.ts', 'src/map/*.test.ts', 'src/dialogs/*.test.ts', 'src/chatlog/*.test.ts', 'src/search/*.test.ts', 'src/valuation/*.test.ts', 'tests/*.spec.ts', 'tests/helpers/*.ts', 'features/*.ts', 'features/steps/*.ts', 'scripts/*.ts', 'workers/*/*.ts'],
-                    defaultProject: './tsconfig.eslint.json',
-                    maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 100
-                },
+                projectService: true,
                 tsconfigRootDir: import.meta.dirname
             },
             globals: {

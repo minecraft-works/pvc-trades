@@ -122,7 +122,6 @@ Given('I manually zoom to level {int}', async ({ page }, zoomLevel: number) => {
     // Without this, the step would assume current zoom is 0 and only click
     // abs(zoomLevel) times, which is wrong when navigation initialises at zoom ~2.
     const currentZoom: number = await page.evaluate(() => {
-        // @ts-expect-error - testing global
         const map = globalThis.__navMap as { getZoom(): number } | undefined;
         return map?.getZoom() ?? 0;
     });
@@ -201,28 +200,22 @@ When('player position updates', async ({ playerMock }) => {
 
 Then(String.raw`the map should be at zoom level {int} \(maximum)`, async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
-        // @ts-expect-error - testing global
         const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
-    if (zoom !== null) {
-        expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 0.5);
-        expect(zoom).toBeLessThanOrEqual(zoomLevel + 0.5);
-    }
+    expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 0.5);
+    expect(zoom).toBeLessThanOrEqual(zoomLevel + 0.5);
 });
 
 Then('the map should be at zoom level {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
-        // @ts-expect-error - testing global
         const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
-    if (zoom !== null) {
-        expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 1);
-        expect(zoom).toBeLessThanOrEqual(zoomLevel + 1);
-    }
+    expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 1);
+    expect(zoom).toBeLessThanOrEqual(zoomLevel + 1);
 });
 
 Then(String.raw`the map should center on \({int}, {int})`, async ({ page }, _x: number, _z: number) => {
@@ -232,12 +225,11 @@ Then(String.raw`the map should center on \({int}, {int})`, async ({ page }, _x: 
 
 Then('the map should animate to zoom {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
-        // @ts-expect-error - testing global
         const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
-    if (zoom !== null && zoom !== undefined) {
+    if (zoom !== undefined) {
         expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 1);
     }
 });
@@ -273,16 +265,13 @@ Then('the re-center button should hide', async ({ page }) => {
 
 Then('the map should stay at zoom {int}', async ({ page }, zoomLevel: number) => {
     const zoom = await page.evaluate(() => {
-        // @ts-expect-error - testing global
         const map = globalThis.__navMap;
         return map?.getZoom();
     });
     
-    if (zoom !== null) {
-        // Allow wider tolerance for Leaflet fractional zoom levels
-        expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 1.5);
-        expect(zoom).toBeLessThanOrEqual(zoomLevel + 1.5);
-    }
+    // Allow wider tolerance for Leaflet fractional zoom levels
+    expect(zoom).toBeGreaterThanOrEqual(zoomLevel - 1.5);
+    expect(zoom).toBeLessThanOrEqual(zoomLevel + 1.5);
 });
 
 Then('the map should not re-center', async () => {
