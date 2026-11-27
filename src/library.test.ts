@@ -8,55 +8,20 @@ import path from 'node:path';
 
 import { beforeAll, describe, expect, test, vi } from 'vitest';
 
-import {
-    applyMapping,
-    buildExchangeMatrix,
-    buildRatioGraph,
-    calculateFitZoom,
-    calculateItemValues,
-    calculatePairPrices,
-    clampToCircle,
-    computeDashboardData,
-    countIndependentShops,
-    enchantsMatch,
-    escapeHtml,
-    filterTrade,
-    formatName,
-    formatRelativeTime,
-    formatTradeCost,
-    formatTradeCostNames,
-    fromLeafletCoordsRelative,
-    getConfig,
-    getCostParts,
-    getItemComponents,
-    getRatio,
-    getRegex,
-    getTileCoords,
-    getTileOffset,
-    getTradeKey,
-    getTrustedItemValue,
-    getValuationName,
-    getWorldId,
-    getZoomForHeight,
-    hasEnoughIndependentData,
-    highlight,
-    isNether,
-    loadBaseItems,
-    loadConfig,
-    loadFixedRatios,
-    matchesQuery,
-    median,
-    parseLocation,
-    parseShulkerContents,
-    processTrade,
-    shouldSwitchMapWorld,
-    sortResults,
-    toLeafletCoords,
-    toLeafletCoordsRelative,
-    toValuationInput} from './library.js';
+import { computeDashboardData, formatRelativeTime } from './dashboard/dashboard-data.js';
+import { formatName } from './formatting.js';
+import { applyMapping, enchantsMatch, escapeHtml, filterTrade, formatTradeCost, formatTradeCostNames, getCostParts, getRegex, highlight, matchesQuery, parseLocation, processTrade, sortResults } from './library.js';
+import { calculateFitZoom, clampToCircle, fromLeafletCoordsRelative, getTileOffset, getTradeKey, getWorldId, isNether, shouldSwitchMapWorld, toLeafletCoords, toLeafletCoordsRelative } from './map/map-math.js';
+import { getZoomForHeight } from './routing/navigation-helpers.js';
 import { createDeviationCalculator } from './search/deviation.js';
+import { getConfig, loadBaseItems, loadConfig, loadFixedRatios } from './stores/index.js';
+import { getTileCoords } from './tile-coords.js';
 import type { AppConfig, BlockConversions, FavoriteItem,FilterResult, Item, ItemValues, MappingRule, Recipe, Shop, Trade, TradeInput, TradeSnapshot } from './types.js';
 import { AppConfigSchema, DEFAULT_CONFIG } from './types.js';
+import { getItemComponents, getValuationName, parseShulkerContents, toValuationInput } from './valuation/item-identity.js';
+import { calculateItemValues, calculatePairPrices } from './valuation/item-values.js';
+import { buildExchangeMatrix, buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
+import { countIndependentShops, getTrustedItemValue, hasEnoughIndependentData, median } from './valuation/statistics.js';
 
 // String constants to avoid duplication
 const EMERALD = 'EMERALD';
@@ -1899,15 +1864,7 @@ describe('clampToCircle', () => {
 // Route Optimization Tests
 // ============================================================================
 
-import {
-    buildDistanceMatrix,
-    calculateOrderDistance,
-    calculateRouteDistance,
-    computeOptimalOrder,
-    nearestNeighborOrder,
-    type RoutePoint,
-    toOverworldEquivalent,
-    twoOptOptimize} from './library.js';
+import { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, computeOptimalOrder, nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, twoOptOptimize } from './routing/route-optimizer.js';
 
 describe('toOverworldEquivalent', () => {
     test('returns same coords for overworld', () => {
@@ -2491,11 +2448,7 @@ describe('shouldSwitchMapWorld', () => {
 // Shopping & Navigation Helpers Tests
 // ============================================================================
 
-import { 
-    aggregateShoppingList, 
-    buildMarkerContent, 
-    buildStopTooltip, 
-    calculateTotalRouteDistance} from './library.js';
+import { aggregateShoppingList, buildMarkerContent, buildStopTooltip, calculateTotalRouteDistance } from './routing/navigation-helpers.js';
 import type { RouteStop } from './types.js';
 
 describe('aggregateShoppingList', () => {

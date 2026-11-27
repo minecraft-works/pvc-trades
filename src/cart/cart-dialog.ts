@@ -9,15 +9,10 @@
  */
 
 import { CSS_CLASSES, DIALOG_IDS } from '../constants.js';
-import {
-    aggregateShoppingList,
-    computeOptimalOrder,
-    escapeHtml,
-    formatTradeCost,
-    getTradeKey,
-    isNether,
-    toOverworldEquivalent,
-} from '../library.js';
+import { escapeHtml, formatTradeCost } from '../library.js';
+import { getTradeKey, isNether } from '../map/map-math.js';
+import { aggregateShoppingList } from '../routing/navigation-helpers.js';
+import { computeOptimalOrder, toOverworldEquivalent } from '../routing/route-optimizer.js';
 import { cartStore, navigationStore } from '../stores/index.js';
 import type { RouteStop, ShoppingList,Trade } from '../types.js';
 

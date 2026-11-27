@@ -10,14 +10,7 @@
 
 import { beforeEach,describe, expect, test } from 'vitest';
 
-import {
-    estimateVelocity,
-    lerpAngle,
-    SPRING_DAMPING,
-    SPRING_STIFFNESS,
-    type SpringConfig,
-    springStep,
-} from './library.js';
+import { estimateVelocity, lerpAngle, SPRING_DAMPING, SPRING_STIFFNESS, type SpringConfig, springStep } from './interpolation/interpolation.js';
 import { PlayerInterpolator } from './stores/player-interpolator.js';
 import { PlayerPositionService } from './stores/player-position-service.js';
 

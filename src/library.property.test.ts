@@ -20,30 +20,13 @@
 import * as fc from 'fast-check';
 import { beforeAll,describe, expect, test } from 'vitest';
 
-import {
-    buildDistanceMatrix,
-    calculateOrderDistance,
-    calculateRouteDistance,
-    clampToCircle,
-    escapeHtml,
-    filterTrade,
-    formatName,
-    getRegex,
-    getTileCoords,
-    getTileOffset,
-    getWorldId,
-    highlight,
-    isNether,
-    matchesQuery,
-    median,
-    nearestNeighborOrder,
-    parseLocation,
-    type RoutePoint,
-    sortResults,
-    toOverworldEquivalent,
-    twoOptOptimize,
-} from './library.js';
+import { formatName } from './formatting.js';
+import { escapeHtml, filterTrade, getRegex, highlight, matchesQuery, parseLocation, sortResults } from './library.js';
+import { clampToCircle, getTileOffset, getWorldId, isNether } from './map/map-math.js';
+import { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, twoOptOptimize } from './routing/route-optimizer.js';
+import { getTileCoords } from './tile-coords.js';
 import type { FilterResult, Item, Trade } from './types.js';
+import { median } from './valuation/statistics.js';
 
 // Configure fast-check globally: 500 runs per property
 beforeAll(() => {

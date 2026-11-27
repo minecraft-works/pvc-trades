@@ -13,19 +13,15 @@ import type * as L from 'leaflet';
 
 import { SELECTORS } from '../constants.js';
 import { getWorldDisplayName } from '../dialogs/index.js';
-import {
-    calculateFitZoom,
-    escapeHtml,
-    getTileCoords,
-    getWorldId,
-    toLeafletCoords,
-    toLeafletCoordsRelative} from '../library.js';
+import { escapeHtml } from '../library.js';
 import type { ShopLocation, ShopSummary } from '../search/shop-filter.js';
 import { playerPositionService } from '../stores/player-position-service.js';
+import { getTileCoords } from '../tile-coords.js';
 import type { Player, ShopFilter } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 import { leaflet, loadLeaflet } from './leaflet.js';
 import { createLevelSwitcher, type LevelSwitcher } from './level-switcher.js';
+import { calculateFitZoom, getWorldId, toLeafletCoords, toLeafletCoordsRelative } from './map-math.js';
 import { getMarkerScale } from './map-math.js';
 import { setupOutsideGestures } from './outside-gestures.js';
 import { createPlayerLayer, type PlayerLayer } from './player-layer.js';

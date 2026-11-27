@@ -7,7 +7,8 @@
  * @module navigation/shop-tooltip
  */
 
-import { calculateRouteDistance, escapeHtml } from '../library.js';
+import { escapeHtml } from '../library.js';
+import { calculateRouteDistance } from '../routing/route-optimizer.js';
 import type { PlayerPosition } from '../stores/navigation-store.js';
 import type { CartItem,RouteStop } from '../types.js';
 

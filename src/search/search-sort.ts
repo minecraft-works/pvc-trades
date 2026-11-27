@@ -15,15 +15,9 @@ import {
     SORT,
 } from '../constants.js';
 import { isFavoritesFilterActive } from '../favorites/index.js';
-import {
-    filterTrade,
-    formatTradeCostNames,
-    getOverworldDistanceFromOrigin,
-    getRegex,
-    getTotalCostAmount,
-    getTradeKey,
-    isFilledShulker,
-} from '../library.js';
+import { filterTrade, formatTradeCostNames, getRegex, getTotalCostAmount } from '../library.js';
+import { getTradeKey } from '../map/map-math.js';
+import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
     DeviationResult,
@@ -34,6 +28,7 @@ import type {
     SortDirection,
     Trade,
 } from '../types.js';
+import { isFilledShulker } from '../valuation/item-identity.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
 import { matchesShopFilter } from './shop-filter.js';
 

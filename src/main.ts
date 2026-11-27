@@ -47,16 +47,12 @@ import {
     setupDialogBackdropClose} from './dialogs/index.js';
 import type { FavoritesUIHandler } from './favorites/index.js';
 import { createFavoritesUIHandler } from './favorites/index.js';
-import {
-    getConfig,
-    getTradeKey,
-    getTrustedItemValue,
-} from './library.js';
 import type { ShopMapDialogHandler } from './map/index.js';
 import {
     createShopMapDialogHandler
 } from './map/index.js';
 import { prefetchLeaflet } from './map/leaflet.js';
+import { getTradeKey } from './map/map-math.js';
 import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
 import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
 import type { ActionSuggestion, Autocomplete } from './quick-search/autocomplete.js';
@@ -73,9 +69,11 @@ import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
 import { collectItemNames } from './search/query.js';
 import { collectShopLocations, collectShopSuggestions, rankShopSuggestions, type ShopLocation, type ShopSuggestion, summarizeOwner, summarizeShopAt } from './search/shop-filter.js';
+import { getConfig } from './stores/index.js';
 import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
 import type { ShopFilter, Trade } from './types.js';
 import { findFlips,type Flip } from './valuation/flips.js';
+import { getTrustedItemValue } from './valuation/statistics.js';
 
 // ============================================================================
 // State

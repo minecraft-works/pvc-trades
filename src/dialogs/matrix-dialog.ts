@@ -11,8 +11,9 @@
  */
 
 import { DIALOG_IDS, SELECTORS } from '../constants.js';
-import { buildExchangeMatrix, escapeHtml } from '../library.js';
+import { escapeHtml } from '../library.js';
 import type { ExchangeMatrix, ItemValues } from '../types.js';
+import { buildExchangeMatrix } from '../valuation/ratio-graph.js';
 import { type FlipsPanelDeps, renderFlipsPanel } from './flips-panel.js';
 
 // ============================================================================

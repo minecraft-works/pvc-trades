@@ -7,8 +7,10 @@
  * @module dialogs/trade-details
  */
 
-import { escapeHtml,formatName, parseShulkerContents } from '../library.js';
+import { formatName } from '../formatting.js';
+import { escapeHtml } from '../library.js';
 import type { Item,Trade } from '../types.js';
+import { parseShulkerContents } from '../valuation/item-identity.js';
 import { setupDialogBackdropClose } from './dialog-utilities.js';
 
 // ============================================================================

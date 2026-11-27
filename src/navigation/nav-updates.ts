@@ -11,18 +11,12 @@ import type * as L from 'leaflet';
 
 import { NAVIGATION } from '../constants.js';
 import { debugInterpolation } from '../debug.js';
-import {
-    calculateRouteDistance,
-    escapeHtml,
-    getTradeKey,
-    getWorldId,
-    getZoomForHeight,
-    isNether,
-    toLeafletCoordsRelative,
-    toViewCoords,
-} from '../library.js';
+import { escapeHtml } from '../library.js';
 import { TILE_CONFIG } from '../map/index.js';
 import { leaflet } from '../map/leaflet.js';
+import { getTradeKey, getWorldId, isNether, toLeafletCoordsRelative } from '../map/map-math.js';
+import { getZoomForHeight } from '../routing/navigation-helpers.js';
+import { calculateRouteDistance, toViewCoords } from '../routing/route-optimizer.js';
 import type { RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';

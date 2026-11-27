@@ -8,14 +8,11 @@
  */
 
 import { DASHBOARD } from '../constants.js';
-import {
-    computeDashboardData,
-    escapeHtml,
-    formatRelativeTime,
-    getTradeKey,
-} from '../library.js';
+import { escapeHtml } from '../library.js';
+import { getTradeKey } from '../map/map-math.js';
 import type { DeviationResult } from '../search/index.js';
 import type { DashboardData, FavoriteItem,PriceDrop, Trade, TradeSnapshot, WatchlistHit } from '../types.js';
+import { computeDashboardData, formatRelativeTime } from './dashboard-data.js';
 
 // ============================================================================
 // Constants

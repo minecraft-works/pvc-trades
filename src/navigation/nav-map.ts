@@ -16,15 +16,6 @@ import type * as L from 'leaflet';
 
 import { CSS_CLASSES, WORLDS } from '../constants.js';
 import { debugMap, debugTiles } from '../debug.js';
-import {
-    buildMarkerContent,
-    buildStopTooltip,
-    getTileCoords,
-    getTradeKey,
-    isNether,
-    toLeafletCoordsRelative,
-    toViewCoords,
-} from '../library.js';
 import type { LoadNavMapTilesOptions, TileRange } from '../map/index.js';
 import {
     calculateOverviewCoords,
@@ -32,6 +23,10 @@ import {
     TILE_CONFIG,
 } from '../map/index.js';
 import { leaflet } from '../map/leaflet.js';
+import { getTradeKey, isNether, toLeafletCoordsRelative } from '../map/map-math.js';
+import { buildMarkerContent, buildStopTooltip } from '../routing/navigation-helpers.js';
+import { toViewCoords } from '../routing/route-optimizer.js';
+import { getTileCoords } from '../tile-coords.js';
 import type { RouteStop } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 

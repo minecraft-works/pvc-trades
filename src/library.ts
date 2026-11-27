@@ -1,36 +1,10 @@
 /**
- * Pure logic functions - no DOM dependencies
- * These can be imported and unit tested directly
- * 
+ * Trade processing, search matching and sorting: pure functions without DOM
+ * dependencies. Other pure logic lives in its own module (src/valuation,
+ * src/routing, src/map/map-math.ts, src/tile-coords.ts, ...); import from
+ * those directly.
+ *
  * @module library
- * 
- * ============================================================================
- * FILE NAVIGATION INDEX
- * ============================================================================
- * 
- * This file contains core text processing, location, trade filtering, and
- * sorting logic. Domain modules have been extracted to dedicated files and
- * are re-exported here for backward compatibility.
- * 
- * LOCAL SECTIONS
- *   Store Re-exports          configStore, coreBlocksStore, blockConversionsStore
- *   Query Matching            matchesQuery(), matchesItem(), matchesShop()
- *   Formatting                formatName(), formatPrice(), escapeHtml()
- *   HTML Utilities            stripHtml(), splitAtWordBoundary()
- *   Location & Distance       isValidCoordinate(), formatCoordinates()
- *   Trade Processing          normalizeTradeName(), parseTrade()
- *   Trade Filtering           filterTrades(), applyFilters()
- *   Sorting                   sortTrades(), compareByColumn()
- * 
- * RE-EXPORTED MODULES
- *   src/valuation/            statistics, ratio-graph, item-values, item-identity (shulker parsing)
- *   src/map/map-math          coordinate conversions, tile offsets, zoom
- *   src/routing/              route-optimizer, navigation-helpers
- *   src/interpolation/        player position interpolation
- *   src/dashboard/            dashboard-data computation
- *   src/tile-coords           tile coordinate utilities
- * 
- * ============================================================================
  */
 
 import { formatName } from './formatting.js';
@@ -49,24 +23,6 @@ import {
     type Trade,
 } from './types.js';
 import { describeItemStack, getItemStackNames, getShulkerLabel, parseShulkerContents } from './valuation/item-identity.js';
-
-export type { SimpleTileCoords, ZoomedTileCoords } from './tile-coords.js';
-
-// ============================================================================
-// Store Re-exports (stores moved to src/stores/)
-// ============================================================================
-
-// Re-export stores for backward compatibility - stores are now in src/stores/
-export {
-    blockConversionsStore,
-    configStore,
-    coreBlocksStore,
-    getConfig,
-    getCoreBlocks,
-    loadBaseItems,
-    loadConfig,
-    loadFixedRatios,
-} from './stores/index.js';
 
 // ============================================================================
 // Query Matching Functions
@@ -129,10 +85,8 @@ export function enchantsMatch(
 }
 
 // ============================================================================
-// Formatting Functions (extracted to src/formatting.ts to break circular deps)
+// Trade Processing
 // ============================================================================
-
-export { formatName } from './formatting.js';
 
 /**
  * Apply custom mapping rules to transform item types.
@@ -564,43 +518,3 @@ export function sortResults(
         return sortDirection * (valueA - valueB);
     });
 }
-
-// ============================================================================
-// Valuation Re-exports (implementations moved to src/valuation/)
-// ============================================================================
-
-export { getItemComponents, getPairKey, getPairPrice, getValuationName, isFilledShulker, parseShulkerContents, toValuationInput, valueItemStack } from './valuation/item-identity.js';
-export { calculateItemValues, calculatePairPrices } from './valuation/item-values.js';
-export { buildExchangeMatrix,buildRatioGraph, getRatio } from './valuation/ratio-graph.js';
-export { countIndependentShops, getTrustedItemValue, getTrustedPairPrice, hasEnoughIndependentData, median } from './valuation/statistics.js';
-
-// ============================================================================
-// Map Utilities Re-exports (implementations moved to src/map/map-math.ts)
-// ============================================================================
-
-export { calculateFitZoom, clampToCircle,fromLeafletCoordsRelative, getTileOffset, getTradeKey, getWorldId, isNether, shouldSwitchMapWorld, toLeafletCoords, toLeafletCoordsRelative } from './map/map-math.js';
-
-// ============================================================================
-// Route Optimization Re-exports (implementations moved to src/routing/route-optimizer.ts)
-// ============================================================================
-
-export { buildDistanceMatrix, calculateOrderDistance, calculateRouteDistance, computeOptimalOrder, getOverworldDistanceFromOrigin, nearestNeighborOrder, type RoutePoint, toOverworldEquivalent, toViewCoords, twoOptOptimize } from './routing/route-optimizer.js';
-
-// ============================================================================
-// Shopping & Navigation Re-exports (implementations moved to src/routing/navigation-helpers.ts)
-// ============================================================================
-
-export { aggregateShoppingList, buildMarkerContent, buildStopTooltip, calculateTotalRouteDistance, getZoomForHeight, hasPositionMoved } from './routing/navigation-helpers.js';
-
-// ============================================================================
-// Player Position Interpolation Re-exports (kept in library.ts as canonical source)
-// ============================================================================
-
-export { estimateVelocity, type InterpolatedPosition, lerpAngle, type Position2D, SPRING_DAMPING, SPRING_STIFFNESS, type SpringConfig, type SpringResult, springStep, type Velocity2D } from './interpolation/interpolation.js';
-
-// ============================================================================
-// Dashboard Data Re-exports (implementations moved to src/dashboard/dashboard-data.ts)
-// ============================================================================
-
-export { computeDashboardData,formatRelativeTime } from './dashboard/dashboard-data.js';
-export {getBlocksPerTile, getTileBounds, getTileCoords,getTileCoordsAtZoom} from './tile-coords.js';

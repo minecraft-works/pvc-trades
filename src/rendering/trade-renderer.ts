@@ -14,15 +14,9 @@ import {
     CSS_CLASSES,
     SORT,
 } from '../constants.js';
-import {
-    escapeHtml,
-    formatTradeCostNames,
-    getCostParts,
-    getOverworldDistanceFromOrigin,
-    getTradeKey,
-    highlight,
-    isNether,
-} from '../library.js';
+import { escapeHtml, formatTradeCostNames, getCostParts, highlight } from '../library.js';
+import { getTradeKey, isNether } from '../map/map-math.js';
+import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
 import type { DeviationResult } from '../search/index.js';
 import { formatUnitPrice } from '../search/query.js';
 import { cartStore, favoritesStore } from '../stores/index.js';

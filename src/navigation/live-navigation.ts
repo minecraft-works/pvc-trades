@@ -15,15 +15,12 @@ import {
 } from '../constants.js';
 import { debugInterpolation,debugNavigation, debugPlayerPoll } from '../debug.js';
 import {
-    calculateTotalRouteDistance,
-    getWorldId,
-    hasPositionMoved,
-} from '../library.js';
-import {
     fetchPlayers,
     getPlayerWorld,
 } from '../map/index.js';
 import { loadLeaflet } from '../map/leaflet.js';
+import { getWorldId } from '../map/map-math.js';
+import { calculateTotalRouteDistance, hasPositionMoved } from '../routing/navigation-helpers.js';
 import type { Player,RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';

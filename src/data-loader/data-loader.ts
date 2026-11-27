@@ -13,18 +13,10 @@
 
 import { z } from 'zod/mini';
 
-import {
-    calculateItemValues,
-    calculatePairPrices,
-    getConfig,
-    getTradeKey,
-    loadBaseItems,
-    loadConfig,
-    loadFixedRatios,
-    processTrade,
-    toValuationInput,
-} from '../library.js';
+import { processTrade } from '../library.js';
+import { getTradeKey } from '../map/map-math.js';
 import { createDeviationCalculator } from '../search/index.js';
+import { getConfig, loadBaseItems, loadConfig, loadFixedRatios } from '../stores/index.js';
 import type {
     DeviationResult,
     ItemValues,
@@ -37,6 +29,8 @@ import {
     MappingRuleSchema,
     ShopDataSchema,
 } from '../types.js';
+import { toValuationInput } from '../valuation/item-identity.js';
+import { calculateItemValues, calculatePairPrices } from '../valuation/item-values.js';
 
 // ============================================================================
 // Dependency & Handler interfaces

@@ -62,26 +62,13 @@ export const coreBlocksStore = new CoreBlocksStore();
 // ============================================================================
 
 /**
- * Get the list of core currency blocks used for ratio calculations.
- * 
- * @returns Array of block names (e.g., ['Emerald Block', 'Diamond Block'])
- * 
- * @example
- * const coreBlocks = getCoreBlocks();
- * const isCoreBlock = coreBlocks.includes('Diamond Block');
- */
-export function getCoreBlocks(): string[] {
-    return coreBlocksStore.get();
-}
-
-/**
  * Load core currency blocks from core_currencies.json.
  * 
  * @returns Promise resolving to array of block names
  * 
  * @example
  * await loadBaseItems();
- * const blocks = getCoreBlocks();
+ * const blocks = coreBlocksStore.get();
  */
 export async function loadBaseItems(): Promise<string[]> {
     return coreBlocksStore.load();

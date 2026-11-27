@@ -4,9 +4,9 @@
  */
 
 import { WORLDS } from '../constants.js';
-import { getWorldId } from '../library.js';
 import type { Player } from '../types.js';
 import { PlayersDataSchema } from '../types.js';
+import { getWorldId } from './map-math.js';
 
 /** API endpoint for player positions (the players Worker unless overridden for local dev) */
 const PLAYERS_API_URL = import.meta.env.VITE_PLAYERS_URL ?? 'https://pvc-players.minecraft-works.workers.dev';
