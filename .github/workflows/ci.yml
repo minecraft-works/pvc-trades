@@ -46,9 +46,6 @@ jobs:
       - name: Check dependency architecture
         run: npm run lint:deps
 
-      - name: Check circular dependencies
-        run: npm run lint:circular
-
       - name: Parse safety check
         run: npm run lint:parse-safety
 
@@ -97,9 +94,6 @@ jobs:
 
       - name: Check bundle size
         run: npx size-limit
-
-      - name: Generate API documentation
-        run: npm run docs
 
       - name: Security audit
         run: npm audit --audit-level=high

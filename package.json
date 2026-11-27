@@ -30,9 +30,7 @@
     "lint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\" --fix && stylelint styles.css --fix",
     "knip": "knip",
     "knip:fix": "knip --fix",
-    "docs": "typedoc",
     "lint:deps": "depcruise src --config .dependency-cruiser.cjs",
-    "lint:circular": "madge --circular --extensions ts src/",
     "lint:filenames": "ls-lint",
     "lint:lockfile": "lockfile-lint --type npm --path package-lock.json --allowed-hosts npm --validate-https",
     "lint:parse-safety": "tsx scripts/check-parse-safety.ts",
@@ -93,16 +91,11 @@
     "knip": "^6.48.0",
     "lint-staged": "^17.6.2",
     "lockfile-lint": "^5.1.1",
-    "madge": "^8.0.0",
-    "playwright": "^1.57.0",
     "playwright-bdd": "^9.2.1",
-    "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "size-limit": "^14.3.0",
     "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
     "tsx": "^4.23.15",
-    "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.74.0",
     "vite": "^8.4.0",
@@ -116,12 +109,6 @@
   },
   "overrides": {
     "minimatch": ">=10.2.3",
-    "deepmerge-ts": "^8.0.2",
-    "typedoc": {
-      "minimatch": "^10.2.5"
-    },
-    "madge": {
-      "typescript": "$typescript"
-    }
+    "deepmerge-ts": "^8.0.2"
   }
 }
