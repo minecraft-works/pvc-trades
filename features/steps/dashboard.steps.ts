@@ -28,7 +28,7 @@ const DASHBOARD_TIME_AGO_SELECTOR = '#dashboard-time-ago';
 const DASHBOARD_TOGGLE_SELECTOR = '#open-dashboard';
 const TRADE_ROW_SELECTOR = '.trade-row';
 
-const STORAGE_KEY_SNAPSHOT = 'shop-trades-snapshot-dev3';
+const STORAGE_KEY_SNAPSHOT = 'shop-trades-snapshot-dev4';
 const STORAGE_KEY_FAVORITES = 'shop-trades-favorites';
 
 // ============================================================================
@@ -208,7 +208,7 @@ function extractSnapshots(parsed: Record<string, unknown>): { timestamp: number;
  */
 async function storeSnapshotHistory(page: import('@playwright/test').Page, snapshot: object): Promise<void> {
     await page.evaluate((data) => {
-        localStorage.setItem('shop-trades-snapshot-dev3', JSON.stringify(data));
+        localStorage.setItem('shop-trades-snapshot-dev4', JSON.stringify(data));
     }, wrapAsHistory(snapshot));
 }
 
@@ -273,7 +273,7 @@ Given('I have a previous snapshot missing some trades', async ({ page }) => {
     await page.evaluate(({ data, key1, key2 }) => {
         const parsed = data as { trades: Record<string, unknown> };
         const trades = Object.fromEntries(Object.entries(parsed.trades).filter(([tradeKey]) => tradeKey !== key1 && tradeKey !== key2));
-        localStorage.setItem('shop-trades-snapshot-dev3', JSON.stringify({ snapshots: [{ ...parsed, trades }] }));
+        localStorage.setItem('shop-trades-snapshot-dev4', JSON.stringify({ snapshots: [{ ...parsed, trades }] }));
     }, {
         data: snapshot,
         key1: MOCK_TRADE_KEYS.cheapDiamonds,

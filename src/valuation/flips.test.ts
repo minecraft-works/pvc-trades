@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 
 import { processTrade } from '../library.js';
+import { blockConversionsStore } from '../stores/index.js';
 import type { Trade } from '../types.js';
 import { findFlips } from './flips.js';
 
@@ -32,7 +33,17 @@ const benBuysIron = (stock = 20, owner = 'Ben'): Trade => makeTrade({ owner, sto
 const VALUES: Readonly<Record<string, number | undefined>> = { 'Emerald': 1, 'Iron ingot': 1 / 16, 'Diamond': 9 };
 const getValue = (name: string): number | undefined => VALUES[name];
 
+beforeAll(() => {
+    blockConversionsStore._setConversions({ 'diamond block': { base: 'diamond', multiplier: 9 } });
+});
+
 describe('findFlips', () => {
+    test('pairs a price in blocks with a price in their base', () => {
+        const sellsForBlock = makeTrade({ owner: 'Ann', x: 0, gives: [64, 'GUNPOWDER'], takes: [1, 'DIAMOND_BLOCK'], stock: 5 });
+        const buysForDiamonds = makeTrade({ owner: 'Ben', x: 300, gives: [12, 'DIAMOND'], takes: [64, 'GUNPOWDER'], stock: 5 });
+        expect(findFlips([sellsForBlock, buysForDiamonds], { getValue })[0]).toMatchObject({ item: 'Gunpowder', currency: 'Diamond', profit: 15 });
+    });
+
     test('buys low at one shop and sells high at another, using whole trades within stock', () => {
         const [flip, ...rest] = findFlips([annSellsIron(), benBuysIron()], { getValue });
         expect(rest).toHaveLength(0);
@@ -74,6 +85,10 @@ describe('findFlips', () => {
 
         const ironWorthMore = findFlips(trades, { getValue: name => (name === 'Emerald' ? 1 : 2) });
         expect(ironWorthMore.map(flip => flip.currency)).toEqual(['Iron ingot']);
+
+        // A currency wins over a more valuable good
+        const emeraldIsCurrency = findFlips(trades, { getValue: name => (name === 'Emerald' ? 1 : 2), isCurrency: name => name === 'Emerald' });
+        expect(emeraldIsCurrency.map(flip => flip.currency)).toEqual(['Emerald']);
     });
 
     test('ranks by emerald value of the profit, unvalued currencies last', () => {

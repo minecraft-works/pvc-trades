@@ -8,5 +8,5 @@
     "redstone block": { "base": "redstone", "multiplier": 9 },
     "coal block": { "base": "coal", "multiplier": 9 },
     "copper block": { "base": "copper ingot", "multiplier": 9 },
-    "quartz block": { "base": "nether quartz", "multiplier": 4 }
+    "quartz block": { "base": "nether quartz", "multiplier": 4, "reversible": false }
 }

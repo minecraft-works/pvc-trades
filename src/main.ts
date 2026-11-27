@@ -50,7 +50,6 @@ import { createFavoritesUIHandler } from './favorites/index.js';
 import {
     getConfig,
     getTradeKey,
-    getTrustedItemValue,
 } from './library.js';
 import type { ShopMapDialogHandler } from './map/index.js';
 import {
@@ -148,7 +147,7 @@ function getInputValue(id: string): string {
  */
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-    renderExchangeMatrix(container, dataLoader.getItemValues(), getElement, {
+    renderExchangeMatrix(container, dataLoader.getValuation()?.currencies, getElement, {
         getFlips,
         addToCart: addFlipToCart,
         isInCart: flip => cartStore.has(flip.buy.trade) && cartStore.has(flip.sell.trade),
@@ -161,9 +160,11 @@ function renderMatrixDialog(): void {
  * @returns Flips, best first
  */
 function getFlips(): readonly Flip[] {
-    const values = dataLoader.getItemValues();
+    const valuation = dataLoader.getValuation();
+    const currencies = new Set(valuation?.currencies.currencies.map(name => name.toLowerCase()));
     return findFlips(dataLoader.getAllTrades(), {
-        getValue: values ? (name: string) => getTrustedItemValue(name, values) : undefined,
+        getValue: valuation ? (name: string) => valuation.getValue(name) : undefined,
+        isCurrency: name => currencies.has(name.toLowerCase()),
     });
 }
 
