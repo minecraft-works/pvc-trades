@@ -67,6 +67,23 @@ Feature: Daily Deals Dashboard
     And I click the dashboard toggle button
     Then the deals dashboard should be visible
     And the dashboard should show a new trades section
+    And the new trades section should list "Diamond" and "Iron ingot"
+
+  @dashboard @new-trades
+  Scenario: Trades new since the last visit appear in the new-only filter
+    Given I have a previous snapshot missing some trades
+    When I reload the app
+    And I click the new-only column header
+    Then only the 2 trades missing from the previous snapshot should be listed
+
+  @dashboard @new-trades
+  Scenario: Show all new trades from the dashboard
+    Given I have a previous snapshot missing some trades
+    When I reload the app
+    And I click the dashboard toggle button
+    And I click "Show all new trades" on the dashboard
+    Then the deals dashboard should not be visible
+    And only the 2 trades missing from the previous snapshot should be listed
 
   # ============================================================================
   # Price Drops Section

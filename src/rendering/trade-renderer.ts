@@ -70,6 +70,8 @@ export interface TradeRendererHandler {
     updateSortArrows: () => void;
     /** Whether the "new trades only" filter is active */
     isFilterNewOnly: () => boolean;
+    /** Turn the "new trades only" filter on or off and re-run the search */
+    setFilterNewOnly: (enabled: boolean) => void;
     /** Whether the "cart only" filter is active */
     isFilterCartOnly: () => boolean;
 }
@@ -281,11 +283,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         // New items filter toggle
         const newHeader = header.querySelector('.new-col-header');
         if (newHeader) {
-            onActivate(newHeader, () => {
-                filterNewOnly = !filterNewOnly;
-                newHeader.classList.toggle('active', filterNewOnly);
-                deps.search();
-            });
+            onActivate(newHeader, () => { setFilterNewOnly(!filterNewOnly); });
         }
 
         // Cart filter toggle
@@ -495,10 +493,21 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         }
     }
 
+    /**
+     * Turn the "new trades only" filter on or off and re-run the search
+     * @param enabled - Whether only new trades should be shown
+     */
+    function setFilterNewOnly(enabled: boolean): void {
+        filterNewOnly = enabled;
+        document.querySelector('#table-header .new-col-header')?.classList.toggle('active', enabled);
+        deps.search();
+    }
+
     return {
         renderHeader,
         renderResults,
         updateSortArrows,
+        setFilterNewOnly,
         isFilterNewOnly: () => filterNewOnly,
         isFilterCartOnly: () => filterCartOnly,
     };

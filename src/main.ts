@@ -563,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
         getAllTrades: () => dataLoader.getAllTrades(),
         getDeviation: () => dataLoader.getDeviation(),
         search: () => searchHandler.search(),
+        showNewTrades: () => { renderer.setFilterNewOnly(true); },
         updateClearButtonVisibility,
         snapshotStore,
         favoritesStore,

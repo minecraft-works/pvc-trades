@@ -83,6 +83,8 @@ export const STORAGE_KEYS = {
 export const DASHBOARD = {
     /** Minimum deviation improvement (percentage points) to count as a price drop */
     PRICE_DROP_THRESHOLD: 5,
+    /** Maximum distinct items listed in the "New Trades" section */
+    MAX_NEW_ITEMS: 24,
     /** Target baseline age: compare against a snapshot ~24h old */
     BASELINE_TARGET_AGE_MS: 24 * 60 * 60 * 1000,
     /** Minimum interval between saving new snapshots (1 hour) */

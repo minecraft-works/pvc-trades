@@ -2358,6 +2358,29 @@ mark {
     color: var(--color-text-muted);
 }
 
+.dashboard-show-new {
+    margin-left: 8px;
+    padding: 1px 8px;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.dashboard-show-new:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.dashboard-new-items {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 2px 14px;
+    margin-top: 4px;
+}
+
 /* Mobile: show all columns in compressed form */
 @media (width <= 600px) {
     body {

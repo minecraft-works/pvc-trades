@@ -359,6 +359,27 @@ When('I click the dashboard toggle button', async ({ page }) => {
     await page.locator(DASHBOARD_TOGGLE_SELECTOR).click();
 });
 
+When('I click the new-only column header', async ({ page }) => {
+    await page.locator('#table-header .new-col-header').click();
+});
+
+When('I click {string} on the dashboard', async ({ page }, label: string) => {
+    await page.locator(DASHBOARD_SECTIONS_SELECTOR).getByRole('button', { name: label }).click();
+});
+
+Then('the new trades section should list {string} and {string}', async ({ page }, first: string, second: string) => {
+    const links = page.locator(`${DASHBOARD_SECTIONS_SELECTOR} .dashboard-new-items .dashboard-item-link`);
+    await expect(links).toHaveText([first, second]);
+});
+
+Then('only the 2 trades missing from the previous snapshot should be listed', async ({ page }) => {
+    const rows = page.locator(TRADE_ROW_SELECTOR);
+    await expect(rows).toHaveCount(2);
+    const keys = await rows.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.tradeKey ?? ''));
+    const expected = [MOCK_TRADE_KEYS.cheapDiamonds, MOCK_TRADE_KEYS.ironWorks];
+    expect(keys.toSorted((a, b) => a.localeCompare(b))).toEqual(expected.toSorted((a, b) => a.localeCompare(b)));
+});
+
 // ============================================================================
 // THEN Steps — Dashboard Visibility
 // ============================================================================

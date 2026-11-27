@@ -294,13 +294,6 @@ Then('the new trades should still be highlighted', async ({ page }) => {
     expect(count).toBeGreaterThan(0);
 });
 
-Then('there should be no highlighted trades', async ({ page }) => {
-    // After page refresh, no trades should have the new-item highlight
-    const highlightedTrades = page.locator(SELECTOR_NEW_TRADE);
-    const count = await highlightedTrades.count();
-    expect(count).toBe(0);
-});
-
 Then('I should not see the new {string} trade', async ({ page }, itemName: string) => {
     const visibleTrades = page.locator(SELECTOR_TRADE_ROW).filter({ visible: true });
     const count = await visibleTrades.count();

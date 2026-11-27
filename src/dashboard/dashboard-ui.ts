@@ -12,6 +12,7 @@ import {
     computeDashboardData,
     escapeHtml,
     formatRelativeTime,
+    getTradeKey,
 } from '../library.js';
 import type { DeviationResult } from '../search/index.js';
 import type { DashboardData, FavoriteItem,PriceDrop, Trade, TradeSnapshot, WatchlistHit } from '../types.js';
@@ -46,6 +47,8 @@ export interface DashboardUIDependencies {
     getDeviation: () => (trade: Trade) => DeviationResult | undefined;
     /** Trigger a search refresh after clicking a dashboard link */
     search: () => void;
+    /** Turn on the "new trades only" filter */
+    showNewTrades: () => void;
     /** Show / hide a clear button for the given input */
     updateClearButtonVisibility: (input: HTMLInputElement, clearButtonId: string) => void;
     /** Snapshot store – loadBaseline & appendIfDue */
@@ -63,8 +66,11 @@ export interface DashboardUIDependencies {
  * Public API returned by the factory.
  */
 export interface DashboardUIHandler {
-    /** Load baseline, compute diff, render banner (called after data load) */
-    showDashboard: () => void;
+    /**
+     * Load baseline, compute diff, render banner (called after data load)
+     * @returns Keys of trades that are new since the previous visit
+     */
+    showDashboard: () => readonly string[];
     /** Toggle dashboard banner visibility */
     toggleDashboard: () => void;
     /** Dismiss (hide) the dashboard banner */
@@ -143,18 +149,46 @@ function buildWatchlistSection(hits: readonly WatchlistHit[]): HTMLDivElement {
 }
 
 /**
- * Build the new trades section element.
- * @param count - Number of new trades detected
- * @returns Section element summarising new trade count
+ * Build the new trades section element: the new items (most listings first),
+ * each linking to a search, and a button that shows all new trades.
+ * @param newTrades - Trades that are new since the previous visit
+ * @returns Section element listing the new items
  */
-function buildNewTradesSection(count: number): HTMLDivElement {
+function buildNewTradesSection(newTrades: readonly Trade[]): HTMLDivElement {
+    const countsByName = new Map<string, number>();
+    for (const trade of newTrades) {
+        countsByName.set(trade.resultName, (countsByName.get(trade.resultName) ?? 0) + 1);
+    }
+    const sorted = [...countsByName].toSorted(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB));
+    const shown = sorted.slice(0, DASHBOARD.MAX_NEW_ITEMS);
+    const hiddenCount = sorted.length - shown.length;
+
+    const items = shown.map(([name, count]) => `<span class="dashboard-new-item">
+            <span class="dashboard-item-name dashboard-item-link" data-search="${escapeHtml(name)}" title="Search for ${escapeHtml(name)}">${escapeHtml(name)}</span>${count > 1 ? ` <span class="${DELTA_CLASS}">×${count}</span>` : ''}
+        </span>`).join('');
+    const more = hiddenCount > 0 ? `<span class="dashboard-new-item ${DELTA_CLASS}">+${plural(hiddenCount, 'more item')}</span>` : '';
+    const total = newTrades.length;
+
     const section = document.createElement('div');
     section.className = SECTION_CLASS;
     section.innerHTML = `
-        <div class="dashboard-section-title">🆕 New Trades</div>
-        <div class="dashboard-summary">${count} new listing${count === 1 ? '' : 's'} appeared</div>
+        <div class="dashboard-section-title">🆕 New Trades (${total})</div>
+        <div class="dashboard-summary">${plural(total, 'new listing')} appeared
+            <button type="button" class="dashboard-show-new">Show all new trades</button>
+        </div>
+        <div class="dashboard-section-items dashboard-new-items">${items}${more}</div>
     `;
     return section;
+}
+
+/**
+ * Format a count with a noun that gets an "s" unless the count is 1
+ * @param count - Number of things
+ * @param noun - Singular noun phrase
+ * @returns E.g. "1 new listing" or "45 new listings"
+ */
+function plural(count: number, noun: string): string {
+    return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 /**
@@ -189,15 +223,16 @@ function buildPriceDropsSection(drops: readonly PriceDrop[]): HTMLDivElement | u
  * Append dashboard sections (watchlist hits, new trades, price drops).
  * @param sectionsElement - Container element for the dashboard sections
  * @param data - Computed dashboard data to render
+ * @param newTrades - Trades behind `data.newTradeKeys`
  */
-function appendDashboardSections(sectionsElement: Element, data: DashboardData): void {
+function appendDashboardSections(sectionsElement: Element, data: DashboardData, newTrades: readonly Trade[]): void {
     sectionsElement.innerHTML = '';
 
     if (data.watchlistHits.length > 0) {
         sectionsElement.append(buildWatchlistSection(data.watchlistHits));
     }
-    if (data.newTradeKeys.length > 0) {
-        sectionsElement.append(buildNewTradesSection(data.newTradeKeys.length));
+    if (newTrades.length > 0) {
+        sectionsElement.append(buildNewTradesSection(newTrades));
     }
     if (data.priceDrops.length > 0) {
         const priceDropsSection = buildPriceDropsSection(data.priceDrops);
@@ -222,6 +257,7 @@ function appendDashboardSections(sectionsElement: Element, data: DashboardData):
  *     getAllTrades: () => allTrades,
  *     getDeviation: () => getDeviation,
  *     search,
+ *     showNewTrades,
  *     updateClearButtonVisibility,
  *     snapshotStore,
  *     favoritesStore,
@@ -254,11 +290,9 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
      * Render the dashboard banner with sections for watchlist hits, new trades,
      * and price drops.
      * @param data - Computed dashboard data to render
-     * @param options - Rendering options
-     * @param options.autoOpen - Whether to open the dashboard automatically
+     * @param newTrades - Trades behind `data.newTradeKeys`
      */
-    function renderDashboard(data: DashboardData, options?: { autoOpen: boolean }): void {
-        const { autoOpen = true } = options ?? {};
+    function renderDashboard(data: DashboardData, newTrades: readonly Trade[]): void {
         const dashboard = document.querySelector(DASHBOARD_SELECTOR);
         if (!dashboard) { return; }
 
@@ -270,16 +304,17 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
         const sectionsElement = document.querySelector('#dashboard-sections');
         if (!sectionsElement) { return; }
 
-        appendDashboardSections(sectionsElement, data);
+        appendDashboardSections(sectionsElement, data, newTrades);
         wireDashboardItemLinks(sectionsElement);
+        sectionsElement.querySelector('.dashboard-show-new')?.addEventListener('click', () => {
+            dismissDashboardBanner();
+            deps.showNewTrades();
+        });
 
         document.querySelector('#dismiss-dashboard')?.addEventListener('click', dismissDashboardBanner);
-        if (autoOpen) {
-            dashboard.classList.remove('hidden');
-        }
     }
 
-    function showDashboard(): void {
+    function showDashboard(): readonly string[] {
         const baseline = deps.snapshotStore.loadBaseline();
         const favorites = deps.favoritesStore.getAll();
         const currentGetDeviation = deps.getDeviation();
@@ -299,13 +334,16 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
             || dashboardData.priceDrops.length > 0;
 
         if (!hasContent || !baseline) {
-            return;
+            return dashboardData.newTradeKeys;
         }
 
         const toggleButton = document.querySelector(DASHBOARD_TOGGLE_SELECTOR);
         toggleButton?.classList.remove('hidden');
 
-        renderDashboard(dashboardData, { autoOpen: false });
+        const newKeys = new Set(dashboardData.newTradeKeys);
+        const newTrades = deps.getAllTrades().filter(trade => newKeys.has(getTradeKey(trade)));
+        renderDashboard(dashboardData, newTrades);
+        return dashboardData.newTradeKeys;
     }
 
     return { showDashboard, toggleDashboard: toggleDashboardBanner, dismissDashboard: dismissDashboardBanner };

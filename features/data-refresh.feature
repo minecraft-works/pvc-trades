@@ -28,11 +28,11 @@ Feature: Data Refresh and New Items
     Then the new trades should still be highlighted
 
   @refresh @new-items
-  Scenario: Highlights clear on page refresh
+  Scenario: Trades new since the last visit stay highlighted after a page refresh
     Given there are 5 trades initially
     When the shop data refreshes with 1 new trade(s)
     And I refresh the page
-    Then there should be no highlighted trades
+    Then the new trades should still be highlighted
 
   @refresh @filter
   Scenario: New trades respect current search filter

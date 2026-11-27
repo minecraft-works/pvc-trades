@@ -56,8 +56,11 @@ export interface DataLoaderDeps {
     renderHeader: () => void;
     /** Execute a full search (lazy: bound after searchHandler init) */
     search: () => void;
-    /** Show the daily-deals dashboard (lazy: bound after dashboardUI init) */
-    showDashboard: () => void;
+    /**
+     * Show the daily-deals dashboard (lazy: bound after dashboardUI init)
+     * @returns Keys of trades that are new since the previous visit
+     */
+    showDashboard: () => readonly string[];
 }
 
 /**
@@ -260,10 +263,13 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
             recalculateValues();
 
             deps.renderHeader();
-            deps.search(); // Show all trades on load
 
-            // Show daily deals dashboard (compare with previous session)
-            deps.showDashboard();
+            // Compare with the previous visit; those trades count as new for the 🆕 filter
+            for (const key of deps.showDashboard()) {
+                newTradeKeys.add(key);
+            }
+
+            deps.search(); // Show all trades on load
 
             lastUpdated = new Date();
             showFreshness(false);
