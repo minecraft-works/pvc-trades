@@ -7,7 +7,7 @@
  * @module navigation/nav-updates
  */
 
-import * as L from 'leaflet';
+import type * as L from 'leaflet';
 
 import { NAVIGATION } from '../constants.js';
 import { debugInterpolation } from '../debug.js';
@@ -22,6 +22,7 @@ import {
     toViewCoords,
 } from '../library.js';
 import { TILE_CONFIG } from '../map/index.js';
+import { leaflet } from '../map/leaflet.js';
 import type { RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';
@@ -168,7 +169,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             );
 
             if (routePoints.length > 0) {
-                state.routePolyline = L.polyline(routePoints, {
+                state.routePolyline = leaflet().polyline(routePoints, {
                     color: '#3b82f6', weight: 3, opacity: 0.8, dashArray: '10, 5',
                 }).addTo(state.map);
             }
@@ -201,7 +202,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         );
 
         if (routePoints.length > 0) {
-            state.routePolyline = L.polyline(routePoints, {
+            state.routePolyline = leaflet().polyline(routePoints, {
                 color: '#3b82f6', weight: 3, opacity: 0.8, dashArray: '10, 5',
             }).addTo(state.map);
         }
@@ -238,7 +239,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             state.centerTileX, state.centerTileZ, TILE_CONFIG.tileSize,
         );
 
-        state.playerToNextLine = L.polyline(
+        state.playerToNextLine = leaflet().polyline(
             [[playerCoords.lat, playerCoords.lng], [stopCoords.lat, stopCoords.lng]],
             { color: '#22c55e', weight: 3, opacity: 0.9, dashArray: '5, 8' },
         ).addTo(state.map);
@@ -322,7 +323,7 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
         if (navPlayerMarker) {
             navPlayerMarker.setLatLng([lat, lng]);
             navPlayerMarker.setOpacity(1);
-            const playerIcon = L.divIcon({
+            const playerIcon = leaflet().divIcon({
                 className: `nav-player-marker${netherClass}`,
                 html: playerIconHtml,
                 iconSize: [26, 26],
@@ -330,14 +331,14 @@ export function createNavUpdatesHandler(state: NavState, deps: NavUpdatesDeps): 
             });
             navPlayerMarker.setIcon(playerIcon);
         } else {
-            const playerIcon = L.divIcon({
+            const playerIcon = leaflet().divIcon({
                 className: `nav-player-marker${netherClass}`,
                 html: playerIconHtml,
                 iconSize: [26, 26],
                 iconAnchor: [13, 13],
             });
 
-            navPlayerMarker = L.marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
+            navPlayerMarker = leaflet().marker([lat, lng], { icon: playerIcon, zIndexOffset: 1000 });
             navPlayerMarker.addTo(state.map);
             deps.navigationStore.setPlayerMarker(navPlayerMarker);
         }

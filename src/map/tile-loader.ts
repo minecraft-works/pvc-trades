@@ -13,9 +13,11 @@
  * @module map/tile-loader
  */
 
-import debug from 'debug';
+import type * as L from 'leaflet';
 
+import { debugTiles } from '../debug.js';
 import { getConfig } from '../stores/config-store.js';
+import { leaflet } from './leaflet.js';
 import {
     blocksPerTile,
     coarsenTile,
@@ -26,11 +28,6 @@ import {
     tileUrl,
 } from './tile-layout.js';
 import type { LoadTileOptions, TileConfig } from './tile-types.js';
-
-// Leaflet is loaded as a global from CDN
-declare const L: typeof import('leaflet');
-
-const debugTiles = debug('tiles');
 
 // ============================================================================
 // Configuration
@@ -89,10 +86,10 @@ function padImage(overlay: SeamlessOverlayInternals, scale: number): void {
  */
 function getSeamlessImageOverlay(): NonNullable<typeof SeamlessImageOverlay> {
     if (!SeamlessImageOverlay) {
-        const base = L.ImageOverlay.prototype as unknown as SeamlessOverlayInternals;
+        const base = leaflet().ImageOverlay.prototype as unknown as SeamlessOverlayInternals;
         const baseReset = base._reset;
         const baseAnimateZoom = base._animateZoom;
-        SeamlessImageOverlay = L.ImageOverlay.extend({
+        SeamlessImageOverlay = leaflet().ImageOverlay.extend({
             _reset(this: SeamlessOverlayInternals): void {
                 baseReset.call(this);
                 const image = this._image;

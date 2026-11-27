@@ -9,11 +9,12 @@
  * @module map/player-layer
  */
 
-import L from 'leaflet';
+import type * as L from 'leaflet';
 
 import { createEdgeMarker, resolvePlayerLabelPositions, spreadAngles, updateEdgeMarker } from '../dialogs/index.js';
 import { escapeHtml } from '../library.js';
 import type { Player } from '../types.js';
+import { leaflet } from './leaflet.js';
 
 /** Height of a player name label, the smallest gap between rim markers */
 const EDGE_LABEL_HEIGHT_PX = 15;
@@ -69,13 +70,13 @@ function setVisible(element: HTMLElement | undefined, visible: boolean): void {
  */
 export function createPlayerLayer(options: PlayerLayerOptions): PlayerLayer {
     const { map, rim, getCoords, zIndexOffset } = options;
-    const layer = L.layerGroup().addTo(map);
+    const layer = leaflet().layerGroup().addTo(map);
     const entries = new Map<string, Entry>();
     let selected: string | undefined;
 
     function createEntry(player: Player): Entry {
-        const marker = L.marker([0, 0], {
-            icon: L.divIcon({
+        const marker = leaflet().marker([0, 0], {
+            icon: leaflet().divIcon({
                 className: 'leaflet-player-marker',
                 html: `<span class="player-dot"></span><span class="player-name">${escapeHtml(player.name)}</span>`,
                 iconSize: [12, 12],

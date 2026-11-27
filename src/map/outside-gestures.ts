@@ -11,8 +11,9 @@
  * @module map/outside-gestures
  */
 
-import L from 'leaflet';
+import type * as L from 'leaflet';
 
+import { leaflet } from './leaflet.js';
 import { getPinchZoomDelta, measurePointers, type PointerSpread, type ScreenPoint } from './map-math.js';
 
 /** Most a press may move and still count as a tap, in pixels */
@@ -56,7 +57,7 @@ export function setupOutsideGestures(dialog: HTMLDialogElement, getMap: () => L.
     let frame: number | undefined;
     let suppressClick = false;
 
-    const toContainer = (point: ScreenPoint, rect: DOMRect): L.Point => L.point(point.x - rect.left, point.y - rect.top);
+    const toContainer = (point: ScreenPoint, rect: DOMRect): L.Point => leaflet().point(point.x - rect.left, point.y - rect.top);
 
     function step(): void {
         frame = undefined;

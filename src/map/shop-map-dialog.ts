@@ -9,7 +9,7 @@
  * @module map/shop-map-dialog
  */
 
-import L from 'leaflet';
+import type * as L from 'leaflet';
 
 import { SELECTORS } from '../constants.js';
 import { getWorldDisplayName } from '../dialogs/index.js';
@@ -24,6 +24,7 @@ import type { ShopLocation, ShopSummary } from '../search/shop-filter.js';
 import { playerPositionService } from '../stores/player-position-service.js';
 import type { Player, ShopFilter } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
+import { leaflet, loadLeaflet } from './leaflet.js';
 import { createLevelSwitcher, type LevelSwitcher } from './level-switcher.js';
 import { getMarkerScale } from './map-math.js';
 import { setupOutsideGestures } from './outside-gestures.js';
@@ -296,7 +297,7 @@ function prefetchView(context: ShopMapTileContext, center: L.LatLngExpression, z
     if (!leafletMap) { return; }
     const half = leafletMap.getSize().divideBy(2);
     const centerPoint = leafletMap.project(center, zoom);
-    const target = L.latLngBounds(leafletMap.unproject(centerPoint.subtract(half), zoom), leafletMap.unproject(centerPoint.add(half), zoom));
+    const target = leaflet().latLngBounds(leafletMap.unproject(centerPoint.subtract(half), zoom), leafletMap.unproject(centerPoint.add(half), zoom));
     for (const level of getLevelsToLoad(zoom)) {
         const added = context.addedToMap.get(level);
         forEachTile(getTileRange(context, level, target), (lx, lz) => {
@@ -344,7 +345,7 @@ function flyToPlayer(name: string): void {
     const player = cachedPlayers.find(candidate => candidate.name === name);
     if (!leafletMap || !player) { return; }
     const { lat, lng } = getPlayerLeafletCoords(player, shopMapTileX, shopMapTileZ);
-    const destination = L.latLng(lat, lng);
+    const destination = leaflet().latLng(lat, lng);
     const zoom = leafletMap.getZoom();
     // Fetch the destination's tiles, and start the coarse underlay around the
     // route so the zoomed-out middle of the flight isn't empty. Not more than
@@ -443,7 +444,7 @@ function createMapConfig(): L.MapOptions {
     } : {};
     
     return {
-        crs: L.CRS.Simple,
+        crs: leaflet().CRS.Simple,
         minZoom: -5,
         maxZoom: 6,
         zoomControl: true,
@@ -480,20 +481,20 @@ const SHOP_DOT_VIEW_PADDING = 1;
 function addShopMarkers(map: L.Map, parameters: ShopMapSetupParameters): () => void {
     const { shops, worldId, tileX, tileZ, onSelectShop } = parameters;
     const half = SHOP_DOT_ICON_SIZE / 2;
-    const icon = L.divIcon({
+    const icon = leaflet().divIcon({
         className: 'shop-dot-marker',
         html: '<span class="shop-dot"></span>',
         iconSize: [SHOP_DOT_ICON_SIZE, SHOP_DOT_ICON_SIZE],
         iconAnchor: [half, half],
     });
-    const layer = L.layerGroup().addTo(map);
+    const layer = leaflet().layerGroup().addTo(map);
     const markers: L.Marker[] = [];
     for (const shop of shops) {
         if (getWorldId(shop.world) !== worldId) { continue; }
         const { lat, lng } = toLeafletCoordsRelative(shop.x, shop.z, tileX, tileZ, TILE_CONFIG.tileSize);
         const name = shop.shopName ?? shop.shopOwner ?? 'Shop';
         const owner = shop.shopName && shop.shopOwner ? ` · ${shop.shopOwner}` : '';
-        markers.push(L.marker([lat, lng], { icon, keyboard: false, zIndexOffset: Z_SHOP_DOT })
+        markers.push(leaflet().marker([lat, lng], { icon, keyboard: false, zIndexOffset: Z_SHOP_DOT })
             // No trade count here: the pill's "All N trades" counts every shop with this name
             .bindTooltip(`<strong>${escapeHtml(name)}</strong>${escapeHtml(owner)}`, {
                 className: 'map-shop-tooltip',
@@ -516,7 +517,7 @@ function addShopMarkers(map: L.Map, parameters: ShopMapSetupParameters): () => v
 function setupShopMap(parameters: ShopMapSetupParameters): void {
     const { container, dialog, worldId, x, z, tileX, tileZ, playerRefreshMs } = parameters;
     
-    leafletMap = L.map(container, createMapConfig());
+    leafletMap = leaflet().map(container, createMapConfig());
     const map = leafletMap;
     
     // One pane per pyramid level; the level switcher shows the current level
@@ -569,8 +570,8 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     leafletMap.on('moveend', updateShopDots);
 
     const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, TILE_CONFIG.tileSize);
-    pinMarker = L.marker([markerLat, markerLng], {
-        icon: L.divIcon({
+    pinMarker = leaflet().marker([markerLat, markerLng], {
+        icon: leaflet().divIcon({
             className: 'leaflet-pin-marker',
             html: '<span class="pin-dot"></span>',
             iconSize: [18, 18],
@@ -814,7 +815,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
         mapTile = { tileX, tileZ };
         dialog.showModal();
         
-        requestAnimationFrame(() => {
+        void loadLeaflet().then(() => requestAnimationFrame(() => {
             if (leafletMap) {
                 try { leafletMap.remove(); } catch { /* already removed */ }
                 leafletMap = undefined;
@@ -830,7 +831,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
                 shops: getShopLocations(),
                 onSelectShop: selectShop,
             });
-        });
+        }));
     }
     
     return {

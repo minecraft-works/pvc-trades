@@ -23,6 +23,7 @@ import {
     fetchPlayers,
     getPlayerWorld,
 } from '../map/index.js';
+import { loadLeaflet } from '../map/leaflet.js';
 import type { Player,RouteStop } from '../types.js';
 import type { NavState } from './nav-map.js';
 import type { NavMapHandler } from './nav-map.js';
@@ -401,7 +402,7 @@ export function createLiveNavigationHandler(state: NavState, deps: LiveNavigatio
             navDialog.showModal();
 
             const playerName = playerNameInput.value.trim().toLowerCase();
-            await fetchInitialPlayerPosition(playerName);
+            await Promise.all([fetchInitialPlayerPosition(playerName), loadLeaflet()]);
 
             requestAnimationFrame(() => {
                 initMapAndStartPolling();

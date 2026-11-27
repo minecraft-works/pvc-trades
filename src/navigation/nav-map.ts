@@ -12,7 +12,7 @@
  * @module navigation/nav-map
  */
 
-import * as L from 'leaflet';
+import type * as L from 'leaflet';
 
 import { CSS_CLASSES, WORLDS } from '../constants.js';
 import { debugMap, debugTiles } from '../debug.js';
@@ -31,6 +31,7 @@ import {
     loadTileToMap,
     TILE_CONFIG,
 } from '../map/index.js';
+import { leaflet } from '../map/leaflet.js';
 import type { RouteStop } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
 
@@ -176,8 +177,8 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
         markerZoomAnimation: false,
     } : {};
 
-    const map = L.map(container, {
-        crs: L.CRS.Simple,
+    const map = leaflet().map(container, {
+        crs: leaflet().CRS.Simple,
         minZoom: -5,
         maxZoom: 2,
         zoomControl: false,
@@ -188,7 +189,7 @@ function createNavLeafletMap(container: HTMLElement, onMapDrag: () => void): L.M
 
     map.createPane('tilesOverview').style.zIndex = '350';
     map.createPane('tilesDetail').style.zIndex = '360';
-    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    leaflet().control.zoom({ position: 'bottomleft' }).addTo(map);
 
     map.on('dragstart', onMapDrag);
 
@@ -332,14 +333,14 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
             const completedClass = isCompleted ? ' nav-route-marker--completed' : '';
             const displayIndex = isCompleted ? 0 : incompleteIndex;
 
-            const markerIcon = L.divIcon({
+            const markerIcon = leaflet().divIcon({
                 className: `nav-route-marker${netherClass}${crossWorldClass}${completedClass}`,
                 html: buildMarkerContent(isCompleted, displayIndex, stop.isNether),
                 iconSize: [36, 36],
                 iconAnchor: [18, 18],
             });
 
-            const marker = L.marker([lat, lng], { icon: markerIcon })
+            const marker = leaflet().marker([lat, lng], { icon: markerIcon })
                 .bindTooltip(buildStopTooltip(stop, isCompleted), { permanent: false, direction: 'top', offset: [0, -18] })
                 .addTo(state.map);
 
@@ -410,12 +411,12 @@ export function createNavMapHandler(state: NavState, deps: NavMapDeps): NavMapHa
             route, tileRange.centerTileX, tileRange.centerTileZ,
             deps.navigationStore.progress.completedKeys,
         );
-        state.routePolyline = L.polyline(routePoints, {
+        state.routePolyline = leaflet().polyline(routePoints, {
             color: '#3b82f6', weight: 3, opacity: 0.8, dashArray: '10, 5',
         }).addTo(state.map);
 
         if (routePoints.length > 0) {
-            state.map.fitBounds(L.latLngBounds(routePoints), { padding: [50, 50] });
+            state.map.fitBounds(leaflet().latLngBounds(routePoints), { padding: [50, 50] });
         }
 
         // Only request the tiles in view; panning and zooming load the rest
