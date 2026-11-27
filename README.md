@@ -10,8 +10,10 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Shopping Cart**: Build a shopping list and see aggregated costs
 - **Route Optimization**: Compute optimal visiting order using nearest-neighbor + 2-opt
 - **Live Navigation**: Track your position on the server map and navigate to shops
-- **Price Intelligence**: Automatic clustering of nearby shops to prevent price manipulation
+- **Price Intelligence**: Automatic clustering of nearby shops and of one owner's shops to prevent price manipulation
 - **Fast Probing**: Item-name autocomplete, one-click currency chips, "Deals only" and "Best per item" filters, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
+- **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Type a shop or player name in the Buying field and pick the 🏪/👤 suggestion, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
+- **Flip Finder**: The **Flips** tab of the exchange-rates dialog (💱) lists items you can buy at one shop and sell to another player's shop for more, with the profit per trip; "Add both to cart" plans the route
 
 ### Keyboard Shortcuts
 

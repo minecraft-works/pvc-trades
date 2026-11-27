@@ -94,7 +94,7 @@ export function calculatePairPrices(trades: readonly TradeInput[]): PairPrices {
         if (trade.item2 || trade.resultAmount <= 0) { continue; }
         const key = getPairKey(trade.resultName, trade.item1Name);
         const prices = pairs.get(key) ?? [];
-        prices.push({ price: trade.costAmount / trade.resultAmount, x: trade.x, y: trade.y, z: trade.z });
+        prices.push(toPriceEntry(trade.costAmount / trade.resultAmount, trade));
         pairs.set(key, prices);
     }
     return pairs;
@@ -133,14 +133,16 @@ function normalizeToBaseCurrency(
     return { matches: false, amount };
 }
 
+function toPriceEntry(price: number, source: TradeInput): PriceEntry {
+    return { price, x: source.x, y: source.y, z: source.z, owner: source.owner };
+}
+
 function addValue(
     values: Map<string, ItemValueEntry>,
     item: string,
     price: number,
     type: 'buy' | 'sell',
-    x: number,
-    y: number,
-    z: number
+    source: TradeInput
 ): void {
     const key = item.toLowerCase();
     let entry = values.get(key);
@@ -148,7 +150,7 @@ function addValue(
         entry = { name: item, buyPrices: [], sellPrices: [] };
         values.set(key, entry);
     }
-    const priceObject: PriceEntry = { price, x, y, z };
+    const priceObject = toPriceEntry(price, source);
     if (type === 'buy') {
         entry.buyPrices.push(priceObject);
     } else {
@@ -174,10 +176,10 @@ function processDirectTrade(
 
     if (costAsBase.matches) {
         const pricePerItem = costAsBase.amount / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+        addValue(values, trade.resultName, pricePerItem, 'buy', trade);
     } else if (resultAsBase.matches) {
         const pricePerItem = resultAsBase.amount / trade.costAmount;
-        addValue(values, item1Name, pricePerItem, 'sell', trade.x, trade.y, trade.z);
+        addValue(values, item1Name, pricePerItem, 'sell', trade);
     }
 }
 
@@ -199,7 +201,7 @@ function processDirectTradeWithItem2(
     if (item1AsBase.matches && item2AsBase.matches && !resultAsBase.matches) {
         const totalCost = item1AsBase.amount + item2AsBase.amount;
         const pricePerItem = totalCost / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerItem, 'buy', trade.x, trade.y, trade.z);
+        addValue(values, trade.resultName, pricePerItem, 'buy', trade);
     }
     // Result is base currency, both inputs are not -> can't derive individual values
 }
@@ -256,7 +258,7 @@ function deriveBuyPrice(trade: TradeInput, values: Map<string, ItemValueEntry>):
     const costValue = getTrustedItemValue(trade.item1Name, values);
     if (costValue === undefined) { return false; }
     const pricePerResult = (trade.costAmount * costValue) / trade.resultAmount;
-    addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+    addValue(values, trade.resultName, pricePerResult, 'buy', trade);
     return true;
 }
 
@@ -264,7 +266,7 @@ function deriveSellPrice(trade: TradeInput, values: Map<string, ItemValueEntry>)
     const resultValue = getTrustedItemValue(trade.resultName, values);
     if (resultValue === undefined) { return false; }
     const pricePerCost = (trade.resultAmount * resultValue) / trade.costAmount;
-    addValue(values, trade.item1Name, pricePerCost, 'sell', trade.x, trade.y, trade.z);
+    addValue(values, trade.item1Name, pricePerCost, 'sell', trade);
     return true;
 }
 
@@ -295,7 +297,7 @@ function deriveTransitiveValueWithItem2(
     if (item1Value !== undefined && item2Value !== undefined) {
         const totalCostValue = (trade.costAmount * item1Value) + (trade.item2.amount * item2Value);
         const pricePerResult = totalCostValue / trade.resultAmount;
-        addValue(values, trade.resultName, pricePerResult, 'buy', trade.x, trade.y, trade.z);
+        addValue(values, trade.resultName, pricePerResult, 'buy', trade);
         return true;
     }
 

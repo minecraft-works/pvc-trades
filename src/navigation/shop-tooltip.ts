@@ -99,9 +99,14 @@ function renderTooltipContent(items: CartItem[]): string {
     const itemsHtml = items.map(cartItem =>
         `<li><span class="item-name">${escapeHtml(cartItem.trade.resultName)}</span><span class="item-qty">×${cartItem.quantity}</span></li>`
     ).join('');
+    // All items are at the same location, so they share the shop
+    const shop = items[0]?.trade;
+    const shopLabel = shop?.shopName ?? shop?.shopOwner;
+    const shopHtml = shopLabel ? `<p class="tooltip-shop">🏪 ${escapeHtml(shopLabel)}</p>` : '';
 
     return `
         <h4>🛒 Shopping List</h4>
+        ${shopHtml}
         <ul>${itemsHtml}</ul>
     `;
 }

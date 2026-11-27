@@ -21,4 +21,6 @@ export { createTradeDetailsHandler } from './trade-details.js';
 export {
     createEdgeMarker,
     getWorldDisplayName,
-    resolvePlayerLabelPositions} from './shop-map-helpers.js';
+    resolvePlayerLabelPositions,
+    spreadAngles,
+    updateEdgeMarker} from './shop-map-helpers.js';

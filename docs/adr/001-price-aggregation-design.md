@@ -31,14 +31,17 @@ The shop trade viewer needs to calculate fair market prices and detect deals. Th
 
 ### 2. Independent Shop Clustering
 
-**Decision**: Trades from shops within **16 blocks** of each other are considered from the **same source** and count as 1 independent data point.
+**Decision**: Trades from shops within **16 blocks** of each other, or from shops of the **same owner** (anywhere on the map), are considered from the **same source** and count as 1 independent data point.
 
 **Rationale**:
 - Prevents a single mega-shop with many trades from dominating price calculations
 - 16 blocks is a reasonable proximity threshold for "same shop area"
+- One player's chain of shops is one seller, so it cannot set a "market" price on its own
 - Ensures market prices reflect multiple independent sellers
 
-**Implementation**: `countIndependentShops()` function clusters price locations using 3D Euclidean distance.
+**Implementation**: `countIndependentShops()` clusters price entries greedily: an entry joins a cluster when it is within 16 blocks (3D Euclidean) of the cluster's first shop, or has that shop's owner (case-insensitive). The owner link is deliberately **not transitive**: in a shopping district many owners sit within 16 blocks of each other, and chaining "same owner elsewhere" through those neighbours would merge unrelated sellers. Entries without a known owner fall back to distance only.
+
+**Effect (live data, Nov 2026)**: 312 of 3,386 trades (9%) lost their Deal % because their only "market" was one player's own shops; trades at least 20% below market went from 785 to 771.
 
 ---
 

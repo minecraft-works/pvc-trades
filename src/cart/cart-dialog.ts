@@ -304,10 +304,12 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
             itemElement.classList.add('zero-quantity');
         }
 
+        const shopName = trade.shopName ?? trade.shopOwner;
         itemElement.innerHTML = `
             <span class="cart-item-info">
                 <strong>${trade.resultAmount}× ${escapeHtml(trade.resultName)}</strong>
                 <span class="cart-item-cost">← ${escapeHtml(formatTradeCost(trade))}</span>
+                ${shopName ? `<span class="cart-item-shop">🏪 ${escapeHtml(shopName)}</span>` : ''}
             </span>
             <span class="cart-item-controls">
                 <button class="qty-btn qty-minus" aria-label="Decrease quantity">−</button>
@@ -436,7 +438,10 @@ export function createCartDialogHandler(deps: CartDialogDeps): CartDialogHandler
             netherCoords = `${Math.round(stop.x / 8)}, ${Math.round(stop.z / 8)}`;
         }
 
-        const stopText = `<span class="stop-text">${item.quantity}× ${escapeHtml(item.trade.resultName)}</span>`;
+        // Shop name trails the item so narrow screens cut it first
+        const shopLabel = item.trade.shopName ?? item.trade.shopOwner;
+        const shopText = shopLabel ? `<span class="stop-shop"> · ${escapeHtml(shopLabel)}</span>` : '';
+        const stopText = `<span class="stop-text">${item.quantity}× ${escapeHtml(item.trade.resultName)}${shopText}</span>`;
         content.innerHTML = forNavPanel
             ? stopText
             : `${stopText}<span class="coord-ow">${owCoords}</span><span class="coord-nether">${netherCoords}</span>`;

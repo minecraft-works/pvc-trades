@@ -4,10 +4,50 @@ import type { LabelRect } from './shop-map-helpers.js';
 import {
     estimateLabelWidth,
     getLabelRect,
+    getRadialLabelRotation,
     positionToCssClass,
     rectsOverlap,
-    resolvePlayerLabelPositions
+    resolvePlayerLabelPositions,
+    spreadAngles
 } from './shop-map-helpers.js';
+
+// ============================================================================
+// Edge marker labels
+// ============================================================================
+
+describe('getRadialLabelRotation', () => {
+    test('names point toward the centre and never read upside down', () => {
+        // Left edge: text runs right, from the marker inward
+        expect(getRadialLabelRotation(Math.PI)).toEqual({ degrees: 0, flipped: false });
+        // Top edge: text runs down from the marker
+        expect(getRadialLabelRotation(Math.PI / 2)).toEqual({ degrees: 90, flipped: false });
+        // Right edge: would run leftward upside down, so it is turned and ends at the marker
+        expect(getRadialLabelRotation(0)).toEqual({ degrees: 0, flipped: true });
+        // Bottom edge: same turn, reading down toward the marker
+        expect(getRadialLabelRotation(-Math.PI / 2)).toEqual({ degrees: 90, flipped: true });
+    });
+});
+
+describe('spreadAngles', () => {
+    test('leaves markers that are far enough apart alone', () => {
+        expect(spreadAngles([0, 1, 2], 0.1)).toEqual([0, 1, 2]);
+    });
+
+    test('spreads a crowd evenly around where it was', () => {
+        const spread = spreadAngles([1, 1, 1], 0.1);
+        expect(spread.toSorted((a, b) => a - b).map(angle => Number(angle.toFixed(6)))).toEqual([0.9, 1, 1.1]);
+    });
+
+    test('keeps every pair apart, also across the ±π seam', () => {
+        const input = [Math.PI - 0.01, -Math.PI + 0.01, Math.PI, 0];
+        const spread = spreadAngles(input, 0.05).map(angle => ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+        const sorted = spread.toSorted((a, b) => a - b);
+        for (const [index, angle] of sorted.entries()) {
+            const next = sorted[(index + 1) % sorted.length] ?? angle;
+            expect((next - angle + 2 * Math.PI) % (2 * Math.PI)).toBeGreaterThanOrEqual(0.05 - 1e-9);
+        }
+    });
+});
 
 // ============================================================================
 // estimateLabelWidth

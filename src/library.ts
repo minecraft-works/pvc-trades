@@ -347,8 +347,20 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
         resultName,
         resultAmount,
         resultLabel,
-        costName
+        costName,
+        ...getShopIdentity(shop)
     };
+}
+
+/**
+ * Trimmed shop name and owner, undefined when missing or blank
+ * @param shop - Raw shop
+ * @returns Shop name and owner
+ */
+function getShopIdentity(shop: Readonly<Shop>): Pick<Trade, 'shopName' | 'shopOwner'> {
+    const shopName = shop.shopName?.trim();
+    const shopOwner = shop.shopOwner?.trim();
+    return { shopName: shopName === '' ? undefined : shopName, shopOwner: shopOwner === '' ? undefined : shopOwner };
 }
 
 // ============================================================================

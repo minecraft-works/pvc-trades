@@ -44,10 +44,16 @@ The items a player receives from completing a trade.
 The number of times a trade can be completed. `0` means out of stock (displayed with special styling).
 
 ### Shop
-A chest or container at specific coordinates that offers trades.
+A shopkeeper at specific coordinates that offers trades. The shop data gives most shops a **name** (the shopkeeper's name tag, e.g. "End Item Vendor") and an **owner** (the player). Both are kept out of the trade table and shown where a player looks for the shop: the map dialog, route stops, the cart, the navigation tooltip, and the distance cell's tooltip.
+
+### Shop Filter
+Limits the results to one owner's shops, or to one named shop of that owner. Set by picking a 🏪 shop or 👤 owner suggestion in the Buying field, or with "All N trades →" on the map. Shown as a removable chip under the search and kept in the URL (`?owner=…&shop=…`).
 
 ### Independent Shop
-A shop that is more than **16 blocks** away from any other shop. This distance threshold prevents price manipulation through proximity.
+A shop that is more than **16 blocks** away from other shops **and** has a different owner. Shops of one owner count as one source wherever they are, which prevents price manipulation through proximity or through one player's chain of shops (see [ADR-001](adr/001-price-aggregation-design.md)).
+
+### Flip
+A profitable round trip between two shops of different owners: buy an item at one shop and sell it to the other for more of the same currency. Listed in the **Flips** tab of the exchange-rates dialog with the profit per trip (trade uses limited by stock, leftovers counted as lost); "Add both to cart" hands it to the route planner.
 
 ## Economic Concepts
 
@@ -80,7 +86,7 @@ A data structure mapping item-to-item conversion rates, built from:
 Used by `buildRatioGraph()` for deviation calculations and `buildExchangeMatrix()` for the NxN matrix dialog.
 
 ### Trusted Value
-A price value with high confidence, derived from independent shops with sufficient data points. For core currencies, requires ≥3 independent shops (>16 blocks apart). Values can come from direct trades, block conversions (ingot × 9), or transitive derivation through known intermediaries.
+A price value with high confidence, derived from independent shops with sufficient data points. For core currencies, requires ≥3 independent shops (>16 blocks apart, different owners). Values can come from direct trades, block conversions (ingot × 9), or transitive derivation through known intermediaries.
 
 ## Navigation Concepts
 
@@ -128,7 +134,7 @@ Visual representation of the route with stops showing:
 - Trade details
 
 ### Matrix Dialog
-A tabbed NxN grid showing exchange rates between all core currency pairs. Has **Buy** and **Sell** tabs for ask and bid prices respectively. Ratios are derived from median emerald values via direct trades and transitive derivation (e.g., Netherite Ingot valued through Diamond Block → Emerald chains). The diagonal shows "—"; off-diagonal 1:1 ratios display as "1".
+The exchange-rates dialog (💱) with two tabs. **Rates** shows key currency pairs in a table, the more valuable item first ("1 Netherite ingot = 17.4 Diamond blocks"), with both sides of the market side by side: **Buy** is what one item costs at a shop, **Sell** what a shop pays for it. A converter below works the same way for any two core currencies. **Flips** lists profitable round trips between shops. Ratios are derived from median emerald values via direct trades and transitive derivation (e.g., Netherite Ingot valued through Diamond Block → Emerald chains).
 
 ### Squaremap
 The web-based live map of the Minecraft server (`squaremap.baseUrl` in `config.json`). Used for:

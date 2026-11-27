@@ -676,6 +676,25 @@ describe('countIndependentShops', () => {
     test('returns 0 for empty array', () => {
         expect(countIndependentShops([])).toBe(0);
     });
+
+    test('counts one owner\'s distant shops as one source (any case)', () => {
+        const prices = [
+            { price: 1, x: 0, y: 64, z: 0, owner: 'Larryy' },
+            { price: 1, x: 5000, y: 64, z: 0, owner: 'larryy' },
+            { price: 1, x: -5000, y: 64, z: 0, owner: 'Other' }
+        ];
+        expect(countIndependentShops(prices)).toBe(2);
+    });
+
+    test('does not chain neighbours of an owner\'s shop to that owner\'s other shops', () => {
+        // A mall: Alice and Bob trade side by side; Bob also has a shop far away
+        const prices = [
+            { price: 1, x: 0, y: 64, z: 0, owner: 'Alice' },
+            { price: 1, x: 4, y: 64, z: 0, owner: 'Bob' },
+            { price: 1, x: 3000, y: 64, z: 0, owner: 'Bob' }
+        ];
+        expect(countIndependentShops(prices)).toBe(2);
+    });
 });
 
 describe('hasEnoughIndependentData', () => {
@@ -1462,6 +1481,21 @@ describe('processTrade', () => {
         expect(trade.costName).toBe(EMERALD_TITLE);
         expect(trade.displayStock).toBe(5);
         expect(trade.x).toBe(100);
+    });
+
+    test('keeps the shop name and owner, dropping blank ones', () => {
+        const recipe: Recipe = {
+            resultItem: { type: DIAMOND, name: '', amount: 1 },
+            item1: { type: EMERALD, name: '', amount: 10 },
+            stock: 5
+        };
+        const named = processTrade(recipe, { shopName: ' End Item Vendor ', shopOwner: '.aus3z', location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] }, []);
+        expect(named.shopName).toBe('End Item Vendor');
+        expect(named.shopOwner).toBe('.aus3z');
+
+        const blank = processTrade(recipe, { shopName: '  ', location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] }, []);
+        expect(blank.shopName).toBeUndefined();
+        expect(blank.shopOwner).toBeUndefined();
     });
 
     test('applies mapping rules', () => {

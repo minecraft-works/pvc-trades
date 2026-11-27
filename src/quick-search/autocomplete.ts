@@ -22,15 +22,65 @@ export interface Autocomplete {
     close: () => void;
 }
 
+/**
+ * A suggestion that runs an action instead of filling in the field, e.g.
+ * "show only this shop". Accepting it clears the field.
+ */
+export interface ActionSuggestion {
+    /** Leading symbol, e.g. "🏪" */
+    readonly icon: string;
+    readonly label: string;
+    /** Muted text after the label */
+    readonly detail: string;
+    /** Accessible description of what accepting does */
+    readonly actionLabel: string;
+    readonly accept: () => void;
+}
+
+type Suggestion =
+    | { readonly kind: 'name'; readonly name: string }
+    | { readonly kind: 'action'; readonly action: ActionSuggestion };
+
 let instanceCount = 0;
+
+/**
+ * Build the list entry for a suggestion
+ * @param suggestion - Item name or action suggestion
+ * @param option - List element to fill
+ */
+function fillOption(suggestion: Suggestion, option: HTMLLIElement): void {
+    if (suggestion.kind === 'name') {
+        option.textContent = suggestion.name;
+        return;
+    }
+    const { icon, label, detail, actionLabel } = suggestion.action;
+    option.classList.add('search-suggestion-action');
+    option.setAttribute('aria-label', `${actionLabel}: ${label}, ${detail}`);
+    const iconElement = document.createElement('span');
+    iconElement.className = 'suggestion-icon';
+    iconElement.setAttribute('aria-hidden', 'true');
+    iconElement.textContent = icon;
+    const labelElement = document.createElement('span');
+    labelElement.className = 'suggestion-label';
+    labelElement.textContent = label;
+    const detailElement = document.createElement('span');
+    detailElement.className = 'suggestion-detail';
+    detailElement.textContent = detail;
+    option.append(iconElement, labelElement, detailElement);
+}
 
 /**
  * Attach autocomplete to a search field.
  * @param input - Search field (its parent must be positioned)
  * @param getNames - Unique item names to suggest from
+ * @param getActions - Extra suggestions for the typed text, listed after the names
  * @returns Autocomplete handler
  */
-export function createAutocomplete(input: HTMLInputElement, getNames: () => readonly string[]): Autocomplete {
+export function createAutocomplete(
+    input: HTMLInputElement,
+    getNames: () => readonly string[],
+    getActions: (query: string) => readonly ActionSuggestion[] = () => []
+): Autocomplete {
     instanceCount++;
     const listId = `${input.id}-suggestions`;
 
@@ -48,21 +98,21 @@ export function createAutocomplete(input: HTMLInputElement, getNames: () => read
     // The browser's own saved-entry dropdown would stack on top of ours
     input.setAttribute('autocomplete', 'off');
 
-    let suggestions: readonly string[] = [];
+    let suggestions: readonly Suggestion[] = [];
     let highlighted = -1;
     let acceptedValue: string | undefined;
 
     function render(): void {
-        list.replaceChildren(...suggestions.map((name, index) => {
+        list.replaceChildren(...suggestions.map((suggestion, index) => {
             const option = document.createElement('li');
             option.id = `${listId}-${instanceCount}-${index}`;
             option.setAttribute('role', 'option');
             option.setAttribute('aria-selected', String(index === highlighted));
-            option.textContent = name;
+            fillOption(suggestion, option);
             // mousedown (not click) so the field keeps focus
             option.addEventListener('mousedown', (event) => {
                 event.preventDefault();
-                accept(name);
+                accept(suggestion);
             });
             return option;
         }));
@@ -85,17 +135,30 @@ export function createAutocomplete(input: HTMLInputElement, getNames: () => read
             return;
         }
         acceptedValue = undefined;
-        const ranked = rankSuggestions(getNames(), value, QUICK_SEARCH.MAX_SUGGESTIONS);
-        // Nothing to add when the only suggestion is exactly what was typed
-        suggestions = ranked.length === 1 && ranked[0]?.toLowerCase() === value.trim().toLowerCase() ? [] : ranked;
+        const actions = getActions(value);
+        // Actions take the last slots so they stay visible without scrolling
+        const ranked = rankSuggestions(getNames(), value, Math.max(QUICK_SEARCH.MAX_SUGGESTIONS - actions.length, 1));
+        // Nothing to add when the only name suggestion is exactly what was typed
+        const names = ranked.length === 1 && ranked[0]?.toLowerCase() === value.trim().toLowerCase() ? [] : ranked;
+        suggestions = [
+            ...names.map((name): Suggestion => ({ kind: 'name', name })),
+            ...actions.map((action): Suggestion => ({ kind: 'action', action })),
+        ];
         highlighted = -1;
         render();
     }
 
-    function accept(name: string): void {
-        acceptedValue = name;
-        input.value = name;
-        close();
+    function accept(suggestion: Suggestion): void {
+        if (suggestion.kind === 'action') {
+            acceptedValue = '';
+            input.value = '';
+            close();
+            suggestion.action.accept();
+        } else {
+            acceptedValue = suggestion.name;
+            input.value = suggestion.name;
+            close();
+        }
         input.dispatchEvent(new Event('input', { bubbles: true }));
     }
 

@@ -23,13 +23,36 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    scrollbar-width: thin;
 }
 
 /* Keep keyboard-focused rows clear of the sticky search bar, and always reserve
-   the scrollbar's space so the page doesn't jump sideways when results shrink */
+   the scrollbar's space so the page doesn't jump sideways when results shrink.
+   The thin dark scrollbar colours are inherited by every scroll container. */
 html {
     scroll-padding-top: 130px;
     scrollbar-gutter: stable;
+    scrollbar-color: #4a4a4a transparent;
+}
+
+/* Browsers without scrollbar-color (older Safari) */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4a4a4a padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #5f5f5f;
 }
 
 body {
@@ -38,23 +61,6 @@ body {
     color: var(--color-text);
     padding: var(--spacing-lg);
     line-height: 1.5;
-}
-
-/* Skip Link */
-.skip-link {
-    position: absolute;
-    top: -40px;
-    left: 0;
-    background: var(--color-accent);
-    color: var(--color-bg);
-    padding: var(--spacing-sm) var(--spacing-md);
-    z-index: 1000;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.skip-link:focus {
-    top: 0;
 }
 
 /* Visually Hidden */
@@ -1382,12 +1388,30 @@ mark {
     padding: 0;
     max-width: 90vw;
     max-height: 90vh;
-    overflow: auto;
+    overflow: hidden;
     position: fixed;
     inset: 0;
     margin: auto;
     width: min(460px, 90vw);
     height: fit-content;
+}
+
+/* Header and tabs stay put; only the active panel scrolls */
+#matrix-container {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(90vh - 2px);
+}
+
+#matrix-container > header,
+.matrix-tabs {
+    flex-shrink: 0;
+}
+
+.matrix-rates,
+.matrix-flips {
+    min-height: 0;
+    overflow-y: auto;
 }
 
 #matrix-dialog::backdrop {
@@ -1481,35 +1505,72 @@ mark {
     letter-spacing: 0.5px;
 }
 
-/* --- Key rate rows (static) --- */
+/* --- Rates: key rate table --- */
 
-.rate-rows {
-    display: grid;
-    grid-template-columns: 24px auto auto auto 24px;
-    justify-content: center;
-    align-items: center;
-    column-gap: 6px;
-    row-gap: 6px;
+.rates-hint {
+    margin: 12px 20px 0;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
 }
 
-.rate-row {
-    display: contents;
+.rates-hint strong {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Item | Buy | Sell | currency, aligned across all rows */
+.rate-table {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 14px;
     font-size: 0.85rem;
 }
 
-.rate-from-amount {
-    text-align: left;
+.rate-table-row {
+    display: contents;
 }
 
-.rate-eq {
-    color: var(--color-text-dimmed);
-    text-align: center;
-}
-
-.rate-value {
+.rate-table-head > span {
+    font-size: 0.7rem;
     font-weight: 600;
-    color: var(--color-primary);
-    text-align: left;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-dimmed);
+}
+
+.rate-item,
+.rate-unit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.rate-item span,
+.rate-unit span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rate-item {
+    font-weight: 600;
+}
+
+.rate-unit {
+    color: var(--color-text-muted);
+}
+
+.rate-num {
+    min-width: 3ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.rate-table-row:not(.rate-table-head) .rate-num {
+    font-weight: 700;
+    color: var(--color-accent);
 }
 
 /* --- Shared input styles --- */
@@ -1537,19 +1598,13 @@ mark {
     outline-offset: -1px;
 }
 
-/* --- Custom converter --- */
+/* --- Rates: converter --- */
 
 .converter-custom {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     padding-bottom: 16px;
-}
-
-.converter-custom-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
 }
 
 .converter-row {
@@ -1558,7 +1613,9 @@ mark {
     align-items: center;
 }
 
-.converter-row .converter-input {
+/* Amount and swap share a column so both selects line up */
+.converter-row .converter-input,
+.converter-row .converter-swap-btn {
     width: 80px;
     flex-shrink: 0;
 }
@@ -1566,17 +1623,6 @@ mark {
 .converter-row .converter-select {
     flex: 1;
     min-width: 0;
-}
-
-.converter-row .converter-result-box {
-    width: 80px;
-    flex-shrink: 0;
-}
-
-.converter-label {
-    font-size: 0.8rem;
-    color: var(--color-text-dimmed);
-    font-weight: 500;
 }
 
 .converter-select {
@@ -1597,16 +1643,13 @@ mark {
 }
 
 .converter-swap-btn {
-    align-self: center;
     background: var(--color-bg-primary);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     color: var(--color-text);
-    padding: 8px 20px;
-    font-size: 0.85rem;
+    font-size: 1.1rem;
     cursor: pointer;
     min-height: 44px;
-    min-width: 44px;
     transition: background 0.15s;
 }
 
@@ -1614,24 +1657,35 @@ mark {
     background: var(--color-border);
 }
 
-.converter-result-box {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    padding: 8px 10px;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-primary);
-    box-sizing: border-box;
+.converter-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
-.converter-rate-hint {
-    margin: 0;
-    font-size: 0.8rem;
+.converter-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+}
+
+.converter-result-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--color-text-dimmed);
+}
+
+.converter-result strong {
+    font-size: 1.1rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-accent);
 }
 
 /* ============================================================================
@@ -1646,9 +1700,10 @@ mark {
     inset: 0;
     margin: auto;
 
-    /* Match table width behavior: min of viewport, table max-width, or square constraint */
-    width: min(calc(100vw - 20px), 80vh, 768px);
-    height: min(calc(100vw - 20px), 80vh, 768px);
+    /* As large as the viewport allows (square), with room for the player
+       markers on the rim, capped so it stays a dialog */
+    width: min(calc(100vw - 32px), calc(100vh - 64px), 1100px);
+    height: min(calc(100vw - 32px), calc(100vh - 64px), 1100px);
     overflow: visible;
 }
 
@@ -1691,22 +1746,34 @@ mark {
     color: #fff;
 }
 
+/* Inside the round map, mirroring the shop pill, clear of the player markers on the rim */
 #map-coords {
     position: absolute;
-    bottom: 8px;
+    bottom: 8%;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
+    background: rgb(16 18 22 / 92%);
+    border: 1px solid rgb(255 255 255 / 18%);
     border-radius: var(--border-radius);
     padding: 4px 12px;
     font-family: var(--font-mono);
     font-size: 0.8rem;
     list-style: none;
     margin: 0;
-    color: var(--color-text-dimmed);
-    z-index: 1000;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+    color: #c8c8c8;
+    z-index: 1002;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 50%);
+}
+
+/* Arrow cursor instead of Leaflet's open hand: the arrow clicks at its tip, like
+   the pointing hand shown over a shop dot, so the cursor doesn't jump when it
+   switches. A closed hand while dragging. */
+#map-container.leaflet-grab {
+    cursor: default;
+}
+
+.leaflet-dragging #map-container.leaflet-grab {
+    cursor: grabbing;
 }
 
 /* Leaflet tile rendering - pixelated for Minecraft map tiles */
@@ -1768,16 +1835,41 @@ mark {
 }
 
 /* Simple pin marker for shop */
-.leaflet-pin-marker {
-    width: 24px;
-    height: 24px;
-    background: #e53935;
-    border: 2px solid #fff;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
+
+/* Selected shop: a blue circle with a halo, standing out from the black-and-white
+   shop dots. Leaflet positions the outer element; the inner dot scales with zoom. */
+.leaflet-pin-marker .pin-dot {
+    position: absolute;
+    inset: 0;
+    background: var(--color-accent);
+    border: 3px solid #fff;
+    border-radius: 50%;
     box-shadow:
-        3px 3px 2px rgb(0 0 0 / 80%),
-        5px 5px 8px rgb(0 0 0 / 60%);
+        0 0 0 4px rgb(79 195 247 / 35%),
+        0 2px 6px rgb(0 0 0 / 70%);
+    transform: scale(var(--marker-scale, 1));
+    transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+
+/* Other shops: two-tone so they show on any terrain (dark centre on snow,
+   white ring on dark ground). The 16 px marker is the click area. */
+.shop-dot-marker .shop-dot {
+    position: absolute;
+    inset: 3px;
+    background: #262626;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    transform: scale(var(--marker-scale, 1));
+    transition:
+        transform 0.25s cubic-bezier(0, 0, 0.25, 1),
+        background-color 0.1s,
+        border-color 0.1s;
+}
+
+.shop-dot-marker:hover .shop-dot {
+    background: #fff;
+    border-color: #262626;
+    transform: scale(calc(var(--marker-scale, 1) * 1.4));
 }
 
 /* ============================================================================
@@ -2176,14 +2268,16 @@ mark {
     pointer-events: none;
 }
 
-/* Player markers */
-.leaflet-player-marker {
-    width: 12px;
-    height: 12px;
+/* Player markers: Leaflet positions the outer element; the inner dot scales with zoom */
+.leaflet-player-marker .player-dot {
+    position: absolute;
+    inset: 0;
     background: #4caf50;
     border: 2px solid #fff;
     border-radius: 50%;
     box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
+    transform: scale(var(--marker-scale, 1));
+    transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
 }
 
 /* Player name label (shared between map and edge markers) */
@@ -2230,19 +2324,66 @@ mark {
     transform: translateX(-50%);
 }
 
-/* Player markers on circle edge (outside map, as DOM elements) */
+/* Edge markers: the name points from the rim toward the map centre.
+   Anchored at the marker centre and rotated around it; labels that would
+   read upside down are turned half around and end at the marker instead. */
+.player-name.label-radial {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform-origin: 0 0;
+    transform: rotate(var(--label-angle, 0deg)) translate(9px, -50%);
+}
+
+.player-name.label-radial.label-radial-end {
+    transform: rotate(var(--label-angle, 0deg)) translate(calc(-100% - 9px), -50%);
+}
+
+/* Player markers on circle edge (outside map, as DOM elements).
+   Placed with an inline transform from the top-left corner of the dialog. */
 .player-edge-marker {
     position: absolute;
+    top: 0;
+    left: 0;
 
     /* width and height set dynamically based on distance */
     background: #ff9800;
     border: 2px solid #fff;
     border-radius: 50%;
     box-shadow: 0 2px 4px rgb(0 0 0 / 50%);
-    transform: translate(-50%, -50%);
     z-index: 1001;
     pointer-events: auto;
     opacity: 0.9;
+    cursor: pointer;
+}
+
+/* Players (dot and name) are clickable on the shop map: the map flies to them */
+#map-dialog .player-edge-marker .player-name,
+#map-dialog .leaflet-player-marker .player-name {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+#map-dialog .player-edge-marker:hover {
+    opacity: 1;
+    z-index: 1003;
+}
+
+#map-dialog .player-edge-marker:hover .player-name,
+#map-dialog .leaflet-player-marker:hover .player-name,
+#map-dialog .is-selected .player-name {
+    background: var(--color-accent);
+    color: #0d1b24;
+}
+
+/* The selected player gets the same blue ring as a selected shop */
+#map-dialog .leaflet-player-marker.is-selected .player-dot,
+#map-dialog .player-edge-marker.is-selected {
+    border-color: #fff;
+    box-shadow:
+        0 0 0 4px rgb(79 195 247 / 60%),
+        0 2px 6px rgb(0 0 0 / 70%);
+    opacity: 1;
 }
 
 /* ============================================================================
@@ -2392,6 +2533,337 @@ mark {
     margin-top: 4px;
 }
 
+/* --- Shop filter chip (search meta row) --- */
+
+/* Filled and borderless, so it reads as the active filter rather than another toggle */
+.shop-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 50%;
+    padding: 0 2px 0 10px;
+    font-size: 0.72rem;
+    line-height: 20px;
+    border-radius: 999px;
+    background: rgb(79 195 247 / 14%);
+    color: var(--color-text);
+}
+
+.shop-filter-prefix {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.shop-filter-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+/* Divider between the shop filter and the quick toggles */
+.shop-filter:not(.hidden) + .quick-bar {
+    padding-left: 8px;
+    border-left: 1px solid var(--color-border);
+}
+
+.shop-filter-clear {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+
+.shop-filter-clear:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+/* --- Shop and owner suggestions under the item names --- */
+
+/* Shop names and details need more room than the narrow mobile Buying field */
+#searchWant-suggestions {
+    min-width: min(300px, calc(100vw - 48px));
+    overflow-x: hidden;
+}
+
+.search-suggestions li.search-suggestion-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
+}
+
+.search-suggestions li:not(.search-suggestion-action) + .search-suggestion-action {
+    border-top: 1px solid var(--color-border);
+}
+
+.suggestion-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-detail {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
+.search-suggestions li:hover .suggestion-detail,
+.search-suggestions li[aria-selected="true"] .suggestion-detail {
+    color: inherit;
+}
+
+/* --- Shop name and owner on the map, route and cart --- */
+
+/* Inside the round map, clear of the player edge markers on the rim */
+.map-shop-info {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1002;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 4px 10px;
+    width: max-content;
+    max-width: 66%;
+    padding: 6px 8px 6px 14px;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    color: #fff;
+    background: rgb(16 18 22 / 92%);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 18px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 55%);
+    backdrop-filter: blur(4px);
+}
+
+.map-shop-name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.map-shop-owner {
+    font-size: 0.8rem;
+    color: #c8c8c8;
+}
+
+.map-shop-trades-btn {
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: #0d1b24;
+    cursor: pointer;
+}
+
+.map-shop-trades-btn:hover {
+    filter: brightness(1.12);
+}
+
+.map-shop-sold-out {
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 999px;
+}
+
+/* Hover label of the shop dots on the map */
+.leaflet-tooltip.map-shop-tooltip {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text);
+    background: rgb(16 18 22 / 94%);
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 50%);
+}
+
+.leaflet-tooltip-top.map-shop-tooltip::before {
+    border-top-color: rgb(16 18 22 / 94%);
+}
+
+.stop-shop,
+.cart-item-shop {
+    color: var(--color-text-dimmed);
+}
+
+.cart-item-shop {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+
+.nav-shop-tooltip .tooltip-shop {
+    margin: -8px 0 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+/* --- Flips tab of the exchange-rates dialog --- */
+
+.matrix-flips {
+    padding: 12px 16px 16px;
+}
+
+.flips-intro,
+.flips-empty {
+    margin: 0 0 10px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.flip-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.flip-card {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+}
+
+.flip-head,
+.flip-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.flip-head {
+    margin-bottom: 8px;
+}
+
+.flip-item,
+.flip-profit,
+.flip-leg-rate,
+.flip-shop {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.flip-item {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.flip-profit {
+    max-width: 55%;
+    font-weight: 700;
+    color: var(--color-good-deal);
+}
+
+/* Both legs share one grid so verb, rate, uses and shop line up */
+.flip-legs {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 38%);
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 6px 8px;
+    background: var(--color-bg-secondary);
+    border-radius: 6px;
+}
+
+.flip-leg {
+    display: contents;
+}
+
+.flip-leg-verb {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.flip-leg-uses {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-align: right;
+    color: var(--color-accent);
+}
+
+.flip-shop {
+    justify-self: end;
+    max-width: 100%;
+    padding: 0;
+    font-size: 0.78rem;
+    text-align: right;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.flip-shop:hover {
+    color: var(--color-accent);
+}
+
+.flip-foot {
+    align-items: center;
+    margin-top: 8px;
+}
+
+.flip-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+
+.flip-add {
+    flex-shrink: 0;
+    min-height: 28px;
+    padding: 3px 12px;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+}
+
+.flip-add:hover:not(:disabled) {
+    background: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.flip-add:disabled {
+    border-color: var(--color-good-deal);
+    color: var(--color-good-deal);
+    cursor: default;
+}
+
 /* Mobile: show all columns in compressed form */
 @media (width <= 600px) {
     body {
@@ -2464,6 +2936,16 @@ mark {
     .search-meta {
         flex-wrap: wrap;
         row-gap: 2px;
+    }
+
+    /* The chip gets its own line here, so no divider */
+    .shop-filter {
+        max-width: 100%;
+    }
+
+    .shop-filter:not(.hidden) + .quick-bar {
+        padding-left: 0;
+        border-left: none;
     }
 
     .quick-bar {

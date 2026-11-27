@@ -123,6 +123,16 @@ function getUnitPriceHtml(t: Trade, displayAmount: number): string {
 }
 
 /**
+ * Shop name and owner for the distance cell's tooltip
+ * @param t - Trade
+ * @returns A new line with the shop, or an empty string when the owner is unknown
+ */
+function getShopTitle(t: Trade): string {
+    if (!t.shopOwner) { return ''; }
+    return t.shopName ? `\n${t.shopName} by ${t.shopOwner}` : `\nShop of ${t.shopOwner}`;
+}
+
+/**
  * The seller's name for a shulker box, shown after the item name
  * @param label - Seller-given box name, if any
  * @param displayName - Item name shown in the cell
@@ -405,7 +415,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const starTitle = info.isFavorite ? 'Edit favorite' : 'Add to favorites';
         const safeName = escapeHtml(t.resultName);
         const coordsTitle = `X: ${t.x}, Y: ${t.y}, Z: ${t.z}`;
-        const distanceTitle = isNether(t.world) ? `${coordsTitle} (Nether; distance shown in overworld blocks)` : coordsTitle;
+        const distanceTitle = escapeHtml((isNether(t.world) ? `${coordsTitle} (Nether; distance shown in overworld blocks)` : coordsTitle) + getShopTitle(t));
 
         return `
             <button class="col ${info.starClass}" role="gridcell" data-item="${safeName}" title="${starTitle}" aria-label="${starTitle}: ${safeName}">★</button>

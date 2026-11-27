@@ -160,6 +160,8 @@ Two distinct update paths prevent expensive DOM operations at 60fps:
 - **On poll** (1000ms/5000ms): `updatePlayerMarker()` — rebuilds icon HTML (nether class), updates authoritative distance/auto-advance calculations
 - **On rAF** (~16ms): `marker.setLatLng()` + arrow rotation via CSS `transform: rotate()` — moves and rotates the existing marker without DOM reconstruction
 
+The shop map's other players follow the same rule (`src/map/player-layer.ts`): each player keeps one map marker and one rim marker for as long as they are online. A poll only adds or removes players; every frame moves the markers (rim markers via `transform`) and shows the right one, with no DOM rebuilds or layout reads. Shop dots are only on the map in and around the view, so a pan or zoom animation moves about a hundred markers instead of every shop.
+
 ## Consequences
 
 ### Positive

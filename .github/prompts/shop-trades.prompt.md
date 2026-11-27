@@ -402,7 +402,7 @@ function calculateRouteDistance(
 ### Price Aggregation
 
 - Use **median** not mean (robust against outliers)
-- Shops within **16 blocks** count as 1 source (prevent manipulation)
+- Shops within **16 blocks**, or of the same owner, count as 1 source (prevent manipulation)
 - Core blocks need **≥3 independent shops** to trust market price
 
 ---
@@ -891,7 +891,7 @@ const dist = calculateRouteDistance(x1, z1, world1, x2, z2, world2);
 - **Trade**: Shop offer (give items → receive items)
 - **Deviation**: How much a trade differs from median market price
 - **Core Blocks**: Emerald, Diamond, Gold, Iron, Netherite blocks
-- **Independent Shops**: Shops >16 blocks apart (for fair price aggregation)
+- **Independent Shops**: Shops >16 blocks apart with different owners (for fair price aggregation)
 - **Route**: Optimized visiting order using nearest-neighbor + 2-opt
 - **Snapshot**: Saved trade state (deviations + stock) for session-to-session comparison
 - **Dashboard**: Banner showing price drops, new trades, and watchlist hits since last visit

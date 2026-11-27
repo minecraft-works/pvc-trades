@@ -82,15 +82,9 @@ When(String.raw`I click on the distance cell of an overworld shop at \({int}, {i
 });
 
 Then('the map should show player marker for {string}', async ({ page }, playerName: string) => {
-    // Check for player marker with that name (either on map or as edge marker)
-    const mapMarker = page.locator(SELECTOR_PLAYER_MARKER).filter({ hasText: playerName });
-    const edgeMarker = page.locator(SELECTOR_EDGE_MARKER).filter({ hasText: playerName });
-    
-    // At least one should be visible
-    const mapVisible = await mapMarker.count() > 0;
-    const edgeVisible = await edgeMarker.count() > 0;
-    
-    expect(mapVisible || edgeVisible, `Expected to find marker for player "${playerName}"`).toBeTruthy();
+    // Markers are kept while hidden, so check for a visible one (on the map or on its edge)
+    const marker = page.locator(`${SELECTOR_PLAYER_MARKER}:visible, ${SELECTOR_EDGE_MARKER}:visible`).filter({ hasText: playerName });
+    await expect(marker, `Expected to find marker for player "${playerName}"`).toHaveCount(1);
 });
 
 Then('the map should not show player marker for {string}', async ({ page }, playerName: string) => {
@@ -106,13 +100,8 @@ Then('the map should show player markers for {string}, {string}, and {string}', 
     const dialog = page.locator(SELECTOR_MAP_DIALOG);
     
     for (const playerName of [player1, player2, player3]) {
-        const mapMarker = dialog.locator(SELECTOR_PLAYER_MARKER).filter({ hasText: playerName });
-        const edgeMarker = dialog.locator(SELECTOR_EDGE_MARKER).filter({ hasText: playerName });
-        
-        const mapCount = await mapMarker.count();
-        const edgeCount = await edgeMarker.count();
-        
-        expect(mapCount + edgeCount, `Expected to find marker for player "${playerName}"`).toBeGreaterThan(0);
+        const marker = dialog.locator(`${SELECTOR_PLAYER_MARKER}:visible, ${SELECTOR_EDGE_MARKER}:visible`).filter({ hasText: playerName });
+        await expect(marker, `Expected to find marker for player "${playerName}"`).toHaveCount(1);
     }
 });
 
@@ -128,4 +117,27 @@ Then('there should be an edge marker pointing toward {string}', async ({ page },
     // Player is far away, so should have an edge marker
     const edgeMarker = page.locator(SELECTOR_EDGE_MARKER).filter({ hasText: playerName });
     await expect(edgeMarker).toBeVisible();
+});
+
+When('I click the edge marker of {string}', async ({ page }, playerName: string) => {
+    await page.locator(`${SELECTOR_EDGE_MARKER}[data-player="${playerName}"]`).click();
+});
+
+Then('{string} should be on the map instead of on its edge', async ({ page }, playerName: string) => {
+    await expect(page.locator(`${SELECTOR_PLAYER_MARKER}[data-player="${playerName}"]`)).toBeVisible();
+    await expect(page.locator(`${SELECTOR_EDGE_MARKER}[data-player="${playerName}"]`)).toBeHidden();
+});
+
+Then('the map should show the player {string}', async ({ page }, playerName: string) => {
+    const info = page.locator('#map-shop-info');
+    await expect(info.locator('.map-shop-owner')).toHaveText('Player');
+    await expect(info.locator('.map-shop-name')).toHaveText(playerName);
+});
+
+Then('the selected shop circle should be hidden', async ({ page }) => {
+    await expect(page.locator('.leaflet-pin-marker')).toHaveCSS('opacity', '0');
+});
+
+Then('there should be no trades button on the map', async ({ page }) => {
+    await expect(page.locator('#map-shop-info .map-shop-trades-btn')).toHaveCount(0);
 });

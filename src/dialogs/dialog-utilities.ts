@@ -19,7 +19,10 @@
 export function setupDialogBackdropClose(dialog: HTMLDialogElement): void {
     let mouseDownOutside = false;
     
+    // Only the backdrop itself counts: content that sticks out of the dialog
+    // box (like player markers around the round map) does not close it
     const isOutsideDialog = (event: MouseEvent): boolean => {
+        if (event.target !== dialog) { return false; }
         const rect = dialog.getBoundingClientRect();
         return (
             event.clientX < rect.left ||

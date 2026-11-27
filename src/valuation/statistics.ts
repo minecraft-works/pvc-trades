@@ -57,36 +57,34 @@ export function median(array: readonly PriceEntry[] | readonly number[]): number
 }
 
 /**
- * Count independent shops (shops > shopClusterDistance blocks apart).
- * Prevents a single mega-shop from dominating price calculations.
+ * Count independent shops. Shops within shopClusterDistance blocks of each
+ * other, or owned by the same player, count as one source. This keeps a
+ * single mega-shop or one player's chain of shops from dominating prices.
  *
- * @param priceArray - Array of prices with coordinates
+ * Clustering is greedy and not transitive: each cluster has the location and
+ * owner of its first shop, so neighbours of one owner's shop do not get merged
+ * with that owner's shops elsewhere.
+ *
+ * @param priceArray - Array of prices with coordinates and optional owner
  * @returns Number of independent shop clusters
  *
  * @example
  * // Two shops 100 blocks apart = 2 independent shops
  * countIndependentShops([{price: 10, x: 0, y: 64, z: 0}, {price: 12, x: 100, y: 64, z: 0}]) // 2
+ * // ...unless one player owns both
+ * countIndependentShops([{price: 10, x: 0, y: 64, z: 0, owner: 'Bob'}, {price: 12, x: 100, y: 64, z: 0, owner: 'bob'}]) // 1
  */
 export function countIndependentShops(priceArray: readonly PriceEntry[]): number {
-    const config = configStore.get();
-    if (priceArray.length === 0) { return 0; }
+    const maxDistance = configStore.get().analysis.shopClusterDistance;
+    const clusters: { readonly anchor: Coordinates; readonly owner: string | undefined }[] = [];
 
-    const locations = priceArray.map(p => ({ x: p.x, y: p.y, z: p.z }));
-
-    if (locations.length === 0) { return priceArray.length; }
-
-    const clusters: Coordinates[] = [];
-    for (const loc of locations) {
-        let foundCluster = false;
-        for (const cluster of clusters) {
-            const distribution = Math.hypot(loc.x - cluster.x, loc.y - cluster.y, loc.z - cluster.z);
-            if (distribution <= config.analysis.shopClusterDistance) {
-                foundCluster = true;
-                break;
-            }
-        }
-        if (!foundCluster) {
-            clusters.push(loc);
+    for (const entry of priceArray) {
+        const owner = entry.owner?.toLowerCase();
+        const joinsCluster = clusters.some(cluster =>
+            (owner !== undefined && cluster.owner === owner)
+            || Math.hypot(entry.x - cluster.anchor.x, entry.y - cluster.anchor.y, entry.z - cluster.anchor.z) <= maxDistance);
+        if (!joinsCluster) {
+            clusters.push({ anchor: { x: entry.x, y: entry.y, z: entry.z }, owner });
         }
     }
     return clusters.length;

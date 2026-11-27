@@ -231,19 +231,35 @@ export function getPairKey(resultName: string, costName: string): string {
     return `${resultName.toLowerCase()}|${costName.toLowerCase()}`;
 }
 
+/** A single-cost trade's lot: units received and paid per use, as valuation names */
+export interface PairLot {
+    readonly resultName: string;
+    readonly resultAmount: number;
+    readonly costName: string;
+    readonly costAmount: number;
+    /** Cost units paid per result unit */
+    readonly price: number;
+}
+
 /**
  * Get a single-cost trade's price per result unit and the pair it belongs to.
  *
  * @param trade - Processed trade
- * @returns Pair names and per-unit price, or undefined for two-item costs,
- *          mixed shulker boxes, or unidentifiable items
+ * @returns Pair names, lot sizes and per-unit price, or undefined for two-item
+ *          costs, mixed shulker boxes, or unidentifiable items
  */
-export function getPairPrice(trade: Readonly<Trade>): Readonly<{ resultName: string; costName: string; price: number }> | undefined {
+export function getPairPrice(trade: Readonly<Trade>): PairLot | undefined {
     if (trade.item2) { return undefined; }
     const result = getSingleComponent(trade.resultItem);
     const cost = getSingleComponent(trade.item1);
     if (!result || !cost || result.amount <= 0) { return undefined; }
-    return { resultName: result.name, costName: cost.name, price: cost.amount / result.amount };
+    return {
+        resultName: result.name,
+        resultAmount: result.amount,
+        costName: cost.name,
+        costAmount: cost.amount,
+        price: cost.amount / result.amount,
+    };
 }
 
 /**
@@ -276,5 +292,6 @@ export function toValuationInput(trade: Readonly<Trade>): TradeInput | undefined
         x: trade.x,
         y: trade.y,
         z: trade.z,
+        owner: trade.shopOwner,
     };
 }

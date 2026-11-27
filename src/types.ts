@@ -121,6 +121,8 @@ const RecipeSchema = z.object({
 }).loose();
 
 const ShopSchema = z.object({
+    shopName: z.string().optional(),
+    shopOwner: z.string().optional(),
     location: z.string(),
     world: z.string(),
     recipes: z.array(RecipeSchema)
@@ -139,6 +141,10 @@ export interface Recipe {
 }
 
 export interface Shop {
+    /** Name tag of the shopkeeper, e.g. "End Item Vendor" */
+    shopName?: string | undefined;
+    /** Player who owns the shop */
+    shopOwner?: string | undefined;
     location: string;
     world: string;
     recipes: Recipe[];
@@ -167,6 +173,10 @@ export interface Trade {
     /** Name the seller gave a filled shulker box, e.g. "mending" on a box of books */
     readonly resultLabel?: string | undefined;
     readonly costName: string;
+    /** Name tag of the shopkeeper, if it has one */
+    readonly shopName?: string | undefined;
+    /** Player who owns the shop, if known */
+    readonly shopOwner?: string | undefined;
 }
 
 export interface FilterResult {
@@ -185,6 +195,14 @@ export interface QuickFilters {
     readonly bestPerItem: boolean;
     /** Only trades that buy or sell a filled shulker box */
     readonly shulkersOnly: boolean;
+}
+
+/** Limits the results to one player's shops, or to one of their shops */
+export interface ShopFilter {
+    /** Shop owner (case-insensitive) */
+    readonly owner: string;
+    /** Shop name; all of the owner's shops when absent */
+    readonly shop?: string | undefined;
 }
 
 // ============================================================================
@@ -279,6 +297,8 @@ export interface PriceEntry {
     readonly x: number;
     readonly y: number;
     readonly z: number;
+    /** Shop owner; prices from one owner count as a single independent source */
+    readonly owner?: string | undefined;
 }
 
 export interface ItemValueEntry {
@@ -335,6 +355,8 @@ export interface TradeInput {
     readonly x: number;
     readonly y: number;
     readonly z: number;
+    /** Shop owner, if known */
+    readonly owner?: string | undefined;
 }
 
 // ============================================================================

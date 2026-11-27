@@ -11,8 +11,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <a href="#results" class="skip-link">Skip to results</a>
-
     <div class="search-container">
         <div class="search-box">
             <div class="search-input-wrapper">
@@ -28,12 +26,13 @@
                 <button id="clear-search-give" type="button" class="clear-search-btn hidden" title="Clear search" aria-label="Clear paying search">✕</button>
             </div>
             <button id="open-dashboard" type="button" title="Daily deals" aria-label="Toggle daily deals dashboard" class="hidden">📊</button>
-            <button id="open-matrix" type="button" title="Exchange rates" aria-label="Open exchange rates matrix">💱</button>
+            <button id="open-matrix" type="button" title="Exchange rates and flips" aria-label="Open exchange rates and flips">💱</button>
             <button id="open-cart" type="button" title="Shopping cart" aria-label="Open shopping cart">
                 🛒<span id="cart-badge" class="cart-badge hidden"></span>
             </button>
         </div>
         <div class="search-meta">
+            <div id="shop-filter" class="shop-filter hidden" role="status" aria-label="Shop filter"></div>
             <div id="quick-bar" class="quick-bar" role="toolbar" aria-label="Quick filters"></div>
             <p id="data-freshness" class="data-freshness"></p>
         </div>
@@ -59,6 +58,7 @@
 
     <dialog id="map-dialog">
         <div id="map-container"></div>
+        <div id="map-shop-info" class="map-shop-info hidden"></div>
         <button id="close-map" aria-label="Close">&times;</button>
         <ul id="map-coords"></ul>
     </dialog>

@@ -194,6 +194,29 @@ export function calculateFitZoom(containerSize: number, contentSize: number): nu
     return Math.log2(containerSize / contentSize);
 }
 
+/** Smallest and largest marker scale on the shop map */
+const MARKER_SCALE_MIN = 0.7;
+const MARKER_SCALE_MAX = 1.6;
+/** How strongly markers follow the zoom: 0.25 → 19% bigger per zoom level */
+const MARKER_SCALE_PER_ZOOM = 0.25;
+
+/**
+ * Size of map markers relative to zoom 0. Markers grow gently when zooming
+ * in and shrink when zooming out (far less than the map itself), within
+ * limits so they stay visible and don't cover the map.
+ *
+ * @param zoom - Leaflet zoom (may be fractional)
+ * @returns Scale factor for marker size
+ *
+ * @example
+ * getMarkerScale(0)  // 1
+ * getMarkerScale(2)  // ≈ 1.41
+ * getMarkerScale(-8) // 0.7 (minimum)
+ */
+export function getMarkerScale(zoom: number): number {
+    return Math.min(MARKER_SCALE_MAX, Math.max(MARKER_SCALE_MIN, 2 ** (zoom * MARKER_SCALE_PER_ZOOM)));
+}
+
 /**
  * Convert Minecraft coordinates to Leaflet CRS.Simple latLng.
  * In CRS.Simple, lat = -z (inverted), lng = x.

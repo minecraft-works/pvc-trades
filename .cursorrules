@@ -91,7 +91,7 @@ npm run test:e2e   # BDD tests (headless)
 - **Deviation**: Price difference from market median
 - **Core Blocks**: Base currencies (Emerald, Diamond, Gold, Iron, Netherite)
 - **Route**: Optimized visiting order for cart items
-- **Independent Shops**: Shops >16 blocks apart
+- **Independent Shops**: Shops >16 blocks apart with different owners
 
 ## Common Patterns
 

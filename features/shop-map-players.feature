@@ -43,3 +43,24 @@ Feature: Shop Map Player Markers
     Given there is a player "FarAwayPlayer" in the overworld at (5000, 5000)
     When I click on the distance cell of an overworld shop at (100, 200)
     Then there should be an edge marker pointing toward "FarAwayPlayer"
+
+  @shop-map @players @edge-markers
+  Scenario: Clicking an off-screen player flies the map to them
+    Given there is a player "FarAwayPlayer" in the overworld at (5000, 5000)
+    When I click on the distance cell of an overworld shop at (100, 200)
+    And I click the edge marker of "FarAwayPlayer"
+    Then "FarAwayPlayer" should be on the map instead of on its edge
+    And the map dialog should remain open
+    And the map should show the player "FarAwayPlayer"
+    And there should be no trades button on the map
+
+  @shop-map @players @selection
+  Scenario: Clicking a player who owns shops selects them instead of the shop
+    Given there is a player "FarOwner" in the overworld at (5000, 5000)
+    When I click on the distance cell of an overworld shop at (100, 200)
+    And I click the edge marker of "FarOwner"
+    Then the map should show the player "FarOwner"
+    And the selected shop circle should be hidden
+    When I click the map's "1 trade" button
+    Then the shop filter should show "FarOwner"
+    And 1 trade should be displayed

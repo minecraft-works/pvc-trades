@@ -12,18 +12,21 @@
 import L from 'leaflet';
 
 import { SELECTORS } from '../constants.js';
-import { createEdgeMarker, getWorldDisplayName, resolvePlayerLabelPositions } from '../dialogs/index.js';
+import { getWorldDisplayName } from '../dialogs/index.js';
 import {
     calculateFitZoom,
-    clampToCircle,
     escapeHtml,
     getTileCoords,
     getWorldId,
     toLeafletCoords,
     toLeafletCoordsRelative} from '../library.js';
+import type { ShopLocation, ShopSummary } from '../search/shop-filter.js';
 import { playerPositionService } from '../stores/player-position-service.js';
-import type { Player } from '../types.js';
+import type { Player, ShopFilter } from '../types.js';
 import { shouldDisableAnimations } from '../types.js';
+import { createLevelSwitcher, type LevelSwitcher } from './level-switcher.js';
+import { getMarkerScale } from './map-math.js';
+import { createPlayerLayer, type PlayerLayer } from './player-layer.js';
 import { fetchPlayers, getPlayerWorld } from './players.js';
 import { blocksPerTile, DETAIL_LEVEL } from './tile-layout.js';
 import { addTileOverlay, getTileUrl, TILE_CONFIG } from './tile-loader.js';
@@ -33,13 +36,22 @@ import { addTileOverlay, getTileUrl, TILE_CONFIG } from './tile-loader.js';
 // ============================================================================
 
 let leafletMap: L.Map | undefined;
-let playerMarkersLayer: L.LayerGroup | undefined;
+/** Players on the open shop map */
+let playerLayer: PlayerLayer | undefined;
+/** Blue circle on the selected shop */
+let pinMarker: L.Marker | undefined;
+/** Player selected on the map instead of a shop (one selection at a time) */
+let selectedPlayer: string | undefined;
+/** True between a zoom animation's start and end; markers are not rebuilt or moved then */
+let zoomAnimating = false;
+/** Called when a player on the map is clicked */
+let onPlayerClick: ((name: string) => void) | undefined;
+/** Level switching of the open shop map */
+let levelSwitcher: LevelSwitcher | undefined;
 let cachedPlayers: Player[] = [];
 let playerRefreshInterval: ReturnType<typeof setInterval> | undefined;
 /** rAF ID for smooth player marker interpolation on the shop map */
 let shopMapAnimFrameId: number | undefined;
-/** Map of player name → L.Marker for on-screen (non-edge) player markers */
-const onScreenPlayerMarkers = new Map<string, L.Marker>();
 /** Current shop map tile reference coords (for coordinate conversion) */
 let shopMapTileX = 0;
 let shopMapTileZ = 0;
@@ -51,6 +63,13 @@ let shopMapTileZ = 0;
  * With a factor-2 pyramid, each coarser level activates 1 zoom unit lower.
  */
 const ZOOM_SHOW_DETAIL = 0;
+
+/**
+ * Coarsest pyramid level, always shown beneath the current level: a handful
+ * of tiles covers the whole view, so anything not loaded yet shows blurry
+ * terrain instead of an empty map
+ */
+const UNDERLAY_LEVEL = 0;
 
 /**
  * Returns the pyramid level that should be displayed at the given Leaflet zoom.
@@ -66,16 +85,6 @@ function getActivePyramidLevel(zoom: number): number {
     return 0;
 }
 
-/**\n * Show only the pane for the active pyramid level, hide all others.\n *\n * @param zoom - Current Leaflet zoom level\n */
-function updateTilePaneVisibility(zoom: number): void {
-    if (!leafletMap) { return; }
-    const activeLevel = getActivePyramidLevel(zoom);
-    for (let l = 0; l <= DETAIL_LEVEL; l++) {
-        const pane = leafletMap.getPane(`tilesLevel${l}`);
-        if (pane) { pane.style.display = l === activeLevel ? '' : 'none'; }
-    }
-}
-
 // ============================================================================
 // Types
 // ============================================================================
@@ -87,6 +96,18 @@ interface ShopMapTileContext {
     centerTileZ: number;
     /** Dedup sets keyed by pyramid level — prevents the same URL being added twice */
     addedToMap: Map<number, Set<string>>;
+    /** Shows one level, keeping the previous one underneath until the new one has loaded */
+    levels: LevelSwitcher;
+    /** Tile URLs already fetched ahead of a zoom, so they are not fetched twice */
+    prefetched: Set<string>;
+}
+
+/** Range of tile coordinates at one pyramid level */
+interface TileRange {
+    readonly minLx: number;
+    readonly maxLx: number;
+    readonly minLz: number;
+    readonly maxLz: number;
 }
 
 /** Parameters for setting up shop map */
@@ -99,6 +120,10 @@ interface ShopMapSetupParameters {
     tileX: number;
     tileZ: number;
     playerRefreshMs: number;
+    /** Other shops to show as clickable dots */
+    shops: readonly ShopLocation[];
+    /** Called when a shop dot is clicked */
+    onSelectShop: (shop: ShopLocation) => void;
 }
 
 /** Dependencies for shop map dialog */
@@ -111,6 +136,14 @@ export interface ShopMapDialogDependencies {
     clearOpenedFromCart: () => void;
     /** Get app config (specifically squaremap.playerRefreshMs) */
     getConfig: () => { squaremap: { playerRefreshMs: number } };
+    /** Shop name, owner and trade count at a location */
+    getShopSummary: (x: number, y: number, z: number, world: string) => ShopSummary | undefined;
+    /** Shops of a player, if they have any */
+    getOwnerSummary: (player: string) => ShopSummary | undefined;
+    /** All shops with something in stock, shown as dots on the map */
+    getShopLocations: () => readonly ShopLocation[];
+    /** Show the results for one shop (the map dialog closes first) */
+    showShopTrades: (filter: ShopFilter) => void;
 }
 
 /** Handler returned by factory */
@@ -177,31 +210,90 @@ function loadTileAtLevel(
         [-dZ, dX + bpt],
     ];
 
-    if (leafletMap) { addTileOverlay(leafletMap, getTileUrl(worldId, level, lx, lz), bounds, `tilesLevel${level}`); }
+    if (leafletMap) {
+        const overlay = addTileOverlay(leafletMap, getTileUrl(worldId, level, lx, lz), bounds, `tilesLevel${level}`);
+        context.levels.tileStarted(level, mapKey);
+        overlay.once('load error', () => { context.levels.tileSettled(level, mapKey); });
+    }
+}
+
+/**
+ * Tiles of a pyramid level that cover some map bounds
+ * @param context - Tile context with the centre tile
+ * @param level - Pyramid level
+ * @param bounds - Map bounds to cover
+ * @returns Tile coordinate range
+ */
+function getTileRange(context: ShopMapTileContext, level: number, bounds: L.LatLngBounds): TileRange {
+    const centerX = context.centerTileX * TILE_CONFIG.tileSize;
+    const centerZ = context.centerTileZ * TILE_CONFIG.tileSize;
+    const bpt = blocksPerTile(level);
+    return {
+        minLx: Math.floor((centerX + bounds.getWest()) / bpt),
+        maxLx: Math.floor((centerX + bounds.getEast()) / bpt),
+        minLz: Math.floor((centerZ - bounds.getNorth()) / bpt),
+        maxLz: Math.floor((centerZ - bounds.getSouth()) / bpt),
+    };
+}
+
+/**
+ * Call `visit` for every tile in a range
+ * @param range - Tile coordinate range
+ * @param visit - Called with each tile's coordinates
+ */
+function forEachTile(range: TileRange, visit: (lx: number, lz: number) => void): void {
+    for (let lz = range.minLz; lz <= range.maxLz; lz++) {
+        for (let lx = range.minLx; lx <= range.maxLx; lx++) { visit(lx, lz); }
+    }
+}
+
+/**
+ * Levels to request for a zoom: the level shown there, plus the coarse
+ * underlay that stays visible beneath it
+ * @param zoom - Leaflet zoom
+ * @returns Pyramid levels
+ */
+function getLevelsToLoad(zoom: number): number[] {
+    const level = getActivePyramidLevel(zoom);
+    return level === UNDERLAY_LEVEL ? [level] : [level, UNDERLAY_LEVEL];
 }
 
 function loadVisibleShopMapTiles(context: ShopMapTileContext): void {
     if (!leafletMap) { return; }
-    const mapBounds = leafletMap.getBounds();
-    const currentZoom = leafletMap.getZoom();
 
-    updateTilePaneVisibility(currentZoom);
+    // Only the shown level and the underlay are requested; dedup prevents
+    // re-fetching when the user returns to a level they already visited.
+    const zoom = leafletMap.getZoom();
+    const bounds = leafletMap.getBounds();
+    context.levels.show(getActivePyramidLevel(zoom));
+    for (const level of getLevelsToLoad(zoom)) {
+        forEachTile(getTileRange(context, level, bounds), (lx, lz) => { loadTileAtLevel(context, level, lx, lz); });
+    }
+    context.levels.requestsDone();
+}
 
-    const centerX = context.centerTileX * TILE_CONFIG.tileSize;
-    const centerZ = context.centerTileZ * TILE_CONFIG.tileSize;
-
-    // Only the level shown at this zoom is requested; dedup prevents re-fetching
-    // when the user returns to a level they already visited.
-    const level = getActivePyramidLevel(currentZoom);
-    const bpt = blocksPerTile(level);
-    const minLx = Math.floor((centerX + mapBounds.getWest()) / bpt);
-    const maxLx = Math.floor((centerX + mapBounds.getEast()) / bpt);
-    const minLz = Math.floor((centerZ - mapBounds.getNorth()) / bpt);
-    const maxLz = Math.floor((centerZ - mapBounds.getSouth()) / bpt);
-    for (let lz = minLz; lz <= maxLz; lz++) {
-        for (let lx = minLx; lx <= maxLx; lx++) {
-            loadTileAtLevel(context, level, lx, lz);
-        }
+/**
+ * When a zoom animation starts, fetch the tiles the map will show when it
+ * ends, so they come from the browser cache by the time they are added.
+ * These are the same requests the map makes at the end of the zoom.
+ * @param context - Tile context
+ * @param event - Leaflet zoom animation event with the target zoom and centre
+ */
+function prefetchZoomTarget(context: ShopMapTileContext, event: L.ZoomAnimEvent): void {
+    if (!leafletMap) { return; }
+    const half = leafletMap.getSize().divideBy(2);
+    const center = leafletMap.project(event.center, event.zoom);
+    const target = L.latLngBounds(leafletMap.unproject(center.subtract(half), event.zoom), leafletMap.unproject(center.add(half), event.zoom));
+    for (const level of getLevelsToLoad(event.zoom)) {
+        const added = context.addedToMap.get(level);
+        forEachTile(getTileRange(context, level, target), (lx, lz) => {
+            const url = getTileUrl(context.worldId, level, lx, lz);
+            if (added?.has(`${lx},${lz}`) || context.prefetched.has(url)) { return; }
+            context.prefetched.add(url);
+            const image = new Image();
+            image.referrerPolicy = 'no-referrer';
+            image.src = url;
+        });
     }
 }
 
@@ -219,86 +311,67 @@ function getPlayerLeafletCoords(player: Player, tileX: number, tileZ: number): {
     return toLeafletCoordsRelative(posX, posZ, tileX, tileZ, TILE_CONFIG.tileSize);
 }
 
-function updateShopMapPlayerMarkers(
-    dialog: HTMLDialogElement,
-    container: HTMLElement,
-    worldId: string,
-    tileX: number,
-    tileZ: number
-): void {
-    playerMarkersLayer?.clearLayers();
-    onScreenPlayerMarkers.clear();
-    for (const element of dialog.querySelectorAll('.player-edge-marker')) { element.remove(); }
-    
-    if (!leafletMap || !playerMarkersLayer || cachedPlayers.length === 0) { return; }
-    const map = leafletMap;
-    const markersLayer = playerMarkersLayer;
-
-    const playersInWorld = cachedPlayers.filter(p => getPlayerWorld(p) === worldId);
-
-    const mapCenter = leafletMap.getCenter();
-    const containerRect = container.getBoundingClientRect();
-    const containerRadius = Math.min(containerRect.width, containerRect.height) / 2;
-    
-    const point1 = leafletMap.containerPointToLatLng([containerRect.width / 2, containerRect.height / 2]);
-    const point2 = leafletMap.containerPointToLatLng([containerRect.width / 2 + containerRadius, containerRect.height / 2]);
-    const visibleRadiusMapUnits = Math.abs(point2.lng - point1.lng);
-    
-    const centerX = containerRect.width / 2;
-    const centerY = containerRect.height / 2;
-    const edgeRadius = containerRect.width / 2 + 8;
-    
-    // Store tile coords for the rAF loop
-    shopMapTileX = tileX;
-    shopMapTileZ = tileZ;
-    
-    // Classify players as on-screen or edge
-    const onScreenPlayers: { player: Player; coords: { lat: number; lng: number } }[] = [];
-    for (const player of playersInWorld) {
-        const playerCoords = getPlayerLeafletCoords(player, tileX, tileZ);
-        const clamped = clampToCircle(playerCoords.lat, playerCoords.lng, mapCenter.lat, mapCenter.lng, visibleRadiusMapUnits);
-        
-        if (clamped.clamped) {
-            const angle = Math.atan2(playerCoords.lat - mapCenter.lat, playerCoords.lng - mapCenter.lng);
-            dialog.append(createEdgeMarker({ player, angle, centerX, centerY, edgeRadius, visibleRadiusMapUnits, playerCoords, mapCenter }));
-        } else {
-            onScreenPlayers.push({ player, coords: playerCoords });
-        }
-    }
-
-    // Resolve label positions to avoid overlaps, then create Leaflet markers
-    const screenMarkers = onScreenPlayers.map(({ player, coords }) => {
-        const screenPoint = map.latLngToContainerPoint([coords.lat, coords.lng]);
-        return { name: player.name, screenX: screenPoint.x, screenY: screenPoint.y };
-    });
-    const labelLayouts = resolvePlayerLabelPositions(screenMarkers);
-    for (const [index, { player, coords }] of onScreenPlayers.entries()) {
-        const cssClass = labelLayouts[index]?.cssClass;
-        const labelClass = cssClass ? ` ${cssClass}` : '';
-        const leafletMarker = L.marker([coords.lat, coords.lng], {
-            icon: L.divIcon({
-                className: 'leaflet-player-marker',
-                html: `<span class="player-name${labelClass}">${escapeHtml(player.name)}</span>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            }),
-            title: player.name
-        }).addTo(markersLayer);
-        onScreenPlayerMarkers.set(player.name.toLowerCase(), leafletMarker);
-    }
+/**
+ * Pan the shop map to where a player is now, keeping the zoom. A pan moves
+ * the map layer as a whole, so the ~1000 markers are not repositioned on
+ * every frame (as they would be with flyTo, which changes the zoom per frame).
+ * @param name - Name of the clicked player
+ */
+function panToPlayer(name: string): void {
+    const player = cachedPlayers.find(candidate => candidate.name === name);
+    if (!leafletMap || !player) { return; }
+    const { lat, lng } = getPlayerLeafletCoords(player, shopMapTileX, shopMapTileZ);
+    // animate: true also animates pans longer than one screen
+    leafletMap.panTo([lat, lng], { animate: true, duration: 0.6 });
 }
 
-/** Start rAF loop updating on-screen player marker positions from interpolators. */
+/**
+ * While a player is selected, the coordinates label follows them
+ */
+function showSelectedPlayerCoords(): void {
+    const player = cachedPlayers.find(candidate => candidate.name === selectedPlayer);
+    const coordsElement = document.querySelector('#map-coords');
+    if (!player || !coordsElement) { return; }
+    const position = playerPositionService.getCurrentPosition(player.name) ?? player.position;
+    const [x, y, z] = [position.x, position.y, position.z].map(value => Math.round(value));
+    const text = `${getWorldDisplayName(getPlayerWorld(player))}: ${x}, ${y}, ${z}`;
+    if (coordsElement.textContent !== text) { coordsElement.textContent = text; }
+}
+
+/** Most a press may move and still count as a click on a player, in pixels */
+const PLAYER_CLICK_SLOP_PX = 6;
+
+/**
+ * Clicking a player (dot or name, on the map or on its rim) selects them.
+ * Players move under the pointer and rim markers sit outside the map, so the
+ * press is tracked on the dialog rather than on each marker.
+ * @param dialog - Map dialog
+ */
+function setupPlayerClicks(dialog: HTMLDialogElement): void {
+    if (Object.hasOwn(dialog.dataset, 'playerClicks')) { return; }
+    dialog.dataset.playerClicks = 'true';
+    let pressed: { name: string; x: number; y: number } | undefined;
+    dialog.addEventListener('pointerdown', event => {
+        const name = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-player]')?.dataset.player : undefined;
+        pressed = name === undefined ? undefined : { name, x: event.clientX, y: event.clientY };
+    }, {capture: true});
+    dialog.addEventListener('pointerup', event => {
+        if (pressed && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) <= PLAYER_CLICK_SLOP_PX) {
+            onPlayerClick?.(pressed.name);
+        }
+        pressed = undefined;
+    }, {capture: true});
+}
+
+/** Start the frame loop that moves the players and their coordinates label. */
 function startShopMapAnimLoop(): void {
     if (shopMapAnimFrameId !== undefined) { return; }
 
     function tick(): void {
-        const now = performance.now();
-        for (const [name, marker] of onScreenPlayerMarkers) {
-            const pos = playerPositionService.getPositionAt(name, now);
-            if (!pos) { continue; }
-            const coords = toLeafletCoordsRelative(pos.x, pos.z, shopMapTileX, shopMapTileZ, TILE_CONFIG.tileSize);
-            marker.setLatLng([coords.lat, coords.lng]);
+        // During a zoom animation Leaflet slides the markers; moving them here would fight it
+        if (!zoomAnimating) {
+            playerLayer?.update();
+            showSelectedPlayerCoords();
         }
         shopMapAnimFrameId = requestAnimationFrame(tick);
     }
@@ -306,13 +379,14 @@ function startShopMapAnimLoop(): void {
     shopMapAnimFrameId = requestAnimationFrame(tick);
 }
 
-/** Stop the shop map rAF animation loop. */
+/** Stop the frame loop and remove the players. */
 function stopShopMapAnimLoop(): void {
     if (shopMapAnimFrameId !== undefined) {
         cancelAnimationFrame(shopMapAnimFrameId);
         shopMapAnimFrameId = undefined;
     }
-    onScreenPlayerMarkers.clear();
+    playerLayer?.remove();
+    playerLayer = undefined;
     playerPositionService.clear();
 }
 
@@ -338,41 +412,135 @@ function createMapConfig(): L.MapOptions {
     };
 }
 
+/** Shop dot marker: a 16 px click area with the dot drawn inside it */
+const SHOP_DOT_ICON_SIZE = 16;
+/** Stacking: shop dots below players, the selected shop above everything */
+const Z_SHOP_DOT = -10_000;
+const Z_PLAYER = 5000;
+const Z_SELECTED_SHOP = 10_000;
+/** Smallest marker size change worth restyling all markers for */
+const MARKER_SCALE_STEP = 0.04;
+/** Shop dots are on the map within this much of the view around it (1 = one view width on each side) */
+const SHOP_DOT_VIEW_PADDING = 1;
+
+/**
+ * Create a clickable dot for every shop in this world; hovering shows the
+ * shop's name. Dots are black-and-white so they don't compete with the
+ * selected shop (blue) or players (green, orange). They are map markers, so
+ * they move with the zoom animation and scale with `--marker-scale`.
+ * Only the dots in and around the view are on the map; the returned function
+ * updates that set (call it after every pan and zoom), which keeps pans and
+ * zoom animations light.
+ * @param map - Shop map
+ * @param parameters - Map setup with the shops and the click handler
+ * @returns Function that adds and removes dots for the current view
+ */
+function addShopMarkers(map: L.Map, parameters: ShopMapSetupParameters): () => void {
+    const { shops, worldId, tileX, tileZ, onSelectShop } = parameters;
+    const half = SHOP_DOT_ICON_SIZE / 2;
+    const icon = L.divIcon({
+        className: 'shop-dot-marker',
+        html: '<span class="shop-dot"></span>',
+        iconSize: [SHOP_DOT_ICON_SIZE, SHOP_DOT_ICON_SIZE],
+        iconAnchor: [half, half],
+    });
+    const layer = L.layerGroup().addTo(map);
+    const markers: L.Marker[] = [];
+    for (const shop of shops) {
+        if (getWorldId(shop.world) !== worldId) { continue; }
+        const { lat, lng } = toLeafletCoordsRelative(shop.x, shop.z, tileX, tileZ, TILE_CONFIG.tileSize);
+        const name = shop.shopName ?? shop.shopOwner ?? 'Shop';
+        const owner = shop.shopName && shop.shopOwner ? ` · ${shop.shopOwner}` : '';
+        markers.push(L.marker([lat, lng], { icon, keyboard: false, zIndexOffset: Z_SHOP_DOT })
+            // No trade count here: the pill's "All N trades" counts every shop with this name
+            .bindTooltip(`<strong>${escapeHtml(name)}</strong>${escapeHtml(owner)}`, {
+                className: 'map-shop-tooltip',
+                direction: 'top',
+                offset: [0, -half],
+            })
+            .on('click', () => { onSelectShop(shop); }));
+    }
+
+    return () => {
+        const area = map.getBounds().pad(SHOP_DOT_VIEW_PADDING);
+        for (const marker of markers) {
+            const wanted = area.contains(marker.getLatLng());
+            if (wanted === layer.hasLayer(marker)) { continue; }
+            if (wanted) { layer.addLayer(marker); } else { layer.removeLayer(marker); }
+        }
+    };
+}
+
 function setupShopMap(parameters: ShopMapSetupParameters): void {
     const { container, dialog, worldId, x, z, tileX, tileZ, playerRefreshMs } = parameters;
     
     leafletMap = L.map(container, createMapConfig());
+    const map = leafletMap;
     
-    // Create one pane per pyramid level for proper z-ordering.
-    // Level 0 (coarsest) has the lowest z-index; detail is on top.
-    // Default overlayPane z-index is 400; all tile panes go below it.
+    // One pane per pyramid level; the level switcher shows the current level
+    // on top and keeps the previous one underneath while the new one loads.
+    // Default overlayPane z-index is 400; all tile panes stay below it.
     for (let l = 0; l <= DETAIL_LEVEL; l++) {
-        leafletMap.createPane(`tilesLevel${l}`).style.zIndex = String(350 + l);
+        map.createPane(`tilesLevel${l}`).style.zIndex = String(350 + l);
     }
 
+    levelSwitcher?.dispose();
+    levelSwitcher = createLevelSwitcher(level => map.getPane(`tilesLevel${level}`), DETAIL_LEVEL + 1, { underlayLevel: UNDERLAY_LEVEL });
     const context: ShopMapTileContext = {
         worldId,
         centerTileX: tileX,
         centerTileZ: tileZ,
         addedToMap: new Map<number, Set<string>>(),
+        levels: levelSwitcher,
+        prefetched: new Set<string>(),
     };
     
     const loadTiles = () => loadVisibleShopMapTiles(context);
     leafletMap.on('moveend', loadTiles);
     leafletMap.on('zoomend', loadTiles);
+    leafletMap.on('zoomanim', (event: L.ZoomAnimEvent) => { prefetchZoomTarget(context, event); });
+
+    // Marker sizes follow the zoom: set to the target size when a zoom
+    // animation starts, so CSS animates the size alongside the map. Continuous
+    // zooms (pinch) fire 'zoom' every frame; restyling ~1000 markers each time
+    // is costly, so the size only updates once it changed noticeably.
+    let markerScale = 0;
+    const setMarkerScale = (zoom: number): void => {
+        const scale = getMarkerScale(zoom);
+        if (Math.abs(scale - markerScale) < MARKER_SCALE_STEP) { return; }
+        markerScale = scale;
+        container.style.setProperty('--marker-scale', scale.toFixed(3));
+    };
+    leafletMap.on('zoomanim', (event: L.ZoomAnimEvent) => { zoomAnimating = true; setMarkerScale(event.zoom); });
+    leafletMap.on('zoom', () => { setMarkerScale(map.getZoom()); });
+    leafletMap.on('zoomend', () => { zoomAnimating = false; });
     
+    const updateShopDots = addShopMarkers(leafletMap, parameters);
+    leafletMap.on('moveend', updateShopDots);
+
     const { lat: markerLat, lng: markerLng } = toLeafletCoords(x, z, TILE_CONFIG.tileSize);
-    L.marker([markerLat, markerLng], {
+    pinMarker = L.marker([markerLat, markerLng], {
         icon: L.divIcon({
             className: 'leaflet-pin-marker',
-            iconSize: [24, 24],
-            iconAnchor: [4, 24]
-        })
+            html: '<span class="pin-dot"></span>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+        }),
+        interactive: false,
+        zIndexOffset: Z_SELECTED_SHOP,
     }).addTo(leafletMap);
     
-    playerMarkersLayer = L.layerGroup().addTo(leafletMap);
-    
-    const updatePlayerMarkers = () => updateShopMapPlayerMarkers(dialog, container, worldId, tileX, tileZ);
+    // Players keep their markers; the frame loop moves them (see player-layer.ts)
+    shopMapTileX = tileX;
+    shopMapTileZ = tileZ;
+    playerLayer?.remove();
+    playerLayer = createPlayerLayer({
+        map,
+        rim: dialog,
+        zIndexOffset: Z_PLAYER,
+        getCoords: player => getPlayerLeafletCoords(player, tileX, tileZ),
+    });
+    const syncPlayers = (): void => { playerLayer?.setPlayers(cachedPlayers.filter(player => getPlayerWorld(player) === worldId)); };
     
     const updateZoomClass = () => {
         if (leafletMap) {
@@ -382,19 +550,17 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     
     void fetchPlayersAndUpdateCache().then(() => {
         if (!leafletMap) { return; }
-        updatePlayerMarkers();
+        syncPlayers();
         startShopMapAnimLoop();
     });
 
     playerRefreshInterval = setInterval(() => {
         void fetchPlayersAndUpdateCache().then(() => {
-            if (!leafletMap) { return; }
-            updatePlayerMarkers();
+            if (leafletMap) { syncPlayers(); }
         });
     }, playerRefreshMs);
     
-    leafletMap.on('move', () => { updatePlayerMarkers(); });
-    leafletMap.on('zoomend', () => { updatePlayerMarkers(); updateZoomClass(); });
+    leafletMap.on('zoomend', updateZoomClass);
 
     leafletMap.invalidateSize();
     const containerSize = leafletMap.getSize();
@@ -403,6 +569,8 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
     const initialZoom = calculateFitZoom(smallerDimension, visibleSize);
     
     leafletMap.setView([markerLat, markerLng], initialZoom);
+    setMarkerScale(initialZoom);
+    updateShopDots();
     loadTiles();
     updateZoomClass();
     
@@ -417,12 +585,142 @@ function setupShopMap(parameters: ShopMapSetupParameters): void {
 // ============================================================================
 
 /**
+ * Add the "All N trades →" button for a shop or player, or "sold out" when
+ * none of their trades is in stock
+ * @param element - Overlay element
+ * @param summary - Shop or owner summary with the filter and trade count
+ * @param title - Button tooltip
+ * @param onShowTrades - Called with the filter when the button is clicked
+ */
+function appendTradesAction(element: HTMLElement, summary: ShopSummary, title: string, onShowTrades: (filter: ShopFilter) => void): void {
+    const { filter, tradeCount } = summary;
+    if (!filter) { return; }
+    if (tradeCount === 0) {
+        // Sold-out trades are hidden from the results, so there is nothing to list
+        const soldOut = document.createElement('span');
+        soldOut.className = 'map-shop-sold-out';
+        soldOut.textContent = 'sold out';
+        element.append(soldOut);
+        return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'map-shop-trades-btn';
+    button.textContent = tradeCount === 1 ? '1 trade →' : `All ${tradeCount} trades →`;
+    button.title = title;
+    button.addEventListener('click', () => onShowTrades(filter));
+    element.append(button);
+}
+
+/**
+ * Show the shop's name and owner over the map, with a button that lists all
+ * trades of the shop. Hidden when the owner is unknown.
+ * @param element - Overlay element
+ * @param summary - Shop at the opened location
+ * @param onShowTrades - Called with the shop's filter when the button is clicked
+ */
+function renderShopInfo(element: HTMLElement, summary: ShopSummary | undefined, onShowTrades: (filter: ShopFilter) => void): void {
+    element.replaceChildren();
+    const owner = summary?.shopOwner;
+    element.classList.toggle('hidden', owner === undefined);
+    if (!summary || owner === undefined) { return; }
+
+    const name = document.createElement('strong');
+    name.className = 'map-shop-name';
+    name.textContent = summary.shopName ?? owner;
+    const ownerElement = document.createElement('span');
+    ownerElement.className = 'map-shop-owner';
+    if (summary.shopName) {
+        ownerElement.textContent = `by ${owner}`;
+        element.append(name, ownerElement);
+    } else {
+        ownerElement.textContent = 'Shop of';
+        element.append(ownerElement, name);
+    }
+    const title = summary.filter?.shop ? `Show only trades from ${summary.filter.shop}` : `Show only trades from shops of ${owner}`;
+    appendTradesAction(element, summary, title, onShowTrades);
+}
+
+/**
+ * Show the selected player over the map, with a button listing the trades of
+ * all their shops when they have any
+ * @param element - Overlay element
+ * @param name - Player name
+ * @param shops - The player's shops, if any
+ * @param onShowTrades - Called with the owner filter when the button is clicked
+ */
+function renderPlayerInfo(element: HTMLElement, name: string, shops: ShopSummary | undefined, onShowTrades: (filter: ShopFilter) => void): void {
+    element.replaceChildren();
+    element.classList.remove('hidden');
+    const label = document.createElement('span');
+    label.className = 'map-shop-owner';
+    label.textContent = 'Player';
+    const nameElement = document.createElement('strong');
+    nameElement.className = 'map-shop-name';
+    nameElement.textContent = name;
+    element.append(label, nameElement);
+    if (shops) { appendTradesAction(element, shops, `Show only trades from shops of ${name}`, onShowTrades); }
+}
+
+/**
  * Create shop map dialog handler
  * @param deps - External dependencies injected from main.ts
  * @returns Handler with open/close functions for the shop map dialog
  */
 export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): ShopMapDialogHandler {
-    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart, getConfig } = deps;
+    const { onCloseFromCart, isOpenedFromCart, clearOpenedFromCart, getConfig, getShopSummary, getOwnerSummary, getShopLocations, showShopTrades } = deps;
+    /** Tile the open map's coordinates are relative to */
+    let mapTile = { tileX: 0, tileZ: 0 };
+
+    /**
+     * Show the coordinates, name and owner of the selected shop
+     * @param x - X coordinate
+     * @param y - Y coordinate
+     * @param z - Z coordinate
+     * @param world - World name
+     */
+    function showShopDetails(x: number, y: number, z: number, world: string): void {
+        const coordsElement = document.querySelector('#map-coords');
+        if (coordsElement) {
+            coordsElement.textContent = `${getWorldDisplayName(world)}: ${x}, ${y}, ${z}`;
+        }
+        const shopInfo = document.querySelector<HTMLElement>('#map-shop-info');
+        if (shopInfo) {
+            renderShopInfo(shopInfo, getShopSummary(x, y, z, world), showShopTrades);
+        }
+    }
+
+    /**
+     * Make a shop dot the selected shop: move the pin there and show its details.
+     * Any selected player is deselected.
+     * @param shop - Clicked shop
+     */
+    function selectShop(shop: ShopLocation): void {
+        selectedPlayer = undefined;
+        playerLayer?.setSelected(undefined);
+        pinMarker?.setOpacity(1);
+        showShopDetails(shop.x, shop.y, shop.z, shop.world);
+        if (!leafletMap) { return; }
+        const { lat, lng } = toLeafletCoordsRelative(shop.x, shop.z, mapTile.tileX, mapTile.tileZ, TILE_CONFIG.tileSize);
+        pinMarker?.setLatLng([lat, lng]);
+        leafletMap.panTo([lat, lng]);
+    }
+
+    /**
+     * Make a player the selection instead of the shop: hide the shop circle,
+     * show the player (and a button for their shops' trades) and fly there
+     * @param name - Clicked player
+     */
+    function selectPlayer(name: string): void {
+        selectedPlayer = name;
+        playerLayer?.setSelected(name);
+        pinMarker?.setOpacity(0);
+        const shopInfo = document.querySelector<HTMLElement>('#map-shop-info');
+        if (shopInfo) { renderPlayerInfo(shopInfo, name, getOwnerSummary(name), showShopTrades); }
+        showSelectedPlayerCoords();
+        panToPlayer(name);
+    }
+    onPlayerClick = selectPlayer;
     
     function open(x: number, y: number, z: number, world: string): void {
         const dialog = document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG);
@@ -434,9 +732,8 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
         }
         
         const worldId = getWorldId(world);
-        const worldDisplay = getWorldDisplayName(world);
-        coordsElement.textContent = `${worldDisplay}: ${x}, ${y}, ${z}`;
-        
+        selectedPlayer = undefined;
+        showShopDetails(x, y, z, world);
         if (playerRefreshInterval) {
             clearInterval(playerRefreshInterval);
             playerRefreshInterval = undefined;
@@ -448,6 +745,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             closeButton.dataset.initialized = 'true';
             closeButton.addEventListener('click', () => dialog.close());
         }
+        setupPlayerClicks(dialog);
 
         dialog.addEventListener('close', () => {
             if (playerRefreshInterval) {
@@ -462,6 +760,7 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
         }, { once: true });
         
         const { tileX, tileZ } = getTileCoords(x, z, TILE_CONFIG.tileSize);
+        mapTile = { tileX, tileZ };
         dialog.showModal();
         
         requestAnimationFrame(() => {
@@ -471,12 +770,14 @@ export function createShopMapDialogHandler(deps: ShopMapDialogDependencies): Sho
             }
             
             setupShopMap({
-                playerRefreshMs: getConfig().squaremap.playerRefreshMs,
                 worldId,
                 x, z,
                 tileX, tileZ,
                 container,
-                dialog
+                dialog,
+                playerRefreshMs: getConfig().squaremap.playerRefreshMs,
+                shops: getShopLocations(),
+                onSelectShop: selectShop,
             });
         });
     }

@@ -1,16 +1,19 @@
 /**
- * Exchange Rate Converter Dialog Module
+ * Exchange Rates Dialog Module
  *
- * Shows key currency pairs at a glance with editable amounts,
- * plus a custom converter for arbitrary core-currency combinations.
- * Buy/Sell tabs control which median prices are used.
+ * Rates tab: key currency pairs in a small table (the more valuable item
+ * first, with names and icons) and a converter for any two core currencies.
+ * Each rate shows both sides of the market at once: Buy is what an item costs
+ * at a shop, Sell is what a shop pays for it. The Flips tab lists profitable
+ * round trips between shops.
  *
  * @module dialogs/matrix-dialog
  */
 
-import { DIALOG_IDS,SELECTORS } from '../constants.js';
-import { buildExchangeMatrix,escapeHtml } from '../library.js';
-import type { ExchangeMatrix,ItemValues } from '../types.js';
+import { DIALOG_IDS, SELECTORS } from '../constants.js';
+import { buildExchangeMatrix, escapeHtml } from '../library.js';
+import type { ExchangeMatrix, ItemValues } from '../types.js';
+import { type FlipsPanelDeps, renderFlipsPanel } from './flips-panel.js';
 
 // ============================================================================
 // Constants
@@ -30,42 +33,63 @@ const ITEM_ICONS: Record<string, string> = {
     'Iron Ingot': 'icons/iron_ingot.png',
 };
 
-/** Key currency pairs shown as quick converters */
+/** Key currency pairs; each is shown with its more valuable item first */
 const KEY_PAIRS: [string, string][] = [
+    ['Netherite Ingot', 'Diamond Block'],
     ['Diamond', 'Emerald Block'],
-    ['Diamond Block', 'Netherite Ingot'],
-    ['Emerald Block', 'Gold Block'],
+    ['Gold Block', 'Emerald Block'],
     ['Emerald Block', 'Iron Block'],
 ];
 
 const DIALOG_HEADER_HTML = '<header><h2>Exchange Rates</h2><button id="close-matrix" aria-label="Close">&times;</button></header>';
+
+const RATES_HINT_HTML = '<p class="rates-hint"><strong>Buy</strong> is what one item costs at a shop, <strong>Sell</strong> what a shop pays you for it.</p>';
+
+/** Both sides of the market */
+interface Matrices {
+    readonly buy: ExchangeMatrix;
+    readonly sell: ExchangeMatrix;
+}
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
- * Get the icon HTML for an item, or escaped text if no icon exists
- * @param name - Item name to look up an icon for
- * @returns HTML string: an <img> tag if icon found, otherwise escaped text
+ * Item name as written in the trade table ("Netherite ingot")
+ * @param label - Currency label, e.g. "Netherite Ingot"
+ * @returns Name with only the first letter capitalised
  */
-function getItemIcon(name: string): string {
-    const url = ITEM_ICONS[name];
-    if (url) {
-        return `<img src="${url}" alt="${escapeHtml(name)}" class="matrix-icon" title="${escapeHtml(name)}">`;
-    }
-    return escapeHtml(name);
+function toDisplayName(label: string): string {
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }
 
 /**
- * Format a ratio value for display with appropriate precision
- * @param value - Numeric ratio to format, or undefined for no data
- * @returns Formatted string (e.g., '1.5', '2', or '—' if undefined)
+ * Icon and name of a currency
+ * @param label - Currency label
+ * @returns HTML with an icon (when known) and the display name
  */
-function formatRatio(value: number | undefined): string {
-    if (value === undefined) { return '\u2014'; }
-    const rounded = Math.round(value * 100) / 100;
-    return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
+function itemWithIcon(label: string): string {
+    const url = ITEM_ICONS[label];
+    const icon = url ? `<img src="${url}" alt="" class="matrix-icon" aria-hidden="true">` : '';
+    return `${icon}<span>${escapeHtml(toDisplayName(label))}</span>`;
+}
+
+/**
+ * Format a rate so it reads at a glance: whole numbers from 100, one decimal
+ * from 10, otherwise up to two decimals
+ * @param value - Rate, or undefined when there is no data
+ * @returns Formatted rate, or a dash
+ */
+function formatRate(value: number | undefined): string {
+    if (value === undefined || !Number.isFinite(value)) { return '\u2014'; }
+    let digits = 2;
+    if (value >= 100) {
+        digits = 0;
+    } else if (value >= 10) {
+        digits = 1;
+    }
+    return value.toLocaleString('en-US', { maximumFractionDigits: digits });
 }
 
 /**
@@ -83,53 +107,52 @@ function getMatrixRatio(matrix: ExchangeMatrix, from: string, to: string): numbe
 }
 
 /**
- * Format a converted amount — show up to 2 decimals, strip trailing zeros
- * @param value - Numeric amount to format
- * @returns Formatted locale string, or '—' if not finite
+ * Put the more valuable item first, so rates read "1 netherite ingot = 17
+ * diamond blocks" rather than "1 diamond block = 0.06 netherite ingot"
+ * @param pair - Two currency labels
+ * @param matrices - Buy and sell matrices
+ * @returns The pair, more valuable item first
  */
-function formatAmount(value: number): string {
-    if (!Number.isFinite(value)) { return '\u2014'; }
-    return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+function orientPair(pair: readonly [string, string], matrices: Matrices): [string, string] {
+    const [a, b] = pair;
+    const buy = getMatrixRatio(matrices.buy, a, b);
+    const sell = getMatrixRatio(matrices.sell, a, b);
+    const ratio = buy === undefined || sell === undefined ? buy ?? sell : Math.sqrt(buy * sell);
+    return ratio !== undefined && ratio < 1 ? [b, a] : [a, b];
 }
 
 // ============================================================================
-// Quick Conversions Section
+// Rates Panel
 // ============================================================================
 
 /**
- * Build HTML for a single static rate row
- * @param fromName - Source currency display name
- * @param toName - Target currency display name
- * @param index - Index used to identify the rate value element via data-rate
- * @returns HTML string for the rate row div
+ * Build the key rates table
+ * @param matrices - Buy and sell matrices
+ * @returns HTML for the key rates section
  */
-function buildRateRow(fromName: string, toName: string, index: number): string {
-    return `<div class="rate-row">
-        ${getItemIcon(fromName)}
-        <span class="rate-from-amount">1</span>
-        <span class="rate-eq">=</span>
-        <span class="rate-value" data-rate="${index}">\u2014</span>
-        ${getItemIcon(toName)}
-    </div>`;
+function buildKeyRates(matrices: Matrices): string {
+    const rows = KEY_PAIRS.map(pair => {
+        const [item, unit] = orientPair(pair, matrices);
+        return `<div class="rate-table-row" role="row">
+            <span class="rate-item" role="cell">${itemWithIcon(item)}</span>
+            <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.buy, item, unit))}</span>
+            <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.sell, item, unit))}</span>
+            <span class="rate-unit" role="cell">${itemWithIcon(unit)}</span>
+        </div>`;
+    }).join('');
+    return `<section class="converter-section">
+        <h3 class="converter-section-title">Key rates</h3>
+        <div class="rate-table" role="table" aria-label="Key rates">
+            <div class="rate-table-row rate-table-head" role="row">
+                <span role="columnheader">1 ×</span>
+                <span class="rate-num" role="columnheader">Buy</span>
+                <span class="rate-num" role="columnheader">Sell</span>
+                <span role="columnheader">in</span>
+            </div>
+            ${rows}
+        </div>
+    </section>`;
 }
-
-/**
- * Build HTML for the key rates overview
- * @returns HTML string for the key rates section
- */
-function buildKeyRates(): string {
-    let html = '<div class="converter-section"><h3 class="converter-section-title">Key Rates</h3>';
-    html += '<div class="rate-rows">';
-    for (const [index, [from, to]] of KEY_PAIRS.entries()) {
-        html += buildRateRow(from, to, index);
-    }
-    html += '</div></div>';
-    return html;
-}
-
-// ============================================================================
-// Custom Converter Section
-// ============================================================================
 
 /**
  * Build the <option> elements for a currency select dropdown
@@ -138,103 +161,79 @@ function buildKeyRates(): string {
  * @returns HTML string of <option> elements
  */
 function buildCurrencyOptions(labels: readonly string[], selected: string): string {
-    let html = '';
-    for (const label of labels) {
-        const sel = label === selected ? ' selected' : '';
-        html += `<option value="${escapeHtml(label)}"${sel}>${escapeHtml(label)}</option>`;
-    }
-    return html;
+    return labels
+        .map(label => `<option value="${escapeHtml(label)}"${label === selected ? ' selected' : ''}>${escapeHtml(toDisplayName(label))}</option>`)
+        .join('');
 }
 
 /**
- * Build HTML for the custom converter
+ * Build the converter
  * @param labels - Available currency labels for the dropdowns
- * @returns HTML string for the custom converter section
+ * @returns HTML string for the converter section
  */
-function buildCustomConverter(labels: readonly string[]): string {
-    const from = labels[0] ?? '';
-    const to = labels[1] ?? '';
-
-    return `<div class="converter-section">
-        <h3 class="converter-section-title">Custom Converter</h3>
+function buildConverter(labels: readonly string[]): string {
+    const from = labels.find(label => label === 'Netherite Ingot') ?? labels[0] ?? '';
+    const to = labels.find(label => label === 'Diamond Block') ?? labels[1] ?? '';
+    return `<section class="converter-section">
+        <h3 class="converter-section-title">Convert</h3>
         <div class="converter-custom">
-            <div class="converter-custom-field">
-                <label class="converter-label">From</label>
-                <div class="converter-row">
-                    <input type="number" id="converter-from-amount" class="converter-input"
-                           inputmode="decimal" min="0" step="any" value="1"
-                           aria-label="Amount to convert">
-                    <select id="converter-from-select" class="converter-select">${buildCurrencyOptions(labels, from)}</select>
-                </div>
+            <div class="converter-row">
+                <input type="number" id="converter-from-amount" class="converter-input"
+                       inputmode="decimal" min="0" step="any" value="1" aria-label="Amount to convert">
+                <select id="converter-from-select" class="converter-select" aria-label="Convert from">${buildCurrencyOptions(labels, from)}</select>
             </div>
-            <button id="converter-swap" class="converter-swap-btn" aria-label="Swap currencies"
-                    title="Swap currencies">\u21C5 Swap</button>
-            <div class="converter-custom-field">
-                <label class="converter-label">To</label>
-                <div class="converter-row">
-                    <div class="converter-result-box" id="converter-custom-result">\u2014</div>
-                    <select id="converter-to-select" class="converter-select">${buildCurrencyOptions(labels, to)}</select>
-                </div>
+            <div class="converter-row">
+                <button type="button" id="converter-swap" class="converter-swap-btn" aria-label="Swap currencies" title="Swap currencies">\u21C5</button>
+                <select id="converter-to-select" class="converter-select" aria-label="Convert to">${buildCurrencyOptions(labels, to)}</select>
             </div>
-            <p class="converter-rate-hint" id="converter-rate-hint"></p>
+            <div class="converter-results">
+                <div class="converter-result"><span class="converter-result-label">Buy</span><strong id="converter-buy">\u2014</strong></div>
+                <div class="converter-result"><span class="converter-result-label">Sell</span><strong id="converter-sell">\u2014</strong></div>
+            </div>
         </div>
-    </div>`;
-}
-
-// ============================================================================
-// Update Logic
-// ============================================================================
-
-/**
- * Update the static key-rate values for the active matrix
- * @param container - DOM element containing the rate value elements
- * @param matrix - Exchange matrix with current ratio data
- */
-function updateKeyRates(container: HTMLElement, matrix: ExchangeMatrix): void {
-    for (const [index, [fromName, toName]] of KEY_PAIRS.entries()) {
-        const ratio = getMatrixRatio(matrix, fromName, toName);
-        const element = container.querySelector<HTMLElement>(`[data-rate="${index}"]`);
-        if (element) {
-            element.textContent = formatRatio(ratio);
-        }
-    }
+    </section>`;
 }
 
 /**
- * Update the custom converter result
- * @param container - DOM element containing the converter inputs and output
- * @param matrix - Exchange matrix with current ratio data
+ * Update the converter results for the chosen amount and currencies
+ * @param container - Dialog content
+ * @param matrices - Buy and sell matrices
  */
-function updateCustomConverter(container: HTMLElement, matrix: ExchangeMatrix): void {
-    const fromSelect = container.querySelector<HTMLSelectElement>('#converter-from-select');
-    const toSelect = container.querySelector<HTMLSelectElement>('#converter-to-select');
-    const amountInput = container.querySelector<HTMLInputElement>('#converter-from-amount');
-    const resultBox = container.querySelector<HTMLElement>('#converter-custom-result');
-    const rateHint = container.querySelector<HTMLElement>('#converter-rate-hint');
+function updateConverter(container: HTMLElement, matrices: Matrices): void {
+    const from = container.querySelector<HTMLSelectElement>('#converter-from-select')?.value ?? '';
+    const to = container.querySelector<HTMLSelectElement>('#converter-to-select')?.value ?? '';
+    const amount = Number.parseFloat(container.querySelector<HTMLInputElement>('#converter-from-amount')?.value ?? '') || 0;
+    const convert = (matrix: ExchangeMatrix): string => {
+        if (from === to) { return formatRate(amount); }
+        const ratio = getMatrixRatio(matrix, from, to);
+        return ratio === undefined ? '\u2014' : formatRate(amount * ratio);
+    };
+    const buy = container.querySelector('#converter-buy');
+    const sell = container.querySelector('#converter-sell');
+    if (buy) { buy.textContent = convert(matrices.buy); }
+    if (sell) { sell.textContent = convert(matrices.sell); }
+}
 
-    if (!fromSelect || !toSelect || !amountInput || !resultBox) { return; }
-
-    const from = fromSelect.value;
-    const to = toSelect.value;
-    const amount = Number.parseFloat(amountInput.value) || 0;
-
-    if (from === to) {
-        resultBox.textContent = formatAmount(amount);
-        if (rateHint) { rateHint.textContent = 'Same currency'; }
-        return;
+/**
+ * Wire the converter inputs and swap button
+ * @param container - Dialog content
+ * @param matrices - Buy and sell matrices
+ */
+function wireConverter(container: HTMLElement, matrices: Matrices): void {
+    const update = (): void => { updateConverter(container, matrices); };
+    for (const id of ['#converter-from-select', '#converter-to-select', '#converter-from-amount']) {
+        container.querySelector(id)?.addEventListener('input', update);
     }
-
-    const ratio = getMatrixRatio(matrix, from, to);
-    if (ratio === undefined) {
-        resultBox.textContent = '\u2014';
-        if (rateHint) { rateHint.textContent = 'No rate available'; }
-        return;
-    }
-
-    resultBox.textContent = formatAmount(amount * ratio);
-    if (rateHint) {
-        rateHint.textContent = `Rate: 1 ${from} = ${formatRatio(ratio)} ${to}`;
-    }
+    container.querySelector('#converter-swap')?.addEventListener('click', () => {
+        const fromSelect = container.querySelector<HTMLSelectElement>('#converter-from-select');
+        const toSelect = container.querySelector<HTMLSelectElement>('#converter-to-select');
+        if (!fromSelect || !toSelect) { return; }
+        const previousFrom = fromSelect.value;
+        fromSelect.value = toSelect.value;
+        toSelect.value = previousFrom;
+        update();
+    });
+    update();
 }
 
 // ============================================================================
@@ -242,93 +241,59 @@ function updateCustomConverter(container: HTMLElement, matrix: ExchangeMatrix): 
 // ============================================================================
 
 /**
- * Render the exchange rate converter dialog with quick pairs and custom converter.
- * Buy/Sell tabs control which median prices are used for ratios.
+ * Render the exchange rates dialog: Rates (key rates and converter) and Flips.
  *
  * @param container - Container element for the dialog content
  * @param itemValues - The computed item values, or undefined if not available
  * @param getElement - Helper function to get elements by ID
+ * @param flips - Flips tab callbacks; the tab is left out without them
  */
 export function renderExchangeMatrix(
     container: HTMLElement,
     itemValues: ItemValues | undefined,
-    getElement: <T extends HTMLElement = HTMLElement>(id: string) => T
+    getElement: <T extends HTMLElement = HTMLElement>(id: string) => T,
+    flips?: FlipsPanelDeps
 ): void {
+    const closeDialog = (): void => { getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close(); };
     if (!itemValues || itemValues.size === 0) {
         container.innerHTML = `${DIALOG_HEADER_HTML}<p class="muted">No price data available</p>`;
-        container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
-            getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
-        });
+        container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', closeDialog);
         return;
     }
 
-    const buyMatrix = buildExchangeMatrix(itemValues, 'buy');
-    const sellMatrix = buildExchangeMatrix(itemValues, 'sell');
-    let activeMatrix = buyMatrix;
+    const matrices: Matrices = { buy: buildExchangeMatrix(itemValues, 'buy'), sell: buildExchangeMatrix(itemValues, 'sell') };
+    const flipsTab = flips ? '<button class="matrix-tab" data-tab="flips" title="Buy at one shop, sell to another for profit">Flips</button>' : '';
+    container.innerHTML = `${DIALOG_HEADER_HTML}
+        <div class="matrix-tabs">
+            <button class="matrix-tab matrix-tab--active" data-tab="rates">Rates</button>
+            ${flipsTab}
+        </div>
+        <div class="matrix-rates">
+            ${RATES_HINT_HTML}
+            ${buildKeyRates(matrices)}
+            ${buildConverter(matrices.buy.labels)}
+        </div>
+        <div class="matrix-flips hidden"></div>`;
 
-    let html = DIALOG_HEADER_HTML;
-    html += '<div class="matrix-tabs">';
-    html += '<button class="matrix-tab matrix-tab--active" data-tab="buy">Buy</button>';
-    html += '<button class="matrix-tab" data-tab="sell">Sell</button>';
-    html += '</div>';
-    html += buildKeyRates();
-    html += buildCustomConverter(buyMatrix.labels);
-    container.innerHTML = html;
+    wireConverter(container, matrices);
 
-    // Initial update
-    updateKeyRates(container, activeMatrix);
-    updateCustomConverter(container, activeMatrix);
-
-    // --- Event wiring ---
-
-    /** Re-compute all results with the current active matrix */
-    const refreshAll = (): void => {
-        updateKeyRates(container, activeMatrix);
-        updateCustomConverter(container, activeMatrix);
-    };
-
-    // Tab switching changes which matrix is active
+    const ratesPanel = container.querySelector<HTMLElement>('.matrix-rates');
+    const flipsPanel = container.querySelector<HTMLElement>('.matrix-flips');
+    let flipsRendered = false;
     for (const tab of container.querySelectorAll<HTMLButtonElement>('.matrix-tab')) {
         tab.addEventListener('click', () => {
             for (const element of container.querySelectorAll('.matrix-tab')) {
-                element.classList.remove('matrix-tab--active');
+                element.classList.toggle('matrix-tab--active', element === tab);
             }
-            tab.classList.add('matrix-tab--active');
-            activeMatrix = tab.dataset.tab === 'sell' ? sellMatrix : buyMatrix;
-            refreshAll();
+            const showFlips = tab.dataset.tab === 'flips';
+            ratesPanel?.classList.toggle('hidden', showFlips);
+            flipsPanel?.classList.toggle('hidden', !showFlips);
+            if (showFlips && flips && flipsPanel && !flipsRendered) {
+                flipsRendered = true;
+                renderFlipsPanel(flipsPanel, flips);
+            }
         });
     }
 
-    // Custom converter inputs
-    const customInputs = [
-        container.querySelector<HTMLSelectElement>('#converter-from-select'),
-        container.querySelector<HTMLSelectElement>('#converter-to-select'),
-        container.querySelector<HTMLInputElement>('#converter-from-amount'),
-    ];
-    for (const element of customInputs) {
-        element?.addEventListener('input', () => {
-            updateCustomConverter(container, activeMatrix);
-        });
-        // Also handle 'change' for <select> elements
-        element?.addEventListener('change', () => {
-            updateCustomConverter(container, activeMatrix);
-        });
-    }
-
-    // Swap button
-    container.querySelector('#converter-swap')?.addEventListener('click', () => {
-        const fromSelect = container.querySelector<HTMLSelectElement>('#converter-from-select');
-        const toSelect = container.querySelector<HTMLSelectElement>('#converter-to-select');
-        if (fromSelect && toSelect) {
-            const temporary = fromSelect.value;
-            fromSelect.value = toSelect.value;
-            toSelect.value = temporary;
-            updateCustomConverter(container, activeMatrix);
-        }
-    });
-
-    // Close button
-    container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', () => {
-        getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close();
-    });
+    container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', closeDialog);
 }

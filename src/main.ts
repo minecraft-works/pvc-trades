@@ -50,6 +50,7 @@ import { createFavoritesUIHandler } from './favorites/index.js';
 import {
     getConfig,
     getTradeKey,
+    getTrustedItemValue,
 } from './library.js';
 import type { ShopMapDialogHandler } from './map/index.js';
 import {
@@ -57,19 +58,23 @@ import {
 } from './map/index.js';
 import type { LiveNavigationHandler,NavMapHandler, NavUpdatesHandler } from './navigation/index.js';
 import { createLiveNavigationHandler,createNavMapHandler, createNavState, createNavUpdatesHandler, createShopTooltipHandler } from './navigation/index.js';
-import type { Autocomplete } from './quick-search/autocomplete.js';
+import type { ActionSuggestion, Autocomplete } from './quick-search/autocomplete.js';
 import { createAutocomplete } from './quick-search/autocomplete.js';
 import type { QuickBar } from './quick-search/quick-bar.js';
 import { createQuickBar } from './quick-search/quick-bar.js';
-import type { UrlSync } from './quick-search/url-sync.js';
+import type { ShopFilterChip } from './quick-search/shop-chip.js';
+import { createShopFilterChip } from './quick-search/shop-chip.js';
+import type { UrlSearchState, UrlSync } from './quick-search/url-sync.js';
 import { createUrlSync } from './quick-search/url-sync.js';
 import type { TradeRendererHandler } from './rendering/index.js';
 import { createTradeRendererHandler } from './rendering/index.js';
 import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
 import { collectItemNames } from './search/query.js';
+import { collectShopLocations, collectShopSuggestions, rankShopSuggestions, type ShopLocation, type ShopSuggestion, summarizeOwner, summarizeShopAt } from './search/shop-filter.js';
 import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
-import type { Trade } from './types.js';
+import type { ShopFilter, Trade } from './types.js';
+import { findFlips,type Flip } from './valuation/flips.js';
 
 // ============================================================================
 // State
@@ -107,7 +112,10 @@ let quickBar: QuickBar;
 let urlSync: UrlSync;
 let wantAutocomplete: Autocomplete;
 let giveAutocomplete: Autocomplete;
+let shopFilterChip: ShopFilterChip;
 let suggestionSource: { trades: readonly Trade[]; names: ReturnType<typeof collectItemNames> } | undefined;
+let shopSuggestionSource: { trades: readonly Trade[]; suggestions: readonly ShopSuggestion[] } | undefined;
+let shopLocationSource: { trades: readonly Trade[]; locations: readonly ShopLocation[] } | undefined;
 
 // Flag to track if map was opened from cart (for back navigation)
 let mapOpenedFromCart = false;
@@ -140,7 +148,35 @@ function getInputValue(id: string): string {
  */
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-    renderExchangeMatrix(container, dataLoader.getItemValues(), getElement);
+    renderExchangeMatrix(container, dataLoader.getItemValues(), getElement, {
+        getFlips,
+        addToCart: addFlipToCart,
+        isInCart: flip => cartStore.has(flip.buy.trade) && cartStore.has(flip.sell.trade),
+        openShop: trade => { shopMapDialog.open(trade.x, trade.y, trade.z, trade.world); },
+    });
+}
+
+/**
+ * Profitable round trips between shops, ranked by emerald value of the profit
+ * @returns Flips, best first
+ */
+function getFlips(): readonly Flip[] {
+    const values = dataLoader.getItemValues();
+    return findFlips(dataLoader.getAllTrades(), {
+        getValue: values ? (name: string) => getTrustedItemValue(name, values) : undefined,
+    });
+}
+
+/**
+ * Put both legs of a flip in the cart, using each trade as often as one trip needs
+ * @param flip - Flip to add
+ */
+function addFlipToCart(flip: Flip): void {
+    for (const leg of [flip.buy, flip.sell]) {
+        if (!cartStore.has(leg.trade)) { cartStore.add(leg.trade); }
+        cartStore.setQuantity(leg.trade, leg.uses);
+    }
+    refreshCartButtonStates();
 }
 
 // ============================================================================
@@ -320,17 +356,63 @@ function getSuggestionNames(kind: 'want' | 'give'): readonly string[] {
     return suggestionSource.names[kind];
 }
 
+/** Shop and owner suggestions listed under the item names */
+const MAX_SHOP_SUGGESTIONS = 3;
+
 /**
- * Put search terms into both fields, e.g. from the URL
- * @param buy - Buying term
- * @param pay - Paying term
+ * Shop and owner suggestions for typed text, recomputed only when the trade list changes
+ * @param query - Typed text
+ * @returns Suggestions that limit the results to a shop or owner
+ */
+function getShopActions(query: string): readonly ActionSuggestion[] {
+    const trades = dataLoader.getAllTrades();
+    if (shopSuggestionSource?.trades !== trades) {
+        shopSuggestionSource = { trades, suggestions: collectShopSuggestions(trades) };
+    }
+    return rankShopSuggestions(shopSuggestionSource.suggestions, query, MAX_SHOP_SUGGESTIONS).map(suggestion => ({
+        icon: suggestion.kind === 'shop' ? '🏪' : '👤',
+        label: suggestion.label,
+        detail: suggestion.detail,
+        actionLabel: suggestion.kind === 'shop' ? 'Show only this shop' : 'Show only shops of this player',
+        accept: () => { shopFilterChip.set(suggestion.filter); },
+    }));
+}
+
+/**
+ * Shops with something in stock, for the dots on the map; recomputed only when the trade list changes
+ * @returns Shop locations
+ */
+function getShopLocations(): readonly ShopLocation[] {
+    const trades = dataLoader.getAllTrades();
+    if (shopLocationSource?.trades !== trades) {
+        shopLocationSource = { trades, locations: collectShopLocations(trades) };
+    }
+    return shopLocationSource.locations;
+}
+
+/**
+ * Show all trades of one shop: clears the search terms and sets the shop filter
+ * @param filter - Shop or owner to show
+ */
+function showShopTrades(filter: ShopFilter): void {
+    // Leaving the map for the results, not returning to the cart
+    mapOpenedFromCart = false;
+    document.querySelector<HTMLDialogElement>(SELECTORS.MAP_DIALOG)?.close();
+    document.querySelector<HTMLDialogElement>(`#${DIALOG_IDS.MATRIX}`)?.close();
+    applySearchState({ buy: '', pay: '', shop: filter }, true);
+}
+
+/**
+ * Put search terms and the shop filter into the search UI, e.g. from the URL
+ * @param state - Buying/Paying terms and shop filter
  * @param runSearch - Whether to re-run the search
  */
-function applySearchTerms(buy: string, pay: string, runSearch: boolean): void {
+function applySearchState(state: UrlSearchState, runSearch: boolean): void {
     const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
     const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
-    wantInput.value = buy;
-    giveInput.value = pay;
+    wantInput.value = state.buy;
+    giveInput.value = state.pay;
+    shopFilterChip.set(state.shop);
     updateClearButtonVisibility(wantInput, CLEAR_SEARCH_WANT_ID);
     updateClearButtonVisibility(giveInput, CLEAR_SEARCH_GIVE_ID);
     wantAutocomplete.close();
@@ -343,16 +425,18 @@ function setupQuickSearch(): void {
     const wantInput = getElement<HTMLInputElement>(SEARCH_WANT_ID);
     const giveInput = getElement<HTMLInputElement>(SEARCH_GIVE_ID);
 
-    wantAutocomplete = createAutocomplete(wantInput, () => getSuggestionNames('want'));
+    wantAutocomplete = createAutocomplete(wantInput, () => getSuggestionNames('want'), getShopActions);
     giveAutocomplete = createAutocomplete(giveInput, () => getSuggestionNames('give'));
 
     quickBar = createQuickBar(getElement('quick-bar'), {
         search: () => { searchHandler.search(); },
     });
 
+    shopFilterChip = createShopFilterChip(getElement('shop-filter'), () => { searchHandler.search(); });
+
     urlSync = createUrlSync({
-        getTerms: () => ({ buy: wantInput.value, pay: giveInput.value }),
-        applyTerms: applySearchTerms,
+        getState: () => ({ buy: wantInput.value, pay: giveInput.value, shop: shopFilterChip.get() }),
+        applyState: applySearchState,
     });
 }
 
@@ -544,6 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isFilterNewOnly: () => renderer.isFilterNewOnly(),
         isFilterCartOnly: () => renderer.isFilterCartOnly(),
         getQuickFilters: () => quickBar.getFilters(),
+        getShopFilter: () => shopFilterChip.get(),
         onSearched: () => {
             urlSync.record();
         },
@@ -579,6 +664,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isOpenedFromCart: () => mapOpenedFromCart,
         clearOpenedFromCart: () => { mapOpenedFromCart = false; },
         getConfig: () => getConfig(),
+        getShopSummary: (x, y, z, world) => summarizeShopAt(dataLoader.getAllTrades(), { x, y, z, world }),
+        getOwnerSummary: (player) => summarizeOwner(dataLoader.getAllTrades(), player),
+        getShopLocations,
+        showShopTrades,
     });
 
     // Initialize trade renderer

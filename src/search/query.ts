@@ -72,10 +72,42 @@ export function buildSearchHref(href: string, buy: string, pay: string): string 
     return url.href;
 }
 
-function suggestionRank(nameLower: string, query: string): number {
-    if (nameLower.startsWith(query)) { return 0; }
-    if (nameLower.split(/\s+/).some(word => word.startsWith(query))) { return 1; }
-    return nameLower.includes(query) ? 2 : -1;
+/**
+ * How well text matches a query: 0 prefix, 1 word start, 2 elsewhere, -1 no match.
+ *
+ * @param textLower - Text, lowercase
+ * @param query - Trimmed query, lowercase
+ * @returns Match rank, lower is better
+ */
+export function textMatchRank(textLower: string, query: string): number {
+    if (textLower.startsWith(query)) { return 0; }
+    if (textLower.split(/\s+/).some(word => word.startsWith(query))) { return 1; }
+    return textLower.includes(query) ? 2 : -1;
+}
+
+/**
+ * Rank entries by how well their text matches a query: prefix matches first,
+ * then word-start matches, then other substring matches; shorter text first
+ * within a rank.
+ *
+ * @param entries - Entries to rank
+ * @param getText - Text of an entry to match against
+ * @param query - Typed text
+ * @param limit - Maximum entries to return
+ * @returns Best matching entries
+ */
+function rankByText<T>(entries: readonly T[], getText: (entry: T) => string, query: string, limit: number): readonly T[] {
+    const q = query.trim().toLowerCase();
+    if (!q) { return []; }
+    return entries
+        .map(entry => {
+            const text = getText(entry);
+            return { entry, text, rank: textMatchRank(text.toLowerCase(), q) };
+        })
+        .filter(ranked => ranked.rank >= 0)
+        .toSorted((a, b) => a.rank - b.rank || a.text.length - b.text.length || a.text.localeCompare(b.text))
+        .slice(0, limit)
+        .map(ranked => ranked.entry);
 }
 
 /**
@@ -91,14 +123,7 @@ function suggestionRank(nameLower: string, query: string): number {
  * rankSuggestions(['Diamond block', 'Diamond', 'Cut diamond'], 'dia', 5) // ['Diamond', 'Diamond block', 'Cut diamond']
  */
 export function rankSuggestions(names: readonly string[], query: string, limit: number): readonly string[] {
-    const q = query.trim().toLowerCase();
-    if (!q) { return []; }
-    return names
-        .map(name => ({ name, rank: suggestionRank(name.toLowerCase(), q) }))
-        .filter(entry => entry.rank >= 0)
-        .toSorted((a, b) => a.rank - b.rank || a.name.length - b.name.length || a.name.localeCompare(b.name))
-        .slice(0, limit)
-        .map(entry => entry.name);
+    return rankByText(names, name => name, query, limit);
 }
 
 function formatAmount(value: number): string {

@@ -29,11 +29,13 @@ import type {
     DeviationResult,
     FilterResult,
     QuickFilters,
+    ShopFilter,
     SortColumn,
     SortDirection,
     Trade,
 } from '../types.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
+import { matchesShopFilter } from './shop-filter.js';
 
 /** "Deals only" shows trades at least this much below market */
 const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
@@ -81,6 +83,8 @@ export interface SearchSortDeps {
     isFilterCartOnly: () => boolean;
     /** Quick-bar toggles (lazy) */
     getQuickFilters: () => QuickFilters;
+    /** Shop or owner the results are limited to, if any */
+    getShopFilter: () => ShopFilter | undefined;
     /** Called after every search, e.g. to sync the URL and quick-bar state */
     onSearched: () => void;
 }
@@ -187,6 +191,8 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
      * @returns True if the trade should be hidden
      */
     function isExcludedByFilters(trade: Trade): boolean {
+        const shopFilter = deps.getShopFilter();
+        if (shopFilter && !matchesShopFilter(trade, shopFilter)) { return true; }
         if (deps.isFilterNewOnly() && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (deps.isFilterCartOnly() && !cartStore.has(trade)) { return true; }
         if (isFavoritesFilterActive() && !favoritesStore.has(trade.resultName.toLowerCase())) { return true; }

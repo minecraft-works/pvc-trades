@@ -49,6 +49,66 @@ export const TILE_CONFIG: TileConfig = {
 // Tile Loading Functions
 // ============================================================================
 
+/** How far each tile reaches into its right and bottom neighbours, in screen pixels */
+const TILE_OVERLAP_PX = 1;
+
+/** Leaflet internals the seamless overlay builds on (not in the public typings) */
+interface SeamlessOverlayInternals {
+    _image?: HTMLImageElement;
+    _map?: L.Map;
+    /** Unpadded size from the last reset, in layer pixels */
+    _seamlessSize?: { width: number; height: number };
+    _reset: () => void;
+    _animateZoom: (event: L.ZoomAnimEvent) => void;
+}
+
+let SeamlessImageOverlay: (new (url: string, bounds: L.LatLngBoundsExpression, options?: L.ImageOverlayOptions) => L.ImageOverlay) | undefined;
+
+/**
+ * Pad an overlay image so it reaches `TILE_OVERLAP_PX` screen pixels into its
+ * neighbours at the given scale
+ * @param overlay - Overlay internals with the unpadded size
+ * @param scale - Current zoom-animation scale (1 at rest)
+ */
+function padImage(overlay: SeamlessOverlayInternals, scale: number): void {
+    const { _image: image, _seamlessSize: size } = overlay;
+    if (!image || !size) { return; }
+    image.style.width = `${size.width + TILE_OVERLAP_PX / scale}px`;
+    image.style.height = `${size.height + TILE_OVERLAP_PX / scale}px`;
+}
+
+/**
+ * Image overlay drawn one screen pixel wider and taller than its bounds. Each
+ * tile is a separate image, so at fractional zoom (and while zooming) its
+ * edges are anti-aliased on their own and a hairline of map background shows
+ * between neighbours; the extra pixel overlaps the next tile and hides that
+ * seam. During the zoom animation the padding is divided by the animation
+ * scale, so zooming out (scale < 1) still overlaps by a full screen pixel.
+ * Created on first use, once Leaflet has loaded.
+ * @returns The overlay class
+ */
+function getSeamlessImageOverlay(): NonNullable<typeof SeamlessImageOverlay> {
+    if (!SeamlessImageOverlay) {
+        const base = L.ImageOverlay.prototype as unknown as SeamlessOverlayInternals;
+        const baseReset = base._reset;
+        const baseAnimateZoom = base._animateZoom;
+        SeamlessImageOverlay = L.ImageOverlay.extend({
+            _reset(this: SeamlessOverlayInternals): void {
+                baseReset.call(this);
+                const image = this._image;
+                if (!image) { return; }
+                this._seamlessSize = { width: Number.parseFloat(image.style.width), height: Number.parseFloat(image.style.height) };
+                padImage(this, 1);
+            },
+            _animateZoom(this: SeamlessOverlayInternals, event: L.ZoomAnimEvent): void {
+                baseAnimateZoom.call(this, event);
+                if (this._map) { padImage(this, this._map.getZoomScale(event.zoom)); }
+            },
+        });
+    }
+    return SeamlessImageOverlay;
+}
+
 /**
  * Get the map server URL of a tile.
  *
@@ -70,20 +130,23 @@ export function getTileUrl(worldId: string, level: number, tx: number, tz: numbe
  * @param url - Tile image URL
  * @param bounds - Bounds for the tile overlay
  * @param pane - Optional pane name for z-ordering
+ * @returns The overlay; it fires `load` once the image is shown, or `error` if the tile is missing
  */
 export function addTileOverlay(
     map: L.Map,
     url: string,
     bounds: L.LatLngBoundsExpression,
     pane?: string,
-): void {
-    const overlay = L.imageOverlay(url, bounds, pane ? { pane } : {});
+): L.ImageOverlay {
+    const Overlay = getSeamlessImageOverlay();
+    const overlay = new Overlay(url, bounds, pane ? { pane } : {});
     overlay.on('error', () => {
         debugTiles('tile missing: %s', url);
         overlay.remove();
     });
     debugTiles('loadTile: ADD url=%s', url);
     overlay.addTo(map);
+    return overlay;
 }
 
 /**

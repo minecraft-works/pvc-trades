@@ -26,6 +26,7 @@ src/
 │   ├── tile-loader.ts       # Adds tiles to Leaflet maps (direct URLs)
 │   ├── tile-types.ts        # TileConfig, TileRange interfaces
 │   ├── players.ts           # Player position fetching
+│   ├── player-layer.ts      # Persistent player markers on the shop map (moved per frame)
 │   └── shop-map-dialog.ts   # Shop map dialog
 ├── navigation/          # Live navigation modules
 │   └── shop-tooltip.ts     # Proximity-based shop info
@@ -293,7 +294,9 @@ try { return Schema.parse(data); } catch { return DEFAULT_VALUE; }
 | **Deviation** | How much a trade's price differs from the median price of the same item, in the same currency when possible (see ADR-018) |
 | **Core Blocks** | Base currencies: Emerald, Diamond, Gold, Iron, Netherite blocks |
 | **Route** | Optimized order to visit shops in cart |
-| **Independent Shops** | Shops >16 blocks apart (prevents price manipulation) |
+| **Independent Shops** | Shops >16 blocks apart with different owners (prevents price manipulation) |
+| **Shop Filter** | Limits results to one owner's shops or one named shop (`?owner=…&shop=…`) |
+| **Flip** | Buy at one shop, sell to another owner's shop for more of the same currency (Flips tab) |
 | **Favorites / Watchlist** | User-curated list of watched items with optional threshold filters |
 | **Threshold** | Per-favorite deviation filter (e.g., ≤−25%) — only show deals at or below |
 | **Dashboard** | Banner showing new trades, price drops, and watchlist hits since last visit |
