@@ -81,6 +81,16 @@ async function getShops(url: string): Promise<CachedResponse> {
 }
 
 /**
+ * Entity tag without the weak prefix: If-None-Match uses weak comparison, and
+ * Cloudflare weakens ETags (`W/"…"`) whenever it compresses a response.
+ * @param tag - Entity tag, e.g. `W/"abc"` or `"abc"`
+ * @returns The opaque tag, e.g. `"abc"`
+ */
+function opaqueTag(tag: string): string {
+    return tag.trim().replace(/^W\//, '');
+}
+
+/**
  * Whether the client's cached copy is still current.
  * @param request - Incoming request
  * @param validators - Validators of the latest upstream response
@@ -90,7 +100,7 @@ function isNotModified(request: Request, validators: Readonly<Record<string, str
     const ifNoneMatch = request.headers.get('If-None-Match');
     if (ifNoneMatch !== null) {
         const etag = validators.etag;
-        return etag !== undefined && ifNoneMatch.split(',').some(tag => tag.trim() === etag);
+        return etag !== undefined && ifNoneMatch.split(',').some(tag => opaqueTag(tag) === opaqueTag(etag));
     }
     const ifModifiedSince = request.headers.get('If-Modified-Since');
     return ifModifiedSince !== null && validators['last-modified'] === ifModifiedSince;

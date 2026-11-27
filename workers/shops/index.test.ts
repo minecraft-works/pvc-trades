@@ -44,6 +44,16 @@ describe('shops worker', () => {
         expect(await response.text()).toBe('');
     });
 
+    test('compares entity tags weakly, as Cloudflare weakens them when compressing', async () => {
+        upstream.mockImplementation(() => Promise.resolve(new Response(BODY, { status: 200, headers: { ETag: `W/${ETAG}` } })));
+
+        const strong = await worker.fetch(request({ 'If-None-Match': ETAG }), env);
+        const weak = await worker.fetch(request({ 'If-None-Match': `W/${ETAG}` }), env);
+
+        expect(strong.status).toBe(304);
+        expect(weak.status).toBe(304);
+    });
+
     test('sends the full body when the client copy is outdated', async () => {
         const response = await worker.fetch(request({ 'If-None-Match': '"old"' }), env);
 
