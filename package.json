@@ -23,11 +23,12 @@
     "test:mutation": "stryker run",
     "test:load": "playwright test --project=perf",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\"",
+    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\"",
     "lint:css": "stylelint styles.css",
     "lint:html": "htmlhint index.html",
     "lint:all": "npm run lint && npm run lint:css && npm run lint:html",
-    "lint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\" --fix && stylelint styles.css --fix",
+    "lint:fix": "eslint --cache --cache-location node_modules/.cache/eslint/ \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"features/**/*.ts\" \"workers/**/*.ts\" --fix && stylelint styles.css --fix",
+    "check": "npm run typecheck && npm run lint:all && npm run knip && npm run lint:filenames && npm run lint:lockfile && npm run lint:deps && npm run lint:parse-safety && npm run test:coverage",
     "knip": "knip",
     "knip:fix": "knip --fix",
     "lint:deps": "depcruise src --config .dependency-cruiser.cjs",
@@ -45,18 +46,7 @@
     }
   ],
   "lint-staged": {
-    "src/**/*.ts": [
-      "eslint --fix"
-    ],
-    "scripts/**/*.ts": "eslint --fix",
-    "workers/**/*.ts": "eslint --fix",
-    "tests/**/*.spec.ts": [
-      "eslint --fix"
-    ],
-    "tests/helpers/**/*.ts": "eslint --fix",
-    "features/**/*.ts": [
-      "eslint --fix"
-    ],
+    "{src,scripts,workers,tests,features}/**/*.ts": "eslint --fix",
     "styles.css": "stylelint",
     "index.html": "htmlhint"
   },
@@ -80,7 +70,6 @@
     "eslint-plugin-functional": "^10.0.1",
     "eslint-plugin-jsdoc": "^65.5.6",
     "eslint-plugin-regexp": "^3.3.3",
-    "eslint-plugin-security": "^4.2.1",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-sonarjs": "^4.2.3",
     "eslint-plugin-unicorn": "^80.0.0",

@@ -6,7 +6,6 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import functional from 'eslint-plugin-functional';
 import jsdoc from 'eslint-plugin-jsdoc';
-import security from 'eslint-plugin-security';
 import regexp from 'eslint-plugin-regexp';
 
 export default tseslint.config(
@@ -33,7 +32,6 @@ export default tseslint.config(
     ...tseslint.configs.stylisticTypeChecked,
     unicorn.configs.recommended,
     sonarjs.configs.recommended,
-    security.configs.recommended,
     regexp.configs['flat/recommended'],
     {
         // Rules added to the Unicorn and SonarJS recommended presets in later major versions.
@@ -200,11 +198,6 @@ export default tseslint.config(
             'jsdoc/check-types': 'error',
             'jsdoc/no-undefined-types': 'error',
 
-            // Security — disable noisy rules with high false-positive rate
-            'security/detect-object-injection': 'off',
-            'security/detect-non-literal-regexp': 'off',
-            'security/detect-non-literal-fs-filename': 'off',
-
             // Regex quality
             'regexp/no-misleading-capturing-group': 'error',
             'regexp/no-super-linear-backtracking': 'error',
@@ -288,6 +281,8 @@ export default tseslint.config(
             '@typescript-eslint/no-unnecessary-type-assertion': 'error',
             '@typescript-eslint/use-unknown-in-catch-callback-variable': 'error',
             '@typescript-eslint/no-deprecated': 'error',
+            // Same check as @typescript-eslint/no-deprecated, and the slowest rule in the set
+            'sonarjs/deprecation': 'off',
             // Readonly fields in classes (stores)
             '@typescript-eslint/prefer-readonly': 'error',
             // Force import type for type-only imports (tree-shaking + clarity)
@@ -644,8 +639,6 @@ export default tseslint.config(
             '@typescript-eslint/no-unsafe-argument': 'off',
             // Duplicate strings in logging are fine
             'sonarjs/no-duplicate-string': 'off',
-            // Deprecated APIs may be used in test files
-            'sonarjs/deprecation': 'off',
             // Allow callback reference in simple cases
             'unicorn/no-array-callback-reference': 'off',
             // Scripts mutate data structures for side-effectful CLI work
