@@ -46,7 +46,7 @@ export interface DashboardUIDependencies {
     getDeviation: () => (trade: Trade) => DeviationResult | undefined;
     /** Trigger a search refresh after clicking a dashboard link */
     search: () => void;
-    /** Turn on the "new trades only" filter */
+    /** Show every new trade: clear the search and turn on the "new trades only" filter */
     showNewTrades: () => void;
     /** Show / hide a clear button for the given input */
     updateClearButtonVisibility: (input: HTMLInputElement, clearButtonId: string) => void;

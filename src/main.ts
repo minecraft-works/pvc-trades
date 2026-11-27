@@ -407,6 +407,11 @@ function showShopTrades(filter: ShopFilter): void {
     applySearchState({ buy: '', pay: '', scope: { ...EMPTY_SCOPE, shop: filter } }, true);
 }
 
+/** Show every new trade: clears the search terms, lenses, shop and other filters and turns on the "New" filter */
+function showNewTrades(): void {
+    applySearchState({ buy: '', pay: '', scope: { ...EMPTY_SCOPE, filters: { ...EMPTY_SCOPE.filters, newOnly: true } } }, true);
+}
+
 /**
  * Put search terms and the search scope into the search UI, e.g. from the URL
  * @param state - Buying/Paying terms and scope
@@ -679,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
         getAllTrades: () => dataLoader.getAllTrades(),
         getDeviation: () => dataLoader.getDeviation(),
         search: () => searchHandler.search(),
-        showNewTrades: () => { searchScopeStore.setFilter('newOnly', true); },
+        showNewTrades,
         updateClearButtonVisibility,
         snapshotStore,
         favoritesStore,
