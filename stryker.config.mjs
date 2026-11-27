@@ -13,12 +13,20 @@ export default {
     },
     mutate: [
         'src/library.ts',
+        'src/tile-coords.ts',
+        'src/valuation/*.ts',
+        'src/routing/*.ts',
+        'src/interpolation/interpolation.ts',
+        'src/dashboard/dashboard-data.ts',
+        'src/search/deviation.ts',
+        'src/search/query.ts',
+        'src/search/shop-filter.ts',
         'src/stores/cart-store.ts',
         'src/stores/navigation-store.ts',
         'src/stores/snapshot-store.ts',
         'src/stores/favorites-store.ts',
-        'src/tile-coords.ts',
-        'src/stores/player-interpolator.ts'
+        'src/stores/player-interpolator.ts',
+        '!src/**/*.test.ts'
     ],
     // Mutation score thresholds
     thresholds: {

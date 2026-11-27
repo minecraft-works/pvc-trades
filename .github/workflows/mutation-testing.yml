@@ -7,21 +7,29 @@ on:
     branches: [main]
     paths:
       - 'src/library.ts'
-      - 'src/library.test.ts'
-      - 'src/library.property.test.ts'
+      - 'src/tile-coords.ts'
+      - 'src/valuation/**'
+      - 'src/routing/**'
+      - 'src/interpolation/**'
+      - 'src/dashboard/dashboard-data.ts'
+      - 'src/search/deviation.ts'
+      - 'src/search/query.ts'
+      - 'src/search/shop-filter.ts'
+      - 'src/stores/**'
+      - 'stryker.config.mjs'
   workflow_dispatch:
     inputs:
       mutate_pattern:
-        description: 'Files to mutate (glob pattern)'
+        description: 'Files to mutate (glob pattern); empty = the list in stryker.config.mjs'
         required: false
-        default: 'src/library.ts'
+        default: ''
         type: string
 
 jobs:
   mutation-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    # Don't block other workflows - this is informational
+    timeout-minutes: 90
+    # Informational: never blocks other workflows
     continue-on-error: true
     steps:
       - name: Checkout
@@ -34,10 +42,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run Stryker mutation testing
-        run: npx stryker run --mutate "${{ github.event.inputs.mutate_pattern || 'src/library.ts' }}"
+        run: npx stryker run ${{ github.event.inputs.mutate_pattern && format('--mutate "{0}"', github.event.inputs.mutate_pattern) || '' }}
         env:
           CI: true
 

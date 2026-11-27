@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  lint-and-test:
+  static:
+    name: Static checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,14 +27,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
       - name: TypeScript type check
         run: npm run typecheck
 
       - name: Lint TypeScript
-        run: npm run lint
+        run: npx eslint "src/**/*.ts" "scripts/**/*.ts" "tests/**/*.ts" "features/**/*.ts" "workers/**/*.ts"
 
       - name: Lint CSS
         run: npm run lint:css
@@ -62,41 +64,107 @@ jobs:
       - name: Dead code detection
         run: npm run knip
 
-      - name: Run unit tests
-        run: npm test
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage thresholds
+        run: npm run test:coverage
+
+  e2e:
+    name: E2E (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/2, 2/2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run E2E and BDD tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}
+
+      - name: Name report artifact
+        if: always()
+        id: artifact
+        run: echo "name=test-reports-$(echo '${{ matrix.shard }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: test-reports
+          name: ${{ steps.artifact.outputs.name }}
           path: |
             reports/playwright-results.json
             reports/cucumber-report.html
             playwright-report/
           retention-days: 30
 
+  build:
+    name: Build, size and Lighthouse
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Build for production
         run: npm run build
 
-      - name: Check bundle size (warning at 100kB)
-        run: |
-          SIZE_JSON=$(npx size-limit --json 2>/dev/null || true)
-          SIZE_BYTES=$(echo "$SIZE_JSON" | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');const j=JSON.parse(d);console.log(j[0].size)")
-          SIZE_KB=$((SIZE_BYTES / 1024))
-          echo "Bundle size: ${SIZE_KB} kB"
-          if [ "$SIZE_KB" -gt 100 ]; then
-            echo "::warning::Bundle size is ${SIZE_KB} kB (warning threshold: 100 kB)"
-          fi
-
       - name: Check bundle size
         run: npx size-limit
-
-      - name: Security audit
-        run: npm audit --audit-level=high
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12

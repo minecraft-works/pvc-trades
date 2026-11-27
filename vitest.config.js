@@ -18,12 +18,13 @@ export default defineConfig({
                 'src/cart/**/*.ts',
                 'src/dashboard/dashboard-ui.ts',
                 'src/data-loader/**/*.ts',
-                'src/map/**/*.ts',
+                // DOM/Leaflet code is covered by the browser tests; pure modules in these folders stay in
+                'src/map/{index,leaflet,outside-gestures,player-layer,shop-map-dialog,tile-loader,tile-types}.ts',
+                'src/search/search-sort.ts',
                 'src/dialogs/**/*.ts',
                 'src/favorites/**/*.ts',
                 'src/navigation/**/*.ts',
                 'src/rendering/**/*.ts',
-                'src/search/**/*.ts',
                 'src/quick-search/**/*.ts',
                 'src/test-globals.d.ts',
                 'src/chatlog/run-parser.ts'
