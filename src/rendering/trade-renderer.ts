@@ -19,6 +19,7 @@ import {
 import { formatTradeCostNames, getCostParts, highlightSegments } from '../library.js';
 import { getTradeKey, isNether } from '../map/map-math.js';
 import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
+import { isEstimate } from '../search/deviation.js';
 import type { DeviationResult } from '../search/index.js';
 import { formatUnitPrice } from '../search/query.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
@@ -319,8 +320,9 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         }
         const dealTitle = deviation.basis === 'same-currency'
             ? `Compared with other shops selling ${t.resultName} for ${formatTradeCostNames(t)}`
-            : 'Compared with emerald-equivalent market prices';
-        return { devClass: getDeviationClass(deviation.isGood), devText: deviation.text, dealTitle };
+            : `Estimate: too few shops sell ${t.resultName} for ${formatTradeCostNames(t)}, so this is converted from prices in other currencies. Not used for deals or alerts.`;
+        const estimateClass = isEstimate(deviation) ? ' deal-estimate' : '';
+        return { devClass: `${getDeviationClass(deviation.isGood)}${estimateClass}`, devText: deviation.text, dealTitle };
     }
 
     /**
@@ -342,7 +344,8 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         }
 
         const deviationResult = deps.getDeviation()(t);
-        const deviationPercent = deviationResult?.percent;
+        // Estimates across currencies never trigger a watchlist alert
+        const deviationPercent = deviationResult && !isEstimate(deviationResult) ? deviationResult.percent : undefined;
 
         const threshold = favorite.maxDeviation;
         const isDealAlert = threshold !== undefined

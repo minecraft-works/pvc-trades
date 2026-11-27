@@ -73,7 +73,6 @@ import { getConfig } from './stores/index.js';
 import { cartStore, favoritesStore, navigationStore, playerPositionService,snapshotStore } from './stores/index.js';
 import type { ShopFilter, Trade } from './types.js';
 import { findFlips,type Flip } from './valuation/flips.js';
-import { getTrustedItemValue } from './valuation/statistics.js';
 
 // ============================================================================
 // State
@@ -147,7 +146,7 @@ function getInputValue(id: string): string {
  */
 function renderMatrixDialog(): void {
     const container = getElement('matrix-container');
-    renderExchangeMatrix(container, dataLoader.getItemValues(), getElement, {
+    renderExchangeMatrix(container, dataLoader.getValuation()?.currencies, getElement, {
         getFlips,
         addToCart: addFlipToCart,
         isInCart: flip => cartStore.has(flip.buy.trade) && cartStore.has(flip.sell.trade),
@@ -160,9 +159,11 @@ function renderMatrixDialog(): void {
  * @returns Flips, best first
  */
 function getFlips(): readonly Flip[] {
-    const values = dataLoader.getItemValues();
+    const valuation = dataLoader.getValuation();
+    const currencies = new Set(valuation?.currencies.currencies.map(name => name.toLowerCase()));
     return findFlips(dataLoader.getAllTrades(), {
-        getValue: values ? (name: string) => getTrustedItemValue(name, values) : undefined,
+        getValue: valuation ? (name: string) => valuation.getValue(name) : undefined,
+        isCurrency: name => currencies.has(name.toLowerCase()),
     });
 }
 

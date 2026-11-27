@@ -95,7 +95,22 @@
     .shop-filter {
         grid-area: chip;
         justify-self: start;
+        align-self: center;
         max-width: 100%;
+        margin-top: var(--spacing-sm);
+    }
+
+    /* With a chip, the actions share its row and the pills get the full width */
+    .search-container:has(.shop-filter:not(.hidden)) {
+        grid-template:
+            "box box" auto
+            "chip actions" auto
+            "bar bar" auto
+            "fresh fresh" auto / minmax(0, 1fr) auto;
+    }
+
+    .search-container:has(.shop-filter:not(.hidden)) .search-actions {
+        align-self: center;
         margin-top: var(--spacing-sm);
     }
 

@@ -52,6 +52,8 @@ export interface FlipOptions {
     readonly maxUses?: number;
     /** Emerald value of one unit of an item, used for ranking */
     readonly getValue?: ((name: string) => number | undefined) | undefined;
+    /** Whether an item is a currency (emerald, diamond, coins); profit is preferably counted in one */
+    readonly isCurrency?: ((name: string) => boolean) | undefined;
 }
 
 interface Offer {
@@ -128,15 +130,17 @@ function evaluateFlip(seller: Offer, buyer: Offer, options: FlipOptions): Flip |
 /**
  * The same two trades form a loop in both directions (diamonds → saplings →
  * diamonds and saplings → diamonds → saplings). Prefer counting the profit in
- * the more valuable currency.
+ * a currency, then in the more valuable item.
  * @param candidate - Newly found orientation
  * @param existing - Orientation found earlier
- * @param getValue - Emerald value lookup
+ * @param options - Value lookup and currency check
  * @returns True if the candidate should replace the existing flip
  */
-function isBetterOrientation(candidate: Flip, existing: Flip, getValue: FlipOptions['getValue']): boolean {
-    const candidateValue = getValue?.(candidate.currency);
-    const existingValue = getValue?.(existing.currency);
+function isBetterOrientation(candidate: Flip, existing: Flip, options: FlipOptions): boolean {
+    const candidateIsCurrency = options.isCurrency?.(candidate.currency) ?? false;
+    if (candidateIsCurrency !== (options.isCurrency?.(existing.currency) ?? false)) { return candidateIsCurrency; }
+    const candidateValue = options.getValue?.(candidate.currency);
+    const existingValue = options.getValue?.(existing.currency);
     if (candidateValue === undefined) { return false; }
     return existingValue === undefined || candidateValue > existingValue;
 }
@@ -198,7 +202,7 @@ export function findFlips(trades: readonly Trade[], options: FlipOptions = {}): 
             if (!flip) { continue; }
             const key = [getTradeKey(seller.trade), getTradeKey(buyer.trade)].toSorted((a, b) => a.localeCompare(b)).join('\u0000');
             const existing = flips.get(key);
-            if (!existing || isBetterOrientation(flip, existing, options.getValue)) { flips.set(key, flip); }
+            if (!existing || isBetterOrientation(flip, existing, options)) { flips.set(key, flip); }
         }
     }
     return [...flips.values()].toSorted(compareFlips);

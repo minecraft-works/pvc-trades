@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { setupTestStores } from '../test-fixtures.js';
 import type { ItemValues, PriceEntry } from '../types.js';
-import { countIndependentShops, getTrustedItemValue, hasEnoughIndependentData, median } from './statistics.js';
+import { countIndependentShops, getTrustedItemValue, median } from './statistics.js';
 
 // String constants to avoid duplication
 const COOKED_BEEF = 'cooked beef';
@@ -67,46 +67,6 @@ describe('countIndependentShops', () => {
             { price: 1, x: 3000, y: 64, z: 0, owner: 'Bob' }
         ];
         expect(countIndependentShops(prices)).toBe(2);
-    });
-});
-
-describe('hasEnoughIndependentData', () => {
-    test('returns true when enough independent shops', () => {
-        const entry = {
-            name: 'Test',
-            buyPrices: [
-                { price: 1, x: 0, y: 64, z: 0 },
-                { price: 1, x: 100, y: 64, z: 100 },
-                { price: 1, x: -100, y: 64, z: -100 }
-            ],
-            sellPrices: []
-        };
-        expect(hasEnoughIndependentData(entry)).toBe(true);
-    });
-
-    test('returns false when not enough independent shops', () => {
-        const entry = {
-            name: 'Test',
-            buyPrices: [
-                { price: 1, x: 0, y: 64, z: 0 },
-                { price: 1, x: 5, y: 64, z: 5 }
-            ],
-            sellPrices: []
-        };
-        expect(hasEnoughIndependentData(entry)).toBe(false);
-    });
-
-    test('considers both buy and sell prices', () => {
-        const entry = {
-            name: 'Test',
-            buyPrices: [{ price: 1, x: 0, y: 64, z: 0 }],
-            sellPrices: [
-                { price: 1, x: 100, y: 64, z: 100 },
-                { price: 1, x: 200, y: 64, z: 200 },
-                { price: 1, x: 300, y: 64, z: 300 }
-            ]
-        };
-        expect(hasEnoughIndependentData(entry)).toBe(true);
     });
 });
 

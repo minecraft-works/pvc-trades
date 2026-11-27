@@ -2,10 +2,11 @@
  * Exchange Rates Dialog Module
  *
  * Rates tab: key currency pairs in a small table (the more valuable item
- * first, with names and icons) and a converter for any two core currencies.
- * Each rate shows both sides of the market at once: Buy is what an item costs
- * at a shop, Sell is what a shop pays for it. The Flips tab lists profitable
- * round trips between shops.
+ * first, with names and icons), other currencies found in the market, and a
+ * converter for any two currencies. Each rate shows both sides of the
+ * market at once: Buy is what an item costs at a shop, Sell is what a shop
+ * pays for it. Rates come from the currency graph (ADR-019), so Sell never
+ * exceeds Buy. The Flips tab lists profitable round trips between shops.
  *
  * @module dialogs/matrix-dialog
  */
@@ -14,138 +15,99 @@ import { html, nothing, type TemplateResult } from 'lit-html';
 
 import { DIALOG_IDS, SELECTORS } from '../constants.js';
 import { replaceContent } from '../rendering/render.js';
-import type { ExchangeMatrix, ItemValues } from '../types.js';
-import { buildExchangeMatrix } from '../valuation/ratio-graph.js';
+import type { CurrencyGraph } from '../valuation/currency-graph.js';
+import { currencyDisplayName, type DisplayRate, formatAmount, getBlockOf, presentRate } from '../valuation/rate-presentation.js';
 import { type FlipsPanelDeps, renderFlipsPanel } from './flips-panel.js';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-/** Icon URLs for core currency items */
-const ITEM_ICONS: Record<string, string> = {
-    'Netherite Ingot': 'icons/netherite_ingot.png',
-    'Netherite Block': 'icons/netherite_block.png',
-    'Diamond Block': 'icons/diamond_block.png',
-    'Diamond': 'icons/diamond.png',
-    'Emerald Block': 'icons/emerald_block.png',
-    'Emerald': 'icons/emerald.png',
-    'Gold Block': 'icons/gold_block.png',
-    'Gold Ingot': 'icons/gold_ingot.png',
-    'Iron Block': 'icons/iron_block.png',
-    'Iron Ingot': 'icons/iron_ingot.png',
+/** Icon URLs for core currency items, by lowercase name */
+const ITEM_ICONS: Readonly<Record<string, string>> = {
+    'netherite ingot': 'icons/netherite_ingot.png',
+    'netherite block': 'icons/netherite_block.png',
+    'diamond block': 'icons/diamond_block.png',
+    'diamond': 'icons/diamond.png',
+    'emerald block': 'icons/emerald_block.png',
+    'emerald': 'icons/emerald.png',
+    'gold block': 'icons/gold_block.png',
+    'gold ingot': 'icons/gold_ingot.png',
+    'iron block': 'icons/iron_block.png',
+    'iron ingot': 'icons/iron_ingot.png',
 };
 
-/** Key currency pairs; each is shown with its more valuable item first */
-const KEY_PAIRS: [string, string][] = [
-    ['Netherite Ingot', 'Diamond Block'],
-    ['Diamond', 'Emerald Block'],
-    ['Gold Block', 'Emerald Block'],
-    ['Emerald Block', 'Iron Block'],
+/** Key currency pairs, in base units; each is shown with its more valuable item first */
+const KEY_PAIRS: readonly (readonly [string, string])[] = [
+    ['Netherite ingot', 'Diamond'],
+    ['Diamond', 'Emerald'],
+    ['Gold ingot', 'Emerald'],
+    ['Emerald', 'Iron ingot'],
 ];
+
+/** Core currencies other currencies are quoted in, in order of preference */
+const QUOTE_CURRENCIES = ['Diamond', 'Emerald'];
 
 const DIALOG_HEADER = html`<header><h2>Exchange Rates</h2><button id="close-matrix" aria-label="Close">&times;</button></header>`;
 
-const RATES_HINT = html`<p class="rates-hint"><strong>Buy</strong> is what one item costs at a shop, <strong>Sell</strong> what a shop pays you for it.</p>`;
-
-/** Both sides of the market */
-interface Matrices {
-    readonly buy: ExchangeMatrix;
-    readonly sell: ExchangeMatrix;
-}
+const RATES_HINT = html`<p class="rates-hint"><strong>Buy</strong> is what one item costs at a shop, <strong>Sell</strong> what a shop pays you for it. <strong>≈</strong> means there is no direct market, so the rate goes through other currencies.</p>`;
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
- * Item name as written in the trade table ("Netherite ingot")
- * @param label - Currency label, e.g. "Netherite Ingot"
- * @returns Name with only the first letter capitalised
- */
-function toDisplayName(label: string): string {
-    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
-}
-
-/**
  * Icon and name of a currency
- * @param label - Currency label
+ * @param name - Currency name
  * @returns Template with an icon (when known) and the display name
  */
-function itemWithIcon(label: string): TemplateResult {
-    const url = ITEM_ICONS[label];
+function itemWithIcon(name: string): TemplateResult {
+    const url = ITEM_ICONS[name.toLowerCase()];
     const icon = url ? html`<img src="${url}" alt="" class="matrix-icon" aria-hidden="true">` : nothing;
-    return html`${icon}<span>${toDisplayName(label)}</span>`;
+    return html`${icon}<span>${currencyDisplayName(name)}</span>`;
 }
 
 /**
- * Format a rate so it reads at a glance: whole numbers from 100, one decimal
- * from 10, otherwise up to two decimals
- * @param value - Rate, or undefined when there is no data
- * @returns Formatted rate, or a dash
+ * Explain where a rate comes from
+ * @param rate - Display rate
+ * @returns Tooltip text, or empty for a direct market
  */
-function formatRate(value: number | undefined): string {
-    if (value === undefined || !Number.isFinite(value)) { return '\u2014'; }
-    let digits = 2;
-    if (value >= 100) {
-        digits = 0;
-    } else if (value >= 10) {
-        digits = 1;
-    }
-    return value.toLocaleString('en-US', { maximumFractionDigits: digits });
+function describeSource(rate: DisplayRate): string {
+    const parts: string[] = [];
+    if (rate.via.length > 0) { parts.push(`No direct market: through ${rate.via.map(name => currencyDisplayName(name)).join(', ')}`); }
+    if (rate.crossed) { parts.push('Shops buy for more than others sell; showing the middle rate'); }
+    return parts.join('. ');
 }
 
 /**
- * Get exchange ratio from matrix: how many of `to` for 1 of `from`
- * @param matrix - The exchange matrix to query
- * @param from - Source currency label
- * @param to - Target currency label
- * @returns The ratio value, or undefined if either currency is not in the matrix
+ * One row of a rates table
+ * @param rate - Display rate, or undefined when there is no data
+ * @param pair - Currencies of the row, used when there is no rate
+ * @returns Row template
  */
-function getMatrixRatio(matrix: ExchangeMatrix, from: string, to: string): number | undefined {
-    const fromIndex = matrix.labels.indexOf(from);
-    const toIndex = matrix.labels.indexOf(to);
-    if (fromIndex === -1 || toIndex === -1) { return undefined; }
-    return matrix.ratios[fromIndex]?.[toIndex];
-}
-
-/**
- * Put the more valuable item first, so rates read "1 netherite ingot = 17
- * diamond blocks" rather than "1 diamond block = 0.06 netherite ingot"
- * @param pair - Two currency labels
- * @param matrices - Buy and sell matrices
- * @returns The pair, more valuable item first
- */
-function orientPair(pair: readonly [string, string], matrices: Matrices): [string, string] {
-    const [a, b] = pair;
-    const buy = getMatrixRatio(matrices.buy, a, b);
-    const sell = getMatrixRatio(matrices.sell, a, b);
-    const ratio = buy === undefined || sell === undefined ? buy ?? sell : Math.sqrt(buy * sell);
-    return ratio !== undefined && ratio < 1 ? [b, a] : [a, b];
-}
-
-// ============================================================================
-// Rates Panel
-// ============================================================================
-
-/**
- * Build the key rates table
- * @param matrices - Buy and sell matrices
- * @returns Template for the key rates section
- */
-function buildKeyRates(matrices: Matrices): TemplateResult {
-    const rows = KEY_PAIRS.map(pair => {
-        const [item, unit] = orientPair(pair, matrices);
-        return html`<div class="rate-table-row" role="row">
+function buildRateRow(rate: DisplayRate | undefined, pair: readonly [string, string]): TemplateResult {
+    const [item, unit] = rate ? [rate.item, rate.unit] : pair;
+    const prefix = rate && rate.via.length > 0 ? '≈' : '';
+    const amount = (value: number | undefined): string => (value === undefined ? '\u2014' : `${prefix}${formatAmount(value)}`);
+    const title = rate ? describeSource(rate) : '';
+    return html`<div class="rate-table-row" role="row" title=${title || nothing}>
             <span class="rate-item" role="cell">${itemWithIcon(item)}</span>
-            <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.buy, item, unit))}</span>
-            <span class="rate-num" role="cell">${formatRate(getMatrixRatio(matrices.sell, item, unit))}</span>
+            <span class="rate-num" role="cell">${amount(rate?.buy)}</span>
+            <span class="rate-num" role="cell">${amount(rate?.sell)}</span>
             <span class="rate-unit" role="cell">${itemWithIcon(unit)}</span>
         </div>`;
-    });
+}
+
+/**
+ * A rates table with its heading
+ * @param title - Section title
+ * @param rows - Row templates
+ * @returns Section template
+ */
+function buildRatesSection(title: string, rows: readonly TemplateResult[]): TemplateResult {
     return html`<section class="converter-section">
-        <h3 class="converter-section-title">Key rates</h3>
-        <div class="rate-table" role="table" aria-label="Key rates">
+        <h3 class="converter-section-title">${title}</h3>
+        <div class="rate-table" role="table" aria-label="${title}">
             <div class="rate-table-row rate-table-head" role="row">
                 <span role="columnheader">1 ×</span>
                 <span class="rate-num" role="columnheader">Buy</span>
@@ -158,34 +120,80 @@ function buildKeyRates(matrices: Matrices): TemplateResult {
 }
 
 /**
+ * Key rates between the core currencies
+ * @param graph - Currency graph
+ * @returns Section template
+ */
+function buildKeyRates(graph: CurrencyGraph): TemplateResult {
+    const rows = KEY_PAIRS.map(pair => buildRateRow(presentRate(graph, pair[0], pair[1]), pair));
+    return buildRatesSection('Key rates', rows);
+}
+
+/**
+ * Rates of other currencies (coins, certificates) found in the market
+ * @param graph - Currency graph
+ * @returns Section template, or nothing when there are none
+ */
+function buildOtherRates(graph: CurrencyGraph): TemplateResult | typeof nothing {
+    const core = new Set(KEY_PAIRS.flat().map(name => name.toLowerCase()));
+    const rows: TemplateResult[] = [];
+    for (const currency of graph.currencies) {
+        if (core.has(currency.toLowerCase())) { continue; }
+        for (const quoteCurrency of QUOTE_CURRENCIES) {
+            const rate = presentRate(graph, currency, quoteCurrency);
+            if (rate) {
+                rows.push(buildRateRow(rate, [currency, quoteCurrency]));
+                break;
+            }
+        }
+    }
+    return rows.length > 0 ? buildRatesSection('Other currencies', rows) : nothing;
+}
+
+/**
+ * Currencies offered in the converter: every currency, plus its block
+ * @param graph - Currency graph
+ * @returns Currency names
+ */
+function getConverterOptions(graph: CurrencyGraph): readonly string[] {
+    const options: string[] = [];
+    for (const currency of graph.currencies) {
+        options.push(currency);
+        const block = getBlockOf(currency);
+        if (block) { options.push(block.name); }
+    }
+    return options;
+}
+
+/**
  * Build the <option> elements for a currency select dropdown
- * @param labels - All available currency labels
- * @param selected - Currently selected label to mark as selected
+ * @param options - All available currencies
+ * @param selected - Currently selected currency
  * @returns Templates of <option> elements
  */
-function buildCurrencyOptions(labels: readonly string[], selected: string): TemplateResult[] {
-    return labels.map(label => html`<option value="${label}" ?selected=${label === selected}>${toDisplayName(label)}</option>`);
+function buildCurrencyOptions(options: readonly string[], selected: string): TemplateResult[] {
+    return options.map(name => html`<option value="${name}" ?selected=${name === selected}>${currencyDisplayName(name)}</option>`);
 }
 
 /**
  * Build the converter
- * @param labels - Available currency labels for the dropdowns
+ * @param options - Available currencies for the dropdowns
  * @returns Template for the converter section
  */
-function buildConverter(labels: readonly string[]): TemplateResult {
-    const from = labels.find(label => label === 'Netherite Ingot') ?? labels[0] ?? '';
-    const to = labels.find(label => label === 'Diamond Block') ?? labels[1] ?? '';
+function buildConverter(options: readonly string[]): TemplateResult {
+    const from = options.find(name => name === 'Netherite ingot') ?? options[0] ?? '';
+    const to = options.find(name => name === 'Diamond block') ?? options[1] ?? '';
     return html`<section class="converter-section">
         <h3 class="converter-section-title">Convert</h3>
         <div class="converter-custom">
             <div class="converter-row">
                 <input type="number" id="converter-from-amount" class="converter-input"
                        inputmode="decimal" min="0" step="any" value="1" aria-label="Amount to convert">
-                <select id="converter-from-select" class="converter-select" aria-label="Convert from">${buildCurrencyOptions(labels, from)}</select>
+                <select id="converter-from-select" class="converter-select" aria-label="Convert from">${buildCurrencyOptions(options, from)}</select>
             </div>
             <div class="converter-row">
                 <button type="button" id="converter-swap" class="converter-swap-btn" aria-label="Swap currencies" title="Swap currencies">\u21C5</button>
-                <select id="converter-to-select" class="converter-select" aria-label="Convert to">${buildCurrencyOptions(labels, to)}</select>
+                <select id="converter-to-select" class="converter-select" aria-label="Convert to">${buildCurrencyOptions(options, to)}</select>
             </div>
             <div class="converter-results">
                 <div class="converter-result"><span class="converter-result-label">Buy</span><strong id="converter-buy">\u2014</strong></div>
@@ -196,32 +204,41 @@ function buildConverter(labels: readonly string[]): TemplateResult {
 }
 
 /**
- * Update the converter results for the chosen amount and currencies
+ * Read the converter's amount and currencies
  * @param container - Dialog content
- * @param matrices - Buy and sell matrices
+ * @returns Chosen amount and currencies
  */
-function updateConverter(container: HTMLElement, matrices: Matrices): void {
+function readConverter(container: HTMLElement): { readonly amount: number; readonly from: string; readonly to: string } {
     const from = container.querySelector<HTMLSelectElement>('#converter-from-select')?.value ?? '';
     const to = container.querySelector<HTMLSelectElement>('#converter-to-select')?.value ?? '';
     const amount = Number.parseFloat(container.querySelector<HTMLInputElement>('#converter-from-amount')?.value ?? '') || 0;
-    const convert = (matrix: ExchangeMatrix): string => {
-        if (from === to) { return formatRate(amount); }
-        const ratio = getMatrixRatio(matrix, from, to);
-        return ratio === undefined ? '\u2014' : formatRate(amount * ratio);
-    };
+    return { amount, from, to };
+}
+
+/**
+ * Update the converter results for the chosen amount and currencies
+ * @param container - Dialog content
+ * @param graph - Currency graph
+ */
+function updateConverter(container: HTMLElement, graph: CurrencyGraph): void {
+    const { amount, from, to } = readConverter(container);
+    const quote = graph.quote(from, to);
+    const prefix = quote && quote.via.length > 0 ? '≈' : '';
+    const convert = (rate: number | undefined): string =>
+        (rate === undefined ? '\u2014' : `${prefix}${formatAmount(amount * rate)}`);
     const buy = container.querySelector('#converter-buy');
     const sell = container.querySelector('#converter-sell');
-    if (buy) { buy.textContent = convert(matrices.buy); }
-    if (sell) { sell.textContent = convert(matrices.sell); }
+    if (buy) { buy.textContent = convert(quote?.buy); }
+    if (sell) { sell.textContent = convert(quote?.sell); }
 }
 
 /**
  * Wire the converter inputs and swap button
  * @param container - Dialog content
- * @param matrices - Buy and sell matrices
+ * @param graph - Currency graph
  */
-function wireConverter(container: HTMLElement, matrices: Matrices): void {
-    const update = (): void => { updateConverter(container, matrices); };
+function wireConverter(container: HTMLElement, graph: CurrencyGraph): void {
+    const update = (): void => { updateConverter(container, graph); };
     for (const id of ['#converter-from-select', '#converter-to-select', '#converter-from-amount']) {
         container.querySelector(id)?.addEventListener('input', update);
     }
@@ -242,27 +259,35 @@ function wireConverter(container: HTMLElement, matrices: Matrices): void {
 // ============================================================================
 
 /**
- * Render the exchange rates dialog: Rates (key rates and converter) and Flips.
+ * Render the exchange rates dialog: Rates (key rates, other currencies and
+ * converter) and Flips.
  *
  * @param container - Container element for the dialog content
- * @param itemValues - The computed item values, or undefined if not available
+ * @param graph - Exchange rates between currencies, or undefined if not available
  * @param getElement - Helper function to get elements by ID
  * @param flips - Flips tab callbacks; the tab is left out without them
  */
 export function renderExchangeMatrix(
     container: HTMLElement,
-    itemValues: ItemValues | undefined,
+    graph: CurrencyGraph | undefined,
     getElement: <T extends HTMLElement = HTMLElement>(id: string) => T,
     flips?: FlipsPanelDeps
 ): void {
     const closeDialog = (): void => { getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX).close(); };
-    if (!itemValues || itemValues.size === 0) {
+    if (!graph) {
         replaceContent(container, html`${DIALOG_HEADER}<p class="muted">No price data available</p>`);
         container.querySelector(SELECTORS.CLOSE_MATRIX)?.addEventListener('click', closeDialog);
         return;
     }
 
-    const matrices: Matrices = { buy: buildExchangeMatrix(itemValues, 'buy'), sell: buildExchangeMatrix(itemValues, 'sell') };
+    // Flips do not depend on exchange rates, so the tabs stay even without any rate
+    const hasRates = graph.currencies.length > 0;
+    const ratesContent = hasRates
+        ? html`${RATES_HINT}
+            ${buildKeyRates(graph)}
+            ${buildOtherRates(graph)}
+            ${buildConverter(getConverterOptions(graph))}`
+        : html`<p class="muted">No exchange rates yet: too few shops trade currencies with each other.</p>`;
     const flipsTab = flips ? html`<button class="matrix-tab" data-tab="flips" title="Buy at one shop, sell to another for profit">Flips</button>` : nothing;
     replaceContent(container, html`${DIALOG_HEADER}
         <div class="matrix-tabs">
@@ -270,13 +295,11 @@ export function renderExchangeMatrix(
             ${flipsTab}
         </div>
         <div class="matrix-rates">
-            ${RATES_HINT}
-            ${buildKeyRates(matrices)}
-            ${buildConverter(matrices.buy.labels)}
+            ${ratesContent}
         </div>
         <div class="matrix-flips hidden"></div>`);
 
-    wireConverter(container, matrices);
+    if (hasRates) { wireConverter(container, graph); }
 
     const ratesPanel = container.querySelector<HTMLElement>('.matrix-rates');
     const flipsPanel = container.querySelector<HTMLElement>('.matrix-flips');

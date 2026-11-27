@@ -2,7 +2,7 @@
 
 ## Status
 **Implemented** - 2024. **Revised** 2026-11: the `virtual-scroller` package was
-replaced by an in-house list (`src/rendering/virtual-list.ts`), see ADR-019.
+replaced by an in-house list (`src/rendering/virtual-list.ts`), see ADR-021.
 
 ## Context
 

@@ -1,4 +1,4 @@
-# ADR-020: Fast Feedback Loop for AI Agents
+# ADR-022: Fast Feedback Loop for AI Agents
 
 ## Status
 **Implemented** - 2026-11

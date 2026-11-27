@@ -56,7 +56,7 @@ src/
 ├── debug.ts             Namespaced debug loggers (see Debugging)
 ├── formatting.ts        Pure name formatting
 ├── tile-coords.ts       Pure tile coordinate maths (single source of truth)
-├── valuation/           Pure: item values, statistics, pair prices, flips, item identity (shulkers)
+├── valuation/           Pure: buildValuation (pair prices, currency graph, item values), rates, flips, item identity (shulkers, base units)
 ├── routing/             Pure: route optimisation (nearest neighbour + 2-opt), navigation helpers
 ├── interpolation/       Pure: player position spring-damper maths
 ├── search/              query.ts, deviation.ts, shop-filter.ts (pure); search-sort.ts (DOM)
@@ -138,7 +138,7 @@ Rules:
   all processing when the payload is unchanged.
 - **Bundle budget:** initial JS ~57 kB gzip (~49 kB brotli); `size-limit`
   fails CI above 55 kB brotli. Prefer small in-house code over new runtime
-  dependencies, and load heavy features on demand (ADR-019).
+  dependencies, and load heavy features on demand (ADR-021).
 - Thresholds live in `constants.ts`, e.g. `NAVIGATION.ARRIVAL_THRESHOLD`
   (auto-advance at 8 blocks). Search input is debounced to one search per
   animation frame; player polling uses `squaremap.playerRefreshMs`.

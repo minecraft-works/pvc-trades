@@ -1,4 +1,4 @@
-# ADR-019: Lean Runtime Dependencies
+# ADR-021: Lean Runtime Dependencies
 
 ## Status
 **Implemented** - 2026-11

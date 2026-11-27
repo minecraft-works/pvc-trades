@@ -2,7 +2,7 @@
 
 ## Status
 **Implemented** - 2024. **Updated** 2026-11: schemas use `zod/mini` (see
-"zod/mini" below and ADR-019).
+"zod/mini" below and ADR-021).
 
 ## Context
 

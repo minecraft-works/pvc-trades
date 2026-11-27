@@ -3,13 +3,17 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { createTrade } from '../test-fixtures.js';
+import { createTrade, setupTestStores } from '../test-fixtures.js';
 import { getItemComponents, getValuationName, parseShulkerContents, toValuationInput } from './item-identity.js';
+
+// Base units (blocks counted as their base) come from the block conversions store
+setupTestStores();
 
 // String constants to avoid duplication
 const COOKED_BEEF_TITLE = 'Cooked beef';
 const LORE_GUNPOWDER = '- 64x GUNPOWDER';
 const DIAMOND_BLOCK_TITLE = 'Diamond Block';
+const DIAMOND_TITLE = 'Diamond';
 const MINECRAFT_EFFICIENCY = 'minecraft:efficiency';
 
 describe('parseShulkerContents', () => {
@@ -72,14 +76,14 @@ describe('item identity for valuation', () => {
         ]);
     });
 
-    test('toValuationInput maps a single-content shulker cost to its contents', () => {
+    test('toValuationInput maps a single-content shulker cost to its contents, in base units', () => {
         const trade = {
             ...createTrade(14, 1, DIAMOND_BLOCK_TITLE, 1),
             resultItem: { type: 'DIAMOND_BLOCK', name: '', amount: 14 },
             item1: { type: 'SHULKER_BOX', name: '', amount: 1, lore: [LORE_GUNPOWDER, LORE_GUNPOWDER] },
         };
         expect(toValuationInput(trade)).toMatchObject({
-            resultName: 'Diamond block', resultAmount: 14, item1Name: 'Gunpowder', costAmount: 128,
+            resultName: DIAMOND_TITLE, resultAmount: 126, item1Name: 'Gunpowder', costAmount: 128,
         });
     });
 

@@ -63,7 +63,9 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 
 const BlockConversionSchema = z.object({
     base: z.string(),
-    multiplier: z.number().check(z.positive())
+    multiplier: z.number().check(z.positive()),
+    /** False when the block cannot be crafted back into its base (quartz); such blocks stay a separate item */
+    reversible: z.optional(z.boolean())
 });
 
 export const BlockConversionsSchema = z.record(z.string(), BlockConversionSchema);
@@ -312,20 +314,11 @@ export interface ItemValueEntry {
 export type ItemValues = ReadonlyMap<string, ItemValueEntry>;
 
 /**
- * Per-unit prices keyed by (result, cost) pair, e.g. "hanging roots|diamond".
- * Lets a trade be compared with others paid in the same currency.
+ * Per-unit prices keyed by (result, cost) pair in base units, e.g. "hanging roots|diamond".
+ * Lets a trade be compared with others paid in the same currency, and is the
+ * market the currency graph reads exchange rates from.
  */
 export type PairPrices = ReadonlyMap<string, readonly PriceEntry[]>;
-
-export type RatioGraph = ReadonlyMap<string, number>;
-
-/** NxN exchange rate matrix for core currencies */
-export interface ExchangeMatrix {
-    /** Currency names in display order */
-    readonly labels: readonly string[];
-    /** ratios[row][col] = how many of labels[col] for 1 of labels[row], or undefined */
-    readonly ratios: readonly (readonly (number | undefined)[])[];
-}
 
 // ============================================================================
 // Utility Types

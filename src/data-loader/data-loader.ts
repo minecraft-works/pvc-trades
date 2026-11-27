@@ -4,7 +4,7 @@
  * Uses a factory pattern: call {@link createDataLoaderHandler} with
  * dependencies from the host module (main.ts) to get a handler object.
  *
- * Owns the canonical trade list, mapping rules, item values, deviation
+ * Owns the canonical trade list, mapping rules, prices (valuation), deviation
  * calculator, and new-trade highlight set.  Other modules access these
  * through the handler getters.
  *
@@ -21,18 +21,15 @@ import { createDeviationCalculator } from '../search/index.js';
 import { getConfig, loadBaseItems, loadConfig, loadFixedRatios } from '../stores/index.js';
 import type {
     DeviationResult,
-    ItemValues,
     MappingRule,
     Shop,
     Trade,
-    TradeInput,
 } from '../types.js';
 import {
     MappingRuleSchema,
     ShopDataSchema,
 } from '../types.js';
-import { toValuationInput } from '../valuation/item-identity.js';
-import { calculateItemValues, calculatePairPrices } from '../valuation/item-values.js';
+import { buildValuation, type Valuation } from '../valuation/valuation.js';
 
 // ============================================================================
 // Dependency & Handler interfaces
@@ -73,8 +70,8 @@ export interface DataLoaderHandler {
     getTradeByKey: (key: string) => Trade | undefined;
     /** Return current deviation calculator function */
     getDeviation: () => (t: Trade) => DeviationResult | undefined;
-    /** Return current item values (may be undefined before load) */
-    getItemValues: () => ItemValues | undefined;
+    /** Return current prices: pair prices, exchange rates, item values (undefined before load) */
+    getValuation: () => Valuation | undefined;
     /** Return set of new trade keys for highlighting */
     getNewTradeKeys: () => ReadonlySet<string>;
 }
@@ -86,7 +83,7 @@ export interface DataLoaderHandler {
 /**
  * Create a data-loader handler with injected dependencies.
  *
- * Manages trade data, item values, deviation calculator, and refresh
+ * Manages trade data, prices, deviation calculator, and refresh
  * interval as internal closure state.
  * @param deps - Dependencies injected from the host module
  * @returns Handler object with trade access and lifecycle methods
@@ -95,25 +92,13 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
     let allTrades: Trade[] = [];
     const tradesByKey = new Map<string, Trade>();
     let mappingRules: MappingRule[] = [];
-    let itemValues: ItemValues | undefined;
-    let getDeviation = createDeviationCalculator(itemValues);
+    let valuation: Valuation | undefined;
+    let getDeviation = createDeviationCalculator(valuation);
     const newTradeKeys = new Set<string>();
     let _shopRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let lastUpdated: Date | undefined;
     /** Raw body of the last processed shop data, to skip refreshes that bring no changes */
     let lastPayload: string | undefined;
-
-    /**
-     * Build the item-value calculation input from current trades. Trades that
-     * cannot be attributed to a single item price are skipped.
-     * @param trades - Current trade list to build inputs from
-     * @returns Array of trade input objects for item value calculation
-     */
-    function buildItemValueInput(trades: readonly Trade[]): readonly TradeInput[] {
-        return trades
-            .map(t => toValuationInput(t))
-            .filter((input): input is TradeInput => input !== undefined);
-    }
 
     function processShops(shops: readonly Shop[]): void {
         allTrades = [];
@@ -127,11 +112,10 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
         }
     }
 
-    /** Recalculate item values and the deviation calculator from the current trades */
+    /** Recalculate prices and the deviation calculator from the current trades */
     function recalculateValues(): void {
-        const inputs = buildItemValueInput(allTrades);
-        itemValues = calculateItemValues(inputs, 'emerald');
-        getDeviation = createDeviationCalculator(itemValues, calculatePairPrices(inputs));
+        valuation = buildValuation(allTrades);
+        getDeviation = createDeviationCalculator(valuation);
     }
 
     /**
@@ -307,7 +291,7 @@ export function createDataLoaderHandler(deps: DataLoaderDeps): DataLoaderHandler
         getAllTrades: (): readonly Trade[] => allTrades,
         getTradeByKey: (key) => tradesByKey.get(key),
         getDeviation: () => getDeviation,
-        getItemValues: () => itemValues,
+        getValuation: () => valuation,
         getNewTradeKeys: (): ReadonlySet<string> => newTradeKeys,
     };
 }

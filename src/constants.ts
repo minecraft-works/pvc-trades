@@ -64,9 +64,9 @@ export const STORAGE_KEYS = {
     CART: 'shop-trades-cart',
     FAVORITES: 'shop-trades-favorites',
     /** Versioned with the deviation model and trade-key format: older baselines are not comparable */
-    SNAPSHOT: 'shop-trades-snapshot-dev3',
+    SNAPSHOT: 'shop-trades-snapshot-dev4',
     /** Snapshot keys from earlier models/key formats; removed on load */
-    SNAPSHOT_LEGACY: ['shop-trades-snapshot', 'shop-trades-snapshot-dev2'],
+    SNAPSHOT_LEGACY: ['shop-trades-snapshot', 'shop-trades-snapshot-dev2', 'shop-trades-snapshot-dev3'],
     NAV_PROGRESS: 'shop-trades-nav-progress',
     NAV_PLAYER: 'shop-trades-nav-player',
     NAV_TAB: 'shop-trades-nav-tab',

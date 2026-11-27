@@ -28,20 +28,26 @@ Worker.
    Every payload is validated with zod/mini `safeParse`.
 3. `processTrade()` (`library.ts`) turns each shop recipe into a `Trade`
    (names, mapping rules, shulker contents, trade key).
-4. Valuation (`src/valuation/`):
-   - `calculateItemValues()` derives emerald values from direct trades, then
-     transitively through items with trusted values;
-   - `calculatePairPrices()` collects per-currency prices;
-   - `createDeviationCalculator()` (`search/deviation.ts`) compares a trade
-     with the median of the same item in the same currency when there is
-     enough independent data, otherwise in emeralds (ADR-018).
-   Trust requires enough **independent shops** (clustered by distance and
-   owner); statistics are cached per price array.
+4. Valuation: `buildValuation()` (`src/valuation/valuation.ts`, ADR-019)
+   turns the in-stock trades into one set of prices:
+   - trades are converted to **base units** (a block that crafts back into
+     its base counts as that base, 1 Diamond block = 9 Diamond);
+   - `calculatePairPrices()` collects per-unit prices per (item, currency);
+   - `buildCurrencyGraph()` derives Buy/Sell exchange rates between
+     currencies from direct markets, or composed through other currencies
+     (Sell never above Buy);
+   - `calculateItemValues()` derives emerald values anchored to those rates.
+   `createDeviationCalculator()` (`search/deviation.ts`) compares a trade
+   with the median of the same item in the same currency (ADR-018); without
+   enough data it estimates across currencies, shown as "≈" and never
+   counted as a deal. The 💱 Rates tab, converter and flips read the same
+   valuation. Trust requires enough **independent shops** (clustered by
+   distance and owner); statistics are cached per price array.
 5. The dashboard compares trades with the stored snapshot (below), then
    `search-sort` filters and sorts, and `trade-renderer` renders the rows into
    the virtual list (ADR-007).
 6. After the first load, Leaflet is prefetched when the browser is idle
-   (ADR-019).
+   (ADR-021).
 
 **Refresh:** every `dataRefreshMs` the loader fetches with
 `cache: 'no-cache'`. The Worker answers 304 when unchanged, and the loader
@@ -120,7 +126,7 @@ watchlist hits (`dashboard/dashboard-data.ts`, pure; `dashboard-ui.ts`, DOM).
 |-----|---------|
 | `shop-trades-cart` | Cart items and quantities |
 | `shop-trades-favorites` | Watchlist with optional deviation thresholds |
-| `shop-trades-snapshot-dev3` | Dashboard baseline (older keys are removed on load) |
+| `shop-trades-snapshot-dev4` | Dashboard baseline (older keys are removed on load) |
 | `shop-trades-nav-*` | Navigation progress, player name, tab, follow mode, view world |
 | `debug` | Debug log namespaces (see AGENTS.md) |
 

@@ -29,6 +29,7 @@ import type {
     Trade,
 } from '../types.js';
 import { isFilledShulker } from '../valuation/item-identity.js';
+import { confidentOnly, isEstimate } from './deviation.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
 import { matchesShopFilter } from './shop-filter.js';
 
@@ -161,7 +162,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
      * @returns Number of trades meeting their favorite threshold
      */
     function countDeals(results: readonly FilterResult[]): number {
-        const deviationCalc = deps.getDeviation();
+        const deviationCalc = confidentOnly(deps.getDeviation());
         let count = 0;
         for (const result of results) {
             const trade = result.trade;
@@ -201,7 +202,8 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         if (filters.newOnly && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (filters.shulkersOnly && !involvesFilledShulker(trade)) { return true; }
         if (!filters.dealsOnly) { return false; }
-        const deviation = deps.getDeviation()(trade);
+        // Cross-currency estimates are too uncertain to count as deals (ADR-019)
+        const deviation = confidentOnly(deps.getDeviation())(trade);
         return deviation === undefined || deviation.percent > DEALS_ONLY_MAX_PERCENT;
     }
 
@@ -248,6 +250,9 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         if (!deviationA && !deviationB) { return 0; }
         if (!deviationA) { return 1; }
         if (!deviationB) { return -1; }
+        // Cross-currency estimates come after same-currency judgements, regardless of direction
+        const estimateA = isEstimate(deviationA);
+        if (estimateA !== isEstimate(deviationB)) { return estimateA ? 1 : -1; }
         return multiplier * (deviationA.percent - deviationB.percent);
     }
 

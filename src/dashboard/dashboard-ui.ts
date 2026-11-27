@@ -11,6 +11,7 @@ import { html, nothing, render, type TemplateResult } from 'lit-html';
 
 import { DASHBOARD } from '../constants.js';
 import { getTradeKey } from '../map/map-math.js';
+import { confidentOnly } from '../search/deviation.js';
 import type { DeviationResult } from '../search/index.js';
 import type { DashboardData, FavoriteItem,PriceDrop, Trade, TradeSnapshot, WatchlistHit } from '../types.js';
 import { computeDashboardData, formatRelativeTime } from './dashboard-data.js';
@@ -322,7 +323,8 @@ export function createDashboardUIHandler(deps: DashboardUIDependencies): Dashboa
     function showDashboard(): readonly string[] {
         const baseline = deps.snapshotStore.loadBaseline();
         const favorites = deps.favoritesStore.getAll();
-        const currentGetDeviation = deps.getDeviation();
+        // Cross-currency estimates never count as price drops or watchlist hits (ADR-019)
+        const currentGetDeviation = confidentOnly(deps.getDeviation());
 
         const dashboardData = computeDashboardData(
             deps.getAllTrades(),

@@ -21,7 +21,7 @@ import {
     type PriceEntry,
     type TrustedValueOptions,
 } from '../types.js';
-import { getPairKey } from './item-identity.js';
+import { getPairKey, toBaseUnit } from './item-identity.js';
 
 /** Default independent shops required for non-core items */
 const DEFAULT_MIN_ITEM_SHOPS = 2;
@@ -127,29 +127,6 @@ function computeIndependentShops(priceArray: readonly PriceEntry[], maxDistance:
 }
 
 /**
- * Check if an item has enough independent shops for its data to be trusted.
- * For core blocks, requires >= minShops to prevent single-source manipulation.
- *
- * @param entry - Item value entry with buy/sell prices
- * @param minShops - Minimum required independent shops (default from config)
- * @returns true if enough independent data exists
- *
- * @example
- * if (hasEnoughIndependentData(entry, 3)) {
- *     // Safe to use market price
- * } else {
- *     // Fall back to crafting value
- * }
- */
-export function hasEnoughIndependentData(entry: ItemValueEntry, minShops?: number): boolean {
-    const config = configStore.get();
-    const threshold = minShops ?? config.analysis.minIndependentShops;
-    const buyIndependent = countIndependentShops(entry.buyPrices);
-    const sellIndependent = countIndependentShops(entry.sellPrices);
-    return Math.max(buyIndependent, sellIndependent) >= threshold;
-}
-
-/**
  * Get trusted emerald value for an item.
  * For core blocks, requires >= minShops independent shops.
  * Falls back to block conversions (e.g., Diamond Block = 9 × Diamond value).
@@ -173,15 +150,13 @@ export function getTrustedItemValue(
         minItemShops = configStore.get().analysis.minIndependentShopsPerItem ?? DEFAULT_MIN_ITEM_SHOPS,
     } = options;
     const blockConversions = blockConversionsStore.get();
-    const coreBlocks: readonly string[] = coreBlocksStore.get();
     const itemKey = itemName.toLowerCase();
 
     // Emerald is always 1
     if (itemKey === 'emerald') { return 1; }
     if (itemKey === 'emerald block') { return 9; }
 
-    const coreBlocksLower: readonly string[] = coreBlocks.map(b => b.toLowerCase());
-    const isCoreBlock = coreBlocksLower.includes(itemKey);
+    const isCoreBlock = isCoreCurrency(itemKey);
     const valueOf = (entry: ItemValueEntry): number | undefined =>
         getEntryValue(entry, isCoreBlock, minShops, minItemShops);
 
@@ -224,7 +199,7 @@ export function getTrustedPairPrice(
     const prices = pairPrices.get(getPairKey(resultName, costName));
     if (!prices) { return undefined; }
 
-    const isCoreBlock = coreBlocksStore.get().some(b => b.toLowerCase() === resultName.toLowerCase());
+    const isCoreBlock = isCoreCurrency(resultName.toLowerCase());
     const required = isCoreBlock ? minShops : minItemShops;
     if (countIndependentShops(prices) < required) { return undefined; }
     return median(prices);
@@ -248,6 +223,17 @@ function countCombinedShops(entry: ItemValueEntry): number {
     const value = computeIndependentShops([...entry.buyPrices, ...entry.sellPrices], maxDistance);
     combinedShopsCache.set(entry, { length: entry.buyPrices.length, sellLength: entry.sellPrices.length, clusterDistance: maxDistance, value });
     return value;
+}
+
+/**
+ * Whether an item is a core currency, as listed or in base units
+ * (core "Gold Block" makes "Gold ingot" core too)
+ * @param itemKey - Lowercase item name
+ * @returns True for core currencies
+ */
+function isCoreCurrency(itemKey: string): boolean {
+    return coreBlocksStore.get().some(block =>
+        block.toLowerCase() === itemKey || toBaseUnit(block, 1).name.toLowerCase() === itemKey);
 }
 
 function getMedianValue(

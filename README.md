@@ -155,8 +155,9 @@ Coverage thresholds are enforced in `vitest.config.js`.
 - [ADR-010: Limiting Requests to the External Map Server](docs/adr/010-tile-loading-minimization.md)
 - [ADR-011: Player Position Interpolation](docs/adr/011-player-position-interpolation.md)
 - [ADR-018: Trade Deviation Model](docs/adr/018-trade-deviation-model.md)
-- [ADR-019: Lean Runtime Dependencies](docs/adr/019-lean-runtime-dependencies.md)
-- [ADR-020: Fast Feedback Loop for AI Agents](docs/adr/020-agent-feedback-loop.md)
+- [ADR-019: One Exchange-Rate Model](docs/adr/019-exchange-rate-model.md)
+- [ADR-021: Lean Runtime Dependencies](docs/adr/021-lean-runtime-dependencies.md)
+- [ADR-022: Fast Feedback Loop for AI Agents](docs/adr/022-agent-feedback-loop.md)
 
 ## Troubleshooting
 
