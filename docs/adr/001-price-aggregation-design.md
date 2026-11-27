@@ -25,7 +25,7 @@ The shop trade viewer needs to calculate fair market prices and detect deals. Th
 | Winsorized Mean | Caps outliers | Needs percentile choice |
 | VWAP | Volume-weighted | Domain-specific, assumes volume data |
 
-**Implementation**: `median()` function in `library.ts` extracts values and returns the middle value(s).
+**Implementation**: `median()` in `src/valuation/statistics.ts` extracts values and returns the middle value(s).
 
 ---
 

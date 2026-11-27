@@ -64,8 +64,8 @@ Exact solutions are computationally infeasible for real-time use. The heuristic 
 
 ## Implementation
 
-- `nearestNeighborOrder()` in `library.ts` — initial tour construction
-- `twoOptOptimize()` in `library.ts` — local optimization
+- `nearestNeighborOrder()` in `src/routing/route-optimizer.ts` — initial tour construction
+- `twoOptOptimize()` in `src/routing/route-optimizer.ts` — local optimization
 - `computeOptimalOrder()` — orchestrates both phases
 - `buildDistanceMatrix()` — precomputes pairwise distances
 

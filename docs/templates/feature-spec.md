@@ -25,7 +25,7 @@ So that [some reason/benefit].
 | File | Change Type | Description |
 |------|-------------|-------------|
 | `src/main.ts` | Modify | Add event handler for X |
-| `src/library.ts` | Add | New pure function for Y |
+| `src/<area>/<module>.ts` | Add | New pure function for Y |
 | `src/types.ts` | Add | New type definition |
 | `features/X.feature` | Add | BDD scenarios |
 
@@ -122,7 +122,7 @@ So that I can quickly find my preferred trading locations.
 | File | Change Type | Description |
 |------|-------------|-------------|
 | `src/main.ts` | Modify | Add favorite toggle handler |
-| `src/library.ts` | Add | `isFavorite()`, `sortWithFavorites()` |
+| `src/favorites/favorites-sort.ts` | Add | `isFavorite()`, `sortWithFavorites()` |
 | `src/types.ts` | Add | `FavoriteStore` type |
 | `styles.css` | Modify | Star icon styling |
 | `features/favorites.feature` | Add | BDD scenarios |

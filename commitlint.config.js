@@ -1,7 +1,7 @@
 export default {
     extends: ['@commitlint/config-conventional'],
     rules: {
-        // Types allowed per copilot-instructions.md
+        // Types allowed per AGENTS.md
         'type-enum': [2, 'always', [
             'feat',     // New feature (minor version bump)
             'fix',      // Bug fix (patch version bump)

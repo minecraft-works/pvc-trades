@@ -1,382 +1,136 @@
-# System Architecture
+# Architecture
 
-## High-Level Overview
+Static single-page app (Vite, vanilla TypeScript, lit-html templates, Leaflet
+maps). See [AGENTS.md](../AGENTS.md) for the folder layout and conventions;
+this document explains how the parts work together.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Browser                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   index.html │  │  styles.css │  │   main.ts (bundled)     │  │
-│  │   (Entry)    │  │  (Styles)   │  │   + library.ts          │  │
-│  │              │  │             │  │   + types.ts            │  │
-│  └─────────────┘  └─────────────┘  │   + debug.ts            │  │
-│                                     │   + virtual-scroller    │  │
-│                                     │   + leaflet             │  │
-│                                     └─────────────────────────┘  │
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │                    localStorage                              │  │
-│  │  • shop-trades-cart (CartItem[])                            │  │
-│  │  • shop-trades-nav-progress (NavigationProgress)            │  │
-│  │  • shop-trades-nav-player (string)                          │  │
-│  │  • shop-trades-nav-tab (string)                             │  │
-│  │  • shop-trades-nav-mode (NavigationMode)                    │  │
-│  │  • shop-trades-snapshot-dev3 (CompactSnapshotHistory)       │  │
-│  │  • shop-trades-favorites (FavoriteItem[])                   │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ HTTP
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Static Assets                             │
-├─────────────────────────────────────────────────────────────────┤
-│  /data.json          - Shop and trade data                       │
-│  /config.json        - Application configuration                 │
-│  /players.json       - Live player positions (Worker proxy)       │
-│  /core_currencies.json - Core block definitions                  │
-│  /block_conversions.json - Block↔ingot conversion rates          │
-│  /icons/*.png        - Minecraft item icons                      │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-Map tiles are not static assets: the browser loads them directly from the
-map server (`{squaremap.baseUrl}/tiles/minecraft_{world}/{zoom}/{x}_{z}.png`,
-see [ADR-009](adr/009-tile-caching-strategy.md)).
-
-## Module Responsibilities
-
-### Module Dependency Diagram
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│                        main.ts                          │
-│  (entry point, event binding, initialization)           │
-└─────────────────────────────────────────────────────────┘
-         │         │         │         │         │
-         ▼         ▼         ▼         ▼         ▼
-┌──────────┐ ┌──────────┐ ┌─────────┐ ┌─────────┐ ┌───────────┐
-│  stores/ │ │ dialogs/ │ │  map/   │ │search/  │ │navigation/│
-│cart-store│ │ matrix   │ │tile-load│ │deviation│ │ tooltip   │
-│nav-store │ │ details  │ │players  │ └─────────┘ └───────────┘
-│fav-store │ │ helpers  │ │shop-map │
-│snap-store│ └──────────┘ └─────────┘
-│cfg-store │       │
-│blocks    │       ▼
-│cores     │ ┌──────────┐
-│interpol. │ │favorites/│
-└──────────┘ │  fav-ui  │
-         │   └──────────┘
-         └──────────┼──────────────┐
-                    ▼              ▼
-          ┌─────────────────┐ ┌───────────┐
-          │   library.ts    │ │tile-coords│
-          │ (pure functions)│ │ (shared)  │
-          └─────────────────┘ └───────────┘
-                    │
-                    ▼
-          ┌─────────────────┐
-          │    types.ts     │
-          │  (Zod schemas)  │
-          └─────────────────┘
-```
-
-### `src/stores/` (New)
-**Role**: Encapsulated state management with persistence
-
-| Store | Responsibility |
-|-------|----------------|
-| `cart-store.ts` | Cart items, quantities, localStorage sync |
-| `navigation-store.ts` | Nav state, progress, player position, mode |
-| `favorites-store.ts` | Watchlist items with optional deviation thresholds |
-| `snapshot-store.ts` | Rolling snapshot baseline with compact storage format |
-| `config-store.ts` | App configuration cache (from config.json) |
-| `block-conversions-store.ts` | Block↔ingot conversion rates |
-| `core-blocks-store.ts` | Core currency definitions |
-| `player-interpolator.ts` | Smooth player position interpolation between polls |
-
-### `src/map/` (New)
-**Role**: Map tile loading
-
-| Module | Responsibility |
-|--------|----------------|
-| `tile-layout.ts` | Pyramid levels ↔ Squaremap zooms, tile URL builder |
-| `tile-loader.ts` | Adds tile overlays to Leaflet maps, drops tiles the server lacks |
-| `tile-types.ts` | TileConfig, LoadTileOptions, TileRange interfaces |
-| `players.ts` | Player position fetching (via the players Worker) |
-| `shop-map-dialog.ts` | Shop map dialog rendering |
-
-### `src/dialogs/`
-**Role**: Dialog rendering and helper utilities
-
-| Module | Responsibility |
-|--------|----------------|
-| `dialog-utilities.ts` | Backdrop close, openDialog helper |
-| `matrix-dialog.ts` | Exchange rate matrix with Buy/Sell tabs |
-| `shop-map-helpers.ts` | Map marker utilities |
-| `trade-details.ts` | Trade details popover |
-
-### `src/favorites/`
-**Role**: Favorites/watchlist UI
-
-| Module | Responsibility |
-|--------|----------------|
-| `favorites-ui.ts` | Favorites dialog rendering and inline editing |
-
-### `src/navigation/`
-**Role**: Live navigation modules
-
-| Module | Responsibility |
-|--------|----------------|
-| `shop-tooltip.ts` | Proximity-based shop info tooltip |
-
-### `src/search/`
-**Role**: Search and deviation calculation
-
-| Module | Responsibility |
-|--------|----------------|
-| `deviation.ts` | Deviation calculation helpers |
-
-### `src/constants.ts` (New)
-**Role**: Centralized configuration constants
-
-| Constant | Purpose |
-|----------|---------|
-| `NAVIGATION` | Arrival/nearby thresholds |
-| `STORAGE_KEYS` | localStorage key names |
-| `CSS_CLASSES` | Common CSS class names |
-| `DIALOG_IDS` | Dialog element IDs |
-| `WORLDS` | Minecraft dimension identifiers |
-
-### `src/main.ts` (~2900 lines)
-**Role**: Application entry point, DOM orchestration, UI state
-
-| Section | Lines | Responsibility |
-|---------|-------|----------------|
-| Dialog Utilities | 79-127 | Backdrop close, openDialog helper |
-| State | 128-207 | Global state variables |
-| Shopping Cart | 209-302 | Cart CRUD, localStorage sync |
-| Navigation Progress | 303-537 | Route progress tracking |
-| DOM Helpers | 538-551 | getElement, type-safe access |
-| Data Loading | 552-609 | Fetch and process shop data |
-| Search & Sort | 610-778 | Search logic, multi-column sort |
-| Deviation Calc | 779-946 | Price deviation analysis |
-| Rendering | 779-946 | Trade row rendering, virtual scroll |
-| Matrix Dialog | 947-1033 | Exchange rate matrix UI |
-| Map Dialog | 1034-1612 | Leaflet map, tile loading, markers |
-| Cart Dialog | 1613-1816 | Cart items, timeline, shopping list |
-| Tab Switching | 1817-1878 | Cart dialog tab management |
-| Live Navigation | 1879-2520 | Player tracking, auto-advance |
-| Shop Tooltip | 2521-2737 | Proximity-based shop info |
-| Navigation Map | 2738-3106 | Navigation-specific map view |
-| Initialization | 3107-3191 | DOMContentLoaded setup |
-
-### `src/library.ts` (~2100 lines)
-**Role**: Pure functions, no DOM dependencies
-
-| Category | Functions |
-|----------|-----------|
-| Search | `matchesQuery`, `getRegex`, `filterTrade`, `sortResults` |
-| Values | `calculateItemValues`, `getTrustedItemValue`, `getRatio` |
-| Ratios | `buildRatioGraph`, `buildExchangeMatrix`, `buildDirectionalEmeraldValues` |
-| Route | `computeOptimalOrder`, `twoOptOptimize`, `calculateRouteDistance` |
-| Coordinates | `getTileCoords`, `toLeafletCoords`, `clampToCircle` |
-| Utilities | `median`, `formatName`, `highlight`, `escapeHtml` |
-
-### `src/types.ts` (~430 lines)
-**Role**: TypeScript types and Zod schemas
-
-| Category | Items |
-|----------|-------|
-| Core Types | `Trade`, `Item`, `Shop`, `ShopData` |
-| Cart Types | `CartItem`, `RouteStop`, `ShoppingList` |
-| Navigation | `NavigationProgress`, `NavigationMode`, `Player` |
-| Config | `AppConfig`, `SquaremapConfig` |
-| Schemas | `AppConfigSchema`, `BlockConversionsSchema`, etc. |
-
-### `src/debug.ts` (28 lines)
-**Role**: Debug logging utilities
-
-```typescript
-export const debugNavigation = debug('app:navigation');
-export const debugWorldSwitch = debug('app:world-switch');
-export const debugPlayerPoll = debug('app:player-poll');
-export const debugMap = debug('app:map');
-export const debugTiles = debug('app:tiles');
-```
-
-## Data Flow
-
-### Search Flow
-```
-User Input → debouncedSearch() → filterTrade() → sortResults() → renderResults()
-     │              │                  │               │              │
-     │              │                  │               │              └─ Virtual Scroller
-     │              │                  │               └─ Multi-column sort
-     │              │                  └─ library.ts (pure)
-     │              └─ 150ms debounce
-     └─ #searchWant / #searchGive inputs
-```
-
-### Cart Flow
-```
-Add to Cart → addToCart() → saveCart() → localStorage
-                  │             │
-                  │             └─ updateCartBadge()
-                  └─ Update cart[] array
-
-View Cart → openDialog('cart-dialog') → renderCartDialog()
-                                              │
-                                              ├─ createCartItemElement() × N
-                                              ├─ getShoppingList() → costs/gains
-                                              └─ renderNavigateTab() → route timeline
-```
-
-### Navigation Flow
-```
-Start Navigation → startNavigation() → fetchPlayers() → initNavigationMapDialog()
-                         │                    │                    │
-                         │                    │                    ├─ computeRoute()
-                         │                    │                    ├─ Create Leaflet map
-                         │                    │                    └─ Add shop markers
-                         │                    └─ Get initial position
-                         └─ Close cart, open nav dialog
-
-Poll Loop → pollPlayerPosition() → updatePlayerMarker() → checkAutoAdvance()
-      │              │                     │                     │
-      │              │                     │                     └─ Auto-complete nearby shops
-      │              │                     └─ Rotate marker, draw route line
-      │              └─ Fetch player position
-      └─ setInterval (configurable ms)
-```
-
-## State Management
-
-### Store-Based State (New Pattern)
-
-State is now managed through singleton store classes that encapsulate persistence:
-
-```typescript
-// Cart state - src/stores/cart-store.ts
-import { cartStore } from './stores/index.js';
-
-cartStore.add(trade);           // Add item to cart
-cartStore.remove(trade);        // Remove item
-cartStore.updateQuantity(trade, 1);  // Increment quantity
-cartStore.items;                // Get all items (readonly)
-cartStore.onChange(callback);   // Subscribe to changes
-
-// Navigation state - src/stores/navigation-store.ts
-import { navigationStore } from './stores/index.js';
-
-navigationStore.isActive;       // Navigation in progress?
-navigationStore.mode;           // 'follow' | 'manual'
-navigationStore.playerPosition; // Current player location
-navigationStore.progress;       // Completed stops tracking
-navigationStore.markStopComplete(key);  // Mark shop visited
-```
-
-### Module-Level State (main.ts)
-
-```typescript
-// Trade data (loaded once)
-let allTrades: Trade[] = [];
-let mappingRules: MappingRule[] = [];
-let itemValues: ItemValues | undefined;
-let ratioGraph: RatioGraph | undefined;
-
-// Search state
-let cachedRegex: RegExp | undefined;
-let searchDebounceTimer: number | undefined;
-let virtualScroller: VirtualScroller<FilterResult> | undefined;
-
-// Sort state
-const activeSorts: Map<SortColumn, SortDirection> = new Map([['dev', 'asc']]);
-
-// Navigation map state (Leaflet-specific, not serializable)
-let navMap: L.Map | undefined;
-let navRoutePolyline: L.Polyline | undefined;
-let navStopMarkers: L.Marker[] = [];
-```
-
-### Persisted State (localStorage)
-| Key | Type | Purpose |
-|-----|------|---------|
-| `shop-trades-cart` | `CartItem[]` | Shopping cart contents |
-| `shop-trades-nav-progress` | `{ completedKeys, currentIndex }` | Route completion |
-| `shop-trades-nav-player` | `string` | Saved player name |
-| `shop-trades-nav-tab` | `string` | Active cart dialog tab |
-| `shop-trades-nav-mode` | `'follow' \| 'manual'` | Map centering mode |
-| `shop-trades-snapshot-dev3` | `CompactSnapshotHistory` | Rolling baseline for dashboard comparison |
-| `shop-trades-favorites` | `FavoriteItem[]` | Watchlist items with optional thresholds |
-
-## External Dependencies
-
-### Runtime Dependencies
-| Package | Purpose | Bundle Impact |
-|---------|---------|---------------|
-| `leaflet` | Interactive maps | ~40KB |
-| `virtual-scroller` | Virtualized lists | ~15KB |
-| `zod` | Runtime validation | ~12KB |
-| `debug` | Debug logging | ~2KB (stripped in prod) |
-
-### Dev Dependencies
-| Package | Purpose |
-|---------|---------|
-| `vite` | Build tool, dev server |
-| `vitest` | Unit testing |
-| `playwright` | Browser automation |
-| `playwright-bdd` | Gherkin test runner |
-| `typescript` | Type checking |
-| `eslint` | Linting |
-
-## Build Configuration
-
-### Vite Config
-```typescript
-// vite.config.ts
-export default defineConfig({
-    build: {
-        target: 'esnext',
-        sourcemap: true
-    },
-    server: {
-        proxy: {
-            '/players.json': 'http://map.example.com'
-        }
-    }
-});
-```
-
-### TypeScript Config
-- Target: ES2022
-- Module: ESNext
-- Strict mode enabled
-- `noUncheckedIndexedAccess: true`
-- `noImplicitReturns: true`
-
-## Testing Architecture
+## Runtime overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Test Pyramid                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                    ┌───────────────┐                             │
-│                    │  E2E (BDD)    │  features/*.feature          │
-│                    │ ~290 scenarios│  Playwright + playwright-bdd │
-│                    └───────────────┘                             │
-│                                                                   │
-│            ┌─────────────────────────────┐                       │
-│            │      Unit Tests             │  src/*.test.ts         │
-│            │      ~620 tests             │  Vitest                │
-│            └─────────────────────────────┘                       │
-│                                                                   │
-│    ┌─────────────────────────────────────────────┐               │
-│    │            Static Analysis                   │               │
-│    │  TypeScript + ESLint + SonarJS + Unicorn    │               │
-│    └─────────────────────────────────────────────┘               │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+GitHub Pages (static: index.html, JS, CSS, config.json, *_conversions.json)
+        │
+Browser ├── shop data ──► pvc-shops Worker ──► map server /shops/data.json   (60 s refresh, ETag/304)
+        ├── players ────► pvc-players Worker ─► map server /maps/tiles/players.json (polling while a map is open)
+        └── tiles ──────► map server /maps/tiles/minecraft_{world}/{zoom}/{x}_{z}.png (<img>, no referrer)
 ```
+
+The map server sends no CORS headers, so JSON goes through the Workers
+(`workers/`). Tiles are plain images and need no Worker. On `localhost` the
+app reads `public/data.json` (`npm run fetch-data`) instead of the shops
+Worker.
+
+## Startup and data flow
+
+1. `main.ts` creates the handlers (data loader, renderer, search, dialogs,
+   navigation, …) on `DOMContentLoaded`, injecting their dependencies.
+2. `data-loader` loads `config.json`, `core_currencies.json`,
+   `block_conversions.json`, then the shop data and `trade_conversions.json`.
+   Every payload is validated with zod/mini `safeParse`.
+3. `processTrade()` (`library.ts`) turns each shop recipe into a `Trade`
+   (names, mapping rules, shulker contents, trade key).
+4. Valuation (`src/valuation/`):
+   - `calculateItemValues()` derives emerald values from direct trades, then
+     transitively through items with trusted values;
+   - `calculatePairPrices()` collects per-currency prices;
+   - `createDeviationCalculator()` (`search/deviation.ts`) compares a trade
+     with the median of the same item in the same currency when there is
+     enough independent data, otherwise in emeralds (ADR-018).
+   Trust requires enough **independent shops** (clustered by distance and
+   owner); statistics are cached per price array.
+5. The dashboard compares trades with the stored snapshot (below), then
+   `search-sort` filters and sorts, and `trade-renderer` renders the rows into
+   the virtual list (ADR-007).
+6. After the first load, Leaflet is prefetched when the browser is idle
+   (ADR-019).
+
+**Refresh:** every `dataRefreshMs` the loader fetches with
+`cache: 'no-cache'`. The Worker answers 304 when unchanged, and the loader
+also skips everything when the body equals the last one. Otherwise steps 3–5
+run again and new trade keys are highlighted.
+
+## Search
+
+- Two queries: *Buying* (result item) and *Paying* (cost items). Matching
+  ignores spaces/underscores and word order; a quoted query
+  (`"emerald"`) matches whole names only (`search/query.ts`).
+- Quick filters, shop/owner filter chip and autocomplete live in
+  `src/quick-search/`; the search state is mirrored in the URL
+  (`url-sync.ts`).
+- Sorting supports several columns at once (`search-sort.ts`).
+
+## Cart, route and navigation
+
+- `cartStore` keeps trades and quantities (localStorage). The cart dialog
+  aggregates a shopping list and computes a route.
+- Routing (`src/routing/`): distances are normalised to overworld coordinates
+  (nether × 8, ADR-008); the order is nearest-neighbour improved by 2-opt
+  (ADR-004).
+- Live navigation (`src/navigation/`) polls the player's position, smooths it
+  with a spring-damper (`player-position-service`, ADR-011), follows the
+  player on a round map, marks stops done within
+  `NAVIGATION.ARRIVAL_THRESHOLD` blocks, and recalculates the route after
+  moving.
+
+## Maps and tiles
+
+Leaflet is loaded on demand (`src/map/leaflet.ts`). Two maps exist: the shop
+map dialog (`map/shop-map-dialog.ts`) and the navigation map
+(`navigation/nav-map.ts`). Both use `CRS.Simple` with coordinates relative to
+a centre tile (`lat = -z`, `lng = x`).
+
+Tiles come from a Squaremap zoom pyramid:
+
+```
+{baseUrl}/tiles/minecraft_{world}/{zoom}/{tileX}_{tileZ}.png
+blocksPerTile = 512 × 2^(8 − zoom)      zoom 8: 512 blocks (detail) … zoom 4: 8192 blocks (overview)
+tileX = floor(blockX / blocksPerTile)
+```
+
+- `map/tile-layout.ts` maps app pyramid levels 0–4 to server zooms 4–8 and
+  builds URLs; `tile-coords.ts` is the single source of truth for tile maths.
+- `map/tile-loader.ts` adds each tile once per map as an image overlay. The
+  server answers 200 with an empty body for unrendered tiles; those fail to
+  decode and are removed.
+- Only visible tiles are requested (plus a prefetch of the zoom target), and
+  the browser HTTP cache handles reuse (ADR-009, ADR-010).
+- World ids: data `world`/`world_nether`/`world_the_end` →
+  `overworld`/`the_nether`/`the_end` (`getWorldId()`), tile path
+  `minecraft_{id}`.
+
+## Daily deals dashboard
+
+Compares current trades with a baseline about a day old to show new trades,
+price drops (≥ `DASHBOARD.PRICE_DROP_THRESHOLD` percentage points) and
+watchlist hits (`dashboard/dashboard-data.ts`, pure; `dashboard-ui.ts`, DOM).
+
+- **Rolling snapshots** (`snapshotStore`): on each load a snapshot of every
+  trade's deviation and stock is appended if the last one is older than
+  `DASHBOARD.SNAPSHOT_INTERVAL_MS` (1 h); snapshots older than
+  `SNAPSHOT_MAX_AGE_MS` (30 h) are pruned.
+- **Baseline:** the snapshot closest to `BASELINE_TARGET_AGE_MS` (24 h) old.
+  Without one (first visit) nothing is shown.
+- The banner can be dismissed and re-opened with the 📊 button; the new-trade
+  keys also drive the "New" quick filter.
+- Storage is compact (keys stored once, values in parallel arrays) and
+  versioned with the deviation model, so old baselines are discarded.
+
+## Persistence (localStorage)
+
+| Key | Content |
+|-----|---------|
+| `shop-trades-cart` | Cart items and quantities |
+| `shop-trades-favorites` | Watchlist with optional deviation thresholds |
+| `shop-trades-snapshot-dev3` | Dashboard baseline (older keys are removed on load) |
+| `shop-trades-nav-*` | Navigation progress, player name, tab, follow mode, view world |
+| `debug` | Debug log namespaces (see AGENTS.md) |
+
+All of it is validated with zod/mini on load and falls back to an empty state.
+
+## Build and deploy
+
+- `vite build` → `dist/` (initial JS chunk, a lazy Leaflet chunk, one CSS
+  file). `size-limit` guards the initial chunk.
+- CI (`.github/workflows/ci.yml`) runs static checks, unit tests with
+  coverage, E2E in two shards, and build + size + Lighthouse in parallel.
+- `deploy.yml` deploys to GitHub Pages after CI passes on `main`.
+- Workers are deployed separately: `cd workers/<name> && npx wrangler deploy`.

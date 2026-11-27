@@ -144,8 +144,8 @@ The web-based live map of the Minecraft server (`squaremap.baseUrl` in `config.j
 ### Tile
 A square 512×512 px map image at a specific zoom and coordinate. URL: `{baseUrl}/tiles/minecraft_{world}/{zoom}/{x}_{z}.png`. At zoom 8 one pixel is one block; each lower zoom doubles the area.
 
-### Virtual Scroller
-Performance optimization that only renders visible rows in long lists, recycling DOM elements as the user scrolls.
+### Virtual List
+Performance optimization that only renders the trade rows in and around the viewport; padding stands in for the rest (`src/rendering/virtual-list.ts`, ADR-007).
 
 ### Favorites / Watchlist
 A user-curated list of items they want to track. Each favorite can have an optional **threshold** filter. When the dashboard detects trades for favorited items, they appear in the **Watchlist Deals** section.

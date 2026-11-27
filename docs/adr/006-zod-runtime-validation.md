@@ -1,7 +1,8 @@
 # ADR-006: Zod for Runtime Schema Validation
 
 ## Status
-**Implemented** - 2024
+**Implemented** - 2024. **Updated** 2026-11: schemas use `zod/mini` (see
+"zod/mini" below and ADR-019).
 
 ## Context
 
@@ -141,8 +142,25 @@ Single source of truth — schema and type always match.
 - Zod is tree-shakeable for unused features
 - Document common schema patterns
 
+## zod/mini
+
+Classic zod's chainable API (`z.string().min(1).optional()`) keeps most of the
+library in the bundle (26 kB gzip here). `zod/mini` has the same validation
+core and types, with modifiers as functions that tree-shake (~8 kB):
+
+| Classic | zod/mini |
+|---------|----------|
+| `import { z } from 'zod'` | `import { z } from 'zod/mini'` |
+| `z.string().optional()` | `z.optional(z.string())` |
+| `z.number().int().positive()` | `z.int().check(z.positive())` |
+| `z.string().min(1)` | `z.string().check(z.minLength(1))` |
+| `z.number().min(-99).max(999)` | `z.number().check(z.gte(-99), z.lte(999))` |
+| `z.string().optional().default('')` | `z._default(z.string(), '')` |
+| `z.object({...}).loose()` | `z.looseObject({...})` |
+| `x.nullable()` | `z.nullable(x)` |
+
+`.safeParse()` and `z.infer` work the same.
+
 ## Future Considerations
 
-- Zod 4+ has improved performance and smaller bundle
-- Consider Valibot if bundle size becomes critical
-- Add `.transform()` for data normalization if needed
+- Add transforms (`z.pipe`/`z.transform`) for data normalization if needed

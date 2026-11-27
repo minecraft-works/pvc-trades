@@ -134,7 +134,7 @@ src/stores/
 
 - UI re-renders are explicit: call `renderCart()` after state change
 - Debug logging added via `debug` package for state inspection
-- Pattern documented in code-patterns.md
+- Pattern documented in AGENTS.md
 
 ## Future Considerations
 

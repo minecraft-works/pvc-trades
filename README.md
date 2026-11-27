@@ -35,13 +35,14 @@ Put a name in double quotes (`"emerald"`) for an exact match: it matches Emerald
 
 ## Tech Stack
 
-- **TypeScript 6** with strict mode
+- **TypeScript 6** with strict mode, checked over all code (app, tests, scripts, Workers)
 - **Vite 8** for development and builds
-- **Zod 4** for runtime schema validation
-- **Vitest** for unit testing with v8 coverage
-- **Playwright-BDD** for behavioral testing with Gherkin
-- **ESLint 10** with SonarJS and Unicorn plugins
-- **Leaflet** for interactive maps
+- **lit-html** for escaped-by-default DOM templates
+- **zod/mini** for runtime schema validation
+- **Leaflet** for maps, loaded on demand
+- **Vitest** for unit tests, **Playwright-BDD** for browser tests
+- **ESLint 10** (typescript-eslint, SonarJS, Unicorn), stylelint, knip, dependency-cruiser
+- **Cloudflare Workers** that add CORS to the map server's shop and player data
 
 ## Getting Started
 
@@ -59,55 +60,28 @@ npm install
 ### Development
 
 ```bash
-# Start dev server
-npm run dev
-
-# Run unit tests
-npm test
-
-# Run BDD and Playwright spec tests (headless)
-npm run test:e2e
-
-# Run BDD tests in a headed browser
-npm run test:e2e:headed
-
-# Run all checks (lint + typecheck + test)
-npm run lint:all && npm run typecheck && npm test
-
-# Type checking only
-npm run typecheck
-
-# Lint
-npm run lint
+npm run dev          # Dev server at http://localhost:5173/pvc-trades/
+npm run fetch-data   # Download live shop data to public/data.json (used on localhost)
+npm test             # Unit tests
+npm run test:e2e     # BDD and Playwright spec tests (PORT=5199 for a separate dev server)
+npm run check        # Full gate: typecheck, linters, knip, dependency rules, coverage
 ```
 
 ## Project Structure
 
 ```text
-├── src/
-│   ├── main.ts        # Application entry point (UI, events, rendering)
-│   ├── library.ts     # Pure functions (filtering, sorting, routing)
-│   ├── library.test.ts# Unit tests
-│   ├── types.ts       # TypeScript interfaces & Zod schemas
-│   └── debug.ts       # Debug logging utilities
-├── features/
-│   ├── *.feature      # Gherkin BDD scenarios
-│   └── steps/         # Step definitions
-├── docs/
-│   ├── architecture.md    # System overview
-│   ├── code-patterns.md   # Coding patterns reference
-│   ├── glossary.md        # Domain terminology
-│   ├── testing-guide.md   # How to write tests
-│   └── adr/               # Architecture Decision Records
-├── public/
-│   └── data.json      # Trade data (local development)
-├── workers/
-│   └── players/       # Cloudflare Worker proxying live player positions
-├── index.html         # Main HTML file
-├── styles.css         # Styles with CSS custom properties
+├── src/               # App: main.ts wires feature folders (search, rendering, map, navigation, …)
+├── styles.css         # Entry stylesheet importing styles/*.css
+├── features/          # Gherkin scenarios and step definitions
+├── tests/             # Playwright specs and shared test helpers
+├── workers/           # Cloudflare Workers: shops and players (CORS proxies)
+├── scripts/           # fetch-data and CI checks
+├── docs/              # Architecture, glossary, ADRs
+├── index.html
 ├── config.json        # Application configuration
 ├── core_currencies.json   # Core blocks for ratio matrix
-└── block_conversions.json # Block ↔ ingot conversion rates
+├── block_conversions.json # Block ↔ ingot conversion rates
+└── AGENTS.md          # Conventions and workflow (for AI agents and humans)
 ```
 
 ## Configuration
@@ -163,10 +137,9 @@ Coverage thresholds are enforced in `vitest.config.js`.
 
 ## Documentation
 
+- [AGENTS.md](AGENTS.md): conventions, commands and workflow
 - [Architecture Overview](docs/architecture.md)
-- [Code Patterns](docs/code-patterns.md)
 - [Domain Glossary](docs/glossary.md)
-- [Testing Guide](docs/testing-guide.md)
 
 ### Architecture Decision Records
 
@@ -180,7 +153,10 @@ Coverage thresholds are enforced in `vitest.config.js`.
 - [ADR-008: Nether Coordinate System](docs/adr/008-nether-coordinate-system.md)
 - [ADR-009: Map Tiles Loaded Directly From the Map Server](docs/adr/009-tile-caching-strategy.md)
 - [ADR-010: Limiting Requests to the External Map Server](docs/adr/010-tile-loading-minimization.md)
+- [ADR-011: Player Position Interpolation](docs/adr/011-player-position-interpolation.md)
 - [ADR-018: Trade Deviation Model](docs/adr/018-trade-deviation-model.md)
+- [ADR-019: Lean Runtime Dependencies](docs/adr/019-lean-runtime-dependencies.md)
+- [ADR-020: Fast Feedback Loop for AI Agents](docs/adr/020-agent-feedback-loop.md)
 
 ## Troubleshooting
 
@@ -195,10 +171,10 @@ Coverage thresholds are enforced in `vitest.config.js`.
 
 1. Create a feature branch from `develop`
 2. Follow [Conventional Commits](https://conventionalcommits.org)
-3. Ensure `npm run lint:all`, `npm run typecheck` and `npm test` pass
+3. Ensure `npm run check` passes (the pre-push hook runs it), plus `npm run test:e2e` for UI changes
 4. Open a PR with description
 
-See [code patterns](docs/code-patterns.md) and [testing guide](docs/testing-guide.md) for conventions.
+See [AGENTS.md](AGENTS.md) for conventions.
 
 ## License
 
