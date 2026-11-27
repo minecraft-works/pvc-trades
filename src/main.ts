@@ -321,7 +321,7 @@ function getSuggestionNames(kind: 'want' | 'give'): readonly string[] {
 }
 
 /**
- * Put search terms into both fields, e.g. from the URL or a quick-bar chip
+ * Put search terms into both fields, e.g. from the URL
  * @param buy - Buying term
  * @param pay - Paying term
  * @param runSearch - Whether to re-run the search
@@ -347,8 +347,6 @@ function setupQuickSearch(): void {
     giveAutocomplete = createAutocomplete(giveInput, () => getSuggestionNames('give'));
 
     quickBar = createQuickBar(getElement('quick-bar'), {
-        giveInput,
-        setGiveValue: (value) => { applySearchTerms(wantInput.value, value, true); },
         search: () => { searchHandler.search(); },
     });
 
@@ -417,7 +415,7 @@ function isSlashSearchShortcut(event: KeyboardEvent): boolean {
         && !isTextEntryTarget(event.target) && !document.querySelector('dialog[open]');
 }
 
-/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1…6 quick bar) */
+/** Register global keyboard shortcuts (/ and Ctrl+F search focus, Ctrl+Shift+X swap, Alt+1/Alt+2 quick bar) */
 function setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', event => {
         if (!document.querySelector('dialog[open]') && quickBar.handleShortcut(event)) {
@@ -547,7 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isFilterCartOnly: () => renderer.isFilterCartOnly(),
         getQuickFilters: () => quickBar.getFilters(),
         onSearched: () => {
-            quickBar.syncState();
             urlSync.record();
         },
     });

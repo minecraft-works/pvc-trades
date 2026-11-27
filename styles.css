@@ -146,14 +146,6 @@ body {
     gap: 4px;
 }
 
-.quick-bar-separator {
-    width: 1px;
-    height: 14px;
-    margin: 0 4px;
-    background: var(--color-border);
-}
-
-.quick-chip,
 .quick-toggle {
     padding: 2px 8px;
     font-size: 0.72rem;
@@ -164,13 +156,11 @@ body {
     cursor: pointer;
 }
 
-.quick-chip:hover,
 .quick-toggle:hover {
     border-color: var(--color-accent);
     color: var(--color-text);
 }
 
-.quick-chip[aria-pressed="true"],
 .quick-toggle[aria-pressed="true"] {
     border-color: var(--color-accent);
     background: var(--color-accent);
@@ -2448,7 +2438,6 @@ mark {
         scrollbar-width: none;
     }
 
-    .quick-chip,
     .quick-toggle {
         flex-shrink: 0;
     }

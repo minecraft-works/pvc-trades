@@ -1,7 +1,7 @@
 /**
- * Fast-probing helpers: quick bar (currency chips, deals only, best per
- * item), exact-match queries, autocomplete, URL history, per-item prices and
- * the "+" key on result rows.
+ * Fast-probing helpers: quick bar (deals only, best per item), exact-match
+ * queries, autocomplete, URL history, per-item prices and the "+" key on
+ * result rows.
  */
 
 import type { Page } from '@playwright/test';
@@ -82,43 +82,18 @@ async function resultNames(page: Page): Promise<string[]> {
 test.describe('Quick bar', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 
-    test('a currency chip searches that exact currency and toggles off', async ({ page }) => {
-        const emeraldChip = page.locator('.quick-chip', { hasText: /^Emerald$/ });
-        await emeraldChip.click();
-
-        await expect(page.locator(GIVE)).toHaveValue('"emerald"');
-        await expect(emeraldChip).toHaveAttribute('aria-pressed', 'true');
-        // Emerald-block trades (diamond, iron ingot) are excluded by the exact match
-        await expect(page.locator(ROW)).toHaveCount(4);
-
-        await emeraldChip.click();
-        await expect(page.locator(GIVE)).toHaveValue('');
-        await expect(page.locator(ROW)).toHaveCount(7);
-    });
-
-    test('Alt+3 picks the third currency', async ({ page }) => {
-        await page.locator(WANT).focus();
-        await page.keyboard.press('Alt+Digit3');
-        await expect(page.locator(GIVE)).toHaveValue('"diamond"');
-        await expect(page.locator(ROW)).toHaveCount(1);
-    });
-
-    test('typing the exact query by hand marks the matching chip', async ({ page }) => {
-        await page.locator(GIVE).fill('"emerald block"');
-        await expect(page.locator('.quick-chip', { hasText: 'Emerald block' })).toHaveAttribute('aria-pressed', 'true');
-    });
-
     test('deals only keeps trades at least 20% below market', async ({ page }) => {
         await page.locator('#deals-only-toggle').click();
         await expect(page.locator(ROW)).toHaveCount(1);
         await expect(page.locator(`${ROW} .dev`)).toHaveText(['−33%']);
 
-        await page.keyboard.press('Alt+Digit5');
+        await page.keyboard.press('Alt+Digit1');
         await expect(page.locator(ROW)).toHaveCount(7);
     });
 
     test('best per item keeps only the cheapest offer for each item', async ({ page }) => {
-        await page.locator('#best-per-item-toggle').click();
+        await page.keyboard.press('Alt+Digit2');
+        await expect(page.locator('#best-per-item-toggle')).toHaveAttribute('aria-pressed', 'true');
         const names = await resultNames(page);
         expect(names).toHaveLength(4);
         expect(new Set(names).size).toBe(4);
