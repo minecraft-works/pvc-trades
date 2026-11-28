@@ -231,6 +231,21 @@ test.describe('Lenses', () => {
         await expect(page).toHaveURL(/[?&]lens=food/);
     });
 
+    test('the Buying menu lists the three owners with the most trades', async ({ page }) => {
+        const owners = ['Alice', 'Bob', 'Carol'];
+        const daveShop = { location: '3000.0, 64.0, 0.0', world: 'world', shopOwner: 'Dave', recipes: [recipe('SAND', 1, EMERALD_TYPE, 1)] };
+        await openApp(page, '', { data: [...SHOP_DATA.data.map((shop, index) => ({ ...shop, shopOwner: owners[index] })), daveShop] });
+
+        await page.locator(WANT).click();
+        const shops = page.locator(`${WANT_MENU} .search-suggestion-action.search-suggestion--who`);
+        await expect(shops).toHaveText([/Alice/, /Bob/, /Carol/]);
+        await expect(page.locator(`${WANT_MENU} .search-suggestion-submenu`)).toContainText('4 owners');
+
+        await shops.filter({ hasText: 'Bob' }).click();
+        await expect(page.locator(pill('shop'))).toContainText('Bob');
+        await expect(page.locator(ROW)).toHaveCount(2);
+    });
+
     test('typing offers matching categories after the item names', async ({ page }) => {
         await page.locator(WANT).fill('ores');
         const lensRow = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Ores & Minerals' });
@@ -281,7 +296,7 @@ test.describe('Lenses', () => {
         await expect(page.locator(WANT)).toHaveValue('Cooked beef');
 
         await page.locator(WANT).click();
-        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Shops & owners' }).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'All shops & owners' }).click();
         await page.keyboard.type('bo');
         const shops = page.locator(`${WANT_MENU} .search-suggestion-action`);
         await expect(shops).toHaveText([/Bob/]);

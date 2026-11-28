@@ -139,11 +139,6 @@
     color: var(--color-bg);
 }
 
-.search-suggestion--what .suggestion-icon {
-    color: var(--color-scope-what);
-}
-
-.search-suggestion--who .suggestion-icon,
 .search-suggestion-toggle[aria-checked="true"] .suggestion-icon {
     color: var(--color-accent);
 }
@@ -190,8 +185,8 @@
     color: inherit;
 }
 
-/* Menu grid: two columns of one-line tiles (icon, name, trade count) and
-   filters; headings, the back row and Shops & owners span both columns */
+/* Menu grid: two columns of one-line tiles (name, trade count) and filters;
+   headings, the back row and the shop and owner rows span both columns */
 .search-suggestions--grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -200,21 +195,17 @@
 
 .search-suggestions--grid li.search-suggestion-action {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 6px;
     padding: 6px 10px;
-}
-
-.search-suggestions--grid .search-suggestion-action .suggestion-icon {
-    font-size: 1rem;
 }
 
 .search-suggestions--grid li.search-suggestion-toggle {
     padding: 6px 10px;
 }
 
-.search-suggestions--grid li.search-suggestion-submenu,
+.search-suggestions--grid li.search-suggestion--who,
 .search-suggestions--grid li.search-suggestion-heading,
 .search-suggestions--grid li.search-suggestion-heading:hover {
     grid-column: 1 / -1;

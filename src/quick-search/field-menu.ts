@@ -10,7 +10,7 @@
 
 import { type Lens, LENSES, type LensId, paysWithLens, rankLenses, receivesFromLens } from '../search/lenses.js';
 import { getScopeLens, rankTradeFilters, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
-import { formatShopFilter, matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
+import { matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
@@ -21,6 +21,8 @@ export const SHOP_SUBMENU_ID = 'shops';
 const MAX_TYPED_LENSES = 2;
 const MAX_TYPED_SHOPS = 3;
 const MAX_TYPED_FILTERS = 2;
+/** Owners listed in the Buying menu before "All shops & owners" */
+const MAX_TOP_OWNERS = 3;
 
 /** Dependencies from the host module */
 export interface FieldMenuDeps {
@@ -45,6 +47,16 @@ function shopKey(shop: ShopFilter | undefined): string {
 
 function isSameShop(a: ShopFilter | undefined, b: ShopFilter): boolean {
     return a !== undefined && shopKey(a) === shopKey(b);
+}
+
+/**
+ * Sort order for shops and owners: most trades first, then by name
+ * @param a - First suggestion
+ * @param b - Second suggestion
+ * @returns Negative when a comes first
+ */
+function byTrades(a: ShopSuggestion, b: ShopSuggestion): number {
+    return b.trades - a.trades || a.label.localeCompare(b.label);
 }
 
 /**
@@ -82,7 +94,6 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         const current = getScopeLens(deps.getScope(), side) === lens.id;
         const action: ActionSuggestion = {
             current,
-            icon: lens.icon,
             label: lens.label,
             // Menu tiles show just the count; typed rows say what they are, next to item names
             detail: typed ? `category · ${plural(count, 'trade')}` : count.toLocaleString(),
@@ -99,7 +110,6 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         const current = isSameShop(deps.getScope().shop, suggestion.filter);
         const action: ActionSuggestion = {
             current,
-            icon: suggestion.kind === 'shop' ? '🏪' : '👤',
             label: suggestion.label,
             detail: suggestion.detail,
             actionLabel: suggestion.kind === 'shop' ? 'Show only this shop' : 'Show only shops of this player',
@@ -129,10 +139,21 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             const all = deps.getShopSuggestions();
             const shops = query.trim()
                 ? rankShopSuggestions(all, query, all.length)
-                : all.toSorted((a, b) => b.trades - a.trades || a.label.localeCompare(b.label));
+                : all.toSorted(byTrades);
             return shops.map(suggestion => shopAction(suggestion));
         },
     };
+
+    /**
+     * The active shop filter, then the owners with the most trades
+     * @returns Up to {@link MAX_TOP_OWNERS} shop and owner rows
+     */
+    function getTopShops(): readonly MenuEntry[] {
+        const all = deps.getShopSuggestions();
+        const active = all.find(suggestion => isSameShop(deps.getScope().shop, suggestion.filter));
+        const owners = all.filter(suggestion => suggestion.kind === 'owner' && suggestion !== active).toSorted(byTrades);
+        return [...(active ? [active] : []), ...owners].slice(0, MAX_TOP_OWNERS).map(suggestion => shopAction(suggestion));
+    }
 
     function getRootMenu(): readonly MenuEntry[] {
         // Both fields open on their lenses, so the two menus start the same way
@@ -141,16 +162,12 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             ...LENSES.map(lens => lensAction(lens, false)),
         ];
         if (side === 'pay') { return lenses; }
-        const scope = deps.getScope();
         const ownerCount = deps.getShopSuggestions().filter(suggestion => suggestion.kind === 'owner').length;
         return [
             ...lenses,
             { kind: 'heading', label: 'Sold by' },
-            {
-                kind: 'submenu', icon: '🏪', label: 'Shops & owners',
-                detail: scope.shop ? formatShopFilter(scope.shop) : plural(ownerCount, 'owner'),
-                tone: 'who', submenu: shopSubmenu,
-            },
+            ...getTopShops(),
+            { kind: 'submenu', label: 'All shops & owners', detail: plural(ownerCount, 'owner'), tone: 'who', submenu: shopSubmenu },
             { kind: 'heading', label: 'Filters' },
             ...TRADE_FILTERS.map(spec => filterToggle(spec)),
         ];

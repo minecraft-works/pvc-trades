@@ -4,7 +4,7 @@
  *
  * - Typing lists matching item names, then matching categories (lenses), shops and filters.
  * - Clicking the field, or Alt+↓, opens its menu: the field's categories,
- *   then (Buying) Shops & owners › and filter rows that tick in place and keep it open.
+ *   then (Buying) the top owners, All shops & owners › and filter rows that tick in place and keep it open.
  * - In a submenu, typing narrows its list (text already in the field is kept
  *   and put back on leaving); Backspace or ← with nothing typed goes back.
  *
@@ -28,8 +28,6 @@ export type ScopeTone = 'what' | 'who' | 'how';
  * "show only this shop".
  */
 export interface ActionSuggestion {
-    /** Leading symbol, e.g. "🏪" */
-    readonly icon: string;
     readonly label: string;
     /** Muted text after the label */
     readonly detail: string;
@@ -69,7 +67,6 @@ export type MenuEntry =
     }
     | {
         readonly kind: 'submenu';
-        readonly icon: string;
         readonly label: string;
         readonly detail: string;
         readonly tone: ScopeTone;
@@ -162,18 +159,28 @@ function hideBackdrop(dismiss: () => void): void {
     getBackdrop().classList.add('hidden');
 }
 
-function appendParts(option: HTMLLIElement, icon: string, label: string, detail: string): void {
-    const iconElement = document.createElement('span');
-    iconElement.className = 'suggestion-icon';
-    iconElement.setAttribute('aria-hidden', 'true');
-    iconElement.textContent = icon;
+/**
+ * Fill a menu row: an optional leading symbol, the label and muted detail
+ * @param option - Row to fill
+ * @param icon - Symbol that carries state or direction (☐/☑, ‹), if any
+ * @param label - Main text
+ * @param detail - Muted text after the label
+ */
+function appendParts(option: HTMLLIElement, icon: string | undefined, label: string, detail: string): void {
+    if (icon !== undefined) {
+        const iconElement = document.createElement('span');
+        iconElement.className = 'suggestion-icon';
+        iconElement.setAttribute('aria-hidden', 'true');
+        iconElement.textContent = icon;
+        option.append(iconElement);
+    }
     const labelElement = document.createElement('span');
     labelElement.className = 'suggestion-label';
     labelElement.textContent = label;
     const detailElement = document.createElement('span');
     detailElement.className = 'suggestion-detail';
     detailElement.textContent = detail;
-    option.append(iconElement, labelElement, detailElement);
+    option.append(labelElement, detailElement);
 }
 
 /**
@@ -194,12 +201,12 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
             return;
         }
         case 'action': {
-            const { icon, label, detail, spokenDetail = detail, actionLabel, tone, current, empty } = suggestion.action;
+            const { label, detail, spokenDetail = detail, actionLabel, tone, current, empty } = suggestion.action;
             option.classList.add('search-suggestion-action', `search-suggestion--${tone}`);
             option.classList.toggle('is-current', current === true);
             option.classList.toggle('is-empty', empty === true);
             option.setAttribute(ARIA_LABEL, `${actionLabel}: ${label}, ${spokenDetail}${current ? ', active' : ''}`);
-            appendParts(option, icon, label, detail);
+            appendParts(option, undefined, label, detail);
             return;
         }
         case 'toggle': {
@@ -212,7 +219,7 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
         case 'submenu': {
             option.classList.add('search-suggestion-submenu', `search-suggestion--${suggestion.tone}`);
             option.setAttribute(ARIA_LABEL, `${suggestion.label}, ${suggestion.detail}, opens a list`);
-            appendParts(option, suggestion.icon, suggestion.label, `${suggestion.detail} ›`);
+            appendParts(option, undefined, suggestion.label, `${suggestion.detail} ›`);
             return;
         }
     }

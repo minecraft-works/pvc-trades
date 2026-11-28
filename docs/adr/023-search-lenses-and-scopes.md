@@ -51,8 +51,10 @@ Music & Discs, Collectibles & Rarities.
 There are no new buttons. Each search field is the picker for its side:
 
 - **Click Buying or press Alt+↓** to open its menu. It starts with the
-  lens grid under "Buy", then *Shops & owners ›* under "Sold by" (a browsable
-  list of all owners and shops) and the filters as tick rows that stay open.
+  lens grid under "Buy", then under "Sold by" the three owners with the most
+  trades (an active shop filter first) and *All shops & owners ›* (a
+  browsable list of all owners and shops), then the filters as tick rows
+  that stay open.
 - **Click Paying** to open its menu: the same lens grid under "Pay with",
   and nothing else.
 - Both menus open on the same grid, so they look alike and a lens is one tap
@@ -60,9 +62,12 @@ There are no new buttons. Each search field is the picker for its side:
   ("Buy", "Pay with") and the pills ("buying Redstone") say what it does, and
   typed suggestions read "category · 110 trades". "Lens" stays the term in
   code and docs.
-- The grid uses one-line tiles (icon, name, in-stock trade count) in two
-  columns, filters included, to keep the Buying menu short. Alt+1…4 hints are
-  hidden on touch screens.
+- The grid uses one-line tiles (name and in-stock trade count) in two
+  columns, filters included, to keep the Buying menu short. Menu rows have no
+  icons: the names are short and clear, emoji look different on every
+  platform and nothing like Minecraft, and the space is better spent on the
+  name. Only symbols that carry state or direction stay (☐/☑, ‹). Alt+1…4
+  hints are hidden on touch screens.
 - On phones the menus span the whole search card instead of their field, and
   their height follows the room the on-screen keyboard leaves (the keyboard
   only shrinks the visual viewport, so `autocomplete.ts` measures it and sets

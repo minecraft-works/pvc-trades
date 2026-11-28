@@ -33,7 +33,6 @@ export type LensId =
 export interface Lens {
     readonly id: LensId;
     readonly label: string;
-    readonly icon: string;
     /** Extra words that find the lens while typing, e.g. "piston" for Redstone */
     readonly keywords: readonly string[];
 }
@@ -47,18 +46,18 @@ interface LensRule {
 
 /** Display order of the lenses in the menu */
 export const LENSES: readonly Lens[] = [
-    { id: 'armor', label: 'Armor', icon: '🛡️', keywords: ['armour', 'helmet', 'chestplate', 'leggings', 'boots', 'trim'] },
-    { id: 'weapons', label: 'Weapons', icon: '⚔️', keywords: ['sword', 'bow', 'crossbow', 'arrow', 'combat', 'pvp'] },
-    { id: 'tools', label: 'Tools', icon: '⛏️', keywords: ['pickaxe', 'axe', 'shovel', 'hoe'] },
-    { id: 'redstone', label: 'Redstone', icon: '🔴', keywords: ['piston', 'hopper', 'observer', 'circuit'] },
-    { id: 'flowers', label: 'Flowers', icon: '🌸', keywords: ['flower', 'tulip', 'plant'] },
-    { id: 'ores', label: 'Ores & Minerals', icon: '💎', keywords: ['ore', 'ingot', 'mineral', 'gem'] },
-    { id: 'food', label: 'Food', icon: '🍖', keywords: ['eat', 'meat'] },
-    { id: 'potions', label: 'Potions', icon: '⚗️', keywords: ['potion', 'brewing'] },
-    { id: 'books', label: 'Enchanted Books', icon: '📖', keywords: ['enchant', 'enchantment', 'book'] },
-    { id: 'transport', label: 'Transportation', icon: '🛤️', keywords: ['rail', 'minecart', 'boat', 'travel'] },
-    { id: 'music', label: 'Music & Discs', icon: '🎵', keywords: ['disc', 'record', 'jukebox'] },
-    { id: 'collectibles', label: 'Collectibles & Rarities', icon: '⭐', keywords: ['rare', 'rarity', 'sherd', 'head', 'egg'] },
+    { id: 'armor', label: 'Armor', keywords: ['armour', 'helmet', 'chestplate', 'leggings', 'boots', 'trim'] },
+    { id: 'weapons', label: 'Weapons', keywords: ['sword', 'bow', 'crossbow', 'arrow', 'combat', 'pvp'] },
+    { id: 'tools', label: 'Tools', keywords: ['pickaxe', 'axe', 'shovel', 'hoe'] },
+    { id: 'redstone', label: 'Redstone', keywords: ['piston', 'hopper', 'observer', 'circuit'] },
+    { id: 'flowers', label: 'Flowers', keywords: ['flower', 'tulip', 'plant'] },
+    { id: 'ores', label: 'Ores & Minerals', keywords: ['ore', 'ingot', 'mineral', 'gem'] },
+    { id: 'food', label: 'Food', keywords: ['eat', 'meat'] },
+    { id: 'potions', label: 'Potions', keywords: ['potion', 'brewing'] },
+    { id: 'books', label: 'Enchanted Books', keywords: ['enchant', 'enchantment', 'book'] },
+    { id: 'transport', label: 'Transportation', keywords: ['rail', 'minecart', 'boat', 'travel'] },
+    { id: 'music', label: 'Music & Discs', keywords: ['disc', 'record', 'jukebox'] },
+    { id: 'collectibles', label: 'Collectibles & Rarities', keywords: ['rare', 'rarity', 'sherd', 'head', 'egg'] },
 ];
 
 const RAILS: readonly string[] = ['rail', 'powered_rail', 'detector_rail', 'activator_rail'];

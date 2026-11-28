@@ -14,7 +14,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Fast Probing**: Item-name autocomplete, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
 - **Categories, Shops and Filters**: Click the Buying field (or press `Alt+↓`) for its menu:
   - **Categories** (*lenses* in the docs) narrow a side to a theme, one tap away. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
-  - **Shops & owners** lists every owner and shop.
+  - **Sold by** lists the three owners with the most trades; **All shops & owners** lists every owner and shop.
   - **Filters**: Deals only, Best per item, Shulkers, New.
   
   Clicking the Paying field shows the same categories ("pay with Food" finds shops that accept food). Typing also suggests matching categories, shops and filters. On phones the menu spans the search card and stays above the keyboard; a click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
@@ -27,7 +27,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 |-----|-------|--------|
 | `/` or `Ctrl+F` | Anywhere | Jump to the Buying field (a second `Ctrl+F` opens the browser's find) |
 | Click or `Alt+↓` | Search field | Open the field's menu (Buying: categories, shops & owners, filters; Paying: categories) |
-| `→` / `←` | Field menu | Open Shops & owners / go back |
+| `→` / `←` | Field menu | Open All shops & owners / go back |
 | `Backspace` | Empty search field | Remove the field's last pill |
 | `Tab` | Buying field | Go straight to the Paying field (accepts a highlighted suggestion first) |
 | `Esc` | Search field | Clear the field |
