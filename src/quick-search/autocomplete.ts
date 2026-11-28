@@ -80,7 +80,12 @@ export type MenuEntry =
         readonly tone: ScopeTone;
         readonly submenu: Submenu;
     }
-    | { readonly kind: 'heading'; readonly label: string };
+    | {
+        readonly kind: 'heading';
+        readonly label: string;
+        /** Stable name of the section the heading starts, for the layout (e.g. "biomes") */
+        readonly section?: string;
+    };
 
 /** Lenses, shops and filters a field offers besides item names */
 export interface FieldMenu {
@@ -278,15 +283,12 @@ export function createAutocomplete(
     // Browsing the list by touch: the field let go of focus to hide a phone's
     // keyboard, and the list stays open without it until it closes or the field is used again
     let browsing = false;
+    // The option element of each suggestion (undefined for headings), by suggestion index
+    let optionElements: readonly (HTMLLIElement | undefined)[] = [];
+    let sectionCount = 0;
 
-    function createOption(suggestion: Suggestion, index: number): HTMLLIElement {
+    function createOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, index: number): HTMLLIElement {
         const option = document.createElement('li');
-        if (suggestion.kind === 'heading') {
-            option.setAttribute('role', 'presentation');
-            option.className = 'search-suggestion-heading';
-            option.textContent = suggestion.label;
-            return option;
-        }
         option.id = `${listId}-${instanceCount}-${index}`;
         option.setAttribute('role', 'option');
         option.setAttribute('aria-selected', 'false');
@@ -307,10 +309,10 @@ export function createAutocomplete(
     }
 
     function renderHighlight(): void {
-        for (const [index, option] of [...list.children].entries()) {
-            if (option.getAttribute('role') === 'option') { option.setAttribute('aria-selected', String(index === highlighted)); }
+        for (const [index, option] of optionElements.entries()) {
+            option?.setAttribute('aria-selected', String(index === highlighted));
         }
-        const active = list.children[highlighted];
+        const active = optionElements[highlighted];
         if (active) {
             input.setAttribute('aria-activedescendant', active.id);
             active.scrollIntoView({ block: 'nearest' });
@@ -319,8 +321,52 @@ export function createAutocomplete(
         }
     }
 
+    /**
+     * Start a section of the list: a heading (if any) and a group for its rows.
+     * Sections let wide screens put Categories, Biomes and the rest side by side.
+     * @param heading - Heading that starts the section; none for rows above the first heading
+     * @returns The section element and the group its rows go in
+     */
+    function createSection(heading?: Extract<Suggestion, { kind: 'heading' }>): { section: HTMLLIElement; group: HTMLUListElement } {
+        const section = document.createElement('li');
+        section.setAttribute('role', 'presentation');
+        section.className = 'search-suggestion-section';
+        const group = document.createElement('ul');
+        group.setAttribute('role', 'group');
+        group.className = 'search-suggestion-group';
+        if (heading) {
+            const title = document.createElement('div');
+            title.id = `${listId}-${instanceCount}-section-${String(sectionCount++)}`;
+            title.className = 'search-suggestion-heading';
+            title.textContent = heading.label;
+            group.setAttribute('aria-labelledby', title.id);
+            if (heading.section) { section.dataset.section = heading.section; }
+            section.append(title);
+        }
+        section.append(group);
+        return { section, group };
+    }
+
     function renderList(): void {
-        list.replaceChildren(...suggestions.map((suggestion, index) => createOption(suggestion, index)));
+        const sections: HTMLLIElement[] = [];
+        const options: (HTMLLIElement | undefined)[] = [];
+        let group: HTMLUListElement | undefined;
+        for (const [index, suggestion] of suggestions.entries()) {
+            if (suggestion.kind === 'heading' || !group) {
+                const created = createSection(suggestion.kind === 'heading' ? suggestion : undefined);
+                sections.push(created.section);
+                group = created.group;
+            }
+            if (suggestion.kind === 'heading') {
+                options.push(undefined);
+                continue;
+            }
+            const option = createOption(suggestion, index);
+            group.append(option);
+            options.push(option);
+        }
+        optionElements = options;
+        list.replaceChildren(...sections);
         const isOpen = suggestions.length > 0;
         // While typing, the field's menu follows the item names
         const isMenu = mode.kind === 'root' || mode.kind === 'submenu' || suggestions.some(suggestion => suggestion.kind !== 'name');

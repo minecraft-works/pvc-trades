@@ -32,6 +32,7 @@ import {
 import {
     CSS_CLASSES,
     DIALOG_IDS,
+    QUICK_SEARCH,
     SELECTORS,
     STORAGE_KEYS,
     WORLDS} from './constants.js';
@@ -63,6 +64,7 @@ import type { UrlSearchState, UrlSync } from './quick-search/url-sync.js';
 import { createUrlSync } from './quick-search/url-sync.js';
 import type { TradeRendererHandler } from './rendering/index.js';
 import { createTradeRendererHandler } from './rendering/index.js';
+import { loadBiomeRules } from './search/biomes.js';
 import type { SearchSortHandler } from './search/index.js';
 import { createSearchSortHandler, updateClearButtonVisibility } from './search/index.js';
 import { collectItemNames } from './search/query.js';
@@ -112,6 +114,8 @@ let wantAutocomplete: Autocomplete;
 let giveAutocomplete: Autocomplete;
 // True while URL state is being applied, which runs its own search (or none before data loads)
 let applyingSearchState = false;
+/** Whether the biome item rules were asked for, see loadBiomes */
+let biomesRequested = false;
 let suggestionSource: { trades: readonly Trade[]; names: ReturnType<typeof collectItemNames> } | undefined;
 let shopSuggestionSource: { trades: readonly Trade[]; suggestions: readonly ShopSuggestion[] } | undefined;
 let shopLocationSource: { trades: readonly Trade[]; locations: readonly ShopLocation[] } | undefined;
@@ -457,10 +461,28 @@ function applySearchState(state: UrlSearchState, runSearch: boolean): void {
 
 /** Redraw the pills and open menus, and re-run the search, after the scope changed */
 function onScopeChanged(): void {
+    const scope = searchScopeStore.get();
+    if (scope.buyBiome !== undefined || scope.payBiome !== undefined) { loadBiomes(); }
     scopePills.render();
     wantAutocomplete.refresh();
     giveAutocomplete.refresh();
     if (!applyingSearchState) { searchHandler.search(); }
+}
+
+/**
+ * Load the biome item rules (once, ADR-021), then redo the open menus, which
+ * counted every biome as empty until now, and the search if a biome is in it.
+ */
+function loadBiomes(): void {
+    if (biomesRequested) { return; }
+    biomesRequested = true;
+    void loadBiomeRules().then(() => {
+        wantAutocomplete.refresh();
+        giveAutocomplete.refresh();
+        const { buyBiome, payBiome } = searchScopeStore.get();
+        // Re-rendering the rows would drop the keyboard focus, so only when the results change
+        if (buyBiome !== undefined || payBiome !== undefined) { searchHandler.search(); }
+    });
 }
 
 /** Set up the field menus, scope pills and URL sync (must run before data loads) */
@@ -470,10 +492,12 @@ function setupQuickSearch(): void {
 
     const menuDeps: FieldMenuDeps = {
         getShopSuggestions,
+        loadBiomes,
         getTrades: () => dataLoader.getAllTrades(),
         getScope: () => searchScopeStore.get(),
-        createSearchMatcher: side => searchHandler.createSearchMatcher(side),
+        createSearchMatcher: part => searchHandler.createSearchMatcher(part),
         setLens: (side, lens) => { searchScopeStore.setLens(side, lens); },
+        setBiome: (side, biome) => { searchScopeStore.setBiome(side, biome); },
         setShop: (shop) => { searchScopeStore.setShop(shop); },
         toggleFilter: (key) => { searchScopeStore.toggleFilter(key); },
         removeLast: (side) => {
@@ -674,6 +698,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     void dataLoader.loadShops().then(() => {
         prefetchLeaflet();
+        // Biomes are rarely the first thing picked, so their rules can wait for an idle moment
+        if ('requestIdleCallback' in globalThis) {
+            requestIdleCallback(loadBiomes, { timeout: QUICK_SEARCH.BIOME_PREFETCH_TIMEOUT_MS });
+        } else {
+            setTimeout(loadBiomes, QUICK_SEARCH.BIOME_PREFETCH_TIMEOUT_MS);
+        }
         void loadExchangeRates();
     });
 
@@ -695,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDealsBadge: (count) => favoritesUI.updateDealsBadge(count),
         isFilterCartOnly: () => renderer.isFilterCartOnly(),
         getScope: () => searchScopeStore.get(),
-        clearLenses: () => { searchScopeStore.set({ ...searchScopeStore.get(), buyLens: undefined, payLens: undefined }); },
+        clearLenses: () => { searchScopeStore.clearItemScopes(); },
         onSearched: () => {
             urlSync.record();
         },

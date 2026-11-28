@@ -213,7 +213,7 @@ const RULE_IDS: ReadonlyMap<LensId, ReadonlySet<string>> = new Map(
  * @param type - Item type or content key
  * @returns Lowercase vanilla ID without namespace
  */
-function normalizeItemId(type: string): string {
+export function normalizeItemId(type: string): string {
     return type.trim().replace(/^minecraft:/i, '').toLowerCase().replaceAll(/\s+/g, '_');
 }
 
@@ -272,6 +272,16 @@ function getNamedItemLens(item: Readonly<Item>): LensId | undefined {
 }
 
 /**
+ * Whether an item stack is a named item with a lens of its own (a currency
+ * or claim block): it stands for that, not for its vanilla type.
+ * @param item - Item stack
+ * @returns True for a currency or claim block
+ */
+export function isNamedLensItem(item: Readonly<Item>): boolean {
+    return getNamedItemLens(item) !== undefined;
+}
+
+/**
  * Find a lens by its ID. Earlier IDs (armor, weapons, tools, books) still
  * resolve, to the lens that took them over.
  * @param id - Lens ID, e.g. from the URL
@@ -314,7 +324,7 @@ const stackTypesCache = new WeakMap<Readonly<Item>, readonly string[]>();
  * @param item - Item stack
  * @returns Item types (content keys for a shulker box)
  */
-function getStackTypes(item: Readonly<Item>): readonly string[] {
+export function getStackTypes(item: Readonly<Item>): readonly string[] {
     const cached = stackTypesCache.get(item);
     if (cached) { return cached; }
     const types = isFilledShulker(item)

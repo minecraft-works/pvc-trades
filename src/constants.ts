@@ -113,6 +113,8 @@ export const QUICK_SEARCH = {
     MENU_KEYBOARD_GAP_PX: 8,
     /** An open field menu never gets shorter than this, even with little room left */
     MENU_MIN_HEIGHT_PX: 160,
+    /** The biome item rules load when the browser is idle after the first data load, at the latest after this */
+    BIOME_PREFETCH_TIMEOUT_MS: 5000,
 } as const;
 
 /** Trade row context menu */

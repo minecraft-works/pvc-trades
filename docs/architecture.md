@@ -62,10 +62,11 @@ run again and new trade keys are highlighted.
 - Two queries: *Buying* (result item) and *Paying* (cost items). Matching
   ignores spaces/underscores and word order; a quoted query
   (`"emerald"`) matches whole names only (`search/query.ts`).
-- The search scope (lenses, shop/owner and trade filters, ADR-023) is chosen
+- The search scope (lenses, biomes, shop/owner and trade filters, ADR-023) is chosen
   from each field's menu (`quick-search/autocomplete.ts`, `field-menu.ts`),
   shown as pills (`scope-pills.ts`) and held by `searchScopeStore`. Lenses
-  match on item IDs (`search/lenses.ts`); the whole search state is mirrored
+  and biomes match on item IDs (`search/lenses.ts`, `search/biomes.ts`) and
+  intersect (`createItemScopeMatcher`); the whole search state is mirrored
   in the URL (`url-sync.ts`, `search/scope.ts`).
 - Admin shops (owner `ADMIN_SHOP_OWNER`, appended by the shops Worker) are
   the owner filter "Admin shops", pinned under "Sold by" with counts that

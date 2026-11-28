@@ -95,7 +95,22 @@
 
 /* Capped by the room a phone's keyboard leaves below the menu (--menu-room, set by autocomplete.ts) */
 .search-suggestions--menu {
-    max-height: min(70vh, 480px, var(--menu-room, 100vh));
+    max-height: min(85vh, var(--menu-room, 100vh));
+}
+
+/* A menu section: its heading and a group of rows (see autocomplete.ts) */
+.search-suggestions li.search-suggestion-section,
+.search-suggestions li.search-suggestion-section:hover {
+    padding: 0;
+    background: none;
+    color: inherit;
+    cursor: default;
+}
+
+.search-suggestion-group {
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .search-suggestions li.search-suggestion-action,
@@ -111,22 +126,20 @@
     flex-wrap: wrap;
 }
 
-/* Divider between item names and the lens, shop and filter rows */
-.search-suggestions li:not([class]) + li:is(.search-suggestion-action, .search-suggestion-toggle) {
-    border-top: 1px solid var(--color-border);
-}
-
-.search-suggestions li.search-suggestion-heading,
-.search-suggestions li.search-suggestion-heading:hover {
+.search-suggestion-heading {
     margin-top: 4px;
     padding: 6px 10px 2px;
     border-top: 1px solid var(--color-border);
-    background: none;
     color: var(--color-text-muted);
     font-size: 0.68rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    cursor: default;
+}
+
+/* The first heading ("Categories") opens the menu: no divider above it */
+.search-suggestion-section:first-child > .search-suggestion-heading {
+    margin-top: 0;
+    border-top: none;
 }
 
 .search-suggestions li.search-suggestion-back {
@@ -162,7 +175,7 @@
 }
 
 @media (hover: none) {
-    .search-suggestions li:hover:not([aria-selected="true"], .search-suggestion-heading, .search-suggestion-back) {
+    .search-suggestions li:hover:not([aria-selected="true"], .search-suggestion-section, .search-suggestion-back) {
         background: none;
         color: var(--color-text);
     }
@@ -202,10 +215,10 @@
     color: inherit;
 }
 
-/* Menu grid: two columns of one-line tiles (name, trade count) and filters;
-   item names typed above it, headings, the back row and the shop and owner
-   rows span both columns */
-.search-suggestions--grid {
+/* Menu grid: each section's rows are two columns of one-line tiles (name,
+   trade count) and filters; the back row and the shop and owner rows span
+   both columns. Item names typed above the menu stay a plain list. */
+.search-suggestions--grid [data-section] > .search-suggestion-group {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
@@ -223,17 +236,88 @@
     padding: 6px 10px;
 }
 
-.search-suggestions--grid li:not([class]),
-.search-suggestions--grid li.search-suggestion--who,
-.search-suggestions--grid li.search-suggestion-heading,
-.search-suggestions--grid li.search-suggestion-heading:hover {
+.search-suggestions--grid li.search-suggestion--who {
     grid-column: 1 / -1;
 }
 
-/* The first heading ("Categories") opens the menu: no divider above it */
-.search-suggestions--grid li.search-suggestion-heading:first-child {
-    margin-top: 0;
-    border-top: none;
+/* Wider screens: the menu hangs from the search box instead of its field, so
+   it spans both fields, and its sections sit side by side. Paying has no
+   sellers or filters, so its two sections share the width. */
+@media (width > 600px) {
+    .search-box {
+        position: relative;
+    }
+
+    .search-box > .search-input-wrapper:has(> .search-suggestions--grid:not(.hidden)) {
+        position: static;
+    }
+
+    .search-suggestions--grid {
+        display: grid;
+        grid-template:
+            "top top" auto
+            "categories biomes" auto
+            "sellers filters" auto / minmax(0, 1fr) minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .search-suggestions--grid > .search-suggestion-section:not([data-section]) {
+        grid-area: top;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .search-suggestions--grid > [data-section="categories"] { grid-area: categories; }
+    .search-suggestions--grid > [data-section="biomes"] { grid-area: biomes; }
+    .search-suggestions--grid > [data-section="sellers"] { grid-area: sellers; }
+    .search-suggestions--grid > [data-section="filters"] { grid-area: filters; }
+
+    /* Side by side, the sections are divided by a line between them, not above */
+    .search-suggestions--grid > :is([data-section="categories"], [data-section="biomes"]) > .search-suggestion-heading {
+        margin-top: 0;
+        border-top: none;
+    }
+
+    .search-suggestions--grid > :is([data-section="biomes"], [data-section="filters"]) {
+        align-self: stretch;
+        border-left: 1px solid var(--color-border);
+    }
+
+    .search-suggestions--grid > :is([data-section="sellers"], [data-section="filters"]) {
+        border-top: 1px solid var(--color-border);
+    }
+
+    .search-suggestions--grid > :is([data-section="sellers"], [data-section="filters"]) > .search-suggestion-heading {
+        border-top: none;
+    }
+}
+
+/* Wide screens: one row of sections, Categories | Biomes | Sold by over Filters,
+   with three columns of biomes so the menu stays short */
+@media (width >= 1024px) {
+    .search-suggestions--grid {
+        grid-template:
+            "top top top" auto
+            "categories biomes sellers" auto
+            "categories biomes filters" 1fr / minmax(0, 2fr) minmax(0, 3fr) minmax(0, 1.2fr);
+    }
+
+    .search-suggestions--grid:not(:has(> [data-section="sellers"])) {
+        grid-template:
+            "top top" auto
+            "categories biomes" auto / minmax(0, 2fr) minmax(0, 3fr);
+    }
+
+    .search-suggestions--grid > [data-section="biomes"] > .search-suggestion-group {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .search-suggestions--grid > :is([data-section="sellers"], [data-section="filters"]) > .search-suggestion-group {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .search-suggestions--grid > [data-section="sellers"] {
+        border-top: none;
+        border-left: 1px solid var(--color-border);
+    }
 }
 
 /* Alt+1…4 mean nothing without a keyboard */

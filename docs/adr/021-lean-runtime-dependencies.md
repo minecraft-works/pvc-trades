@@ -52,12 +52,17 @@ Keep the initial bundle small and load heavy features on demand.
    when they have loaded. They are prefetched right after the first data
    load, so in practice the dialog opens without a wait. Like Leaflet, other
    modules may only type-import them.
+9. **Biome item rules on demand** (added 2026-11-28, ADR-023). The item
+   lists of the 29 biomes (`search/biome-rules.ts`, ~1.6 kB gzip) load via
+   `loadBiomeRules()` when the browser is idle after the first data load, or
+   earlier when a field menu opens or the URL has a biome; `main.ts` then
+   searches again. The catalogue of names stays in the initial bundle.
 
 `size-limit` (package.json) enforces the budget in CI.
 
 ## Consequences
 
-- Initial JS: 132 kB → 57 kB gzip (lit-html included); 62 kB gzip (53 kB
+- Initial JS: 132 kB â†’ 57 kB gzip (lit-html included); 62 kB gzip (53 kB
   brotli) after the exchange rates dialog moved out, with more features.
 - A new runtime dependency needs a size check (`npm run build` prints gzip
   sizes) and should be loaded on demand if it is not needed for the first

@@ -23,6 +23,7 @@ scope* (`src/search/scope.ts`, held by `searchScopeStore`):
 | | Question | Options | How many |
 |---|---|---|---|
 | **WHAT** — lens | What kind of item? | 13 built-in lenses | one per side (Buying, Paying) |
+| **WHAT** — biome | Where does it come from? | 29 biomes (section 6) | one per side, on top of the lens |
 | **WHO** — shop | Who sells it? | an owner, or one of their shops (the admin shops are one owner, ADR-024) | one |
 | **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New | any |
 
@@ -119,14 +120,20 @@ There are no new buttons. Each search field is the picker for its side:
   heading says "Categories" and the pills ("buying Redstone") say what it
   does. "Lens" stays the term in code and docs.
 - The grid uses one-line tiles (name and result count) in two columns,
-  filters included, to keep the Buying menu short. Menu rows have no icons:
+  filters included, to keep the Buying menu short. Each section (Categories,
+  Biomes, Sold by, Filters) is its own group in the list, so on wider
+  screens the menu hangs from the search box, spans both fields and puts
+  the sections side by side: Categories | Biomes above Sold by | Filters
+  from 600 px, and Categories | Biomes (three columns) | Sold by over
+  Filters from 1024 px, so the whole menu shows without scrolling. Menu rows have no icons:
   the names are short and clear, emoji look different on every platform and
   nothing like Minecraft, and the space is better spent on the name. Only
   the back arrow (‹) stays. Alt+1…4 hints are hidden on touch screens.
 - On phones the menus span the whole search card instead of their field, and
   their height follows the room the on-screen keyboard leaves (the keyboard
   only shrinks the visual viewport, so `autocomplete.ts` measures it and sets
-  `--menu-room`). The first touch in an open menu (a tap or a scroll) makes
+  `--menu-room`), without a fixed cap, so they only scroll when the screen is
+  too short. The first touch in an open menu (a tap or a scroll) makes
   the field let go of focus: the keyboard hides and the menu grows to its
   full height, while it stays open until a tap outside it, a pick that
   closes it, or the other field. Tapping the field brings the keyboard back.
@@ -166,12 +173,62 @@ The fixed toggle row is gone. Below the fields, one pill per active scope:
 
 ### 5. URL and swap
 
-The scope is part of the URL (`lens`, `paylens`, `owner`, `shop`, `filters`),
-so searches stay shareable and Back/Forward restore them. Swap (⇄) also swaps
-the Buying and Paying lenses.
+The scope is part of the URL (`lens`, `paylens`, `biome`, `paybiome`,
+`owner`, `shop`, `filters`), so searches stay shareable and Back/Forward
+restore them. Swap (⇄) also swaps the Buying and Paying lenses and biomes.
 
-When a lens hides every match, the empty result says so and offers a way out:
-"4 matching trades outside Redstone · Show all".
+When a lens or biome hides every match, the empty result says so and offers
+a way out: "4 matching trades outside Redstone · Show all" (it clears the
+lenses and biomes).
+
+### 6. Biomes: a second WHAT, by origin
+
+Players gather and trade by place: a jungle trip, a pale garden, an ocean
+monument. A biome collects what you get there, which typing can't (the
+Jungle is logs, cocoa, bamboo, melons and vines), so it passes the bar of
+section 2. A broad "nature" lens was left out; per-biome sets are narrow.
+
+- `src/search/biomes.ts` defines 29 biomes, in menu order overworld,
+  caves, nether, end: Plains, Forest, Birch Forest, Dark Forest, Taiga,
+  Cherry Grove, Pale Garden, Jungle, Bamboo Jungle, Savanna, Desert,
+  Badlands, Swamp, Mangrove Swamp, Mushroom Fields, Snowy & Ice, Mountains,
+  Beach & River, Ocean, Warm Ocean, Lush Caves, Dripstone Caves, Deep Dark,
+  Nether Wastes, Crimson Forest, Warped Forest, Soul Sand Valley, Basalt
+  Deltas and The End.
+- A biome gets its own entry when the live data has trades for it that a
+  broader one would bury. Warm Ocean (coral, tropical fish and their
+  buckets, about 110 trades on 2026-11-28) sits inside Ocean, which keeps
+  them too; Mountains (goat horns, emerald ore, calcite, powder snow) was
+  split from the snowy biomes.
+- **Only what you collect there**: blocks and plants that generate in the
+  biome and drops (and buckets) of its typical mobs. Loot of a structure
+  that only generates in that biome counts too: the desert pyramid's dune
+  trim and sherds, the jungle temple's wild trim, the woodland mansion's
+  vex trim (Dark Forest), shipwrecks, ocean monuments and ocean ruins,
+  ancient cities (Deep Dark) and end cities. Structures found in many
+  biomes (trial chambers, trail ruins, strongholds, outposts, nether
+  bastions and fortresses) count for none. Things crafted from them don't
+  count: planks, stripped logs, mud bricks, resin bricks, dyed or glazed
+  terracotta. Generic mob drops found everywhere (beef, wool) are left out.
+- Like lenses, biomes match on the vanilla item ID, may overlap (vines:
+  Jungle and Swamp) and count a filled shulker box by its contents. A named
+  currency is in no biome: LlamaCoin is not an Ocean item.
+- **A separate dimension, not more lenses.** A field has one lens and one
+  biome, and they intersect: Food + Ocean is fish, Gear + The End is elytra.
+  Folding biomes into the lens list would have made that impossible and
+  doubled the category grid.
+- In the menu, a *Biomes ›* tile ends the category grid of both fields. Its
+  submenu lists the biomes by region, each with its result count (like the
+  categories). Typing three or more letters of a biome name offers it after
+  the categories; picking it clears the text, like a shop found by name.
+- The pill says "buying from Jungle" or "paying from Ocean" and reopens the
+  Biomes submenu. Backspace removes a field's biome before its lens.
+- The biome catalogue (IDs and names) is in the initial bundle, so
+  URLs, pills and the menu work at once. The item lists
+  (`src/search/biome-rules.ts`, ~1.6 kB gzip) load on demand (ADR-021):
+  when the browser is idle after the first data load, when a field menu
+  opens, or when the scope has a biome. Until then no item is in a biome;
+  once they load, the search and the open menus run again.
 
 ## Alternatives considered
 

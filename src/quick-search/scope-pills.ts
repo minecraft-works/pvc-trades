@@ -1,6 +1,6 @@
 /**
- * Pill row under the search fields: one pill per active lens, shop filter and
- * trade filter, in WHAT → WHO → HOW order. Clicking a pill opens the menu to
+ * Pill row under the search fields: one pill per active lens, biome, shop
+ * filter and trade filter, in WHAT → WHO → HOW order. Clicking a pill opens the menu to
  * change it; its ✕ removes it. The row is hidden while nothing narrows the
  * results. Alt+1…4 toggle the trade filters from anywhere.
  *
@@ -9,8 +9,9 @@
 
 import { html, nothing, render, type TemplateResult } from 'lit-html';
 
+import { findBiome } from '../search/biomes.js';
 import { findLens } from '../search/lenses.js';
-import { isScopeActive, type SearchScope, type SearchSide, TRADE_FILTERS } from '../search/scope.js';
+import { getScopeBiome, isScopeActive, type SearchScope, type SearchSide, TRADE_FILTERS } from '../search/scope.js';
 import { ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter } from '../search/shop-filter.js';
 import type { QuickFilters, ShopFilter } from '../types.js';
 import type { ScopeTone } from './autocomplete.js';
@@ -47,6 +48,7 @@ interface PillSpec {
 }
 
 const LENS_PREFIX: Readonly<Record<SearchSide, string>> = { buy: 'buying', pay: 'paying with' };
+const BIOME_PREFIX: Readonly<Record<SearchSide, string>> = { buy: 'buying from', pay: 'paying from' };
 
 function pillTemplate(pill: PillSpec, onRemove: () => void): TemplateResult {
     return html`<span class="scope-pill scope-pill--${pill.tone}" data-pill=${pill.id} role="listitem">
@@ -80,6 +82,22 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
         };
     }
 
+    function biomePill(scope: SearchScope, side: SearchSide): PillSpec | undefined {
+        const biome = findBiome(getScopeBiome(scope, side));
+        if (!biome) { return undefined; }
+        return {
+            side,
+            id: `biome-${side}`,
+            tone: 'what',
+            prefix: BIOME_PREFIX[side],
+            label: biome.label,
+            description: `Biome ${BIOME_PREFIX[side]} ${biome.label}`,
+            // The field's menu opens on its categories and biomes
+            edit: () => { deps.openMenu(side); },
+            remove: () => { deps.setScope(side === 'buy' ? { ...deps.getScope(), buyBiome: undefined } : { ...deps.getScope(), payBiome: undefined }); },
+        };
+    }
+
     function shopPill(shop: ShopFilter): PillSpec {
         const remove = (): void => { deps.setScope({ ...deps.getScope(), shop: undefined }); };
         // All admin shops as one group, named like their row in the menu (where it is picked)
@@ -98,8 +116,9 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
     function collectPills(scope: SearchScope): readonly PillSpec[] {
         const pills: PillSpec[] = [];
         for (const side of ['buy', 'pay'] as const) {
-            const pill = lensPill(scope, side);
-            if (pill) { pills.push(pill); }
+            for (const pill of [lensPill(scope, side), biomePill(scope, side)]) {
+                if (pill) { pills.push(pill); }
+            }
         }
         if (scope.shop) { pills.push(shopPill(scope.shop)); }
         for (const spec of TRADE_FILTERS) {
