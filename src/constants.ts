@@ -115,6 +115,16 @@ export const QUICK_SEARCH = {
     MENU_MIN_HEIGHT_PX: 160,
 } as const;
 
+/** Trade row context menu */
+export const CONTEXT_MENU = {
+    /** How long "Copied" stays visible before the menu closes */
+    COPY_FEEDBACK_MS: 700,
+    /** Touch must stay down this long to open the menu */
+    LONG_PRESS_MS: 500,
+    /** A finger moving further than this is scrolling, not pressing */
+    LONG_PRESS_TOLERANCE_PX: 10,
+} as const;
+
 // ============================================================================
 // CSS Classes
 // ============================================================================

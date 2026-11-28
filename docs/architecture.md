@@ -46,7 +46,9 @@ Worker.
    distance and owner); statistics are cached per price array.
 5. The dashboard compares trades with the stored snapshot (below), then
    `search-sort` filters and sorts, and `trade-renderer` renders the rows into
-   the virtual list (ADR-007).
+   the virtual list (ADR-007). Right-clicking or long-pressing a row opens
+   `trade-context-menu`, which copies the coordinates or a chat sentence built
+   by `trade-share`.
 6. After the first load, Leaflet is prefetched when the browser is idle
    (ADR-021).
 

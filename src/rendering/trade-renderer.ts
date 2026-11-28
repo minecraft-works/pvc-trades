@@ -33,6 +33,7 @@ import type {
     Trade,
 } from '../types.js';
 import { replaceContent } from './render.js';
+import { createTradeContextMenu, type TradeContextMenu } from './trade-context-menu.js';
 import { createVirtualList, type VirtualList } from './virtual-list.js';
 
 // ============================================================================
@@ -238,7 +239,12 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
     let virtualList: VirtualList<FilterResult> | undefined;
     let currentWantRegex: RegExp | undefined;
     let currentGiveRegex: RegExp | undefined;
+    let contextMenu: TradeContextMenu | undefined;
 
+    function getContextMenu(): TradeContextMenu {
+        contextMenu ??= createTradeContextMenu();
+        return contextMenu;
+    }
     /** Valid sort column identifiers for dataset.col type narrowing */
     const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<SortColumn>(
         ['result-amt', 'result-name', 'cost-amt', 'cost-name', 'stock', 'dev', 'world', 'distance']
@@ -456,6 +462,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         row.dataset.y = String(t.y);
         row.dataset.z = String(t.z);
         row.dataset.world = t.world;
+        getContextMenu().bind(row, result);
 
         const tradeKey = getTradeKey(t);
         row.dataset.tradeKey = tradeKey;
