@@ -431,6 +431,10 @@ mark {
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+
+    /* A long press that opens the menu under the finger must not select its text */
+    -webkit-touch-callout: none;
+    user-select: none;
 }
 
 .context-menu button {

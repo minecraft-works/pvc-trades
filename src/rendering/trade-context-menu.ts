@@ -84,6 +84,8 @@ export function createTradeContextMenu(): TradeContextMenu {
             <button type="button" role="menuitem" data-copy="message" @click=${onCopy(formatChatMessage(result))}>Copy chat message</button>
         `);
         element.classList.remove('hidden');
+        // A text selection left by the press would show the browser's own toolbar over the menu
+        globalThis.getSelection()?.removeAllRanges();
         place(element, position);
 
         const items = [...element.querySelectorAll<HTMLElement>('[role="menuitem"]')];
