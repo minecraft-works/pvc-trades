@@ -240,6 +240,13 @@
     grid-column: 1 / -1;
 }
 
+/* Categories and biomes are listed by name: fill each column top to bottom
+   (--rows-2/--rows-3 are set by autocomplete.ts), so ↓ moves down a column */
+.search-suggestions--grid :is([data-section="categories"], [data-section="biomes"]) > .search-suggestion-group {
+    grid-auto-flow: column;
+    grid-template-rows: repeat(var(--rows-2, 1), auto);
+}
+
 /* Wider screens: the menu hangs from the search box instead of its field, so
    it spans both fields, and its sections sit side by side. Paying has no
    sellers or filters, so its two sections share the width. */
@@ -307,6 +314,7 @@
     }
 
     .search-suggestions--grid > [data-section="biomes"] > .search-suggestion-group {
+        grid-template-rows: repeat(var(--rows-3, 1), auto);
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 

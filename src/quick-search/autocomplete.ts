@@ -243,6 +243,21 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
 }
 
 /**
+ * Tell each section's group how many rows it needs in two or three columns
+ * (--rows-2, --rows-3), so a grid can fill top to bottom: an alphabetical
+ * list reads down a column.
+ * @param sections - Rendered menu sections
+ */
+function setRowCounts(sections: readonly HTMLLIElement[]): void {
+    for (const section of sections) {
+        const group = section.querySelector<HTMLElement>('.search-suggestion-group');
+        const count = group?.childElementCount ?? 0;
+        group?.style.setProperty('--rows-2', String(Math.ceil(count / 2)));
+        group?.style.setProperty('--rows-3', String(Math.ceil(count / 3)));
+    }
+}
+
+/**
  * Attach the menu to a search field.
  * @param input - Search field (its parent must be positioned)
  * @param getNames - Unique item names to suggest from
@@ -365,6 +380,7 @@ export function createAutocomplete(
             group.append(option);
             options.push(option);
         }
+        setRowCounts(sections);
         optionElements = options;
         list.replaceChildren(...sections);
         const isOpen = suggestions.length > 0;

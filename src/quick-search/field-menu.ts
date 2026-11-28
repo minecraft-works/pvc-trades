@@ -116,6 +116,20 @@ const LENS_BY_ID: ReadonlyMap<LensId, Lens> = new Map(LENSES.map(lens => [lens.i
 const BIOME_BY_ID: ReadonlyMap<BiomeId, Biome> = new Map(BIOMES.map(biome => [biome.id, biome]));
 
 /**
+ * Categories and biomes in the menu are listed by name, so a long grid is easy to scan
+ * @param a - First option
+ * @param a.label - Its name
+ * @param b - Second option
+ * @param b.label - Its name
+ * @returns Negative when a comes first
+ */
+function byLabel(a: { readonly label: string }, b: { readonly label: string }): number {
+    return a.label.localeCompare(b.label);
+}
+const MENU_LENSES: readonly Lens[] = LENSES.toSorted(byLabel);
+const MENU_BIOMES: readonly Biome[] = BIOMES.toSorted(byLabel);
+
+/**
  * Whether a trade is in a lens on one field's side
  * @param side - Buying (received item) or Paying (cost items)
  * @returns Check for a trade and a lens ID
@@ -225,7 +239,7 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         });
         return [
             { kind: 'heading', label: 'Biomes', section: 'biomes' },
-            ...BIOMES.map(biome => biomeAction(biome, counts.get(biome.id) ?? 0)),
+            ...MENU_BIOMES.map(biome => biomeAction(biome, counts.get(biome.id) ?? 0)),
         ];
     }
 
@@ -328,7 +342,7 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         // Both fields open on their categories, so the two menus start the same way
         const lenses: readonly MenuEntry[] = [
             { kind: 'heading', label: 'Categories', section: 'categories' },
-            ...LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
+            ...MENU_LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
             ...getBiomeRows(),
         ];
         if (side === 'pay') { return lenses; }
