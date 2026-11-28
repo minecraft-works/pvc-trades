@@ -7,6 +7,9 @@
  *   are picked in place and keep the menu open.
  * - Typing keeps the menu, below up to five matching item names; picks made
  *   there keep the typed text (except a shop found by its name).
+ * - On a touch screen the first touch in the open list hides the keyboard
+ *   (the field lets go of focus) and the list stays open, so browsing gets
+ *   the whole screen; tapping the field again brings the keyboard back.
  * - In a submenu, typing narrows its list (text already in the field is kept
  *   and put back on leaving); Backspace or ← with nothing typed goes back.
  *
@@ -150,6 +153,8 @@ function getBackdrop(): HTMLElement {
  * @param dismiss - Closes that list
  */
 function showBackdrop(dismiss: () => void): void {
+    // The other field's list can still be open while browsing it by touch (the field let go of focus)
+    if (dismissOpenList && dismissOpenList !== dismiss) { dismissOpenList(); }
     dismissOpenList = dismiss;
     getBackdrop().classList.remove('hidden');
 }
@@ -270,6 +275,9 @@ export function createAutocomplete(
     // Text in the field when a submenu opened: only what is typed after it filters the submenu,
     // and it is put back when the submenu is left
     let submenuBase = '';
+    // Browsing the list by touch: the field let go of focus to hide a phone's
+    // keyboard, and the list stays open without it until it closes or the field is used again
+    let browsing = false;
 
     function createOption(suggestion: Suggestion, index: number): HTMLLIElement {
         const option = document.createElement('li');
@@ -358,6 +366,7 @@ export function createAutocomplete(
     }
 
     function close(): void {
+        browsing = false;
         show(CLOSED, []);
     }
 
@@ -658,7 +667,17 @@ export function createAutocomplete(
     }
 
     input.addEventListener('input', update);
-    input.addEventListener('blur', close);
+    input.addEventListener('blur', () => {
+        if (!browsing) { close(); }
+    });
+    input.addEventListener('focus', () => { browsing = false; });
+    // The first touch in an open list (a tap or a scroll) makes room for it: the field
+    // lets go of focus, which hides a phone's keyboard, and the list grows to fit
+    list.addEventListener('pointerdown', (event) => {
+        if (event.pointerType !== 'touch' || mode.kind === 'closed' || document.activeElement !== input) { return; }
+        browsing = true;
+        input.blur();
+    });
     // The on-screen keyboard opening or closing resizes the visual viewport
     globalThis.visualViewport?.addEventListener('resize', fitAboveKeyboard);
     globalThis.visualViewport?.addEventListener('scroll', fitAboveKeyboard);
