@@ -72,6 +72,32 @@ describe('receivesFromLens / paysWithLens', () => {
     });
 });
 
+describe('Map Art', () => {
+    const buying = (resultItem: Item) => receivesFromLens({ resultItem, shulkerItems: undefined }, lens('mapart'));
+    const namedBundle: Item = { type: 'BLUE_BUNDLE', name: 'Tardis on Gallifrey', amount: 1 };
+
+    test('takes filled maps and bundles the seller named (map art sets)', () => {
+        expect(buying(item('FILLED_MAP'))).toBe(true);
+        expect(buying(namedBundle)).toBe(true);
+        expect(paysWithLens({ item1: item('DIAMOND'), item2: namedBundle }, lens('mapart'))).toBe(true);
+    });
+
+    test('leaves out empty-looking bundles and blank maps', () => {
+        expect(buying(item('BUNDLE'))).toBe(false);
+        expect(buying({ type: 'BUNDLE', name: 'Bundle', amount: 1 })).toBe(false);
+        expect(buying(item('MAP'))).toBe(false);
+    });
+
+    test('a named bundle is only map art, not in other lenses', () => {
+        expect(LENSES.filter(candidate => receivesFromLens({ resultItem: namedBundle, shulkerItems: undefined }, candidate)).map(candidate => candidate.id))
+            .toEqual(['mapart']);
+    });
+
+    test('a shulker box of filled maps counts by its contents', () => {
+        expect(paysWithLens({ item1: item('SHULKER_BOX', ['- 1x FILLED_MAP', '- 1x FILLED_MAP']), item2: undefined }, lens('mapart'))).toBe(true);
+    });
+});
+
 describe('findLens', () => {
     test('is case-insensitive and rejects unknown IDs', () => {
         expect(findLens('Redstone')?.label).toBe('Redstone');

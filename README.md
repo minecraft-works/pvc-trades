@@ -13,7 +13,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Price Intelligence**: Automatic clustering of nearby shops and of one owner's shops to prevent price manipulation
 - **Fast Probing**: Item-name autocomplete, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
 - **Categories, Shops and Filters**: Click the Buying field (or press `Alt+↓`) for its menu:
-  - **Categories** (*lenses* in the docs) narrow a side to a theme, one per field. Picking one keeps the menu open, so you can tick a filter too. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
+  - **Categories** (*lenses* in the docs) narrow a side to a theme, one per field. Picking one keeps the menu open, so you can tick a filter too. There are 13: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Map Art, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; "Map Art" finds single maps and the map art sets sellers sell as named bundles; a shulker box counts by its contents.
   - **Shops & owners** lists every owner and shop.
   - **Filters**: Deals only, Best per item, Shulkers, New.
   - **Admin shops** (the server's own spawn shops, fixed prices, unlimited stock shown as ∞) are one tap under "Sold by". See [ADR-024](docs/adr/024-admin-shops.md)

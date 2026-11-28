@@ -11,7 +11,7 @@
  */
 
 import type { Item, Trade } from '../types.js';
-import { isFilledShulker, parseShulkerContents } from '../valuation/item-identity.js';
+import { isFilledShulker, isNamedBundle, parseShulkerContents } from '../valuation/item-identity.js';
 
 /** Identifier of a built-in lens, also used in the URL */
 export type LensId =
@@ -26,6 +26,7 @@ export type LensId =
     | 'books'
     | 'transport'
     | 'music'
+    | 'mapart'
     | 'collectibles';
 
 /** A built-in item category */
@@ -39,6 +40,11 @@ interface LensRule {
     readonly ids?: readonly string[];
     readonly prefixes?: readonly string[];
     readonly suffixes?: readonly string[];
+    /**
+     * Bundles the seller named. The data never lists a bundle's contents, but
+     * a named bundle is a map art set in practically every case (ADR-023)
+     */
+    readonly namedBundles?: boolean;
 }
 
 /** Display order of the lenses in the menu */
@@ -54,6 +60,7 @@ export const LENSES: readonly Lens[] = [
     { id: 'books', label: 'Enchanted Books' },
     { id: 'transport', label: 'Transportation' },
     { id: 'music', label: 'Music & Discs' },
+    { id: 'mapart', label: 'Map Art' },
     { id: 'collectibles', label: 'Collectibles & Rarities' },
 ];
 
@@ -131,6 +138,11 @@ const LENS_RULES: Readonly<Record<LensId, LensRule>> = {
         ids: ['jukebox', 'note_block', 'goat_horn', 'disc_fragment_5'],
         prefixes: ['music_disc_'],
     },
+    // Single maps, and sets as named bundles; blank maps are a supply, not art
+    mapart: {
+        ids: ['filled_map'],
+        namedBundles: true,
+    },
     collectibles: {
         ids: [
             'decorated_pot', 'sniffer_egg', 'trial_key', 'ominous_trial_key', 'heavy_core', 'dragon_egg', 'spawner',
@@ -201,6 +213,18 @@ function getStackTypes(item: Readonly<Item>): readonly string[] {
 }
 
 /**
+ * Whether an item stack is in a lens: by its type (a filled shulker box by
+ * its contents), or as a named bundle for a lens that takes those.
+ * @param item - Item stack
+ * @param lens - Lens to check
+ * @returns True if the stack is in the lens
+ */
+function isStackInLens(item: Readonly<Item>, lens: Lens): boolean {
+    if (LENS_RULES[lens.id].namedBundles === true && isNamedBundle(item)) { return true; }
+    return getStackTypes(item).some(type => isItemInLens(lens, type));
+}
+
+/**
  * Whether a trade gives you something from a lens (the Buying side).
  * A filled shulker box counts if any of its contents is in the lens.
  * @param trade - Trade to check
@@ -208,8 +232,8 @@ function getStackTypes(item: Readonly<Item>): readonly string[] {
  * @returns True if the received item is in the lens
  */
 export function receivesFromLens(trade: Readonly<Pick<Trade, 'resultItem' | 'shulkerItems'>>, lens: Lens): boolean {
-    const types = trade.shulkerItems ? trade.shulkerItems.map(content => content.key) : getStackTypes(trade.resultItem);
-    return types.some(type => isItemInLens(lens, type));
+    if (!trade.shulkerItems) { return isStackInLens(trade.resultItem, lens); }
+    return trade.shulkerItems.some(content => isItemInLens(lens, content.key));
 }
 
 /**
@@ -220,5 +244,5 @@ export function receivesFromLens(trade: Readonly<Pick<Trade, 'resultItem' | 'shu
  * @returns True if either cost item is in the lens
  */
 export function paysWithLens(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>, lens: Lens): boolean {
-    return [trade.item1, trade.item2].some(item => item !== undefined && getStackTypes(item).some(type => isItemInLens(lens, type)));
+    return [trade.item1, trade.item2].some(item => item !== undefined && isStackInLens(item, lens));
 }

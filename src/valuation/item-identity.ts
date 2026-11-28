@@ -64,11 +64,12 @@ export function isBundle(item: Readonly<Item>): boolean {
 }
 
 /**
- * A bundle the seller named: its contents decide its worth, and they are unknown
+ * A bundle the seller named: its contents decide its worth, and they are
+ * unknown. On this server they are almost always map art (a multi-map set).
  * @param item - Item stack
  * @returns True for a bundle with a seller-given name
  */
-function isNamedBundle(item: Readonly<Item>): boolean {
+export function isNamedBundle(item: Readonly<Item>): boolean {
     return getItemLabel(item) !== undefined && isBundle(item);
 }
 

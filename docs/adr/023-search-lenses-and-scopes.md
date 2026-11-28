@@ -22,7 +22,7 @@ scope* (`src/search/scope.ts`, held by `searchScopeStore`):
 
 | | Question | Options | How many |
 |---|---|---|---|
-| **WHAT** — lens | What kind of item? | 12 built-in lenses | one per side (Buying, Paying) |
+| **WHAT** — lens | What kind of item? | 13 built-in lenses | one per side (Buying, Paying) |
 | **WHO** — shop | Who sells it? | an owner, or one of their shops (the admin shops are one owner, ADR-024) | one |
 | **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New | any |
 
@@ -31,18 +31,26 @@ cheapest offer for each redstone item in ValeriaShares' shops.
 
 ### 2. Lenses are built-in, ID-based and may overlap
 
-`src/search/lenses.ts` defines 12 lenses: Armor, Weapons, Tools, Redstone,
+`src/search/lenses.ts` defines 13 lenses: Armor, Weapons, Tools, Redstone,
 Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation,
-Music & Discs, Collectibles & Rarities.
+Music & Discs, Map Art, Collectibles & Rarities.
 
 - A lens matches on the vanilla item ID (exact IDs plus prefixes/suffixes such
   as `_pickaxe`), never on the display name, so renamed items still count.
+- One exception: **Map Art** also takes bundles the seller named
+  (`namedBundles` in its rule). The data never lists a bundle's contents, but
+  on the 2026-11-28 data 130 of 131 named bundles are map art sets (89
+  titles, mostly from map art shops); the one doubtful bundle is "Garden in a
+  bag". Large map art is sold this way: a filled map costs a median of
+  1 diamond, a named bundle 7. Unnamed bundles (mostly empty bundles sold as
+  items) and blank maps (a supply) stay out. Map Art covers about 520 trades:
+  389 filled maps, 131 named bundles and shulker boxes of filled maps.
 - An item can be in several lenses (elytra: Armor, Transportation,
   Collectibles). Overlap is fine because a lens is a view, not a category tree.
 - A filled shulker box counts by its contents (any item inside matches).
-- Lenses don't try to cover everything. On the 2026-11-27 data the 12 lenses
-  cover 330 of 769 distinct items (53% of trades); building blocks, nature
-  and mob drops stay reachable by typing.
+- Lenses don't try to cover everything. On the 2026-11-27 data the first 12
+  lenses covered 330 of 769 distinct items (53% of trades); building blocks,
+  nature and mob drops stay reachable by typing.
 - There are no user-defined lenses. Fixed presets keep the menu short, the URL
   shareable and the definitions testable.
 
