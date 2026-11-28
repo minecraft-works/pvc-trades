@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cleanLoreLine, getItemFacts, isCosmeticEnchant } from './item-facts.js';
+import { cleanLoreLine, getItemFacts, isCosmeticEnchant, withoutLeadingSize } from './item-facts.js';
 import type { Item } from './types.js';
 
 const block = (name: string, lore: readonly string[]): Item => ({ type: 'COAL_ORE', amount: 1, name, lore });
@@ -34,15 +34,29 @@ describe('getItemFacts', () => {
         expect(getItemFacts(chunk).size).toBe('Chunk');
     });
 
-    it('leaves out a size the name already starts with, but keeps it searchable', () => {
-        expect(getItemFacts(block('16x16 Protection Block', ['§6Will protect 16x16 blocks.']))).toEqual({ size: undefined, restriction: undefined, searchText: '16x16' });
-        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.']))).toEqual({ size: undefined, restriction: undefined, searchText: 'chunk' });
+    it('reports the size of a block whose name starts with it', () => {
+        expect(getItemFacts(block('16x16 Protection Block', ['§6Will protect 16x16 blocks.']))).toEqual({ size: '16x16', restriction: undefined, searchText: '16x16' });
+        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.'])).size).toBe('Chunk');
     });
 
     it('ignores items without such lore and shulker contents', () => {
         expect(getItemFacts({ type: 'DIAMOND', name: '', amount: 1 }).size).toBeUndefined();
         expect(getItemFacts(block('Cert', ['Use it to buy a claim block at the spawn.'])).searchText).toBe('');
         expect(getItemFacts({ type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x SAND'] }).searchText).toBe('');
+    });
+});
+
+describe('withoutLeadingSize', () => {
+    it('drops the size a name starts with', () => {
+        expect(withoutLeadingSize('16x16 protection block', '16x16')).toBe('protection block');
+        expect(withoutLeadingSize('Chunk protection block', 'Chunk')).toBe('protection block');
+    });
+
+    it('keeps names that do not start with the size as a separate word', () => {
+        expect(withoutLeadingSize('Standard protection block', '32x32')).toBe('Standard protection block');
+        expect(withoutLeadingSize('16x160 block', '16x16')).toBe('16x160 block');
+        expect(withoutLeadingSize('16x16', '16x16')).toBe('16x16');
+        expect(withoutLeadingSize('Diamond', undefined)).toBe('Diamond');
     });
 });
 

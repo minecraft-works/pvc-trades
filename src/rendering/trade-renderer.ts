@@ -16,7 +16,7 @@ import {
     CSS_CLASSES,
     SORT,
 } from '../constants.js';
-import { getItemFacts } from '../item-facts.js';
+import { getItemFacts, withoutLeadingSize } from '../item-facts.js';
 import { formatTradeCostNames, getCostParts, highlightSegments } from '../library.js';
 import { getTradeKey, isNether } from '../map/map-math.js';
 import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
@@ -417,9 +417,9 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
     function buildTradeRowTemplate(result: FilterResult, info: { isFavorite: boolean; starClass: string; inCartClass: string; tradeKey: string }): TemplateResult {
         const { trade: t, matchResult, matchCost, displayName, displayAmount } = result;
         const { costAmt, costName } = getCostDisplayInfo(t);
-        const costDisplay = highlight(costName, matchCost ? currentGiveRegex : undefined);
+        const costDisplay = highlight(withoutLeadingSize(costName, getItemFacts(t.item1).size), matchCost ? currentGiveRegex : undefined);
         const wantHighlight = matchResult ? currentWantRegex : undefined;
-        const resultDisplay = highlight(displayName, wantHighlight);
+        const resultDisplay = highlight(withoutLeadingSize(displayName, getItemFacts(t.resultItem).size), wantHighlight);
         const resultLabel = getResultLabel(t.resultLabel, displayName, wantHighlight);
         const { devClass, devText, dealTitle } = getDeviationDisplayInfo(t);
         const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);

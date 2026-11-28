@@ -8,12 +8,11 @@
  * @module item-facts
  */
 
-import { formatName } from './formatting.js';
 import type { Item } from './types.js';
 
 /** What an item's lore says that is worth showing in the list */
 export interface ItemFacts {
-    /** Area covered, e.g. `32x32` or `Chunk`; undefined when the name already starts with it */
+    /** Area covered, e.g. `32x32` or `Chunk` */
     readonly size: string | undefined;
     /** Where the item does not work, e.g. `Nether only` */
     readonly restriction: string | undefined;
@@ -63,13 +62,29 @@ export function getItemFacts(item: Readonly<Item>): ItemFacts {
     if (!item.lore || item.lore.length === 0 || item.type.toUpperCase().includes('SHULKER_BOX')) { return NO_FACTS; }
     const text = cleanLoreLine(item.lore.join(' '));
 
-    const area = getProtectedArea(text);
+    const size = getProtectedArea(text);
     const restriction = NETHER_ONLY_PATTERN.test(text) ? 'Nether only' : undefined;
-    if (area === undefined && restriction === undefined) { return NO_FACTS; }
+    if (size === undefined && restriction === undefined) { return NO_FACTS; }
 
-    // Searchable either way; shown before the name only when the name does not already start with it
-    const size = area !== undefined && formatName(item).toLowerCase().startsWith(area.toLowerCase()) ? undefined : area;
-    return { size, restriction, searchText: [area, restriction].filter(fact => fact !== undefined).join(' ').toLowerCase() };
+    return { size, restriction, searchText: [size, restriction].filter(fact => fact !== undefined).join(' ').toLowerCase() };
+}
+
+/**
+ * A name without the size it starts with, for showing next to a badge that
+ * already says that size.
+ *
+ * @param name - Display name
+ * @param size - Size from the item's facts, if any
+ * @returns The name without its leading size, or the name itself
+ *
+ * @example
+ * withoutLeadingSize('16x16 protection block', '16x16') // 'protection block'
+ * withoutLeadingSize('Standard protection block', '32x32') // 'Standard protection block'
+ */
+export function withoutLeadingSize(name: string, size: string | undefined): string {
+    if (size === undefined || !name.toLowerCase().startsWith(size.toLowerCase())) { return name; }
+    const rest = name.slice(size.length);
+    return /^\s/.test(rest) && rest.trim() ? rest.trim() : name;
 }
 
 /**

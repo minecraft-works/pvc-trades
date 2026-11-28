@@ -206,20 +206,23 @@
         flex: 1 1 0;
     }
 
-    /* On a phone the size is plain muted text before the name, and the
-       restriction and the narrow cost column's badge are left to the details */
+    /* The size badge is smaller on a phone, and the restriction is left to the details */
     .item-tag {
-        padding: 0;
-        border: none;
-        font-size: 0.62rem;
+        padding: 0 2px;
+        font-size: 0.56rem;
     }
 
     .item-tag-size {
-        margin-right: 3px;
+        margin-right: 2px;
     }
 
-    .item-tag-restriction,
-    .col.cost-name > .item-tag {
+    /* Tighter, so the icon stays inside a cell that also holds a size badge */
+    .trade-row > .col > .info-icon {
+        margin-left: 0;
+        padding: 0 2px;
+    }
+
+    .item-tag-restriction {
         display: none;
     }
 

@@ -490,6 +490,12 @@ test.describe('Protection blocks', () => {
             location: '0.0, 64.0, 0.0', world: 'world', recipes: [
                 protectionBlock('Standard Protection Block', ['§7• §6Will protect 32x32 blocks.', '§8• §6Write §6§o/guide§6 for more informations.']),
                 protectionBlock('Nether Protection Block', ['• Will protect 24x24 blocks.', '• Does not work in the Overworld.']),
+                protectionBlock('16x16 Protection Block', ['§6Will protect 16x16 blocks.']),
+                {
+                    resultItem: { type: 'DIAMOND', name: '', amount: 4 },
+                    item1: { type: 'REDSTONE_ORE', name: 'Large Protection Block', amount: 1, lore: ['• Will protect 64x64 blocks.'] },
+                    stock: 5,
+                },
             ],
         }],
     };
@@ -497,18 +503,30 @@ test.describe('Protection blocks', () => {
     test.beforeEach(async ({ page }) => { await openApp(page, '', PROTECTION_DATA); });
 
     test('the list shows the size before the name and where the block works after it', async ({ page }) => {
-        const sizes = await page.locator(`${ROW} .item-tag-size`).allInnerTexts();
-        expect(sizes.toSorted((a, b) => a.localeCompare(b))).toEqual(['24x24', '32x32']);
+        const sizes = await page.locator(`${ROW} .result-name .item-tag-size`).allInnerTexts();
+        expect(sizes.toSorted((a, b) => a.localeCompare(b))).toEqual(['16x16', '24x24', '32x32']);
         await expect(page.locator(`${ROW} .item-tag-restriction`)).toHaveText('Nether only');
         await expect(page.locator(ROW).filter({ hasText: 'Standard' }).locator('.result-name > :first-child')).toHaveClass(/item-tag-size/);
     });
 
-    test('on a phone the size badge stays whole next to a truncated name', async ({ page }) => {
+    test('a name that starts with its size shows the size once, in the badge', async ({ page }) => {
+        const row = page.locator(ROW).filter({ has: page.locator('.item-tag-size', { hasText: '16x16' }) });
+        await expect(row.locator('.result-name .name-text')).toHaveText('protection block');
+        await expect(row.locator('.result-name')).toHaveAttribute('title', '16x16 protection block');
+    });
+
+    test('a protection block used as payment gets its size too', async ({ page }) => {
+        const row = page.locator(ROW).filter({ has: page.locator('.cost-name .item-tag-size') });
+        await expect(row.locator('.cost-name .item-tag-size')).toHaveText('64x64');
+        await expect(row.locator('.cost-name .name-text')).toHaveText('Large protection block');
+    });
+
+    test('on a phone the size badges stay whole next to a truncated name', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 800 });
-        for (const row of await page.locator(ROW).all()) {
-            const cell = await row.locator('.result-name').boundingBox();
-            const badge = await row.locator('.item-tag-size').boundingBox();
-            expect(cell && badge && badge.x >= cell.x && badge.x + badge.width <= cell.x + cell.width).toBe(true);
+        for (const badge of await page.locator(`${ROW} .item-tag-size`).all()) {
+            const cell = await badge.locator('xpath=..').boundingBox();
+            const box = await badge.boundingBox();
+            expect(cell && box && box.x >= cell.x && box.x + box.width <= cell.x + cell.width).toBe(true);
         }
     });
 
