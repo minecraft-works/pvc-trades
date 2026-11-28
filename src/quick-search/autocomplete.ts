@@ -649,11 +649,23 @@ export function createAutocomplete(
         return true;
     }
 
+    /**
+     * Enter finishes with the list: it picks the highlighted row, if any, and
+     * closes the list, also after a pick that a click makes in place (a
+     * category or filter: a click keeps the menu for the next pick). Rows that
+     * navigate (a submenu, back) keep it open.
+     * @param event - Keydown in the field
+     * @returns True if Enter was used for a row; without one the field may still use it
+     */
     function acceptHighlighted(event: KeyboardEvent): boolean {
         const current = suggestions[highlighted];
-        if (current === undefined) { return false; }
+        if (current === undefined) {
+            close();
+            return false;
+        }
         event.preventDefault();
         accept(current);
+        if (current.kind === 'action' || current.kind === 'toggle') { close(); }
         return true;
     }
 

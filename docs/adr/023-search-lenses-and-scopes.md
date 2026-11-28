@@ -154,7 +154,9 @@ There are no new buttons. Each search field is the picker for its side:
   so it doesn't also open the trade row or map underneath; on phones, where
   the menu covers most of the page, the backdrop dims the page.
 - Esc on a menu opened by a click closes it and keeps the search; while
-  typing, Esc clears the field as before. ↓ in a field moves into the menu,
+  typing, Esc clears the field as before. Enter always closes the menu: it
+  picks the highlighted row, if any (a category or filter too, which a click
+  picks in place), and otherwise just keeps the typed search. ↓ in a field moves into the menu,
   or into the results when there is no item name to complete. `/` and
   Ctrl+F only focus the field.
 
