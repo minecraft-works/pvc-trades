@@ -32,7 +32,7 @@ import { isFilledShulker } from '../valuation/item-identity.js';
 import { confidentOnly, isEstimate } from './deviation.js';
 import { findLens, type Lens, paysWithLens, receivesFromLens } from './lenses.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
-import type { SearchScope } from './scope.js';
+import type { SearchScope, SearchSide } from './scope.js';
 import { matchesShopFilter } from './shop-filter.js';
 
 /** "Deals only" shows trades at least this much below market */
@@ -106,6 +106,11 @@ export interface SearchSortHandler {
     clearSearchInput: (inputId: string, clearButtonId: string) => void;
     /** Return current active sort columns for renderer */
     getActiveSorts: () => ReadonlyMap<SortColumn, SortDirection>;
+    /**
+     * A check for the current search without one field's lens, e.g. to count
+     * what each lens of that field would show (Best per item not applied)
+     */
+    createSearchMatcher: (side: SearchSide) => (trade: Trade) => FilterResult | undefined;
 }
 
 // ============================================================================
@@ -256,6 +261,24 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         return { results, outsideLensCount };
     }
 
+    /**
+     * A check for the current search (text, shop, header toggles, trade
+     * filters and the other field's lens), leaving out one field's lens
+     * @param side - Field whose lens is left out
+     * @returns Match for a trade, or undefined when the search leaves it out
+     */
+    function createSearchMatcher(side: SearchSide): (trade: Trade) => FilterResult | undefined {
+        const scope = deps.getScope();
+        const wantQuery = deps.getInputValue('searchWant');
+        const giveQuery = deps.getInputValue('searchGive');
+        const otherLens = findLens(side === 'buy' ? scope.payLens : scope.buyLens);
+        const isInOtherLens = side === 'buy' ? paysWithLens : receivesFromLens;
+        return (trade) => {
+            const passes = !isExcludedByFilters(trade, scope) && (!otherLens || isInOtherLens(trade, otherLens));
+            return passes ? filterTrade(trade, wantQuery, giveQuery) : undefined;
+        };
+    }
+
     function search(): void {
         const wantQuery = deps.getInputValue('searchWant');
         const giveQuery = deps.getInputValue('searchGive');
@@ -401,6 +424,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         debouncedSearch,
         sortByColumn,
         clearSearchInput,
+        createSearchMatcher,
         triggerSearch: search,
         getActiveSorts: () => activeSorts,
     };

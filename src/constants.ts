@@ -103,6 +103,8 @@ export const QUICK_SEARCH = {
     DEALS_ONLY_MAX_PERCENT: -75,
     /** Maximum autocomplete suggestions */
     MAX_SUGGESTIONS: 8,
+    /** Item names above the field's menu (categories, shops, filters) while typing */
+    MAX_SUGGESTIONS_WITH_MENU: 5,
     /** Minimum typed characters before suggestions appear */
     MIN_SUGGESTION_CHARS: 2,
     /** A search that stays unchanged this long becomes a browser history entry */

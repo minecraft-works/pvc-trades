@@ -12,7 +12,6 @@
 
 import type { Item, Trade } from '../types.js';
 import { isFilledShulker, parseShulkerContents } from '../valuation/item-identity.js';
-import { textMatchRank } from './query.js';
 
 /** Identifier of a built-in lens, also used in the URL */
 export type LensId =
@@ -33,8 +32,6 @@ export type LensId =
 export interface Lens {
     readonly id: LensId;
     readonly label: string;
-    /** Extra words that find the lens while typing, e.g. "piston" for Redstone */
-    readonly keywords: readonly string[];
 }
 
 /** Which item IDs belong to a lens */
@@ -46,18 +43,18 @@ interface LensRule {
 
 /** Display order of the lenses in the menu */
 export const LENSES: readonly Lens[] = [
-    { id: 'armor', label: 'Armor', keywords: ['armour', 'helmet', 'chestplate', 'leggings', 'boots', 'trim'] },
-    { id: 'weapons', label: 'Weapons', keywords: ['sword', 'bow', 'crossbow', 'arrow', 'combat', 'pvp'] },
-    { id: 'tools', label: 'Tools', keywords: ['pickaxe', 'axe', 'shovel', 'hoe'] },
-    { id: 'redstone', label: 'Redstone', keywords: ['piston', 'hopper', 'observer', 'circuit'] },
-    { id: 'flowers', label: 'Flowers', keywords: ['flower', 'tulip', 'plant'] },
-    { id: 'ores', label: 'Ores & Minerals', keywords: ['ore', 'ingot', 'mineral', 'gem'] },
-    { id: 'food', label: 'Food', keywords: ['eat', 'meat'] },
-    { id: 'potions', label: 'Potions', keywords: ['potion', 'brewing'] },
-    { id: 'books', label: 'Enchanted Books', keywords: ['enchant', 'enchantment', 'book'] },
-    { id: 'transport', label: 'Transportation', keywords: ['rail', 'minecart', 'boat', 'travel'] },
-    { id: 'music', label: 'Music & Discs', keywords: ['disc', 'record', 'jukebox'] },
-    { id: 'collectibles', label: 'Collectibles & Rarities', keywords: ['rare', 'rarity', 'sherd', 'head', 'egg'] },
+    { id: 'armor', label: 'Armor' },
+    { id: 'weapons', label: 'Weapons' },
+    { id: 'tools', label: 'Tools' },
+    { id: 'redstone', label: 'Redstone' },
+    { id: 'flowers', label: 'Flowers' },
+    { id: 'ores', label: 'Ores & Minerals' },
+    { id: 'food', label: 'Food' },
+    { id: 'potions', label: 'Potions' },
+    { id: 'books', label: 'Enchanted Books' },
+    { id: 'transport', label: 'Transportation' },
+    { id: 'music', label: 'Music & Discs' },
+    { id: 'collectibles', label: 'Collectibles & Rarities' },
 ];
 
 const RAILS: readonly string[] = ['rail', 'powered_rail', 'detector_rail', 'activator_rail'];
@@ -224,31 +221,4 @@ export function receivesFromLens(trade: Readonly<Pick<Trade, 'resultItem' | 'shu
  */
 export function paysWithLens(trade: Readonly<Pick<Trade, 'item1' | 'item2'>>, lens: Lens): boolean {
     return [trade.item1, trade.item2].some(item => item !== undefined && getStackTypes(item).some(type => isItemInLens(lens, type)));
-}
-
-/**
- * Lenses that match typed text: a name starting with it first, then a word
- * in the name, then a keyword. Matches inside a word ("ar" in "Rarities")
- * don't count, so the lens rows stay out of the way of item names.
- * @param query - Typed text
- * @param limit - Maximum lenses to return
- * @returns Best matching lenses
- *
- * @example
- * rankLenses('red', 2)    // [Redstone]
- * rankLenses('piston', 2) // [Redstone] (keyword)
- */
-export function rankLenses(query: string, limit: number): readonly Lens[] {
-    const q = query.trim().toLowerCase();
-    if (!q) { return []; }
-    return LENSES
-        .map(lens => {
-            const nameRank = textMatchRank(lens.label.toLowerCase(), q);
-            const keywordRank = lens.keywords.some(keyword => keyword.startsWith(q)) ? 2 : -1;
-            return { lens, rank: nameRank === 0 || nameRank === 1 ? nameRank : keywordRank };
-        })
-        .filter(match => match.rank >= 0)
-        .toSorted((a, b) => a.rank - b.rank)
-        .slice(0, limit)
-        .map(match => match.lens);
 }

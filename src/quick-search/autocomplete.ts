@@ -2,18 +2,20 @@
  * Search field menu (WAI-ARIA combobox pattern): item-name autocomplete plus
  * the field's lenses, shops and filters (see ADR-023).
  *
- * - Typing lists matching item names, then matching categories (lenses), shops and filters.
  * - Clicking the field, or Alt+↓, opens its menu: the field's categories,
  *   then (Buying) Shops & owners › and the filters. Categories and filters
  *   are picked in place and keep the menu open.
+ * - Typing keeps the menu, below up to five matching item names; picks made
+ *   there keep the typed text (except a shop found by its name).
  * - In a submenu, typing narrows its list (text already in the field is kept
  *   and put back on leaving); Backspace or ← with nothing typed goes back.
  *
- * While the list is open: ↓/↑ move the highlight, Enter accepts it (→ also
- * opens a submenu), Tab accepts a suggestion and continues to the next field.
- * Esc closes a menu and keeps the search; on typed suggestions it closes them
- * and lets the field clear itself. Without a list the keys behave as usual;
- * a fresh Backspace in an empty field removes the field's last pill.
+ * While the list is open: ↓/↑ move the highlight (↓ goes to the results when
+ * there is no item name to complete), Enter accepts it (→ also opens a
+ * submenu), Tab accepts a suggestion and continues to the next field. Esc
+ * closes a menu opened by a click and keeps the search; while typing it closes
+ * the list and lets the field clear itself. Without a list the keys behave
+ * as usual; a fresh Backspace in an empty field removes the field's last pill.
  *
  * @module quick-search/autocomplete
  */
@@ -213,10 +215,12 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
             return;
         }
         case 'toggle': {
+            // Same look as a picked category: no checkbox glyph, ticked filters are marked like the active category
             option.classList.add('search-suggestion-toggle', 'search-suggestion--how');
+            option.classList.toggle('is-current', suggestion.checked);
             option.setAttribute('aria-checked', String(suggestion.checked));
             option.title = suggestion.title;
-            appendParts(option, suggestion.checked ? '☑' : '☐', suggestion.label, suggestion.detail);
+            appendParts(option, undefined, suggestion.label, suggestion.detail);
             return;
         }
         case 'submenu': {
@@ -286,7 +290,7 @@ export function createAutocomplete(
             accept(suggestion);
             // A pick by pointer leaves no keyboard highlight behind: on the
             // menu it would look like a second kind of "selected"
-            if (mode.kind === 'root') {
+            if (mode.kind === 'root' || mode.kind === 'typing') {
                 highlighted = -1;
                 renderHighlight();
             }
@@ -310,11 +314,13 @@ export function createAutocomplete(
     function renderList(): void {
         list.replaceChildren(...suggestions.map((suggestion, index) => createOption(suggestion, index)));
         const isOpen = suggestions.length > 0;
-        const isGrid = (mode.kind === 'submenu' && mode.submenu.layout === 'grid') || (mode.kind === 'root' && menu.rootLayout === 'grid');
+        // While typing, the field's menu follows the item names
+        const isMenu = mode.kind === 'root' || mode.kind === 'submenu' || suggestions.some(suggestion => suggestion.kind !== 'name');
+        const isGrid = mode.kind === 'submenu' ? mode.submenu.layout === 'grid' : isMenu && menu.rootLayout === 'grid';
         list.classList.toggle('hidden', !isOpen);
-        list.classList.toggle('search-suggestions--menu', mode.kind === 'root' || mode.kind === 'submenu');
+        list.classList.toggle('search-suggestions--menu', isMenu);
         list.classList.toggle('search-suggestions--grid', isGrid);
-        list.setAttribute(ARIA_LABEL, mode.kind === 'typing' || mode.kind === 'closed' ? 'Item suggestions' : 'Search options');
+        list.setAttribute(ARIA_LABEL, isMenu ? 'Search options' : 'Item suggestions');
         input.setAttribute('aria-expanded', String(isOpen));
         if (isOpen) {
             fitAboveKeyboard();
@@ -377,8 +383,10 @@ export function createAutocomplete(
 
     function showTyped(value: string, highlight = -1): void {
         const actions = menu.getActions(value);
-        // Actions take the last slots so they stay visible without scrolling
-        const ranked = rankSuggestions(getNames(), value, Math.max(QUICK_SEARCH.MAX_SUGGESTIONS - actions.length, 1));
+        // An exact query ("emerald") or a single letter only needs the menu, not names
+        const wantsNames = parseExactQuery(value) === undefined && value.trim().length >= QUICK_SEARCH.MIN_SUGGESTION_CHARS;
+        const limit = actions.length > 0 ? QUICK_SEARCH.MAX_SUGGESTIONS_WITH_MENU : QUICK_SEARCH.MAX_SUGGESTIONS;
+        const ranked = wantsNames ? rankSuggestions(getNames(), value, limit) : [];
         // Nothing to add when the only name suggestion is exactly what was typed
         const names = ranked.length === 1 && ranked[0]?.toLowerCase() === value.trim().toLowerCase() ? [] : ranked;
         show({ kind: 'typing' }, [...names.map((name): Suggestion => ({ kind: 'name', name })), ...actions], highlight);
@@ -398,10 +406,6 @@ export function createAutocomplete(
         if (!value.trim()) {
             // Clearing the text while a list is open brings back the menu
             if (mode.kind === 'closed') { close(); } else { openRoot(); }
-            return;
-        }
-        if (parseExactQuery(value) !== undefined || value.trim().length < QUICK_SEARCH.MIN_SUGGESTION_CHARS) {
-            close();
             return;
         }
         showTyped(value);
@@ -450,15 +454,17 @@ export function createAutocomplete(
     }
 
     function acceptAction(action: ActionSuggestion): void {
+        if (action.keepOpen && mode.kind !== 'submenu') {
+            // Picked in place: the search text stays and narrows the counts
+            action.accept();
+            refresh();
+            return;
+        }
         if (mode.kind === 'typing') {
+            // A shop found by its name: the text was only looking for it
             clearTypedText();
             action.accept();
             dispatchInput();
-            return;
-        }
-        if (action.keepOpen && mode.kind === 'root') {
-            action.accept();
-            refresh();
             return;
         }
         const restore = mode.kind === 'submenu' && input.value !== submenuBase;
@@ -485,13 +491,9 @@ export function createAutocomplete(
                 return;
             }
             case 'toggle': {
+                // Ticked in place, keeping the search text, like a category
                 suggestion.toggle();
-                if (mode.kind === 'typing') {
-                    clearTypedText();
-                    dispatchInput();
-                } else {
-                    refresh();
-                }
+                refresh();
                 return;
             }
             case 'submenu': {
@@ -594,13 +596,28 @@ export function createAutocomplete(
         close();
     }
 
+    /**
+     * ↓/↑ move the highlight; with no item name to complete, ↓ from the field
+     * still goes into the results (the menu under typed text closes)
+     * @param event - Keydown in the field
+     * @returns True if the highlight moved
+     */
+    function moveOrLeave(event: KeyboardEvent): boolean {
+        const down = event.key === 'ArrowDown';
+        if (down && highlighted === -1 && mode.kind === 'typing' && !suggestions.some(suggestion => suggestion.kind === 'name')) {
+            close();
+            return false;
+        }
+        event.preventDefault();
+        moveHighlight(down ? 1 : -1);
+        return true;
+    }
+
     function handleListKey(event: KeyboardEvent): boolean {
         switch (event.key) {
             case 'ArrowDown':
             case 'ArrowUp': {
-                event.preventDefault();
-                moveHighlight(event.key === 'ArrowDown' ? 1 : -1);
-                return true;
+                return moveOrLeave(event);
             }
             case 'ArrowRight': {
                 return enterSubmenu(event);
@@ -616,7 +633,7 @@ export function createAutocomplete(
                 return false;
             }
             case 'Escape': {
-                // Esc closes a menu but keeps the search; with typed suggestions it also lets the field clear
+                // Esc closes a menu opened by a click but keeps the search; while typing it also lets the field clear
                 const isMenu = mode.kind === 'root' || mode.kind === 'submenu';
                 close();
                 if (isMenu) { event.preventDefault(); }

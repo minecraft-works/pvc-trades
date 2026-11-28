@@ -11,7 +11,6 @@
 import { QUICK_SEARCH } from '../constants.js';
 import type { QuickFilters, ShopFilter } from '../types.js';
 import { findLens, type LensId } from './lenses.js';
-import { textMatchRank } from './query.js';
 import { buildShopFilterHref, readShopFilter } from './shop-filter.js';
 
 /** Search field a scope option belongs to: Buying (received) or Paying (cost) */
@@ -43,8 +42,6 @@ export interface TradeFilterSpec {
     /** Menu text, when it needs more words than the pill */
     readonly menuLabel: string;
     readonly title: string;
-    /** Words that find the filter while typing */
-    readonly keywords: readonly string[];
 }
 
 const DEALS_PERCENT = Math.abs(QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT);
@@ -54,22 +51,18 @@ export const TRADE_FILTERS: readonly TradeFilterSpec[] = [
     {
         key: 'dealsOnly', param: 'deals', label: `Deals ≤ −${DEALS_PERCENT}%`, menuLabel: `Deals ≤ −${DEALS_PERCENT}%`,
         title: `Only trades at least ${DEALS_PERCENT}% below market`,
-        keywords: ['deals', 'cheap', 'discount', 'bargain'],
     },
     {
         key: 'bestPerItem', param: 'best', label: 'Best per item', menuLabel: 'Best per item',
         title: 'Only the cheapest offer for each item',
-        keywords: ['best', 'cheapest', 'lowest'],
     },
     {
         key: 'shulkersOnly', param: 'shulkers', label: 'Shulkers', menuLabel: 'Shulker boxes',
         title: 'Only trades that buy or sell a filled shulker box',
-        keywords: ['shulkers', 'box', 'bulk'],
     },
     {
         key: 'newOnly', param: 'new', label: 'New', menuLabel: 'New since last visit',
         title: 'Only trades that are new since your last visit',
-        keywords: ['new', 'recent', 'fresh'],
     },
 ];
 
@@ -167,29 +160,4 @@ export function removeLastPill(scope: SearchScope, side: SearchSide): SearchScop
     if (scope.shop) { return { ...scope, shop: undefined }; }
     if (scope.buyLens) { return { ...scope, buyLens: undefined }; }
     return undefined;
-}
-
-/**
- * Trade filters that match typed text, by label first and then by keyword.
- *
- * @param query - Typed text
- * @param limit - Maximum filters to return
- * @returns Best matching filters
- *
- * @example
- * rankTradeFilters('cheap', 2) // [Deals, Best per item]
- */
-export function rankTradeFilters(query: string, limit: number): readonly TradeFilterSpec[] {
-    const q = query.trim().toLowerCase();
-    if (!q) { return []; }
-    return TRADE_FILTERS
-        .map(spec => {
-            const labelRank = textMatchRank(spec.menuLabel.toLowerCase(), q);
-            const keywordRank = spec.keywords.some(keyword => keyword.startsWith(q)) ? 2 : -1;
-            return { spec, rank: labelRank === 0 || labelRank === 1 ? labelRank : keywordRank };
-        })
-        .filter(match => match.rank >= 0)
-        .toSorted((a, b) => a.rank - b.rank)
-        .slice(0, limit)
-        .map(match => match.spec);
 }

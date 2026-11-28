@@ -17,7 +17,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
   - **Shops & owners** lists every owner and shop.
   - **Filters**: Deals only, Best per item, Shulkers, New.
   
-  Clicking the Paying field shows the same categories ("pay with Food" finds shops that accept food). Typing also suggests matching categories, shops and filters. On phones the menu spans the search card and stays above the keyboard; a click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
+  Clicking the Paying field shows the same categories ("pay with Food" finds shops that accept food). Typing keeps the menu under the item-name suggestions; each category shows how many results picking it would give for the current search and filters. On phones the menu spans the search card and stays above the keyboard; a click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
 - **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Pick a shop or player from the Buying menu, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
 - **Flip Finder**: The **Flips** tab of the exchange-rates dialog (💱) lists items you can buy at one shop and sell to another player's shop for more, with the profit per trip; "Add both to cart" plans the route
 
@@ -31,7 +31,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | `Backspace` | Empty search field | Remove the field's last pill |
 | `Tab` | Buying field | Go straight to the Paying field (accepts a highlighted suggestion first) |
 | `Esc` | Search field | Clear the field |
-| `↓` / `↑` | Search field | Move through suggestions, or into the results when there are none |
+| `↓` / `↑` | Search field | Move through the suggestions and menu, or into the results when there is no item name to complete |
 | `Enter` | Suggestion list | Accept the highlighted suggestion |
 | `↓` / `↑` | Result row | Next / previous trade (`↑` on the top row returns to search) |
 | `Enter` | Result row | Open the shop on the map |

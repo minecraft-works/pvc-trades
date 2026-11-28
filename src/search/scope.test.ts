@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { buildScopeHref, EMPTY_SCOPE, NO_FILTERS, rankTradeFilters, readScope, removeLastPill, type SearchScope } from './scope.js';
+import { buildScopeHref, EMPTY_SCOPE, NO_FILTERS, readScope, removeLastPill, type SearchScope } from './scope.js';
 
 const BASE = 'https://example.com/pvc-trades/?buy=torch';
 
@@ -58,12 +58,5 @@ describe('removeLastPill', () => {
     test('Backspace in Paying only removes the Paying lens', () => {
         expect(removeLastPill(full, 'pay')).toEqual({ ...full, payLens: undefined });
         expect(removeLastPill({ ...full, payLens: undefined }, 'pay')).toBeUndefined();
-    });
-});
-
-describe('rankTradeFilters', () => {
-    test('finds filters by label or keyword', () => {
-        expect(rankTradeFilters('best', 3).map(spec => spec.key)).toEqual(['bestPerItem']);
-        expect(rankTradeFilters('cheap', 3).map(spec => spec.key)).toEqual(['dealsOnly', 'bestPerItem']);
     });
 });

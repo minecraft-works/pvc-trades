@@ -1,26 +1,30 @@
 /**
  * What the Buying and Paying field menus offer. Both open on the same grid
- * of lenses (shown as "Categories"; one per field, picked in place). Buying
- * also offers shops and owners and the trade filters, which narrow the whole
- * trade; Paying only has lenses on the cost items. Builds the rows the
- * autocomplete shows; the choices go to the search scope (see ADR-023).
+ * of lenses (shown as "Categories"; one per field, picked in place), each
+ * with the number of results picking it would show for the current search.
+ * Buying also offers shops and owners and the trade filters, which narrow
+ * the whole trade; Paying only has lenses on the cost items. The menu stays
+ * while typing: the counts follow the search and shops whose name matches
+ * the text join "Sold by". Builds the rows the autocomplete shows; the
+ * choices go to the search scope (see ADR-023).
  *
  * @module quick-search/field-menu
  */
 
-import { type Lens, LENSES, type LensId, paysWithLens, rankLenses, receivesFromLens } from '../search/lenses.js';
-import { getScopeLens, rankTradeFilters, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
-import { formatShopFilter, matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
-import type { QuickFilters, ShopFilter, Trade } from '../types.js';
+import { type Lens, LENSES, type LensId, paysWithLens, receivesFromLens } from '../search/lenses.js';
+import { getScopeLens, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
+import { formatShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
+import type { FilterResult, QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
 /** ID of the shop submenu, e.g. to open it from a shop pill */
 export const SHOP_SUBMENU_ID = 'shops';
 
-/** Lenses, shops and filters listed after the item names while typing */
-const MAX_TYPED_LENSES = 2;
+/** Shops and owners whose name matches the typed text, listed under "Sold by" */
 const MAX_TYPED_SHOPS = 3;
-const MAX_TYPED_FILTERS = 2;
+
+/** Whether the current search lists a trade, see SearchSortHandler.createSearchMatcher */
+type SearchMatcher = (trade: Trade) => FilterResult | undefined;
 
 /** Dependencies from the host module */
 export interface FieldMenuDeps {
@@ -28,6 +32,8 @@ export interface FieldMenuDeps {
     /** Shop and owner suggestions for the current trades */
     getShopSuggestions: () => readonly ShopSuggestion[];
     getScope: () => SearchScope;
+    /** The current search without this field's lens, to count what each lens would show */
+    createSearchMatcher: (side: SearchSide) => SearchMatcher;
     setLens: (side: SearchSide, lens: LensId | undefined) => void;
     setShop: (shop: ShopFilter | undefined) => void;
     toggleFilter: (key: keyof QuickFilters) => void;
@@ -58,49 +64,49 @@ function byTrades(a: ShopSuggestion, b: ShopSuggestion): number {
 }
 
 /**
+ * How many results each lens of one field would show with the current search.
+ * Best per item keeps one trade per item name, so then item names are counted.
+ * @param options - What to count
+ * @param options.trades - All trades
+ * @param options.match - The current search without this field's lens
+ * @param options.side - Field whose lenses are counted
+ * @param options.perItem - Whether Best per item is on
+ * @returns Result count per lens
+ */
+function countPerLens(options: { trades: readonly Trade[]; match: SearchMatcher; side: SearchSide; perItem: boolean }): ReadonlyMap<LensId, number> {
+    const { trades, match, side, perItem } = options;
+    const isInLens = side === 'buy' ? receivesFromLens : paysWithLens;
+    const found = new Map<LensId, Set<string>>(LENSES.map(lens => [lens.id, new Set<string>()]));
+    for (const [index, trade] of trades.entries()) {
+        const result = match(trade);
+        if (!result) { continue; }
+        const key = perItem ? result.displayName.toLowerCase() : String(index);
+        for (const lens of LENSES) {
+            if (isInLens(trade, lens)) { found.get(lens.id)?.add(key); }
+        }
+    }
+    return new Map([...found].map(([id, keys]) => [id, keys.size]));
+}
+
+/**
  * Build the menu of one search field.
  * @param side - Buying or Paying
  * @param deps - Host callbacks
  * @returns Field menu for the field's autocomplete
  */
 export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMenu {
-    let countSource: { trades: readonly Trade[]; shop: string; counts: ReadonlyMap<LensId, number> } | undefined;
-
-    /**
-     * In-stock trades per lens on this side, within the current shop filter
-     * @returns Trade count per lens
-     */
-    function getLensCounts(): ReadonlyMap<LensId, number> {
-        const trades = deps.getTrades();
-        const { shop } = deps.getScope();
-        if (countSource?.trades === trades && countSource.shop === shopKey(shop)) { return countSource.counts; }
-
-        const matches = side === 'buy' ? receivesFromLens : paysWithLens;
-        const counts = new Map<LensId, number>(LENSES.map(lens => [lens.id, 0]));
-        for (const trade of trades) {
-            if (trade.stock <= 0 || (shop && !matchesShopFilter(trade, shop))) { continue; }
-            for (const lens of LENSES) {
-                if (matches(trade, lens)) { counts.set(lens.id, (counts.get(lens.id) ?? 0) + 1); }
-            }
-        }
-        countSource = { trades, counts, shop: shopKey(shop) };
-        return counts;
-    }
-
-    function lensAction(lens: Lens, typed: boolean): MenuEntry {
-        const count = getLensCounts().get(lens.id) ?? 0;
+    function lensAction(lens: Lens, count: number): MenuEntry {
         const current = getScopeLens(deps.getScope(), side) === lens.id;
         const action: ActionSuggestion = {
             current,
             label: lens.label,
-            // Menu tiles show just the count; typed rows say what they are, next to item names
-            detail: typed ? `category · ${plural(count, 'trade')}` : count.toLocaleString(),
+            detail: count.toLocaleString(),
             spokenDetail: plural(count, 'trade'),
             actionLabel: side === 'buy' ? 'Only buy items in this category' : 'Only pay with items in this category',
             tone: 'what',
             empty: count === 0,
-            // Like the filters: picking a category in the menu keeps it open, so a filter can be ticked next
-            keepOpen: !typed,
+            // Like the filters: picking a category keeps the menu and the search, so a filter can be ticked next
+            keepOpen: true,
             accept: () => { deps.setLens(side, current ? undefined : lens.id); },
         };
         return { kind: 'action', action };
@@ -144,18 +150,28 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         },
     };
 
-    function getRootMenu(): readonly MenuEntry[] {
+    /**
+     * The field's menu: its categories and (Buying) shops and filters
+     * @param typed - Text typed in the field; shops whose name matches it join "Sold by"
+     * @returns Menu rows
+     */
+    function getMenu(typed: string): readonly MenuEntry[] {
+        const scope = deps.getScope();
+        const counts = countPerLens({
+            side, trades: deps.getTrades(), match: deps.createSearchMatcher(side), perItem: scope.filters.bestPerItem,
+        });
         // Both fields open on their categories, so the two menus start the same way
         const lenses: readonly MenuEntry[] = [
             { kind: 'heading', label: 'Categories' },
-            ...LENSES.map(lens => lensAction(lens, false)),
+            ...LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
         ];
         if (side === 'pay') { return lenses; }
-        const scope = deps.getScope();
-        const ownerCount = deps.getShopSuggestions().filter(suggestion => suggestion.kind === 'owner').length;
+        const all = deps.getShopSuggestions();
+        const ownerCount = all.filter(suggestion => suggestion.kind === 'owner').length;
         return [
             ...lenses,
             { kind: 'heading', label: 'Sold by' },
+            ...rankShopSuggestions(all, typed, MAX_TYPED_SHOPS).map(suggestion => shopAction(suggestion)),
             {
                 kind: 'submenu', label: 'Shops & owners',
                 detail: scope.shop ? formatShopFilter(scope.shop) : plural(ownerCount, 'owner'),
@@ -166,15 +182,10 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         ];
     }
 
-    function getActions(query: string): readonly MenuEntry[] {
-        const lenses = rankLenses(query, MAX_TYPED_LENSES).map(lens => lensAction(lens, true));
-        if (side === 'pay') { return lenses; }
-        return [
-            ...lenses,
-            ...rankShopSuggestions(deps.getShopSuggestions(), query, MAX_TYPED_SHOPS).map(suggestion => shopAction(suggestion)),
-            ...rankTradeFilters(query, MAX_TYPED_FILTERS).map(spec => filterToggle(spec)),
-        ];
-    }
-
-    return { getActions, getRootMenu, rootLayout: 'grid', removeLast: () => deps.removeLast(side) };
+    return {
+        getActions: query => getMenu(query),
+        getRootMenu: () => getMenu(''),
+        rootLayout: 'grid',
+        removeLast: () => deps.removeLast(side),
+    };
 }

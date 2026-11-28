@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest';
 
 import type { Item, Trade } from '../types.js';
-import { findLens, isItemInLens, type Lens, LENSES, paysWithLens, rankLenses, receivesFromLens } from './lenses.js';
+import { findLens, isItemInLens, type Lens, LENSES, paysWithLens, receivesFromLens } from './lenses.js';
 
 function lens(id: string): Lens {
     const found = findLens(id);
@@ -69,23 +69,6 @@ describe('receivesFromLens / paysWithLens', () => {
         const trade = { item1: item('EMERALD'), item2: item('SHULKER_BOX', ['- 64x COOKED_BEEF']) };
         expect(paysWithLens(trade, lens('food'))).toBe(true);
         expect(paysWithLens(trade, lens('redstone'))).toBe(false);
-    });
-});
-
-describe('rankLenses', () => {
-    test('matches the start of a name or of a word in it', () => {
-        expect(rankLenses('red', 2).map(match => match.id)).toEqual(['redstone']);
-        expect(rankLenses('disc', 2).map(match => match.id)).toEqual(['music']);
-    });
-
-    test('finds a lens by keyword after name matches, but not by text inside a word', () => {
-        expect(rankLenses('piston', 2).map(match => match.id)).toEqual(['redstone']);
-        expect(rankLenses('ar', 3).map(match => match.id)).toEqual(['armor', 'weapons']);
-        expect(rankLenses('ities', 3)).toEqual([]);
-    });
-
-    test('returns nothing for empty text', () => {
-        expect(rankLenses('  ', 5)).toEqual([]);
     });
 });
 

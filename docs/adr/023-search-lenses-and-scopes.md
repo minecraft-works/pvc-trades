@@ -58,35 +58,44 @@ There are no new buttons. Each search field is the picker for its side:
 - Categories and filters are picked in place: the menu stays open, so a
   category and a filter (Food + Deals) take one menu visit. A field has one
   category at most, so picking another replaces it and picking the active
-  one clears it; filters combine freely. The active category is a tinted
-  tile with a ✓, like its pill, rather than a radio button (which can't be
-  cleared by clicking it again); filters keep their ☐/☑ tick.
+  one clears it; filters combine freely. Both look the same when on: bold,
+  a ✓ and tinted like their pill (violet category, neutral filter), rather
+  than a radio button (which can't be cleared by clicking it again) and
+  checkboxes.
+- Each category shows how many results picking it would give for the
+  current search: the typed text of both fields, the shop, the trade
+  filters, the header toggles and the other field's category
+  (`SearchSortHandler.createSearchMatcher`, so the count always equals the
+  result count). With Best per item it counts items.
 - Both menus open on the same grid, so they look alike and a lens is one tap
   away on either side. In the UI a lens is called a *category*: the menu
-  heading says "Categories", the pills ("buying Redstone") say what it does,
-  and typed suggestions read "category · 110 trades". "Lens" stays the term
-  in code and docs.
-- The grid uses one-line tiles (name and in-stock trade count) in two
-  columns, filters included, to keep the Buying menu short. Menu rows have no
-  icons: the names are short and clear, emoji look different on every
-  platform and nothing like Minecraft, and the space is better spent on the
-  name. Only symbols that carry state or direction stay (☐/☑, ‹). Alt+1…4
-  hints are hidden on touch screens.
+  heading says "Categories" and the pills ("buying Redstone") say what it
+  does. "Lens" stays the term in code and docs.
+- The grid uses one-line tiles (name and result count) in two columns,
+  filters included, to keep the Buying menu short. Menu rows have no icons:
+  the names are short and clear, emoji look different on every platform and
+  nothing like Minecraft, and the space is better spent on the name. Only
+  the back arrow (‹) stays. Alt+1…4 hints are hidden on touch screens.
 - On phones the menus span the whole search card instead of their field, and
   their height follows the room the on-screen keyboard leaves (the keyboard
   only shrinks the visual viewport, so `autocomplete.ts` measures it and sets
   `--menu-room`).
-- **Typing** in Buying lists item names first, then matching lenses ("redst" →
-  Redstone), shops and owners, and filters ("cheap" → Deals, Best per item).
-  Typing in Paying only adds matching lenses.
+- **Typing** keeps the menu: up to five matching item names on top, then the
+  same menu with counts for the new text, and under "Sold by" the shops and
+  owners whose name matches it. Picking a category or filter keeps the text;
+  picking a shop found by its name clears it. The counts replace the earlier
+  keyword lookup ("piston" → Redstone): typing "piston" leaves Redstone as
+  the category with results.
 - Shops and trade filters narrow the whole trade, not one side, so they live
   only in the Buying menu (the main entry point). Paying offers only what is
   about payment: lenses that check the cost items.
 - A click or tap outside an open menu only closes it. A backdrop catches it,
   so it doesn't also open the trade row or map underneath; on phones, where
   the menu covers most of the page, the backdrop dims the page.
-- ↓ in a field still moves into the results, as before. The menu needs a click
-  or Alt+↓, so `/` and Ctrl+F only focus the field.
+- Esc on a menu opened by a click closes it and keeps the search; while
+  typing, Esc clears the field as before. ↓ in a field moves into the menu,
+  or into the results when there is no item name to complete. `/` and
+  Ctrl+F only focus the field.
 
 ### 4. One pill row shows the state
 

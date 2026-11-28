@@ -139,10 +139,6 @@
     color: var(--color-bg);
 }
 
-.search-suggestion-toggle[aria-checked="true"] .suggestion-icon {
-    color: var(--color-accent);
-}
-
 .search-suggestions li.is-current {
     font-weight: 600;
 }
@@ -151,16 +147,21 @@
     content: " ✓";
 }
 
-/* The picked category (one per field): tinted like its pill under the fields */
+/* A picked category or ticked filter: bold, a check, and tinted like its pill
+   under the fields (violet category, neutral filter) */
 .search-suggestions li.search-suggestion--what.is-current:not([aria-selected="true"]) {
     background: rgb(179 157 219 / 18%);
     color: var(--color-scope-what);
 }
 
+.search-suggestions li.search-suggestion--how.is-current:not([aria-selected="true"]) {
+    background: rgb(224 224 224 / 12%);
+}
+
 /* Hover only where there is a pointer that hovers: after a tap, :hover sticks
    on touch screens and the tapped row would look like a second kind of "picked" */
 @media (hover: hover) {
-    .search-suggestions li.search-suggestion--what.is-current:hover {
+    .search-suggestions li:is(.search-suggestion--what, .search-suggestion--how).is-current:hover {
         background: var(--color-accent);
         color: var(--color-bg);
     }
@@ -208,7 +209,8 @@
 }
 
 /* Menu grid: two columns of one-line tiles (name, trade count) and filters;
-   headings, the back row and the shop and owner rows span both columns */
+   item names typed above it, headings, the back row and the shop and owner
+   rows span both columns */
 .search-suggestions--grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -227,13 +229,14 @@
     padding: 6px 10px;
 }
 
+.search-suggestions--grid li:not([class]),
 .search-suggestions--grid li.search-suggestion--who,
 .search-suggestions--grid li.search-suggestion-heading,
 .search-suggestions--grid li.search-suggestion-heading:hover {
     grid-column: 1 / -1;
 }
 
-/* The first heading ("Buy", "Pay with") opens the menu: no divider above it */
+/* The first heading ("Categories") opens the menu: no divider above it */
 .search-suggestions--grid li.search-suggestion-heading:first-child {
     margin-top: 0;
     border-top: none;

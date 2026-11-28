@@ -231,10 +231,12 @@ test.describe('Lenses', () => {
         await expect(page.locator(pill('lens-buy'))).toContainText('buying Food');
         await expect(page).toHaveURL(/[?&]lens=food/);
 
-        // The menu stays open, so a filter can be ticked next; another category replaces the first
+        // The menu stays open, so a filter can be ticked next; the counts follow it
         await expect(category('Food')).toHaveClass(/is-current/);
+        await expect(category('Food')).toContainText('4');
         await page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: 'Best per item' }).click();
         await expect(page.locator(ROW)).toHaveCount(1);
+        await expect(category('Food')).toContainText('1');
         await category('Ores & Minerals').click();
         await expect(category('Food')).not.toHaveClass(/is-current/);
         await expect(page.locator(pill('lens-buy'))).toContainText('buying Ores & Minerals');
@@ -245,15 +247,22 @@ test.describe('Lenses', () => {
         await expect(page.locator(WANT_MENU)).toBeVisible();
     });
 
-    test('typing offers matching categories after the item names', async ({ page }) => {
-        await page.locator(WANT).fill('ores');
-        const lensRow = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Ores & Minerals' });
-        await expect(lensRow).toContainText('category · 2 trades');
-        await lensRow.click();
+    test('while typing the menu stays, its counts follow the search, and a pick keeps the text', async ({ page }) => {
+        const category = (name: string) => page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: name });
+        await page.locator(WANT).click();
+        await expect(category('Ores & Minerals')).toContainText('2');
 
-        await expect(page.locator(WANT)).toHaveValue('');
-        const names = await resultNames(page);
-        expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual(['Diamond', 'Iron ingot']);
+        await page.locator(WANT).fill('iron');
+        await expect(page.locator(`${WANT_MENU} [role="option"]`).first()).toHaveText('Iron ingot');
+        await expect(category('Ores & Minerals')).toContainText('1');
+        await expect(category('Food')).toHaveClass(/is-empty/);
+
+        await category('Ores & Minerals').click();
+        await page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: 'Best per item' }).click();
+        await expect(page.locator(WANT)).toHaveValue('iron');
+        await expect(category('Ores & Minerals')).toHaveClass(/is-current/);
+        await expect(page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: 'Best per item' })).toHaveClass(/is-current/);
+        expect(await resultNames(page)).toEqual(['Iron ingot']);
     });
 
     test('Backspace in an empty Buying field removes the last pill', async ({ page }) => {
@@ -288,6 +297,8 @@ test.describe('Lenses', () => {
         const owners = ['Alice', 'Bob', 'Carol'];
         await openApp(page, '', { data: SHOP_DATA.data.map((shop, index) => ({ ...shop, shopOwner: owners[index] })) });
         await page.locator(WANT).fill('Cooked beef');
+        // Come back to a search later: the click opens the menu over it
+        await page.locator(WANT).blur();
         await page.locator(WANT).click();
         await expect(page.locator(WANT_MENU)).toBeVisible();
         await page.keyboard.press('Escape');
@@ -435,9 +446,9 @@ test.describe('Autocomplete', () => {
         await expect(page.locator(WANT)).toHaveValue('');
     });
 
-    test('without suggestions, arrow down still moves into the results', async ({ page }) => {
+    test('with no item name to complete, arrow down still moves into the results', async ({ page }) => {
         await page.locator(WANT).fill('Sand');
-        await expect(page.locator('#searchWant-suggestions')).toBeHidden();
+        await expect(page.locator('#searchWant-suggestions .search-suggestion-heading').first()).toHaveText('Categories');
         await page.keyboard.press('ArrowDown');
         await expect(page.locator(ROW).first()).toBeFocused();
     });

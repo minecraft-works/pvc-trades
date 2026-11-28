@@ -449,6 +449,7 @@ function setupQuickSearch(): void {
         getShopSuggestions,
         getTrades: () => dataLoader.getAllTrades(),
         getScope: () => searchScopeStore.get(),
+        createSearchMatcher: side => searchHandler.createSearchMatcher(side),
         setLens: (side, lens) => { searchScopeStore.setLens(side, lens); },
         setShop: (shop) => { searchScopeStore.setShop(shop); },
         toggleFilter: (key) => { searchScopeStore.toggleFilter(key); },
