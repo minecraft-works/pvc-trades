@@ -2,9 +2,9 @@
  * Search field menu (WAI-ARIA combobox pattern): item-name autocomplete plus
  * the field's lenses, shops and filters (see ADR-023).
  *
- * - Typing lists matching item names, then matching lenses, shops and filters.
- * - Clicking the field, or Alt+↓, opens its menu: submenus (Lenses ›,
- *   Shops & owners ›) and filter rows that tick in place and keep it open.
+ * - Typing lists matching item names, then matching categories (lenses), shops and filters.
+ * - Clicking the field, or Alt+↓, opens its menu: the field's categories,
+ *   then (Buying) Shops & owners › and filter rows that tick in place and keep it open.
  * - In a submenu, typing narrows its list (text already in the field is kept
  *   and put back on leaving); Backspace or ← with nothing typed goes back.
  *
@@ -33,6 +33,8 @@ export interface ActionSuggestion {
     readonly label: string;
     /** Muted text after the label */
     readonly detail: string;
+    /** Read out instead of the detail, e.g. "25 trades" for a bare count */
+    readonly spokenDetail?: string;
     /** Accessible description of what accepting does */
     readonly actionLabel: string;
     readonly tone: ScopeTone;
@@ -81,7 +83,7 @@ export interface FieldMenu {
     readonly getActions: (query: string) => readonly MenuEntry[];
     /** Rows of the menu opened by a click or Alt+↓ */
     readonly getRootMenu: () => readonly MenuEntry[];
-    /** Grid for a menu of short tiles (Paying's lenses); list by default */
+    /** Grid for a menu of short tiles (the categories); list by default */
     readonly rootLayout?: 'list' | 'grid';
     /** Remove the field's last pill (Backspace in an empty field); true if one was removed */
     readonly removeLast?: () => boolean;
@@ -192,11 +194,11 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
             return;
         }
         case 'action': {
-            const { icon, label, detail, actionLabel, tone, current, empty } = suggestion.action;
+            const { icon, label, detail, spokenDetail = detail, actionLabel, tone, current, empty } = suggestion.action;
             option.classList.add('search-suggestion-action', `search-suggestion--${tone}`);
             option.classList.toggle('is-current', current === true);
             option.classList.toggle('is-empty', empty === true);
-            option.setAttribute(ARIA_LABEL, `${actionLabel}: ${label}, ${detail}${current ? ', active' : ''}`);
+            option.setAttribute(ARIA_LABEL, `${actionLabel}: ${label}, ${spokenDetail}${current ? ', active' : ''}`);
             appendParts(option, icon, label, detail);
             return;
         }
@@ -298,8 +300,26 @@ export function createAutocomplete(
         list.classList.toggle('search-suggestions--grid', isGrid);
         list.setAttribute(ARIA_LABEL, mode.kind === 'typing' || mode.kind === 'closed' ? 'Item suggestions' : 'Search options');
         input.setAttribute('aria-expanded', String(isOpen));
-        if (isOpen) { showBackdrop(dismiss); } else { hideBackdrop(dismiss); }
+        if (isOpen) {
+            fitAboveKeyboard();
+            showBackdrop(dismiss);
+        } else {
+            hideBackdrop(dismiss);
+        }
         renderHighlight();
+    }
+
+    /**
+     * Keep the open list above a phone's on-screen keyboard. The keyboard only
+     * shrinks the visual viewport, which CSS viewport units don't follow, so
+     * the room below the list's top goes to its max-height (--menu-room).
+     */
+    function fitAboveKeyboard(): void {
+        if (list.classList.contains('hidden')) { return; }
+        const viewport = globalThis.visualViewport;
+        const visibleBottom = viewport ? viewport.offsetTop + viewport.height : globalThis.innerHeight;
+        const room = visibleBottom - list.getBoundingClientRect().top - QUICK_SEARCH.MENU_KEYBOARD_GAP_PX;
+        list.style.setProperty('--menu-room', `${String(Math.round(Math.max(room, QUICK_SEARCH.MENU_MIN_HEIGHT_PX)))}px`);
     }
 
     /** Close the list and leave the field (also hides a phone's keyboard) */
@@ -601,6 +621,9 @@ export function createAutocomplete(
 
     input.addEventListener('input', update);
     input.addEventListener('blur', close);
+    // The on-screen keyboard opening or closing resizes the visual viewport
+    globalThis.visualViewport?.addEventListener('resize', fitAboveKeyboard);
+    globalThis.visualViewport?.addEventListener('scroll', fitAboveKeyboard);
     // A click means browsing: show the menu (typing switches to suggestions)
     input.addEventListener('click', () => {
         if (mode.kind === 'closed') { openRoot(); }

@@ -147,7 +147,7 @@ test.describe('Trade filters', () => {
         await expect(beefRow.locator('.dev')).toHaveText('−33%');
     });
 
-    test('the Paying menu only offers lenses, straight away', async ({ page }) => {
+    test('the Paying menu only offers categories, straight away', async ({ page }) => {
         await page.locator(GIVE).click();
         const menu = page.locator('#searchGive-suggestions');
         await expect(menu.locator('.search-suggestion-action')).toHaveCount(12);
@@ -157,15 +157,57 @@ test.describe('Trade filters', () => {
         await expect(page.locator(pill('lens-pay'))).toContainText('paying with Ores & Minerals');
     });
 
+    test('on a phone both menus span the whole search card', async ({ page }) => {
+        await page.setViewportSize({ width: 412, height: 800 });
+        const card = await page.locator('.search-box').boundingBox();
+        for (const [field, menu] of [[WANT, WANT_MENU], [GIVE, '#searchGive-suggestions']] as const) {
+            await page.locator(field).click();
+            const box = await page.locator(menu).boundingBox();
+            expect(box?.x).toBeCloseTo(card?.x ?? Number.NaN, 0);
+            expect(box?.width).toBeCloseTo(card?.width ?? Number.NaN, 0);
+            await page.keyboard.press('Escape');
+        }
+    });
+
+    test('on a phone the open menu stays above the on-screen keyboard', async ({ page }) => {
+        await page.setViewportSize({ width: 412, height: 800 });
+        // The keyboard only shrinks the visual viewport: stand in for it
+        await page.addInitScript(() => {
+            const viewport = Object.assign(new EventTarget(), { height: innerHeight, offsetTop: 0 });
+            Object.defineProperty(globalThis, 'visualViewport', { value: viewport });
+            Object.assign(globalThis, {
+                showKeyboard: (height: number) => {
+                    viewport.height = innerHeight - height;
+                    viewport.dispatchEvent(new Event('resize'));
+                },
+            });
+        });
+        await openApp(page);
+
+        await page.locator(WANT).click();
+        await page.evaluate(() => { (globalThis as unknown as { showKeyboard: (height: number) => void }).showKeyboard(400); });
+        const menu = await page.locator(WANT_MENU).boundingBox();
+        expect((menu?.y ?? 0) + (menu?.height ?? 0)).toBeLessThanOrEqual(400);
+    });
+
     for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 740 }]) {
         test(`clicking outside an open menu only closes it (${viewport.width}px)`, async ({ page }) => {
             await page.setViewportSize(viewport);
-            const row = await page.locator(ROW).last().boundingBox();
-            expect(row).toBeTruthy();
+            // Enough rows that some lie below the open menu
+            const sandShop = { location: '3000.0, 64.0, 0.0', world: 'world', recipes: Array.from({ length: 30 }, (_, index) => recipe('SAND', index + 1, EMERALD_TYPE, 1)) };
+            await openApp(page, '', { data: [...SHOP_DATA.data, sandShop] });
 
             await page.locator(WANT).click();
             await expect(page.locator(WANT_MENU)).toBeVisible();
-            await page.mouse.click(row!.x + row!.width / 2, row!.y + row!.height / 2);
+            const row = await page.evaluate((menuSelector) => {
+                const menuBottom = document.querySelector(menuSelector)?.getBoundingClientRect().bottom ?? 0;
+                const box = [...document.querySelectorAll('.trade-row')]
+                    .map(element => element.getBoundingClientRect())
+                    .find(rect => rect.top > menuBottom && rect.bottom < innerHeight);
+                return box && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+            }, WANT_MENU);
+            expect(row).toBeTruthy();
+            await page.mouse.click(row!.x, row!.y);
 
             await expect(page.locator(WANT_MENU)).toBeHidden();
             await expect(page.locator(WANT)).not.toBeFocused();
@@ -178,9 +220,9 @@ test.describe('Trade filters', () => {
 test.describe('Lenses', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 
-    test('clicking Buying opens its menu, and a lens keeps only its items', async ({ page }) => {
+    test('clicking Buying opens on its categories, and one keeps only its items', async ({ page }) => {
         await page.locator(WANT).click();
-        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Lenses' }).click();
+        await expect(page.locator(`${WANT_MENU} .search-suggestion-heading`).first()).toHaveText('Buy');
         await page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Food' }).click();
 
         await expect(page.locator(ROW)).toHaveCount(4);
@@ -189,10 +231,10 @@ test.describe('Lenses', () => {
         await expect(page).toHaveURL(/[?&]lens=food/);
     });
 
-    test('typing offers matching lenses after the item names', async ({ page }) => {
+    test('typing offers matching categories after the item names', async ({ page }) => {
         await page.locator(WANT).fill('ores');
         const lensRow = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Ores & Minerals' });
-        await expect(lensRow).toContainText('lens · 2 trades');
+        await expect(lensRow).toContainText('category · 2 trades');
         await lensRow.click();
 
         await expect(page.locator(WANT)).toHaveValue('');
@@ -229,6 +271,8 @@ test.describe('Lenses', () => {
     });
 
     test('a menu over a search keeps it: Esc closes the menu, and a submenu filters only what is typed after it', async ({ page }) => {
+        const owners = ['Alice', 'Bob', 'Carol'];
+        await openApp(page, '', { data: SHOP_DATA.data.map((shop, index) => ({ ...shop, shopOwner: owners[index] })) });
         await page.locator(WANT).fill('Cooked beef');
         await page.locator(WANT).click();
         await expect(page.locator(WANT_MENU)).toBeVisible();
@@ -237,15 +281,15 @@ test.describe('Lenses', () => {
         await expect(page.locator(WANT)).toHaveValue('Cooked beef');
 
         await page.locator(WANT).click();
-        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Lenses' }).click();
-        await page.keyboard.type('fo');
-        const lenses = page.locator(`${WANT_MENU} .search-suggestion-action`);
-        await expect(lenses).toHaveText([/Food/]);
-        await lenses.first().click();
+        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Shops & owners' }).click();
+        await page.keyboard.type('bo');
+        const shops = page.locator(`${WANT_MENU} .search-suggestion-action`);
+        await expect(shops).toHaveText([/Bob/]);
+        await shops.first().click();
 
         await expect(page.locator(WANT)).toHaveValue('Cooked beef');
-        await expect(page.locator(pill('lens-buy'))).toBeVisible();
-        await expect(page.locator(ROW)).toHaveCount(4);
+        await expect(page.locator(pill('shop'))).toBeVisible();
+        await expect(page.locator(ROW)).toHaveCount(2);
     });
 
     test('removing a pill moves focus to the next pill, then back to the field', async ({ page }) => {

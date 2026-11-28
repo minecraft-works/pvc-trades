@@ -1,21 +1,19 @@
 /**
- * What the Buying and Paying field menus offer. Buying is the main entry
- * point: lenses on the received item, shops and owners, and the trade
- * filters (all three narrow the whole trade). Paying only offers lenses on
- * the cost items, shown straight away as a grid. Builds the rows the
+ * What the Buying and Paying field menus offer. Both open on the same grid
+ * of lenses (shown as item categories, under "Buy" or "Pay with"). Buying
+ * also offers shops and owners and the trade filters, which narrow the whole
+ * trade; Paying only has lenses on the cost items. Builds the rows the
  * autocomplete shows; the choices go to the search scope (see ADR-023).
  *
  * @module quick-search/field-menu
  */
 
-import { findLens, type Lens, LENSES, type LensId, paysWithLens, rankLenses, receivesFromLens } from '../search/lenses.js';
+import { type Lens, LENSES, type LensId, paysWithLens, rankLenses, receivesFromLens } from '../search/lenses.js';
 import { getScopeLens, rankTradeFilters, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
 import { formatShopFilter, matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
-/** ID of the lens submenu, e.g. to open it from a lens pill */
-export const LENS_SUBMENU_ID = 'lenses';
 /** ID of the shop submenu, e.g. to open it from a shop pill */
 export const SHOP_SUBMENU_ID = 'shops';
 
@@ -86,8 +84,10 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             current,
             icon: lens.icon,
             label: lens.label,
-            detail: typed ? `lens · ${plural(count, 'trade')}` : plural(count, 'trade'),
-            actionLabel: side === 'buy' ? 'Only buy items from this lens' : 'Only pay with items from this lens',
+            // Menu tiles show just the count; typed rows say what they are, next to item names
+            detail: typed ? `category · ${plural(count, 'trade')}` : count.toLocaleString(),
+            spokenDetail: plural(count, 'trade'),
+            actionLabel: side === 'buy' ? 'Only buy items in this category' : 'Only pay with items in this category',
             tone: 'what',
             empty: count === 0,
             accept: () => { deps.setLens(side, current ? undefined : lens.id); },
@@ -121,13 +121,6 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         };
     }
 
-    const lensSubmenu: Submenu = {
-        id: LENS_SUBMENU_ID,
-        title: side === 'buy' ? 'Lenses · buying' : 'Lenses · paying with',
-        layout: 'grid',
-        getEntries: query => (query.trim() ? rankLenses(query, LENSES.length) : LENSES).map(lens => lensAction(lens, false)),
-    };
-
     const shopSubmenu: Submenu = {
         id: SHOP_SUBMENU_ID,
         title: 'Shops & owners',
@@ -142,15 +135,17 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
     };
 
     function getRootMenu(): readonly MenuEntry[] {
-        if (side === 'pay') {
-            // Paying only has lenses: show them straight away
-            return [{ kind: 'heading', label: 'Pay with' }, ...lensSubmenu.getEntries('')];
-        }
+        // Both fields open on their lenses, so the two menus start the same way
+        const lenses: readonly MenuEntry[] = [
+            { kind: 'heading', label: side === 'buy' ? 'Buy' : 'Pay with' },
+            ...LENSES.map(lens => lensAction(lens, false)),
+        ];
+        if (side === 'pay') { return lenses; }
         const scope = deps.getScope();
-        const activeLens = findLens(scope.buyLens);
         const ownerCount = deps.getShopSuggestions().filter(suggestion => suggestion.kind === 'owner').length;
         return [
-            { kind: 'submenu', icon: '◈', label: 'Lenses', detail: activeLens?.label ?? `${LENSES.length}`, tone: 'what', submenu: lensSubmenu },
+            ...lenses,
+            { kind: 'heading', label: 'Sold by' },
             {
                 kind: 'submenu', icon: '🏪', label: 'Shops & owners',
                 detail: scope.shop ? formatShopFilter(scope.shop) : plural(ownerCount, 'owner'),
@@ -171,5 +166,5 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         ];
     }
 
-    return { getActions, getRootMenu, rootLayout: side === 'pay' ? 'grid' : 'list', removeLast: () => deps.removeLast(side) };
+    return { getActions, getRootMenu, rootLayout: 'grid', removeLast: () => deps.removeLast(side) };
 }

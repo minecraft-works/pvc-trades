@@ -14,7 +14,7 @@ import { isScopeActive, type SearchScope, type SearchSide, TRADE_FILTERS } from 
 import { formatShopFilter } from '../search/shop-filter.js';
 import type { QuickFilters } from '../types.js';
 import type { ScopeTone } from './autocomplete.js';
-import { LENS_SUBMENU_ID, SHOP_SUBMENU_ID } from './field-menu.js';
+import { SHOP_SUBMENU_ID } from './field-menu.js';
 
 /** Dependencies from the host module */
 export interface ScopePillsDeps {
@@ -73,8 +73,9 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
             tone: 'what',
             prefix: LENS_PREFIX[side],
             label: lens.label,
-            description: `Lens ${LENS_PREFIX[side]} ${lens.label}`,
-            edit: () => { deps.openMenu(side, LENS_SUBMENU_ID); },
+            description: `Category ${LENS_PREFIX[side]} ${lens.label}`,
+            // The field's menu opens on its categories
+            edit: () => { deps.openMenu(side); },
             remove: () => { deps.setScope(side === 'buy' ? { ...deps.getScope(), buyLens: undefined } : { ...deps.getScope(), payLens: undefined }); },
         };
     }

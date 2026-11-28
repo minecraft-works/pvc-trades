@@ -50,11 +50,23 @@ Music & Discs, Collectibles & Rarities.
 
 There are no new buttons. Each search field is the picker for its side:
 
-- **Click Buying or press Alt+↓** to open its menu: *Lenses ›*,
-  *Shops & owners ›* (a browsable list of all owners and shops) and the
-  filters as tick rows that stay open.
-- **Click Paying** to open its menu, which shows the "Pay with" lens grid
-  straight away.
+- **Click Buying or press Alt+↓** to open its menu. It starts with the
+  lens grid under "Buy", then *Shops & owners ›* under "Sold by" (a browsable
+  list of all owners and shops) and the filters as tick rows that stay open.
+- **Click Paying** to open its menu: the same lens grid under "Pay with",
+  and nothing else.
+- Both menus open on the same grid, so they look alike and a lens is one tap
+  away on either side. In the UI a lens is called a *category*: the headings
+  ("Buy", "Pay with") and the pills ("buying Redstone") say what it does, and
+  typed suggestions read "category · 110 trades". "Lens" stays the term in
+  code and docs.
+- The grid uses one-line tiles (icon, name, in-stock trade count) in two
+  columns, filters included, to keep the Buying menu short. Alt+1…4 hints are
+  hidden on touch screens.
+- On phones the menus span the whole search card instead of their field, and
+  their height follows the room the on-screen keyboard leaves (the keyboard
+  only shrinks the visual viewport, so `autocomplete.ts` measures it and sets
+  `--menu-room`).
 - **Typing** in Buying lists item names first, then matching lenses ("redst" →
   Redstone), shops and owners, and filters ("cheap" → Deals, Best per item).
   Typing in Paying only adds matching lenses.
@@ -90,7 +102,7 @@ so searches stay shareable and Back/Forward restore them. Swap (⇄) also swaps
 the Buying and Paying lenses.
 
 When a lens hides every match, the empty result says so and offers a way out:
-"4 matching trades outside Redstone · Remove lens".
+"4 matching trades outside Redstone · Show all".
 
 ## Alternatives considered
 

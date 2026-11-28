@@ -23,7 +23,10 @@
         padding: var(--spacing-sm);
     }
 
+    /* Field menus and suggestions hang from the search box instead of their
+       field (the fields are static), so they span the whole search card */
     .search-box {
+        position: relative;
         flex-wrap: nowrap;
         gap: 6px;
     }
@@ -59,6 +62,7 @@
 
     /* The field in use grows so its text has room; both are equal otherwise */
     .search-box > .search-input-wrapper {
+        position: static;
         transition: flex-grow 0.15s ease-out;
     }
 
@@ -115,9 +119,10 @@
         row-gap: 6px;
     }
 
-    /* The Paying menu is wider than its field, so it grows to the left */
-    #searchGive-suggestions {
-        left: auto;
+    /* The menus span the search card (see .search-box) */
+    .search-suggestions--menu,
+    #searchWant-suggestions {
+        min-width: 0;
     }
 
     /* Dim the page behind an open field menu: a tap there only closes the menu */

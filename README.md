@@ -12,12 +12,12 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Live Navigation**: Track your position on the server map and navigate to shops
 - **Price Intelligence**: Automatic clustering of nearby shops and of one owner's shops to prevent price manipulation
 - **Fast Probing**: Item-name autocomplete, per-item prices, and searches kept in the URL (bookmarkable, Back/Forward between probes)
-- **Lenses, Shops and Filters**: Click the Buying field (or press `Alt+↓`) for its menu:
-  - **Lenses** narrow a side to a theme. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
+- **Categories, Shops and Filters**: Click the Buying field (or press `Alt+↓`) for its menu:
+  - **Categories** (*lenses* in the docs) narrow a side to a theme, one tap away. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
   - **Shops & owners** lists every owner and shop.
   - **Filters**: Deals only, Best per item, Shulkers, New.
   
-  Clicking the Paying field shows its lenses straight away ("pay with Food" finds shops that accept food). Typing also suggests matching lenses, shops and filters. A click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
+  Clicking the Paying field shows the same categories ("pay with Food" finds shops that accept food). Typing also suggests matching categories, shops and filters. On phones the menu spans the search card and stays above the keyboard; a click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
 - **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Pick a shop or player from the Buying menu, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
 - **Flip Finder**: The **Flips** tab of the exchange-rates dialog (💱) lists items you can buy at one shop and sell to another player's shop for more, with the profit per trip; "Add both to cart" plans the route
 
@@ -26,8 +26,8 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | Key | Where | Action |
 |-----|-------|--------|
 | `/` or `Ctrl+F` | Anywhere | Jump to the Buying field (a second `Ctrl+F` opens the browser's find) |
-| Click or `Alt+↓` | Search field | Open the field's menu (Buying: lenses, shops & owners, filters; Paying: lenses) |
-| `→` / `←` | Field menu | Open a submenu (Lenses, Shops & owners) / go back |
+| Click or `Alt+↓` | Search field | Open the field's menu (Buying: categories, shops & owners, filters; Paying: categories) |
+| `→` / `←` | Field menu | Open Shops & owners / go back |
 | `Backspace` | Empty search field | Remove the field's last pill |
 | `Tab` | Buying field | Go straight to the Paying field (accepts a highlighted suggestion first) |
 | `Esc` | Search field | Clear the field |

@@ -226,7 +226,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
         const trades = outsideCount === 1 ? '1 matching trade' : `${outsideCount.toLocaleString()} matching trades`;
         return {
             message: `${trades} outside ${names}`,
-            actionLabel: lenses.length === 1 ? 'Remove lens' : 'Remove lenses',
+            actionLabel: 'Show all',
             onAction: deps.clearLenses,
         };
     }

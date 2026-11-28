@@ -93,8 +93,9 @@
     overflow-x: hidden;
 }
 
+/* Capped by the room a phone's keyboard leaves below the menu (--menu-room, set by autocomplete.ts) */
 .search-suggestions--menu {
-    max-height: min(60vh, 380px);
+    max-height: min(70vh, 480px, var(--menu-room, 100vh));
 }
 
 .search-suggestions li.search-suggestion-action,
@@ -189,7 +190,8 @@
     color: inherit;
 }
 
-/* Lens grid: two columns of tiles, the trade count under the name */
+/* Menu grid: two columns of one-line tiles (icon, name, trade count) and
+   filters; headings, the back row and Shops & owners span both columns */
 .search-suggestions--grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -198,27 +200,37 @@
 
 .search-suggestions--grid li.search-suggestion-action {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 6px;
-    padding: 5px 10px;
+    padding: 6px 10px;
 }
 
 .search-suggestions--grid .search-suggestion-action .suggestion-icon {
-    grid-row: span 2;
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 
-.search-suggestions--grid .search-suggestion-action .suggestion-detail {
-    margin-left: 0;
+.search-suggestions--grid li.search-suggestion-toggle {
+    padding: 6px 10px;
 }
 
-/* The Paying menu's "Pay with" heading spans the lens grid */
+.search-suggestions--grid li.search-suggestion-submenu,
 .search-suggestions--grid li.search-suggestion-heading,
 .search-suggestions--grid li.search-suggestion-heading:hover {
     grid-column: 1 / -1;
+}
+
+/* The first heading ("Buy", "Pay with") opens the menu: no divider above it */
+.search-suggestions--grid li.search-suggestion-heading:first-child {
     margin-top: 0;
     border-top: none;
+}
+
+/* Alt+1…4 mean nothing without a keyboard */
+@media (pointer: coarse) {
+    .search-suggestion-toggle .suggestion-detail {
+        display: none;
+    }
 }
 
 /* --- Empty results: what a lens is hiding --- */
