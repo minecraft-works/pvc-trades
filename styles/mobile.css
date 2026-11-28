@@ -196,15 +196,31 @@
         font-size: 0.72rem;
     }
 
-    /* The item name stays whole; the seller's name for a bundle or shulker box
-       gets whatever room is left */
+    /* The seller's name for a bundle or shulker box gets whatever room is left;
+       the item name only shrinks when it does not fit next to the size badge */
     .trade-row > .col.result-name > .name-text {
-        flex-shrink: 0;
         max-width: 100%;
     }
 
     .trade-row > .col.result-name > .item-label {
         flex: 1 1 0;
+    }
+
+    /* On a phone the size is plain muted text before the name, and the
+       restriction and the narrow cost column's badge are left to the details */
+    .item-tag {
+        padding: 0;
+        border: none;
+        font-size: 0.62rem;
+    }
+
+    .item-tag-size {
+        margin-right: 3px;
+    }
+
+    .item-tag-restriction,
+    .col.cost-name > .item-tag {
+        display: none;
     }
 
 

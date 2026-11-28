@@ -8,17 +8,20 @@
  * @module item-facts
  */
 
+import { formatName } from './formatting.js';
 import type { Item } from './types.js';
 
 /** What an item's lore says that is worth showing in the list */
 export interface ItemFacts {
-    /** Short badge labels, e.g. `['24x24', 'Nether only']` */
-    readonly tags: readonly string[];
+    /** Area covered, e.g. `32x32` or `Chunk`; undefined when the name already starts with it */
+    readonly size: string | undefined;
+    /** Where the item does not work, e.g. `Nether only` */
+    readonly restriction: string | undefined;
     /** Lowercase text the search matches against */
     readonly searchText: string;
 }
 
-const NO_FACTS: ItemFacts = { tags: [], searchText: '' };
+const NO_FACTS: ItemFacts = { size: undefined, restriction: undefined, searchText: '' };
 
 const FORMAT_CODE: Readonly<RegExp> = /§[\da-fk-orx]/gi;
 const LEADING_BULLET: Readonly<RegExp> = /^\s*•\s*/;
@@ -50,23 +53,23 @@ function getProtectedArea(text: string): string | undefined {
  * skipped: their lore lists contents.
  *
  * @param item - Item stack
- * @returns Badge tags and search text; both empty for items without such facts
+ * @returns Size, restriction and search text; empty for items without such facts
  *
  * @example
  * getItemFacts({ type: 'COAL_ORE', name: 'Standard Protection Block', amount: 1, lore: ['§6Will protect 32x32 blocks.'] })
- * // { tags: ['32x32'], searchText: '32x32' }
+ * // { size: '32x32', restriction: undefined, searchText: '32x32' }
  */
 export function getItemFacts(item: Readonly<Item>): ItemFacts {
     if (!item.lore || item.lore.length === 0 || item.type.toUpperCase().includes('SHULKER_BOX')) { return NO_FACTS; }
     const text = cleanLoreLine(item.lore.join(' '));
 
-    const facts = [
-        getProtectedArea(text),
-        NETHER_ONLY_PATTERN.test(text) ? 'Nether only' : undefined,
-    ].filter(fact => fact !== undefined);
-    if (facts.length === 0) { return NO_FACTS; }
+    const area = getProtectedArea(text);
+    const restriction = NETHER_ONLY_PATTERN.test(text) ? 'Nether only' : undefined;
+    if (area === undefined && restriction === undefined) { return NO_FACTS; }
 
-    return { tags: facts, searchText: facts.join(' ').toLowerCase() };
+    // Searchable either way; shown before the name only when the name does not already start with it
+    const size = area !== undefined && formatName(item).toLowerCase().startsWith(area.toLowerCase()) ? undefined : area;
+    return { size, restriction, searchText: [area, restriction].filter(fact => fact !== undefined).join(' ').toLowerCase() };
 }
 
 /**

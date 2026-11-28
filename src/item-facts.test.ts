@@ -20,28 +20,27 @@ describe('getItemFacts', () => {
     it('reads the protected area from old and new lore styles', () => {
         const legacy = block('Standard Protection Block', ['§7• §6Will protect 32x32 blocks.', '§8• §6Place this to claim your builds.']);
         const modern = block('Standard Protection Block', ['• Will protect 32x32 blocks.']);
-        expect(getItemFacts(legacy)).toEqual({ tags: ['32x32'], searchText: '32x32' });
+        expect(getItemFacts(legacy)).toEqual({ size: '32x32', restriction: undefined, searchText: '32x32' });
         expect(getItemFacts(modern)).toEqual(getItemFacts(legacy));
     });
 
     it('adds the world restriction', () => {
         const nether = block('Nether Protection Block', ['• Will protect 24x24 blocks.', '• Does not work in the Overworld.']);
-        expect(getItemFacts(nether)).toEqual({ tags: ['24x24', 'Nether only'], searchText: '24x24 nether only' });
+        expect(getItemFacts(nether)).toEqual({ size: '24x24', restriction: 'Nether only', searchText: '24x24 nether only' });
     });
 
     it('recognises a chunk block', () => {
-        const chunk = block('Mini', ['• Will protect an entire world chunk.']);
-        expect(getItemFacts(chunk).tags).toEqual(['Chunk']);
+        const chunk = block('Claim', ['• Will protect an entire world chunk.']);
+        expect(getItemFacts(chunk).size).toBe('Chunk');
     });
 
-    it('shows the size even when the name already says it', () => {
-        const sixteen = block('16x16 Protection Block', ['§6Will protect 16x16 blocks.']);
-        expect(getItemFacts(sixteen)).toEqual({ tags: ['16x16'], searchText: '16x16' });
-        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.'])).tags).toEqual(['Chunk']);
+    it('leaves out a size the name already starts with, but keeps it searchable', () => {
+        expect(getItemFacts(block('16x16 Protection Block', ['§6Will protect 16x16 blocks.']))).toEqual({ size: undefined, restriction: undefined, searchText: '16x16' });
+        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.']))).toEqual({ size: undefined, restriction: undefined, searchText: 'chunk' });
     });
 
     it('ignores items without such lore and shulker contents', () => {
-        expect(getItemFacts({ type: 'DIAMOND', name: '', amount: 1 }).tags).toEqual([]);
+        expect(getItemFacts({ type: 'DIAMOND', name: '', amount: 1 }).size).toBeUndefined();
         expect(getItemFacts(block('Cert', ['Use it to buy a claim block at the spawn.'])).searchText).toBe('');
         expect(getItemFacts({ type: 'SHULKER_BOX', name: '', amount: 1, lore: ['- 64x SAND'] }).searchText).toBe('');
     });

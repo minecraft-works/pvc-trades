@@ -496,9 +496,20 @@ test.describe('Protection blocks', () => {
 
     test.beforeEach(async ({ page }) => { await openApp(page, '', PROTECTION_DATA); });
 
-    test('the list shows the size and where the block works', async ({ page }) => {
-        const tags = await page.locator(`${ROW} .item-tag`).allInnerTexts();
-        expect(tags.toSorted((a, b) => a.localeCompare(b))).toEqual(['24x24 · Nether only', '32x32']);
+    test('the list shows the size before the name and where the block works after it', async ({ page }) => {
+        const sizes = await page.locator(`${ROW} .item-tag-size`).allInnerTexts();
+        expect(sizes.toSorted((a, b) => a.localeCompare(b))).toEqual(['24x24', '32x32']);
+        await expect(page.locator(`${ROW} .item-tag-restriction`)).toHaveText('Nether only');
+        await expect(page.locator(ROW).filter({ hasText: 'Standard' }).locator('.result-name > :first-child')).toHaveClass(/item-tag-size/);
+    });
+
+    test('on a phone the size badge stays whole next to a truncated name', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 800 });
+        for (const row of await page.locator(ROW).all()) {
+            const cell = await row.locator('.result-name').boundingBox();
+            const badge = await row.locator('.item-tag-size').boundingBox();
+            expect(cell && badge && badge.x >= cell.x && badge.x + badge.width <= cell.x + cell.width).toBe(true);
+        }
     });
 
     test('can be found by size', async ({ page }) => {
