@@ -176,6 +176,18 @@
     color: var(--color-text-muted);
 }
 
+/* Facts from an item's lore, e.g. the area of a protection block */
+.item-tag {
+    flex-shrink: 0;
+    margin-left: 6px;
+    padding: 0 5px;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-style: normal;
+    color: var(--color-text-muted);
+}
+
 .trade-row > .col.cost-amt,
 .trade-row > .col.result-amt,
 .trade-row > .col.stock,

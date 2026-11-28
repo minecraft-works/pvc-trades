@@ -2,7 +2,7 @@
  * Item Identity for Valuation
  *
  * Decides which items can share a market price. Enchanted variants get their
- * own price key, shulker boxes are valued by their contents, blocks that craft
+ * own price key (except enchantments that only make an item glow), shulker boxes are valued by their contents, blocks that craft
  * back into their base are counted in base units, and items whose variant is
  * missing from the shop data (potion effect, book contents, stored
  * enchantments) cannot be priced at all.
@@ -11,6 +11,7 @@
  */
 
 import { formatName } from '../formatting.js';
+import { isCosmeticEnchant } from '../item-facts.js';
 import { blockConversionsStore } from '../stores/block-conversions-store.js';
 import type { Item, ShulkerItem, ShulkerParseResult, Trade, TradeInput } from '../types.js';
 
@@ -74,7 +75,8 @@ export function isNamedBundle(item: Readonly<Item>): boolean {
 }
 
 function enchantSignature(item: Readonly<Item>): string {
-    const entries = Object.entries(item.enchant ?? {}).filter(([, level]) => typeof level === 'number');
+    const entries = Object.entries(item.enchant ?? {})
+        .filter(([key, level]) => typeof level === 'number' && !isCosmeticEnchant(item.type, key));
     if (entries.length === 0) { return ''; }
     const parts = entries
         .map(([key, level]) => `${key.replace('minecraft:', '').replaceAll('_', ' ').toLowerCase()} ${level}`)

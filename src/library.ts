@@ -8,6 +8,7 @@
  */
 
 import { formatName } from './formatting.js';
+import { getItemFacts } from './item-facts.js';
 import { getOverworldDistanceFromOrigin } from './routing/route-optimizer.js';
 import { parseExactQuery } from './search/query.js';
 import {
@@ -252,7 +253,6 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
     const lore = resultItem.lore ?? [];
     let resultName: string;
     let resultAmount: number;
-    let loreText = '';
     let isShulker = false;
     let shulkerItems: readonly ShulkerItem[] | undefined;
 
@@ -261,7 +261,6 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
         resultName = parsed.defaultName;
         resultAmount = parsed.defaultTotal;
         shulkerItems = parsed.items;
-        loreText = lore.join(' ').toLowerCase();
         isShulker = true;
     } else {
         // A named bundle shows as a bundle, with its name as the label
@@ -284,7 +283,7 @@ export function processTrade(recipe: Readonly<Recipe>, shop: Readonly<Shop>, map
         resultItem,
         x, y, z, world,
         displayStock,
-        loreText,
+        loreText: getItemFacts(resultItem).searchText,
         shulkerItems,
         resultName,
         resultAmount,
@@ -399,6 +398,10 @@ function checkWantQueryMatch(
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
     if (nameMatches(trade.resultText, wantQuery) || (trade.resultLabel !== undefined && nameMatches(trade.resultLabel, wantQuery))) {
+        return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
+    }
+    // Facts from lore (size, world) are found by plain queries, not by an exact "name"
+    if (parseExactQuery(wantQuery) === undefined && trade.loreText && matchesQuery(trade.loreText, wantQuery)) {
         return { matchResult: true, displayName: trade.resultName, displayAmount: trade.resultAmount };
     }
     const shulkerMatch = findMatchingShulkerItem(trade.shulkerItems, wantQuery);

@@ -55,6 +55,7 @@ src/
 ├── constants.ts         Storage keys, CSS classes, selectors, thresholds
 ├── debug.ts             Namespaced debug loggers (see Debugging)
 ├── formatting.ts        Pure name formatting
+├── item-facts.ts        Pure: size/world facts from lore, lore cleaning, cosmetic enchantments
 ├── tile-coords.ts       Pure tile coordinate maths (single source of truth)
 ├── valuation/           Pure: buildValuation (pair prices, currency graph, item values), rates, flips, item identity (shulkers, base units)
 ├── routing/             Pure: route optimisation (nearest neighbour + 2-opt), navigation helpers

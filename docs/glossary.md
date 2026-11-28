@@ -197,6 +197,10 @@ interface FilterResult {
 A transformation applied to trade display:
 - Resolves shulker boxes to contents
 - Converts bundles to component items
+- Renames custom server items (`trade_conversions.json`), matching on type, exact name and exact enchantment levels
+
+### Item Facts
+What an item's lore says about itself (`src/item-facts.ts`): the area a protection block covers (`32x32`, `Chunk`) and whether it only works in the Nether. Shown as a badge next to the name and matched by search (`32x32`, `nether`). Enchantments that only make an item glow (Lure on a protection block) are cosmetic: they are shown as "Glint effect" and do not split price keys.
 
 ### Trade Key
 A unique identifier for a trade: `${x}-${y}-${z}-${resultName}-${costName}`

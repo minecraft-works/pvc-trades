@@ -447,6 +447,30 @@ describe('filterTrade', () => {
         expect(result?.matchResult).toBeFalsy();
         expect(result?.matchCost).toBeFalsy();
     });
+
+    describe('facts from lore', () => {
+        const shop: Shop = { location: '0, 0, 0', world: MINECRAFT_OVERWORLD, recipes: [] };
+        const protection = processTrade({
+            resultItem: {
+                type: 'COAL_ORE',
+                name: 'Standard Protection Block',
+                amount: 1,
+                lore: ['§7• §6Will protect 32x32 blocks.', '§8• §6Write §6§o/guide§6 for more informations.'],
+            },
+            item1: { type: EMERALD, name: '', amount: 1 },
+            stock: 3
+        }, shop, []);
+
+        test('finds a protection block by its size', () => {
+            expect(filterTrade(protection, '32x32', '')?.matchResult).toBe(true);
+            expect(filterTrade(protection, '64x64', '')).toBeUndefined();
+        });
+
+        test('only matches lore text that states a fact, and not for exact names', () => {
+            expect(filterTrade(protection, 'guide', '')).toBeUndefined();
+            expect(filterTrade(protection, '"32x32"', '')).toBeUndefined();
+        });
+    });
 });
 
 describe('processTrade', () => {

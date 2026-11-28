@@ -470,6 +470,51 @@ test.describe('Seller-named bundles', () => {
     });
 });
 
+/**
+ * A protection block (glowing through a cosmetic Lure) for one diamond.
+ * @param name - Item name
+ * @param lore - Lore lines as the server writes them
+ * @returns Raw recipe in data.json shape
+ */
+function protectionBlock(name: string, lore: readonly string[]) {
+    return {
+        resultItem: { type: 'COAL_ORE', name, amount: 1, lore, enchant: { 'minecraft:lure': 1 } },
+        item1: { type: 'DIAMOND', name: '', amount: 1 },
+        stock: 5,
+    };
+}
+
+test.describe('Protection blocks', () => {
+    const PROTECTION_DATA = {
+        data: [{
+            location: '0.0, 64.0, 0.0', world: 'world', recipes: [
+                protectionBlock('Standard Protection Block', ['§7• §6Will protect 32x32 blocks.', '§8• §6Write §6§o/guide§6 for more informations.']),
+                protectionBlock('Nether Protection Block', ['• Will protect 24x24 blocks.', '• Does not work in the Overworld.']),
+            ],
+        }],
+    };
+
+    test.beforeEach(async ({ page }) => { await openApp(page, '', PROTECTION_DATA); });
+
+    test('the list shows the size and where the block works', async ({ page }) => {
+        const tags = await page.locator(`${ROW} .item-tag`).allInnerTexts();
+        expect(tags.toSorted((a, b) => a.localeCompare(b))).toEqual(['24x24 · Nether only', '32x32']);
+    });
+
+    test('can be found by size', async ({ page }) => {
+        await page.locator(WANT).fill('32x32');
+        await expect(page.locator(ROW)).toHaveCount(1);
+        await expect(page.locator(`${ROW} .result-name .name-text`)).toHaveText('Standard protection block');
+    });
+
+    test('details show readable lore and call the Lure enchantment a glint', async ({ page }) => {
+        await page.locator(ROW).filter({ hasText: 'Standard protection block' }).locator('.result-name .info-icon').click();
+        const details = page.locator('#trade-details-content');
+        await expect(details.locator('.trade-detail-lore-line')).toHaveText(['Will protect 32x32 blocks.', 'Write /guide for more informations.']);
+        await expect(details.locator('.trade-detail-enchant')).toHaveText('Glint effect');
+    });
+});
+
 test.describe('Autocomplete', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 

@@ -16,6 +16,7 @@ import {
     CSS_CLASSES,
     SORT,
 } from '../constants.js';
+import { getItemFacts } from '../item-facts.js';
 import { formatTradeCostNames, getCostParts, highlightSegments } from '../library.js';
 import { getTradeKey, isNether } from '../map/map-math.js';
 import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
@@ -163,6 +164,16 @@ function getResultLabel(label: string | undefined, displayName: string, regex: R
         content: html`<span class="item-label" title="Name the seller gave it">“${highlight(label, regex)}”</span>`,
         title: `${displayName} “${label}”`,
     };
+}
+
+/**
+ * Badge with what the lore of the shown items says, e.g. the area a protection block covers
+ * @param items - Items of the cell
+ * @returns The badge, or nothing when the lore has no such facts
+ */
+function getFactBadge(items: readonly (Item | undefined)[]): TemplateResult | typeof nothing {
+    const tags = items.flatMap(item => (item ? getItemFacts(item).tags : []));
+    return tags.length > 0 ? html`<span class="item-tag" title="From the item's lore">${tags.join(' · ')}</span>` : nothing;
 }
 
 /**
@@ -434,9 +445,9 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         return html`
             <button class="col ${info.starClass}" role="gridcell" data-item="${t.resultName}" title="${starTitle}" aria-label="${starTitle}: ${t.resultName}" @click=${onStarClick}>★</button>
             <span class="col result-amt" role="gridcell">${displayAmount}</span>
-            <span class="col result-name" role="gridcell" title="${resultLabel.title}"><span class="name-text">${resultDisplay}</span>${resultLabel.content}${resultInfoIcon}</span>
+            <span class="col result-name" role="gridcell" title="${resultLabel.title}"><span class="name-text">${resultDisplay}</span>${resultLabel.content}${getFactBadge([t.resultItem])}${resultInfoIcon}</span>
             <span class="col cost-amt" role="gridcell">${costAmt}</span>
-            <span class="col cost-name" role="gridcell" title="${costName}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPrice(t, displayAmount)}</span>
+            <span class="col cost-name" role="gridcell" title="${costName}"><span class="name-text">${costDisplay}</span>${getFactBadge([t.item1, t.item2])}${costInfoIcon}${getUnitPrice(t, displayAmount)}</span>
             <span class="col dev ${devClass}" role="gridcell" title="${dealTitle}">${devText}</span>
             <span class="col stock ${stockClass}" role="gridcell" title=${stockTitle}>${realStock ?? '∞'}</span>
             <span class="col coord distance" role="gridcell" title="${distanceTitle}">${Math.round(getOverworldDistanceFromOrigin(t))}</span>

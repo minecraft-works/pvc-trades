@@ -62,6 +62,13 @@ describe('item identity for valuation', () => {
         expect(getValuationName(item)).toBe('Diamond pickaxe [efficiency 5, unbreaking 3]');
     });
 
+    test('a glint-only enchantment does not split the price key', () => {
+        const glowing = { type: 'COAL_ORE', name: 'Standard Protection Block', amount: 1, enchant: { 'minecraft:lure': 1 } };
+        const plain = { type: 'COAL_ORE', name: 'Standard Protection Block', amount: 1 };
+        expect(getValuationName(glowing)).toBe(getValuationName(plain));
+        expect(getValuationName({ type: 'FISHING_ROD', name: '', amount: 1, enchant: { 'minecraft:lure': 2 } })).toBe('Fishing rod [lure 2]');
+    });
+
     test('items whose variant is not in the data cannot be priced', () => {
         expect(getValuationName({ type: 'POTION', name: '', amount: 1, enchant: {} })).toBeUndefined();
         expect(getValuationName({ type: 'ENCHANTED_BOOK', name: '', amount: 1, enchant: {} })).toBeUndefined();

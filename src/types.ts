@@ -168,6 +168,7 @@ export interface Trade {
     readonly displayStock: number;
     readonly resultText: string;
     readonly costText: string;
+    /** Lowercase facts from the result's lore (size, world) that search also matches */
     readonly loreText: string;
     readonly shulkerItems: readonly ShulkerItem[] | undefined;
     readonly resultName: string;

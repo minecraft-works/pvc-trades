@@ -170,69 +170,9 @@
         "customName": "VOUCHER_CREDITS_TOKEN"
     },
     {
-        "item": "LAPIS_ORE",
-        "originalName": "Mini Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "LAPIS_CLAIM"
-    },
-    {
-        "item": "COAL_ORE",
-        "originalName": "Standard Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "COAL_CLAIM"
-    },
-    {
-        "item": "COAL_ORE",
-        "originalName": "16x16 Protection Block",
-        "enchant": {
-            "": 0
-        },
-        "customName": "COAL_CLAIM",
-        "lore": "§6Will protect 16x16 blocks."
-    },
-    {
         "item": "REDSTONE_ORE",
-        "originalName": "Large Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "REDSTONE_CLAIM"
-    },
-    {
-        "item": "DEEPSLATE_EMERALD_ORE",
-        "originalName": "Super Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "EMERALD_CLAIM"
-    },
-    {
-        "item": "DIAMOND_ORE",
-        "originalName": "mEGA Protection BlocK",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "DIAMOND_CLAIM"
-    },
-    {
-        "item": "COPPER_ORE",
-        "originalName": "Chunk Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "CHUNK_CLAIM"
-    },
-    {
-        "item": "DEEPSLATE_COAL_ORE",
-        "originalName": "Hard Survival Protection Block",
-        "enchant": {
-            "minecraft:lure": 0
-        },
-        "customName": "HARD_SURVIVAL_CLAIM"
+        "originalName": "64x Protection Block",
+        "customName": "LARGE_PROTECTION_BLOCK"
     },
     {
         "item": "GOLDEN_APPLE",
