@@ -11,7 +11,7 @@
 import { QUICK_SEARCH } from '../constants.js';
 import type { QuickFilters, ShopFilter } from '../types.js';
 import { findLens, type LensId } from './lenses.js';
-import { buildShopFilterHref, readShopFilter } from './shop-filter.js';
+import { buildShopFilterHref, isAdminFilter, readShopFilter } from './shop-filter.js';
 
 /** Search field a scope option belongs to: Buying (received) or Paying (cost) */
 export type SearchSide = 'buy' | 'pay';
@@ -46,7 +46,7 @@ export interface TradeFilterSpec {
 
 const DEALS_PERCENT = Math.abs(QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT);
 
-/** The trade filters, in Alt+1…4 order */
+/** The trade filters, in Alt+1…5 order */
 export const TRADE_FILTERS: readonly TradeFilterSpec[] = [
     {
         key: 'dealsOnly', param: 'deals', label: `Deals ≤ −${DEALS_PERCENT}%`, menuLabel: `Deals ≤ −${DEALS_PERCENT}%`,
@@ -64,10 +64,14 @@ export const TRADE_FILTERS: readonly TradeFilterSpec[] = [
         key: 'newOnly', param: 'new', label: 'New', menuLabel: 'New since last visit',
         title: 'Only trades that are new since your last visit',
     },
+    {
+        key: 'hideAdmin', param: 'noadmin', label: 'No admin shops', menuLabel: 'Hide admin shops',
+        title: 'Only player shops: leave out the server\'s own shops at spawn',
+    },
 ];
 
 /** No filters on */
-export const NO_FILTERS: QuickFilters = { dealsOnly: false, bestPerItem: false, shulkersOnly: false, newOnly: false };
+export const NO_FILTERS: QuickFilters = { dealsOnly: false, bestPerItem: false, shulkersOnly: false, newOnly: false, hideAdmin: false };
 
 /** Nothing narrows the results */
 export const EMPTY_SCOPE: SearchScope = { buyLens: undefined, payLens: undefined, shop: undefined, filters: NO_FILTERS };
@@ -99,7 +103,8 @@ export function isScopeActive(scope: SearchScope): boolean {
  * Read the scope from a URL query string.
  *
  * @param search - `location.search`, e.g. "?lens=redstone&owner=Val&filters=best,new"
- * @returns The scope; unknown lenses and filters are ignored
+ * @returns The scope; unknown lenses and filters are ignored, and an admin
+ *   shop filter wins over "Hide admin shops"
  */
 export function readScope(search: string): SearchScope {
     const parameters = new URLSearchParams(search);
@@ -108,12 +113,40 @@ export function readScope(search: string): SearchScope {
     for (const spec of TRADE_FILTERS) {
         if (filterNames.has(spec.param)) { filters = { ...filters, [spec.key]: true }; }
     }
-    return {
+    return withShop({
         buyLens: findLens(parameters.get(LENS_PARAM.buy) ?? undefined)?.id,
         payLens: findLens(parameters.get(LENS_PARAM.pay) ?? undefined)?.id,
-        shop: readShopFilter(search),
+        shop: undefined,
         filters,
-    };
+    }, readShopFilter(search));
+}
+
+/**
+ * The scope with another shop filter (or none). Showing admin shops and
+ * hiding them exclude each other: picking the admin shops turns off
+ * "Hide admin shops".
+ *
+ * @param scope - Search scope
+ * @param shop - New shop filter, or undefined for all shops
+ * @returns Updated scope
+ */
+export function withShop(scope: SearchScope, shop: ShopFilter | undefined): SearchScope {
+    const filters = isAdminFilter(shop) ? { ...scope.filters, hideAdmin: false } : scope.filters;
+    return { ...scope, shop, filters };
+}
+
+/**
+ * The scope with a trade filter turned on or off. Turning on "Hide admin
+ * shops" drops a shop filter that shows admin shops.
+ *
+ * @param scope - Search scope
+ * @param key - Trade filter
+ * @param enabled - New state
+ * @returns Updated scope
+ */
+export function withFilter(scope: SearchScope, key: keyof QuickFilters, enabled: boolean): SearchScope {
+    const hidesAdminShop = key === 'hideAdmin' && enabled && isAdminFilter(scope.shop);
+    return { ...scope, shop: hidesAdminShop ? undefined : scope.shop, filters: { ...scope.filters, [key]: enabled } };
 }
 
 /**

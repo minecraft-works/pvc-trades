@@ -199,6 +199,8 @@ export interface QuickFilters {
     readonly shulkersOnly: boolean;
     /** Only trades that are new since the last visit */
     readonly newOnly: boolean;
+    /** Leave out the admin shops (the server's own spawn shops) */
+    readonly hideAdmin: boolean;
 }
 
 /** Limits the results to one player's shops, or to one of their shops */

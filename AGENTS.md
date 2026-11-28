@@ -14,7 +14,7 @@ Pages; data comes from two Cloudflare Workers that add CORS to the map server:
 
 | Data | Source |
 |------|--------|
-| Shop trades | `workers/shops` (`pvc-shops`), proxies `…/shops/data.json`, supports ETag/304 |
+| Shop trades | `workers/shops` (`pvc-shops`), proxies `…/shops/data.json` and appends the admin shops, supports ETag/304 |
 | Live players | `workers/players` (`pvc-players`), proxies `…/maps/tiles/players.json` |
 | Map tiles | Loaded by the browser straight from the map server as `<img>` |
 
@@ -136,6 +136,11 @@ Rules:
   `'overworld' | 'the_nether' | 'the_end'`.
 - **Shop data refresh** (default 60 s) revalidates with the Worker and skips
   all processing when the payload is unchanged.
+- **Admin shops:** the shops Worker appends the server's spawn shops with
+  owner `ADMIN_SHOP_OWNER` (`constants.ts`; the Worker keeps a copy that must
+  match). Their `stock` is a placeholder for unlimited: rank by
+  `getRealStock()`, never `displayStock` (ADR-024). Localhost data has none,
+  so tests add them via `tests/helpers/admin-shop-mocks.ts`.
 - **Bundle budget:** initial JS ~57 kB gzip (~49 kB brotli); `size-limit`
   fails CI above 55 kB brotli. Prefer small in-house code over new runtime
   dependencies, and load heavy features on demand (ADR-021).

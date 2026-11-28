@@ -33,7 +33,7 @@ import { confidentOnly, isEstimate } from './deviation.js';
 import { findLens, type Lens, paysWithLens, receivesFromLens } from './lenses.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
 import type { SearchScope, SearchSide } from './scope.js';
-import { matchesShopFilter } from './shop-filter.js';
+import { getRealStock, isAdminShop, matchesShopFilter } from './shop-filter.js';
 
 /** "Deals only" shows trades at least this much below market */
 const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
@@ -45,6 +45,21 @@ const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
  */
 function involvesFilledShulker(trade: Readonly<Trade>): boolean {
     return [trade.resultItem, trade.item1, trade.item2].some(item => item !== undefined && isFilledShulker(item));
+}
+
+/**
+ * Compare two trades by stock. Admin shops have no real stock (a placeholder
+ * for unlimited), so they sink to the bottom, regardless of direction.
+ * @param ta - First trade
+ * @param tb - Second trade
+ * @param multiplier - 1 ascending, -1 descending
+ * @returns Sort order
+ */
+function compareStock(ta: Readonly<Trade>, tb: Readonly<Trade>, multiplier: number): number {
+    const stockA = getRealStock(ta);
+    const stockB = getRealStock(tb);
+    if (stockA === undefined || stockB === undefined) { return Number(stockA === undefined) - Number(stockB === undefined); }
+    return multiplier * (stockA - stockB);
 }
 
 // ============================================================================
@@ -213,6 +228,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     function isExcludedByQuickFilters(trade: Trade, filters: QuickFilters): boolean {
         if (filters.newOnly && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (filters.shulkersOnly && !involvesFilledShulker(trade)) { return true; }
+        if (filters.hideAdmin && isAdminShop(trade)) { return true; }
         if (!filters.dealsOnly) { return false; }
         // Cross-currency estimates are too uncertain to count as deals (ADR-019)
         const deviation = confidentOnly(deps.getDeviation())(trade);
@@ -296,7 +312,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
                 results,
                 r => r.displayName.toLowerCase(),
                 r => deviationCalc(r.trade)?.percent,
-                r => r.trade.displayStock
+                r => getRealStock(r.trade)
             )];
         }
 
@@ -347,7 +363,7 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
                 return multiplier * ta.resultName.localeCompare(tb.resultName);
             }
             case 'stock': {
-                return multiplier * (ta.displayStock - tb.displayStock);
+                return compareStock(ta, tb, multiplier);
             }
             case 'world': {
                 return multiplier * ta.world.localeCompare(tb.world);

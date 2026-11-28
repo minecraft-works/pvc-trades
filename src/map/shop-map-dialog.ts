@@ -15,7 +15,7 @@ import { html } from 'lit-html';
 import { SELECTORS } from '../constants.js';
 import { getWorldDisplayName } from '../dialogs/index.js';
 import { renderToElement } from '../rendering/render.js';
-import type { ShopLocation, ShopSummary } from '../search/shop-filter.js';
+import { isAdminShop, type ShopLocation, type ShopSummary } from '../search/shop-filter.js';
 import { playerPositionService } from '../stores/player-position-service.js';
 import { getTileCoords } from '../tile-coords.js';
 import type { Player, ShopFilter } from '../types.js';
@@ -490,7 +490,8 @@ function addShopMarkers(map: L.Map, parameters: ShopMapSetupParameters): () => v
         if (getWorldId(shop.world) !== worldId) { continue; }
         const { lat, lng } = toLeafletCoordsRelative(shop.x, shop.z, tileX, tileZ, TILE_CONFIG.tileSize);
         const name = shop.shopName ?? shop.shopOwner ?? 'Shop';
-        const owner = shop.shopName && shop.shopOwner ? ` · ${shop.shopOwner}` : '';
+        const ownerName = isAdminShop(shop) ? 'admin shop' : shop.shopOwner;
+        const owner = shop.shopName && shop.shopOwner ? ` · ${ownerName}` : '';
         markers.push(leaflet().marker([lat, lng], { icon, keyboard: false, zIndexOffset: Z_SHOP_DOT })
             // No trade count here: the pill's "All N trades" counts every shop with this name
             .bindTooltip(() => renderToElement(html`<strong>${name}</strong>${owner}`), {
@@ -679,7 +680,7 @@ function renderShopInfo(element: HTMLElement, summary: ShopSummary | undefined, 
     const ownerElement = document.createElement('span');
     ownerElement.className = 'map-shop-owner';
     if (summary.shopName) {
-        ownerElement.textContent = `by ${owner}`;
+        ownerElement.textContent = isAdminShop(summary) ? 'Admin shop' : `by ${owner}`;
         element.append(name, ownerElement);
     } else {
         ownerElement.textContent = 'Shop of';

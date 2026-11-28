@@ -23,8 +23,8 @@ scope* (`src/search/scope.ts`, held by `searchScopeStore`):
 | | Question | Options | How many |
 |---|---|---|---|
 | **WHAT** — lens | What kind of item? | 12 built-in lenses | one per side (Buying, Paying) |
-| **WHO** — shop | Who sells it? | an owner, or one of their shops | one |
-| **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New | any |
+| **WHO** — shop | Who sells it? | an owner, or one of their shops (the admin shops are one owner, ADR-024) | one |
+| **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New, Hide admin shops | any |
 
 All three intersect. "Redstone + ValeriaShares + Best per item" is the
 cheapest offer for each redstone item in ValeriaShares' shops.
@@ -75,7 +75,7 @@ There are no new buttons. Each search field is the picker for its side:
   filters included, to keep the Buying menu short. Menu rows have no icons:
   the names are short and clear, emoji look different on every platform and
   nothing like Minecraft, and the space is better spent on the name. Only
-  the back arrow (‹) stays. Alt+1…4 hints are hidden on touch screens.
+  the back arrow (‹) stays. Alt+1…5 hints are hidden on touch screens.
 - On phones the menus span the whole search card instead of their field, and
   their height follows the room the on-screen keyboard leaves (the keyboard
   only shrinks the visual viewport, so `autocomplete.ts` measures it and sets
@@ -111,7 +111,7 @@ The fixed toggle row is gone. Below the fields, one pill per active scope:
 - Clicking a pill opens the menu to change it; ✕ removes it; Backspace in an
   empty field removes that field's last pill.
 - With nothing active the row is hidden.
-- Alt+1…4 still toggle the four filters from anywhere.
+- Alt+1…5 still toggle the five filters from anywhere.
 
 ### 5. URL and swap
 

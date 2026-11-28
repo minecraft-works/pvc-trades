@@ -165,6 +165,18 @@ export const WORLDS = {
 } as const;
 
 // ============================================================================
+// Admin Shops
+// ============================================================================
+
+/**
+ * Shop owner of the admin shops (the server's spawn villagers). The shops
+ * Worker renames the mapper's `##ADMIN##` to this; workers/shops/admin-shops.ts
+ * has its own copy (it can't import from src), so the two must match. The space
+ * means no player can have this name.
+ */
+export const ADMIN_SHOP_OWNER = 'Server Admins';
+
+// ============================================================================
 // Column Identifiers
 // ============================================================================
 

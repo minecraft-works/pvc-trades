@@ -172,28 +172,35 @@ export function formatUnitPrice(costAmount: number, resultAmount: number): strin
 
 /**
  * Keep only the best offer per item: the lowest deviation wins, trades
- * without a deviation lose, and higher stock breaks ties.
+ * without a deviation lose, and higher stock breaks ties when both stocks
+ * are known.
  *
  * @param results - Filtered results
  * @param getKey - Item identity for grouping (e.g. lowercase result name)
  * @param getPercent - Deviation percent of a result, undefined if unknown
- * @param getStock - Stock of a result
+ * @param getStock - Stock of a result, undefined when it isn't a real number (admin shops)
  * @returns One result per item, in first-seen order
  */
 export function pickBestPerItem<T>(
     results: readonly T[],
     getKey: (result: T) => string,
     getPercent: (result: T) => number | undefined,
-    getStock: (result: T) => number
+    getStock: (result: T) => number | undefined
 ): readonly T[] {
     const best = new Map<string, T>();
     const score = (result: T): number => getPercent(result) ?? Number.POSITIVE_INFINITY;
+    // More stock breaks a tie only when both stocks are real (admin shops have none)
+    const hasMoreStock = (a: T, b: T): boolean => {
+        const stockA = getStock(a);
+        const stockB = getStock(b);
+        return stockA !== undefined && stockB !== undefined && stockA > stockB;
+    };
     for (const result of results) {
         const key = getKey(result);
         const current = best.get(key);
         const isBetter = current === undefined
             || score(result) < score(current)
-            || (score(result) === score(current) && getStock(result) > getStock(current));
+            || (score(result) === score(current) && hasMoreStock(result, current));
         if (isBetter) { best.set(key, result); }
     }
     return [...best.values()];

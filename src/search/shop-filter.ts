@@ -5,6 +5,7 @@
  * @module search/shop-filter
  */
 
+import { ADMIN_SHOP_OWNER } from '../constants.js';
 import type { ShopFilter, Trade } from '../types.js';
 import { textMatchRank } from './query.js';
 
@@ -12,6 +13,12 @@ import { textMatchRank } from './query.js';
 const OWNER_PARAM = 'owner';
 /** URL query parameter holding the shop name filter */
 const SHOP_PARAM = 'shop';
+
+/** The filter that shows every admin shop (`?owner=Server Admins`) */
+export const ADMIN_SHOPS_FILTER: ShopFilter = { owner: ADMIN_SHOP_OWNER };
+
+/** Name of the admin shops as a group, in the menu and on its pill */
+export const ADMIN_SHOPS_LABEL = 'Admin shops';
 
 /** An autocomplete entry that limits results to a shop or an owner */
 export interface ShopSuggestion {
@@ -51,6 +58,38 @@ function plural(count: number, word: string): string {
 
 function equalsIgnoreCase(a: string | undefined, b: string | undefined): boolean {
     return a !== undefined && a.toLowerCase() === b?.toLowerCase();
+}
+
+/**
+ * Whether a trade is in an admin shop: the server's own spawn shops, which
+ * sell at fixed prices with unlimited stock.
+ *
+ * @param trade - Trade to check
+ * @returns True for an admin shop
+ */
+export function isAdminShop(trade: Readonly<Pick<Trade, 'shopOwner'>>): boolean {
+    return equalsIgnoreCase(trade.shopOwner, ADMIN_SHOP_OWNER);
+}
+
+/**
+ * Whether a shop filter shows admin shops: all of them, or one of them.
+ *
+ * @param filter - Shop filter, if any
+ * @returns True if the filter is on the admin owner
+ */
+export function isAdminFilter(filter: ShopFilter | undefined): boolean {
+    return filter !== undefined && equalsIgnoreCase(filter.owner, ADMIN_SHOP_OWNER);
+}
+
+/**
+ * The stock to rank a trade by. Admin shops report a placeholder (their stock
+ * is unlimited), which must not make them look plentiful in a sort or a tie-break.
+ *
+ * @param trade - Trade
+ * @returns Stock shown for the trade, or undefined for an admin shop
+ */
+export function getRealStock(trade: Readonly<Pick<Trade, 'shopOwner' | 'displayStock'>>): number | undefined {
+    return isAdminShop(trade) ? undefined : trade.displayStock;
 }
 
 /**

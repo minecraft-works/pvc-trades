@@ -22,6 +22,7 @@ import { getOverworldDistanceFromOrigin } from '../routing/route-optimizer.js';
 import { isEstimate } from '../search/deviation.js';
 import type { DeviationResult } from '../search/index.js';
 import { formatUnitPrice } from '../search/query.js';
+import { getRealStock, isAdminShop } from '../search/shop-filter.js';
 import { cartStore, favoritesStore } from '../stores/index.js';
 import type {
     EmptyResultsHint,
@@ -144,6 +145,7 @@ function mark(text: string): TemplateResult {
  */
 function getShopTitle(t: Trade): string {
     if (!t.shopOwner) { return ''; }
+    if (isAdminShop(t)) { return t.shopName ? `\n${t.shopName} (admin shop)` : '\nAdmin shop'; }
     return t.shopName ? `\n${t.shopName} by ${t.shopOwner}` : `\nShop of ${t.shopOwner}`;
 }
 
@@ -401,6 +403,9 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
         const { devClass, devText, dealTitle } = getDeviationDisplayInfo(t);
         const { abbrev: worldAbbrev, title: worldTitle } = getWorldDisplayInfo(t.world);
         const stockClass = t.displayStock === 0 ? 'no-stock' : 'in-stock';
+        // Admin shops report a placeholder: their stock is unlimited
+        const realStock = getRealStock(t);
+        const stockTitle = realStock === undefined ? 'Admin shop: unlimited stock' : nothing;
         const resultInfoIcon = itemHasDetails(t.resultItem) ? html`<button class="info-icon" data-info="result" title="View details">ℹ</button>` : nothing;
         const costInfoIcon = (itemHasDetails(t.item1) || (t.item2 && itemHasDetails(t.item2))) ? html`<button class="info-icon" data-info="cost" title="View details">ℹ</button>` : nothing;
         const starTitle = info.isFavorite ? 'Edit favorite' : 'Add to favorites';
@@ -427,7 +432,7 @@ export function createTradeRendererHandler(deps: TradeRendererDeps): TradeRender
             <span class="col cost-amt" role="gridcell">${costAmt}</span>
             <span class="col cost-name" role="gridcell" title="${costName}"><span class="name-text">${costDisplay}</span>${costInfoIcon}${getUnitPrice(t, displayAmount)}</span>
             <span class="col dev ${devClass}" role="gridcell" title="${dealTitle}">${devText}</span>
-            <span class="col stock ${stockClass}" role="gridcell">${t.displayStock}</span>
+            <span class="col stock ${stockClass}" role="gridcell" title=${stockTitle}>${realStock ?? '∞'}</span>
             <span class="col coord distance" role="gridcell" title="${distanceTitle}">${Math.round(getOverworldDistanceFromOrigin(t))}</span>
             <span class="col coord world" role="gridcell" title="${worldTitle}">${worldAbbrev}</span>
             <button class="col add-to-cart-btn${info.inCartClass}" role="gridcell" data-trade-key="${info.tradeKey}" title="Add to cart (+ on a focused row)" aria-label="Add ${t.resultName} to cart" @click=${onCartClick}>+</button>

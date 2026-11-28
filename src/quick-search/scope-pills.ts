@@ -2,7 +2,7 @@
  * Pill row under the search fields: one pill per active lens, shop filter and
  * trade filter, in WHAT → WHO → HOW order. Clicking a pill opens the menu to
  * change it; its ✕ removes it. The row is hidden while nothing narrows the
- * results. Alt+1…4 toggle the trade filters from anywhere.
+ * results. Alt+1…5 toggle the trade filters from anywhere.
  *
  * @module quick-search/scope-pills
  */
@@ -11,8 +11,8 @@ import { html, nothing, render, type TemplateResult } from 'lit-html';
 
 import { findLens } from '../search/lenses.js';
 import { isScopeActive, type SearchScope, type SearchSide, TRADE_FILTERS } from '../search/scope.js';
-import { formatShopFilter } from '../search/shop-filter.js';
-import type { QuickFilters } from '../types.js';
+import { ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter } from '../search/shop-filter.js';
+import type { QuickFilters, ShopFilter } from '../types.js';
 import type { ScopeTone } from './autocomplete.js';
 import { SHOP_SUBMENU_ID } from './field-menu.js';
 
@@ -80,25 +80,28 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
         };
     }
 
+    function shopPill(shop: ShopFilter): PillSpec {
+        const remove = (): void => { deps.setScope({ ...deps.getScope(), shop: undefined }); };
+        // All admin shops as one group, named like their row in the menu (where it is picked)
+        if (isAdminFilter(shop) && shop.shop === undefined) {
+            return {
+                id: 'shop', tone: 'who', side: 'buy', prefix: undefined, label: ADMIN_SHOPS_LABEL,
+                description: `Shop filter ${ADMIN_SHOPS_LABEL}`, edit: () => { deps.openMenu('buy'); }, remove,
+            };
+        }
+        return {
+            id: 'shop', tone: 'who', side: 'buy', prefix: shop.shop ? 'at' : 'by', label: shop.shop ?? shop.owner,
+            description: `Shop filter ${formatShopFilter(shop)}`, edit: () => { deps.openMenu('buy', SHOP_SUBMENU_ID); }, remove,
+        };
+    }
+
     function collectPills(scope: SearchScope): readonly PillSpec[] {
         const pills: PillSpec[] = [];
         for (const side of ['buy', 'pay'] as const) {
             const pill = lensPill(scope, side);
             if (pill) { pills.push(pill); }
         }
-        if (scope.shop) {
-            const { shop } = scope;
-            pills.push({
-                id: 'shop',
-                tone: 'who',
-                side: 'buy',
-                prefix: shop.shop ? 'at' : 'by',
-                label: shop.shop ?? shop.owner,
-                description: `Shop filter ${formatShopFilter(shop)}`,
-                edit: () => { deps.openMenu('buy', SHOP_SUBMENU_ID); },
-                remove: () => { deps.setScope({ ...deps.getScope(), shop: undefined }); },
-            });
-        }
+        if (scope.shop) { pills.push(shopPill(scope.shop)); }
         for (const spec of TRADE_FILTERS) {
             if (!scope.filters[spec.key]) { continue; }
             pills.push({
@@ -144,7 +147,7 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
 }
 
 /**
- * Alt+1…4 toggle the trade filters, in menu order.
+ * Alt+1…5 toggle the trade filters, in menu order.
  * @param event - Keydown event
  * @param toggle - Flip a filter
  * @returns True if the event was a filter shortcut

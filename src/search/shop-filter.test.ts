@@ -1,11 +1,15 @@
 import { describe, expect, test } from 'vitest';
 
+import { ADMIN_SHOP_OWNER } from '../constants.js';
 import { processTrade } from '../library.js';
 import type { Recipe, Shop, Trade } from '../types.js';
 import {
     buildShopFilterHref,
     collectShopLocations,
     collectShopSuggestions,
+    getRealStock,
+    isAdminFilter,
+    isAdminShop,
     matchesShopFilter,
     rankShopSuggestions,
     readShopFilter,
@@ -52,6 +56,30 @@ describe('matchesShopFilter', () => {
 
     test('trades without a known owner never match', () => {
         expect(matchesShopFilter(makeTrade({}), { owner: '.aus3z' })).toBe(false);
+    });
+});
+
+describe('admin shops', () => {
+    const adminTrade = makeTrade({ shopName: 'Bulk', shopOwner: ADMIN_SHOP_OWNER }, 'COBBLESTONE', 93_313);
+    const playerTrade = makeTrade(vendor, 'ELYTRA', 4);
+
+    test('are told apart from player shops by their owner, ignoring case', () => {
+        expect(isAdminShop(adminTrade)).toBe(true);
+        expect(isAdminShop({ shopOwner: ADMIN_SHOP_OWNER.toUpperCase() })).toBe(true);
+        expect(isAdminShop(playerTrade)).toBe(false);
+        expect(isAdminShop({ shopOwner: undefined })).toBe(false);
+    });
+
+    test('an admin filter is one on the admin owner, for all admin shops or one of them', () => {
+        expect(isAdminFilter({ owner: ADMIN_SHOP_OWNER })).toBe(true);
+        expect(isAdminFilter({ owner: ADMIN_SHOP_OWNER, shop: 'Bulk' })).toBe(true);
+        expect(isAdminFilter({ owner: '.aus3z' })).toBe(false);
+        expect(isAdminFilter(undefined)).toBe(false);
+    });
+
+    test('have no real stock to rank by (it is a placeholder for unlimited)', () => {
+        expect(getRealStock(adminTrade)).toBeUndefined();
+        expect(getRealStock(playerTrade)).toBe(4);
     });
 });
 

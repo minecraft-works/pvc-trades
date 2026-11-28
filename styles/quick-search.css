@@ -242,7 +242,7 @@
     border-top: none;
 }
 
-/* Alt+1…4 mean nothing without a keyboard */
+/* Alt+1…5 mean nothing without a keyboard */
 @media (pointer: coarse) {
     .search-suggestion-toggle .suggestion-detail {
         display: none;

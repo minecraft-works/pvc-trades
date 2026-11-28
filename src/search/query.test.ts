@@ -85,7 +85,7 @@ describe('formatUnitPrice', () => {
 });
 
 describe('pickBestPerItem', () => {
-    interface Offer { name: string; percent: number | undefined; stock: number }
+    interface Offer { name: string; percent: number | undefined; stock: number | undefined }
     const pick = (offers: Offer[]) => pickBestPerItem(offers, o => o.name, o => o.percent, o => o.stock);
 
     test('keeps the lowest deviation per item', () => {
@@ -105,6 +105,13 @@ describe('pickBestPerItem', () => {
         const small = { name: 'pork', percent: -10, stock: 2 };
         const large = { name: 'pork', percent: -10, stock: 20 };
         expect(pick([small, large])).toEqual([large]);
+    });
+
+    test('an unknown stock (an admin shop) neither wins nor loses a tie', () => {
+        const player = { name: 'beef', percent: 0, stock: 3 };
+        const admin = { name: 'beef', percent: 0, stock: undefined };
+        expect(pick([player, admin])).toEqual([player]);
+        expect(pick([admin, player])).toEqual([admin]);
     });
 });
 

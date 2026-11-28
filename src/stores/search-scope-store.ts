@@ -7,7 +7,7 @@
  */
 
 import type { LensId } from '../search/lenses.js';
-import { EMPTY_SCOPE, type SearchScope, type SearchSide } from '../search/scope.js';
+import { EMPTY_SCOPE, type SearchScope, type SearchSide, withFilter, withShop } from '../search/scope.js';
 import type { QuickFilters, ShopFilter } from '../types.js';
 
 /**
@@ -48,7 +48,7 @@ class SearchScopeStore {
      * @param shop - Shop or owner, or undefined to show all shops
      */
     setShop(shop: ShopFilter | undefined): void {
-        this.set({ ...this.scope, shop });
+        this.set(withShop(this.scope, shop));
     }
 
     /**
@@ -57,7 +57,7 @@ class SearchScopeStore {
      * @param enabled - New state
      */
     setFilter(key: keyof QuickFilters, enabled: boolean): void {
-        this.set({ ...this.scope, filters: { ...this.scope.filters, [key]: enabled } });
+        this.set(withFilter(this.scope, key, enabled));
     }
 
     /**

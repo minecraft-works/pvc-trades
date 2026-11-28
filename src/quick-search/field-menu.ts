@@ -13,7 +13,7 @@
 
 import { type Lens, LENSES, type LensId, paysWithLens, receivesFromLens } from '../search/lenses.js';
 import { getScopeLens, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
-import { formatShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
+import { ADMIN_SHOPS_FILTER, ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { FilterResult, QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
@@ -137,6 +137,50 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         };
     }
 
+    /**
+     * The pinned "Admin shops" row: the server's own shops as one group,
+     * picked in place like a category
+     * @param suggestion - The admin owner's suggestion, for its counts
+     * @returns Menu row
+     */
+    function adminAction(suggestion: ShopSuggestion): MenuEntry {
+        const { shop } = deps.getScope();
+        const current = isAdminFilter(shop) && shop?.shop === undefined;
+        const action: ActionSuggestion = {
+            current,
+            label: ADMIN_SHOPS_LABEL,
+            detail: suggestion.detail,
+            actionLabel: 'Show only the admin shops',
+            tone: 'who',
+            keepOpen: true,
+            accept: () => { deps.setShop(current ? undefined : ADMIN_SHOPS_FILTER); },
+        };
+        return { kind: 'action', action };
+    }
+
+    /**
+     * The "Sold by" rows: Admin shops (when the data has them), shops whose
+     * name matches the typed text, and the list of all shops and owners
+     * @param typed - Text typed in the field
+     * @param admin - The admin owner's suggestion, if there are admin shops
+     * @returns Menu rows under "Sold by"
+     */
+    function getSoldBy(typed: string, admin: ShopSuggestion | undefined): readonly MenuEntry[] {
+        const { shop } = deps.getScope();
+        const all = deps.getShopSuggestions();
+        const ownerCount = all.filter(suggestion => suggestion.kind === 'owner').length;
+        const typedShops = rankShopSuggestions(all, typed, MAX_TYPED_SHOPS).filter(suggestion => suggestion !== admin);
+        return [
+            ...(admin ? [adminAction(admin)] : []),
+            ...typedShops.map(suggestion => shopAction(suggestion)),
+            {
+                kind: 'submenu', label: 'Shops & owners',
+                detail: shop ? formatShopFilter(shop) : plural(ownerCount, 'owner'),
+                tone: 'who', submenu: shopSubmenu,
+            },
+        ];
+    }
+
     const shopSubmenu: Submenu = {
         id: SHOP_SUBMENU_ID,
         title: 'Shops & owners',
@@ -166,19 +210,15 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             ...LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
         ];
         if (side === 'pay') { return lenses; }
-        const all = deps.getShopSuggestions();
-        const ownerCount = all.filter(suggestion => suggestion.kind === 'owner').length;
+        const admin = deps.getShopSuggestions().find(suggestion => suggestion.kind === 'owner' && isAdminFilter(suggestion.filter));
+        // "Hide admin shops" only when there are admin shops to hide, or to turn it off again
+        const filters = TRADE_FILTERS.filter(spec => spec.key !== 'hideAdmin' || admin !== undefined || scope.filters.hideAdmin);
         return [
             ...lenses,
             { kind: 'heading', label: 'Sold by' },
-            ...rankShopSuggestions(all, typed, MAX_TYPED_SHOPS).map(suggestion => shopAction(suggestion)),
-            {
-                kind: 'submenu', label: 'Shops & owners',
-                detail: scope.shop ? formatShopFilter(scope.shop) : plural(ownerCount, 'owner'),
-                tone: 'who', submenu: shopSubmenu,
-            },
+            ...getSoldBy(typed, admin),
             { kind: 'heading', label: 'Filters' },
-            ...TRADE_FILTERS.map(spec => filterToggle(spec)),
+            ...filters.map(spec => filterToggle(spec)),
         ];
     }
 
