@@ -1,6 +1,9 @@
 /* Search: fields with the action buttons beside them, quick filters below.
    On small screens the actions move to the quick-filter row (see the media query). */
 .search-container {
+    /* Height of a search field; its wrapper adds a 1px border (see the field menu in quick-search.css) */
+    --search-field-height: 36px;
+
     display: grid;
     grid-template: "box actions" auto "meta meta" auto / minmax(0, 1fr) auto;
     column-gap: 4px;
@@ -124,7 +127,7 @@
 #searchGive {
     flex: 1 1 0;
     min-width: 0;
-    height: 36px;
+    height: var(--search-field-height);
     padding: 0 12px;
     font-size: 1rem;
 }

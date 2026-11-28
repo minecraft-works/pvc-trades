@@ -125,7 +125,8 @@ There are no new buttons. Each search field is the picker for its side:
   easy to scan and ? moves down a column (filters keep their Alt+1?4
   order, sellers their trade count). Each section (Categories,
   Biomes, Sold by, Filters) is its own group in the list, so on wider
-  screens the menu hangs from the search box, spans both fields and puts
+  screens the menu hangs from the whole search bar, spans from the Buying
+  field to the last action button and puts
   the sections side by side: Categories | Biomes above Sold by | Filters
   from 600 px, and Categories | Biomes (three columns) | Sold by over
   Filters from 1024 px, so the whole menu shows without scrolling. Menu rows have no icons:

@@ -247,19 +247,19 @@
     grid-template-rows: repeat(var(--rows-2, 1), auto);
 }
 
-/* Wider screens: the menu hangs from the search box instead of its field, so
-   it spans both fields, and its sections sit side by side. Paying has no
-   sellers or filters, so its two sections share the width. */
+/* Wider screens: the menu hangs from the whole search bar (the sticky
+   .search-container) instead of its field, so it spans from the Buying field
+   to the last action button, just below the fields; its sections sit side by
+   side. Paying has no sellers or filters, so its two sections share the width. */
 @media (width > 600px) {
-    .search-box {
-        position: relative;
-    }
-
     .search-box > .search-input-wrapper:has(> .search-suggestions--grid:not(.hidden)) {
         position: static;
     }
 
     .search-suggestions--grid {
+        top: calc(var(--spacing-sm) + var(--search-field-height) + 2px + 4px);
+        left: var(--spacing-sm);
+        right: var(--spacing-sm);
         display: grid;
         grid-template:
             "top top" auto
