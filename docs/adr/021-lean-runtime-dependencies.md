@@ -43,12 +43,22 @@ Keep the initial bundle small and load heavy features on demand.
    with `Cache-Control: no-cache`; the app refreshes with
    `fetch(url, { cache: 'no-cache' })` and skips processing when the body is
    unchanged.
+8. **Exchange rates dialog on demand** (added 2026-11-28, when the initial
+   bundle hit the 56 kB brotli limit). The Rates/Flips dialog
+   (`dialogs/matrix-dialog.ts` with `flips-panel.ts` and
+   `valuation/rate-presentation.ts`) and `valuation/flips.ts` are only needed
+   once the dialog opens, so they are separate chunks (~4.4 kB gzip).
+   `loadExchangeRates()` in `main.ts` imports them once; the dialog opens
+   when they have loaded. They are prefetched right after the first data
+   load, so in practice the dialog opens without a wait. Like Leaflet, other
+   modules may only type-import them.
 
 `size-limit` (package.json) enforces the budget in CI.
 
 ## Consequences
 
-- Initial JS: 132 kB → 57 kB gzip (lit-html included).
+- Initial JS: 132 kB → 57 kB gzip (lit-html included); 62 kB gzip (53 kB
+  brotli) after the exchange rates dialog moved out, with more features.
 - A new runtime dependency needs a size check (`npm run build` prints gzip
   sizes) and should be loaded on demand if it is not needed for the first
   render.

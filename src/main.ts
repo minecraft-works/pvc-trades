@@ -43,8 +43,8 @@ import { debugNavigation } from './debug.js';
 import {
     createTradeDetailsHandler,
     openDialog,
-    renderExchangeMatrix,
     setupDialogBackdropClose} from './dialogs/index.js';
+import type * as MatrixDialogModule from './dialogs/matrix-dialog.js';
 import type { FavoritesUIHandler } from './favorites/index.js';
 import { createFavoritesUIHandler } from './favorites/index.js';
 import type { ShopMapDialogHandler } from './map/index.js';
@@ -71,7 +71,8 @@ import { collectShopLocations, collectShopSuggestions, type ShopLocation, type S
 import { getConfig } from './stores/index.js';
 import { cartStore, favoritesStore, navigationStore, playerPositionService, searchScopeStore, snapshotStore } from './stores/index.js';
 import type { ShopFilter, Trade } from './types.js';
-import { findFlips,type Flip } from './valuation/flips.js';
+import type * as FlipsModule from './valuation/flips.js';
+import type { Flip } from './valuation/flips.js';
 
 // ============================================================================
 // State
@@ -138,27 +139,49 @@ function getInputValue(id: string): string {
 }
 
 // ============================================================================
-// Matrix Dialog (wrapper for dialogs module)
+// Exchange Rates Dialog (loaded on demand, ADR-021)
 // ============================================================================
 
+type ExchangeRatesModules = readonly [typeof MatrixDialogModule, typeof FlipsModule];
+let exchangeRatesLoading: Promise<ExchangeRatesModules> | undefined;
+
 /**
- * Render the exchange rate matrix dialog using the extracted module
+ * Load the exchange rates dialog and flip finder (once). They are a separate
+ * chunk: the dialog is opened rarely and is not needed for the first render.
+ * @returns The dialog and flips modules
  */
-function renderMatrixDialog(): void {
-    const container = getElement('matrix-container');
-    renderExchangeMatrix(container, dataLoader.getValuation()?.currencies, getElement, {
-        getFlips,
-        addToCart: addFlipToCart,
-        isInCart: flip => cartStore.has(flip.buy.trade) && cartStore.has(flip.sell.trade),
-        openShop: trade => { shopMapDialog.open(trade.x, trade.y, trade.z, trade.world); },
+function loadExchangeRates(): Promise<ExchangeRatesModules> {
+    exchangeRatesLoading ??= Promise.all([
+        import('./dialogs/matrix-dialog.js'),
+        import('./valuation/flips.js'),
+    ] as const).catch((error: unknown) => {
+        exchangeRatesLoading = undefined;
+        throw error;
+    });
+    return exchangeRatesLoading;
+}
+
+/**
+ * Open the exchange rates dialog, loading its code first if needed
+ */
+async function openMatrixDialog(): Promise<void> {
+    const [{ renderExchangeMatrix }, { findFlips }] = await loadExchangeRates();
+    openDialog(DIALOG_IDS.MATRIX, () => {
+        renderExchangeMatrix(getElement('matrix-container'), dataLoader.getValuation()?.currencies, getElement, {
+            getFlips: () => getFlips(findFlips),
+            addToCart: addFlipToCart,
+            isInCart: flip => cartStore.has(flip.buy.trade) && cartStore.has(flip.sell.trade),
+            openShop: trade => { shopMapDialog.open(trade.x, trade.y, trade.z, trade.world); },
+        });
     });
 }
 
 /**
  * Profitable round trips between shops, ranked by emerald value of the profit
+ * @param findFlips - Flip finder from the lazily loaded flips module
  * @returns Flips, best first
  */
-function getFlips(): readonly Flip[] {
+function getFlips(findFlips: typeof FlipsModule.findFlips): readonly Flip[] {
     const valuation = dataLoader.getValuation();
     const currencies = new Set(valuation?.currencies.currencies.map(name => name.toLowerCase()));
     return findFlips(dataLoader.getAllTrades(), {
@@ -570,7 +593,7 @@ function setupAllDialogs(): void {
     const matrixDialog = getElement<HTMLDialogElement>(DIALOG_IDS.MATRIX);
     setupDialogBackdropClose(matrixDialog);
     getElement('open-matrix').addEventListener('click', () => {
-        openDialog(DIALOG_IDS.MATRIX, renderMatrixDialog);
+        void openMatrixDialog();
     });
 
     // Dashboard toggle
@@ -649,7 +672,10 @@ document.addEventListener('DOMContentLoaded', () => {
         search: () => searchHandler.search(),
         showDashboard: () => dashboardUI.showDashboard(),
     });
-    void dataLoader.loadShops().then(prefetchLeaflet);
+    void dataLoader.loadShops().then(() => {
+        prefetchLeaflet();
+        void loadExchangeRates();
+    });
 
     // Register cart change listener before loading
     cartStore.onChange(updateCartBadge);

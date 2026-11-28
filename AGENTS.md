@@ -120,7 +120,10 @@ Rules:
 - **Leaflet is loaded on demand.** Await `loadLeaflet()` (src/map/leaflet.ts)
   before creating a map; code that only runs while a map exists calls
   `leaflet()`. Use `import type * as L from 'leaflet'` for types. Never import
-  `leaflet` at runtime elsewhere, or it lands in the initial bundle.
+  `leaflet` at runtime elsewhere, or it lands in the initial bundle. The
+  exchange rates dialog (`dialogs/matrix-dialog.ts`, `valuation/flips.ts`) is
+  loaded the same way by `loadExchangeRates()` in `main.ts`: only type imports
+  of those two modules elsewhere.
 - Test-only behaviour belongs in test fixtures, not production code (ADR-003).
 
 ## Runtime constraints
@@ -141,8 +144,8 @@ Rules:
   match). Their `stock` is a placeholder for unlimited: rank by
   `getRealStock()`, never `displayStock` (ADR-024). Localhost data has none,
   so tests add them via `tests/helpers/admin-shop-mocks.ts`.
-- **Bundle budget:** initial JS ~57 kB gzip (~49 kB brotli); `size-limit`
-  fails CI above 55 kB brotli. Prefer small in-house code over new runtime
+- **Bundle budget:** initial JS ~62 kB gzip (~53 kB brotli); `size-limit`
+  fails CI above 56 kB brotli. Prefer small in-house code over new runtime
   dependencies, and load heavy features on demand (ADR-021).
 - Thresholds live in `constants.ts`, e.g. `NAVIGATION.ARRIVAL_THRESHOLD`
   (auto-advance at 8 blocks). Search input is debounced to one search per

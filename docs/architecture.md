@@ -41,7 +41,8 @@ Worker.
    with the median of the same item in the same currency (ADR-018); without
    enough data it estimates across currencies, shown as "≈" and never
    counted as a deal. The 💱 Rates tab, converter and flips read the same
-   valuation. Trust requires enough **independent shops** (clustered by
+   valuation; their dialog code is a separate chunk, loaded on demand
+   (ADR-021). Trust requires enough **independent shops** (clustered by
    distance and owner); statistics are cached per price array.
 5. The dashboard compares trades with the stored snapshot (below), then
    `search-sort` filters and sorts, and `trade-renderer` renders the rows into

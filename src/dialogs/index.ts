@@ -11,9 +11,6 @@ export {
     openDialog,
     setupDialogBackdropClose} from './dialog-utilities.js';
 
-// Price table dialog
-export { renderExchangeMatrix } from './matrix-dialog.js';
-
 // Trade details dialog
 export { createTradeDetailsHandler } from './trade-details.js';
 

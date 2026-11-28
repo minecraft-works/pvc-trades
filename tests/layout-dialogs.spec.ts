@@ -28,6 +28,7 @@ test.describe('CSS Layout - Matrix Dialog', () => {
     test('matrix dialog has proper styling', async ({ page }) => {
         await page.click('#open-matrix');
         const dialog = page.locator('#matrix-dialog');
+        await expect(dialog).toBeVisible();
         
         const position = await dialog.evaluate(element => getComputedStyle(element).position);
         const borderRadius = await dialog.evaluate(element => getComputedStyle(element).borderRadius);
