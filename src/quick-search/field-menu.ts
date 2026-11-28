@@ -1,18 +1,22 @@
 /**
  * What the Buying and Paying field menus offer. Both open on the same grid
- * of lenses (shown as "Categories"; one per field, picked in place), each
- * with the number of results picking it would show for the current search.
+ * of lenses (shown as "Categories"; one per field, picked in place), then
+ * the grid of biomes (one per field, on top of the category), each tile with
+ * the number of results picking it would show for the current search.
  * Buying also offers shops and owners and the trade filters, which narrow
- * the whole trade; Paying only has lenses on the cost items. The menu stays
- * while typing: the counts follow the search and shops whose name matches
- * the text join "Sold by". Builds the rows the autocomplete shows; the
- * choices go to the search scope (see ADR-023).
+ * the whole trade; Paying only has lenses and biomes on the cost items. The
+ * menu stays while typing: the counts follow the search and shops whose
+ * name matches the text join "Sold by". Builds the rows the autocomplete
+ * shows; the choices go to the search scope (see ADR-023).
  *
  * @module quick-search/field-menu
  */
 
+import { type Biome, type BiomeId, BIOMES, paysWithBiome, receivesFromBiome } from '../search/biomes.js';
 import { type Lens, LENSES, type LensId, paysWithLens, receivesFromLens } from '../search/lenses.js';
-import { getScopeLens, type ScopePart, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
+import {
+    biomePart, getScopeBiome, getScopeLens, type ScopePart, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec,
+} from '../search/scope.js';
 import { ADMIN_SHOPS_FILTER, ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter, isAdminShop, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { FilterResult, QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
@@ -42,9 +46,12 @@ export interface FieldMenuDeps {
     /** Shop and owner suggestions for the current trades */
     getShopSuggestions: () => readonly ShopSuggestion[];
     getScope: () => SearchScope;
-    /** The current search without one part (a field's lens or the shop filter), to count what picking it would show */
+    /** The current search without one part (a field's lens or biome, or the shop filter), to count what picking it would show */
     createSearchMatcher: (leaveOut: ScopePart) => SearchMatcher;
     setLens: (side: SearchSide, lens: LensId | undefined) => void;
+    setBiome: (side: SearchSide, biome: BiomeId | undefined) => void;
+    /** Make sure the biome item rules load; the host refreshes the menus once they do */
+    loadBiomes: () => void;
     setShop: (shop: ShopFilter | undefined) => void;
     toggleFilter: (key: keyof QuickFilters) => void;
     /** Remove the last pill of a field; true if one was removed */
@@ -74,28 +81,64 @@ function byTrades(a: ShopSuggestion, b: ShopSuggestion): number {
 }
 
 /**
- * How many results each lens of one field would show with the current search.
- * Best per item keeps one trade per item name, so then item names are counted.
+ * How many results each lens or biome of one field would show with the
+ * current search. Best per item keeps one trade per item name, so then item
+ * names are counted.
  * @param options - What to count
  * @param options.trades - All trades
- * @param options.match - The current search without this field's lens
- * @param options.side - Field whose lenses are counted
+ * @param options.match - The current search without this field's lens (or biome)
  * @param options.perItem - Whether Best per item is on
- * @returns Result count per lens
+ * @param options.ids - Lenses or biomes to count
+ * @param options.isIn - Whether a trade is in one of them, on this field's side
+ * @returns Result count per lens or biome
  */
-function countPerLens(options: { trades: readonly Trade[]; match: SearchMatcher; side: SearchSide; perItem: boolean }): ReadonlyMap<LensId, number> {
-    const { trades, match, side, perItem } = options;
-    const isInLens = side === 'buy' ? receivesFromLens : paysWithLens;
-    const found = new Map<LensId, Set<string>>(LENSES.map(lens => [lens.id, new Set<string>()]));
+function countPerOption<Id extends string>(options: {
+    trades: readonly Trade[];
+    match: SearchMatcher;
+    perItem: boolean;
+    ids: readonly Id[];
+    isIn: (trade: Trade, id: Id) => boolean;
+}): ReadonlyMap<Id, number> {
+    const { trades, match, perItem, ids, isIn } = options;
+    const found = new Map<Id, Set<string>>(ids.map(id => [id, new Set<string>()]));
     for (const [index, trade] of trades.entries()) {
         const result = match(trade);
         if (!result) { continue; }
         const key = perItem ? result.displayName.toLowerCase() : String(index);
-        for (const lens of LENSES) {
-            if (isInLens(trade, lens)) { found.get(lens.id)?.add(key); }
+        for (const id of ids) {
+            if (isIn(trade, id)) { found.get(id)?.add(key); }
         }
     }
     return new Map([...found].map(([id, keys]) => [id, keys.size]));
+}
+
+const LENS_BY_ID: ReadonlyMap<LensId, Lens> = new Map(LENSES.map(lens => [lens.id, lens]));
+const BIOME_BY_ID: ReadonlyMap<BiomeId, Biome> = new Map(BIOMES.map(biome => [biome.id, biome]));
+
+/**
+ * Whether a trade is in a lens on one field's side
+ * @param side - Buying (received item) or Paying (cost items)
+ * @returns Check for a trade and a lens ID
+ */
+function lensCheck(side: SearchSide): (trade: Trade, id: LensId) => boolean {
+    const isIn = side === 'buy' ? receivesFromLens : paysWithLens;
+    return (trade, id) => {
+        const lens = LENS_BY_ID.get(id);
+        return lens !== undefined && isIn(trade, lens);
+    };
+}
+
+/**
+ * Whether a trade is in a biome on one field's side
+ * @param side - Buying (received item) or Paying (cost items)
+ * @returns Check for a trade and a biome ID
+ */
+function biomeCheck(side: SearchSide): (trade: Trade, id: BiomeId) => boolean {
+    const isIn = side === 'buy' ? receivesFromBiome : paysWithBiome;
+    return (trade, id) => {
+        const biome = BIOME_BY_ID.get(id);
+        return biome !== undefined && isIn(trade, biome);
+    };
 }
 
 /**
@@ -146,6 +189,44 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             accept: () => { deps.setLens(side, current ? undefined : lens.id); },
         };
         return { kind: 'action', action };
+    }
+
+    /**
+     * A biome tile in the Biomes section, picked in place like a category
+     * @param biome - Biome
+     * @param count - Results picking it would show
+     * @returns Menu row
+     */
+    function biomeAction(biome: Biome, count: number): MenuEntry {
+        const current = getScopeBiome(deps.getScope(), side) === biome.id;
+        const action: ActionSuggestion = {
+            current,
+            label: biome.label,
+            detail: count.toLocaleString(),
+            spokenDetail: plural(count, 'trade'),
+            actionLabel: side === 'buy' ? 'Only buy items from this biome' : 'Only pay with items from this biome',
+            tone: 'what',
+            empty: count === 0,
+            keepOpen: true,
+            accept: () => { deps.setBiome(side, current ? undefined : biome.id); },
+        };
+        return { kind: 'action', action };
+    }
+
+    /**
+     * The Biomes section: every biome with the number of results picking it would show
+     * @returns Menu rows
+     */
+    function getBiomeRows(): readonly MenuEntry[] {
+        deps.loadBiomes();
+        const counts = countPerOption({
+            trades: deps.getTrades(), match: deps.createSearchMatcher(biomePart(side)), perItem: deps.getScope().filters.bestPerItem,
+            ids: BIOMES.map(biome => biome.id), isIn: biomeCheck(side),
+        });
+        return [
+            { kind: 'heading', label: 'Biomes', section: 'biomes' },
+            ...BIOMES.map(biome => biomeAction(biome, counts.get(biome.id) ?? 0)),
+        ];
     }
 
     function shopAction(suggestion: ShopSuggestion): MenuEntry {
@@ -240,20 +321,22 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
      */
     function getMenu(typed: string): readonly MenuEntry[] {
         const scope = deps.getScope();
-        const counts = countPerLens({
-            side, trades: deps.getTrades(), match: deps.createSearchMatcher(side), perItem: scope.filters.bestPerItem,
+        const counts = countPerOption({
+            trades: deps.getTrades(), match: deps.createSearchMatcher(side), perItem: scope.filters.bestPerItem,
+            ids: LENSES.map(lens => lens.id), isIn: lensCheck(side),
         });
         // Both fields open on their categories, so the two menus start the same way
         const lenses: readonly MenuEntry[] = [
-            { kind: 'heading', label: 'Categories' },
+            { kind: 'heading', label: 'Categories', section: 'categories' },
             ...LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
+            ...getBiomeRows(),
         ];
         if (side === 'pay') { return lenses; }
         return [
             ...lenses,
-            { kind: 'heading', label: 'Sold by' },
+            { kind: 'heading', label: 'Sold by', section: 'sellers' },
             ...getSoldBy(typed, countSellers({ trades: deps.getTrades(), match: deps.createSearchMatcher('shop'), perItem: scope.filters.bestPerItem })),
-            { kind: 'heading', label: 'Filters' },
+            { kind: 'heading', label: 'Filters', section: 'filters' },
             ...TRADE_FILTERS.map(spec => filterToggle(spec)),
         ];
     }

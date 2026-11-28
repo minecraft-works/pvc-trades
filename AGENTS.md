@@ -59,12 +59,12 @@ src/
 ├── valuation/           Pure: buildValuation (pair prices, currency graph, item values), rates, flips, item identity (shulkers, base units)
 ├── routing/             Pure: route optimisation (nearest neighbour + 2-opt), navigation helpers
 ├── interpolation/       Pure: player position spring-damper maths
-├── search/              query.ts, deviation.ts, shop-filter.ts, lenses.ts, scope.ts (pure); search-sort.ts (DOM)
+├── search/              query.ts, deviation.ts, shop-filter.ts, lenses.ts, biomes.ts, scope.ts (pure); search-sort.ts (DOM)
 ├── dashboard/           dashboard-data.ts (pure), dashboard-ui.ts (DOM)
 ├── stores/              Class-based state stores with localStorage persistence (ADR-005)
 ├── data-loader/         Fetches, validates and refreshes shop data
 ├── rendering/           Trade table rows and virtual-list.ts (window-scrolled list)
-├── quick-search/        Field menus (autocomplete, lenses, shops, filters), scope pills, URL sync
+├── quick-search/        Field menus (autocomplete, lenses, biomes, shops, filters), scope pills, URL sync
 ├── dialogs/             Exchange-rate matrix, flips, trade details
 ├── cart/                Cart dialog and route timeline
 ├── favorites/           Watchlist dialog and popover

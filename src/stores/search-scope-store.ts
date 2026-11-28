@@ -1,11 +1,12 @@
 /**
- * Search scope store: the lenses, shop filter and trade filters that narrow
- * the results besides the typed text. The pill row, the field menus, the
- * keyboard shortcuts and the URL all read and change this one state.
+ * Search scope store: the lenses, biomes, shop filter and trade filters that
+ * narrow the results besides the typed text. The pill row, the field menus,
+ * the keyboard shortcuts and the URL all read and change this one state.
  *
  * @module stores/search-scope-store
  */
 
+import type { BiomeId } from '../search/biomes.js';
 import type { LensId } from '../search/lenses.js';
 import { EMPTY_SCOPE, type SearchScope, type SearchSide } from '../search/scope.js';
 import type { QuickFilters, ShopFilter } from '../types.js';
@@ -44,6 +45,20 @@ class SearchScopeStore {
     }
 
     /**
+     * Set or clear the biome of one side
+     * @param side - Buying or Paying
+     * @param biome - Biome ID, or undefined to clear
+     */
+    setBiome(side: SearchSide, biome: BiomeId | undefined): void {
+        this.set(side === 'buy' ? { ...this.scope, buyBiome: biome } : { ...this.scope, payBiome: biome });
+    }
+
+    /** Clear the lenses and biomes of both sides */
+    clearItemScopes(): void {
+        this.set({ ...this.scope, buyLens: undefined, payLens: undefined, buyBiome: undefined, payBiome: undefined });
+    }
+
+    /**
      * Set or clear the shop filter
      * @param shop - Shop or owner, or undefined to show all shops
      */
@@ -68,9 +83,10 @@ class SearchScopeStore {
         this.setFilter(key, !this.scope.filters[key]);
     }
 
-    /** Swap the Buying and Paying lenses, along with the search terms */
+    /** Swap the Buying and Paying lenses and biomes, along with the search terms */
     swapLenses(): void {
-        this.set({ ...this.scope, buyLens: this.scope.payLens, payLens: this.scope.buyLens });
+        const { buyLens, payLens, buyBiome, payBiome } = this.scope;
+        this.set({ ...this.scope, buyLens: payLens, payLens: buyLens, buyBiome: payBiome, payBiome: buyBiome });
     }
 
     /**

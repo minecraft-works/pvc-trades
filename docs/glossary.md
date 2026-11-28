@@ -155,8 +155,11 @@ A user-curated list of items they want to track. Each favorite can have an optio
 ### Lens
 A built-in item category (Map Art, Redstone, Gear, …) that narrows one side of the search: on Buying it keeps trades whose received item is in the lens, on Paying trades that ask for one. Lenses match on vanilla item IDs, may overlap, and count a shulker box by its contents; **Map Art** also takes bundles the seller named, which are map art sets, and **Admin Currency** and **Community Currency** take the named currencies (certificates, Bank-O'-Notes, coins) by type and name: issued by the server or by players. A lens collects a set that typing one word can't find. The UI calls them *categories* ([ADR-023](adr/023-search-lenses-and-scopes.md)).
 
+### Biome
+Where an item comes from (Jungle, Ocean, Deep Dark, …): a second way to narrow one side of the search, next to the lens and intersecting with it (Food + Ocean is fish). A biome holds only what you collect there, its blocks, plants and mob drops, not what is crafted from them, and matches on vanilla item IDs like a lens ([ADR-023](adr/023-search-lenses-and-scopes.md)).
+
 ### Search Scope
-Everything besides the typed text that narrows the results: a **lens** per side (what), a **shop or owner** (who, including the admin shops as a group) and **trade filters** such as Deals or Best per item (how). Picked from a search field's menu, shown as pills under the fields, and kept in the URL.
+Everything besides the typed text that narrows the results: a **lens** and a **biome** per side (what), a **shop or owner** (who, including the admin shops as a group) and **trade filters** such as Deals or Best per item (how). Picked from a search field's menu, shown as pills under the fields, and kept in the URL.
 
 ### Threshold
 A per-favorite deviation filter (e.g., ≤−25%). Only trades at or below this deviation level trigger a watchlist hit in the dashboard. Items with no threshold show all matching trades.

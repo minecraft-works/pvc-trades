@@ -119,10 +119,16 @@
         row-gap: 6px;
     }
 
-    /* The menus span the search card (see .search-box) */
+    /* The menus span the search card (see .search-box) and take all the room
+       down to the keyboard or the screen's bottom, so they only scroll when
+       they have to */
     .search-suggestions--menu,
     #searchWant-suggestions {
         min-width: 0;
+    }
+
+    .search-suggestions--menu {
+        max-height: var(--menu-room, 100vh);
     }
 
     /* Dim the page behind an open field menu: a tap there only closes the menu */

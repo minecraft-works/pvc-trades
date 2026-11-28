@@ -147,10 +147,10 @@ test.describe('Trade filters', () => {
         await expect(beefRow.locator('.dev')).toHaveText('−33%');
     });
 
-    test('the Paying menu only offers categories, straight away', async ({ page }) => {
+    test('the Paying menu only offers categories and biomes, straight away', async ({ page }) => {
         await page.locator(GIVE).click();
         const menu = page.locator('#searchGive-suggestions');
-        await expect(menu.locator('.search-suggestion-action')).toHaveCount(13);
+        await expect(menu.locator('.search-suggestion-heading')).toHaveText(['Categories', 'Biomes']);
         await expect(menu.locator('.search-suggestion-toggle, .search-suggestion-submenu')).toHaveCount(0);
 
         await menu.locator('.search-suggestion-action', { hasText: 'Ores & Minerals' }).click();
@@ -190,7 +190,9 @@ test.describe('Trade filters', () => {
         expect((menu?.y ?? 0) + (menu?.height ?? 0)).toBeLessThanOrEqual(400);
     });
 
-    for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 740 }]) {
+    // A phone's menu takes the room down to the screen's bottom when it needs it, so the
+    // phone case is a tall screen: the whole menu fits and trade rows show below it
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 1200 }]) {
         test(`clicking outside an open menu only closes it (${viewport.width}px)`, async ({ page }) => {
             await page.setViewportSize(viewport);
             // Enough rows that some lie below the open menu
@@ -324,6 +326,41 @@ test.describe('Lenses', () => {
         await expect(bestClear).toBeFocused();
         await page.keyboard.press('Enter');
         await expect(page.locator(WANT)).toBeFocused();
+    });
+});
+
+test.describe('Biomes', () => {
+    test.beforeEach(async ({ page }) => { await openApp(page); });
+
+    test('the Biomes section follows the categories; a biome is picked in place, and its pill reopens the menu', async ({ page }) => {
+        await page.locator(WANT).click();
+        await expect(page.locator(`${WANT_MENU} .search-suggestion-heading`)).toHaveText(['Categories', 'Biomes', 'Sold by', 'Filters']);
+        const desert = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Desert' });
+        await expect(desert).toContainText('1');
+        await desert.click();
+
+        // Like a category, the menu stays open with the biome ticked
+        await expect(desert).toHaveClass(/is-current/);
+        expect(await resultNames(page)).toEqual(['Sand']);
+        await expect(page.locator(pill('biome-buy'))).toContainText('buying from Desert');
+        await expect(page).toHaveURL(/[?&]biome=desert/);
+
+        await page.keyboard.press('Escape');
+        await page.locator(`${pill('biome-buy')} .scope-pill-body`).click();
+        await expect(desert).toHaveClass(/is-current/);
+    });
+
+    test('a biome intersects the category; the empty-results hint removes both', async ({ page }) => {
+        await openApp(page, '?biome=desert');
+        await page.locator(WANT).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Food' }).click();
+        await page.keyboard.press('Escape');
+        await expect(page.locator(pill('lens-buy'))).toBeVisible();
+        await expect(page.locator('.no-results-hint')).toContainText('7 matching trades outside Food and Desert');
+
+        await page.locator('.no-results-action').click();
+        await expect(page.locator(ROW)).toHaveCount(7);
+        await expect(page.locator('#scope-pills')).toBeHidden();
     });
 });
 
