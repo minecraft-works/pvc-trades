@@ -488,6 +488,24 @@ test.describe('Autocomplete', () => {
         await expect(page.locator(ROW)).toHaveCount(4);
     });
 
+    test('Enter closes the open menu: it keeps the typed search, or picks the highlighted category', async ({ page }) => {
+        await page.locator(WANT).pressSequentially('iron');
+        await expect(page.locator(WANT_MENU)).toBeVisible();
+        await page.keyboard.press('Enter');
+        await expect(page.locator(WANT_MENU)).toBeHidden();
+        await expect(page.locator(WANT)).toHaveValue('iron');
+        expect(await resultNames(page)).toEqual(['Iron ingot']);
+
+        // A category picked with Enter closes the menu too (a click keeps it open for a filter)
+        await page.locator(WANT).fill('');
+        await page.locator(WANT).click();
+        await page.keyboard.press('ArrowDown');
+        await expect(page.locator(`${WANT_MENU} [aria-selected="true"]`)).toContainText('Admin Currency');
+        await page.keyboard.press('Enter');
+        await expect(page.locator(WANT_MENU)).toBeHidden();
+        await expect(page.locator(pill('lens-buy'))).toContainText('buying Admin Currency');
+    });
+
     test('Tab accepts the highlighted suggestion and moves to Paying', async ({ page }) => {
         await page.locator(WANT).fill('san');
         await page.keyboard.press('ArrowDown');

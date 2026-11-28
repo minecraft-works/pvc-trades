@@ -53,7 +53,7 @@ export interface Biome {
     readonly label: string;
 }
 
-/** Display order of the biomes in the menu: overworld, caves, nether, end */
+/** The biomes, grouped overworld, caves, nether, end (the menu lists them by name) */
 export const BIOMES: readonly Biome[] = [
     { id: 'plains', label: 'Plains' },
     { id: 'forest', label: 'Forest' },

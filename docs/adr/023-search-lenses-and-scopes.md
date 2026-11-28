@@ -32,7 +32,7 @@ cheapest offer for each redstone item in ValeriaShares' shops.
 
 ### 2. Lenses are built-in, ID-based and may overlap
 
-`src/search/lenses.ts` defines 13 lenses, in menu order: Map Art, Flowers,
+`src/search/lenses.ts` defines 13 lenses: Map Art, Flowers,
 Food, Redstone, Gear, Enchanting, Potions, Admin Currency, Community
 Currency, Claim Blocks, Ores & Minerals, Music & Discs, Collectibles &
 Rarities.
@@ -120,7 +120,10 @@ There are no new buttons. Each search field is the picker for its side:
   heading says "Categories" and the pills ("buying Redstone") say what it
   does. "Lens" stays the term in code and docs.
 - The grid uses one-line tiles (name and result count) in two columns,
-  filters included, to keep the Buying menu short. Each section (Categories,
+  filters included, to keep the Buying menu short. Categories and biomes
+  are listed by name, filling each column top to bottom, so a long grid is
+  easy to scan and ? moves down a column (filters keep their Alt+1?4
+  order, sellers their trade count). Each section (Categories,
   Biomes, Sold by, Filters) is its own group in the list, so on wider
   screens the menu hangs from the search box, spans both fields and puts
   the sections side by side: Categories | Biomes above Sold by | Filters
@@ -151,7 +154,9 @@ There are no new buttons. Each search field is the picker for its side:
   so it doesn't also open the trade row or map underneath; on phones, where
   the menu covers most of the page, the backdrop dims the page.
 - Esc on a menu opened by a click closes it and keeps the search; while
-  typing, Esc clears the field as before. ↓ in a field moves into the menu,
+  typing, Esc clears the field as before. Enter always closes the menu: it
+  picks the highlighted row, if any (a category or filter too, which a click
+  picks in place), and otherwise just keeps the typed search. ↓ in a field moves into the menu,
   or into the results when there is no item name to complete. `/` and
   Ctrl+F only focus the field.
 
@@ -188,8 +193,8 @@ monument. A biome collects what you get there, which typing can't (the
 Jungle is logs, cocoa, bamboo, melons and vines), so it passes the bar of
 section 2. A broad "nature" lens was left out; per-biome sets are narrow.
 
-- `src/search/biomes.ts` defines 29 biomes, in menu order overworld,
-  caves, nether, end: Plains, Forest, Birch Forest, Dark Forest, Taiga,
+- `src/search/biomes.ts` defines 29 biomes, grouped overworld, caves,
+  nether, end: Plains, Forest, Birch Forest, Dark Forest, Taiga,
   Cherry Grove, Pale Garden, Jungle, Bamboo Jungle, Savanna, Desert,
   Badlands, Swamp, Mangrove Swamp, Mushroom Fields, Snowy & Ice, Mountains,
   Beach & River, Ocean, Warm Ocean, Lush Caves, Dripstone Caves, Deep Dark,

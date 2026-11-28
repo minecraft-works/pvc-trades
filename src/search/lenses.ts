@@ -59,7 +59,7 @@ interface NamedItemRule {
     readonly name: RegExp;
 }
 
-/** Display order of the lenses in the menu */
+/** The built-in lenses (the menu lists them by name) */
 export const LENSES: readonly Lens[] = [
     { id: 'mapart', label: 'Map Art' },
     { id: 'flowers', label: 'Flowers' },

@@ -243,6 +243,21 @@ function fillOption(suggestion: Exclude<Suggestion, { kind: 'heading' }>, option
 }
 
 /**
+ * Tell each section's group how many rows it needs in two or three columns
+ * (--rows-2, --rows-3), so a grid can fill top to bottom: an alphabetical
+ * list reads down a column.
+ * @param sections - Rendered menu sections
+ */
+function setRowCounts(sections: readonly HTMLLIElement[]): void {
+    for (const section of sections) {
+        const group = section.querySelector<HTMLElement>('.search-suggestion-group');
+        const count = group?.childElementCount ?? 0;
+        group?.style.setProperty('--rows-2', String(Math.ceil(count / 2)));
+        group?.style.setProperty('--rows-3', String(Math.ceil(count / 3)));
+    }
+}
+
+/**
  * Attach the menu to a search field.
  * @param input - Search field (its parent must be positioned)
  * @param getNames - Unique item names to suggest from
@@ -365,6 +380,7 @@ export function createAutocomplete(
             group.append(option);
             options.push(option);
         }
+        setRowCounts(sections);
         optionElements = options;
         list.replaceChildren(...sections);
         const isOpen = suggestions.length > 0;
@@ -633,11 +649,23 @@ export function createAutocomplete(
         return true;
     }
 
+    /**
+     * Enter finishes with the list: it picks the highlighted row, if any, and
+     * closes the list, also after a pick that a click makes in place (a
+     * category or filter: a click keeps the menu for the next pick). Rows that
+     * navigate (a submenu, back) keep it open.
+     * @param event - Keydown in the field
+     * @returns True if Enter was used for a row; without one the field may still use it
+     */
     function acceptHighlighted(event: KeyboardEvent): boolean {
         const current = suggestions[highlighted];
-        if (current === undefined) { return false; }
+        if (current === undefined) {
+            close();
+            return false;
+        }
         event.preventDefault();
         accept(current);
+        if (current.kind === 'action' || current.kind === 'toggle') { close(); }
         return true;
     }
 
