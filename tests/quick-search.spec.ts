@@ -150,7 +150,7 @@ test.describe('Trade filters', () => {
     test('the Paying menu only offers categories, straight away', async ({ page }) => {
         await page.locator(GIVE).click();
         const menu = page.locator('#searchGive-suggestions');
-        await expect(menu.locator('.search-suggestion-action')).toHaveCount(13);
+        await expect(menu.locator('.search-suggestion-action')).toHaveCount(12);
         await expect(menu.locator('.search-suggestion-toggle, .search-suggestion-submenu')).toHaveCount(0);
 
         await menu.locator('.search-suggestion-action', { hasText: 'Ores & Minerals' }).click();
@@ -240,7 +240,7 @@ test.describe('Lenses', () => {
         await category('Ores & Minerals').click();
         await expect(category('Food')).not.toHaveClass(/is-current/);
         await expect(page.locator(pill('lens-buy'))).toContainText('buying Ores & Minerals');
-        await expect(page.locator(ROW)).toHaveCount(2);
+        await expect(page.locator(ROW)).toHaveCount(1);
 
         await category('Ores & Minerals').click();
         await expect(page.locator(pill('lens-buy'))).toHaveCount(0);
@@ -250,7 +250,7 @@ test.describe('Lenses', () => {
     test('while typing the menu stays, its counts follow the search, and a pick keeps the text', async ({ page }) => {
         const category = (name: string) => page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: name });
         await page.locator(WANT).click();
-        await expect(category('Ores & Minerals')).toContainText('2');
+        await expect(category('Food')).toContainText('4');
 
         await page.locator(WANT).fill('iron');
         await expect(page.locator(`${WANT_MENU} [role="option"]`).first()).toHaveText('Iron ingot');
@@ -324,6 +324,35 @@ test.describe('Lenses', () => {
         await expect(bestClear).toBeFocused();
         await page.keyboard.press('Enter');
         await expect(page.locator(WANT)).toBeFocused();
+    });
+});
+
+test.describe('Field menu on a touch screen', () => {
+    test.use({ hasTouch: true, viewport: { width: 412, height: 800 } });
+    test.beforeEach(async ({ page }) => { await openApp(page); });
+
+    test('the first touch in the menu hides the keyboard and keeps the menu open', async ({ page }) => {
+        await page.locator(WANT).tap();
+        await expect(page.locator(WANT_MENU)).toBeVisible();
+        await expect(page.locator(WANT)).toBeFocused();
+
+        const food = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Food' });
+        await food.tap();
+        // Leaving the field is what hides a phone's keyboard
+        await expect(page.locator(WANT)).not.toBeFocused();
+        await expect(page.locator(WANT_MENU)).toBeVisible();
+        await expect(food).toHaveClass(/is-current/);
+        await page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: 'Best per item' }).tap();
+        await expect(page.locator(ROW)).toHaveCount(1);
+
+        // Tapping the field again types; tapping the other field opens its menu instead
+        await page.locator(WANT).tap();
+        await expect(page.locator(WANT)).toBeFocused();
+        await expect(page.locator(WANT_MENU)).toBeVisible();
+        await food.tap();
+        await page.locator(GIVE).tap();
+        await expect(page.locator(WANT_MENU)).toBeHidden();
+        await expect(page.locator('#searchGive-suggestions')).toBeVisible();
     });
 });
 

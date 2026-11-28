@@ -153,7 +153,7 @@ Performance optimization that only renders the trade rows in and around the view
 A user-curated list of items they want to track. Each favorite can have an optional **threshold** filter. When the dashboard detects trades for favorited items, they appear in the **Watchlist Deals** section.
 
 ### Lens
-A built-in item category (Redstone, Food, Armor, …) that narrows one side of the search: on Buying it keeps trades whose received item is in the lens, on Paying trades that ask for one. Lenses match on vanilla item IDs, may overlap, and count a shulker box by its contents; **Map Art** also takes bundles the seller named, which are map art sets. The UI calls them *categories* ([ADR-023](adr/023-search-lenses-and-scopes.md)).
+A built-in item category (Map Art, Redstone, Gear, …) that narrows one side of the search: on Buying it keeps trades whose received item is in the lens, on Paying trades that ask for one. Lenses match on vanilla item IDs, may overlap, and count a shulker box by its contents; **Map Art** also takes bundles the seller named, which are map art sets, and **Server Currency** takes the server's named currencies (certificates, Bank-O'-Notes, coins) by type and name. A lens collects a set that typing one word can't find. The UI calls them *categories* ([ADR-023](adr/023-search-lenses-and-scopes.md)).
 
 ### Search Scope
 Everything besides the typed text that narrows the results: a **lens** per side (what), a **shop or owner** (who, including the admin shops as a group) and **trade filters** such as Deals or Best per item (how). Picked from a search field's menu, shown as pills under the fields, and kept in the URL.

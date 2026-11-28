@@ -22,7 +22,7 @@ scope* (`src/search/scope.ts`, held by `searchScopeStore`):
 
 | | Question | Options | How many |
 |---|---|---|---|
-| **WHAT** — lens | What kind of item? | 13 built-in lenses | one per side (Buying, Paying) |
+| **WHAT** — lens | What kind of item? | 12 built-in lenses | one per side (Buying, Paying) |
 | **WHO** — shop | Who sells it? | an owner, or one of their shops (the admin shops are one owner, ADR-024) | one |
 | **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New | any |
 
@@ -31,13 +31,28 @@ cheapest offer for each redstone item in ValeriaShares' shops.
 
 ### 2. Lenses are built-in, ID-based and may overlap
 
-`src/search/lenses.ts` defines 13 lenses: Armor, Weapons, Tools, Redstone,
-Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation,
-Music & Discs, Map Art, Collectibles & Rarities.
+`src/search/lenses.ts` defines 12 lenses, in menu order: Map Art, Flowers,
+Food, Redstone, Gear, Enchanting, Potions, Server Currency, Claim Blocks,
+Ores & Minerals, Music & Discs, Collectibles & Rarities.
 
+- **A lens earns its place by collecting a set that typing can't.** Text
+  search already finds one item or one word (`oak`, `wool`, `stone`); a lens
+  gathers items that share a purpose but not a name: every flower, disc or
+  redstone component, every certificate. Generic or broad themes (building
+  blocks, decoration, nature, storage, transportation, brewing ingredients,
+  mob drops) were left out on purpose (2026-11-28 review): they either match
+  thousands of unrelated trades or are one word away in the search field.
+- The set fits this server: a peaceful, long-running SMP with a
+  player-driven economy, where map art is a trade of its own. Armor, weapons
+  and tools are one **Gear** lens (PvP is limited to arenas, so weapons alone
+  are a niche). **Ores & Minerals** leaves out diamonds, emeralds and their
+  blocks: they are the everyday money, so on the Paying side the lens would
+  match nearly every trade. **Claim Blocks** are the ores that claim land
+  when placed (coal, lapis, redstone, diamond and nether gold ore), so they
+  are not in Ores & Minerals.
 - A lens matches on the vanilla item ID (exact IDs plus prefixes/suffixes such
   as `_pickaxe`), never on the display name, so renamed items still count.
-- One exception: **Map Art** also takes bundles the seller named
+- Exception one: **Map Art** also takes bundles the seller named
   (`namedBundles` in its rule). The data never lists a bundle's contents, but
   on the 2026-11-28 data 130 of 131 named bundles are map art sets (89
   titles, mostly from map art shops); the one doubtful bundle is "Garden in a
@@ -45,12 +60,23 @@ Music & Discs, Map Art, Collectibles & Rarities.
   1 diamond, a named bundle 7. Unnamed bundles (mostly empty bundles sold as
   items) and blank maps (a supply) stay out. Map Art covers about 520 trades:
   389 filled maps, 131 named bundles and shulker boxes of filled maps.
-- An item can be in several lenses (elytra: Armor, Transportation,
-  Collectibles). Overlap is fine because a lens is a view, not a category tree.
+- Exception two: **Server Currency** is the server's own money: vanilla items
+  with a fixed name, such as Playtime and Inactivity Certificates (books), the
+  50 Votes Certificate (a diamond), Bank-O'-Notes, Caddozzo, BB Coin, Lux,
+  Nepero and event coins (`SERVER_CURRENCIES`, from the PVC wiki's Server
+  Currency page and the shop data). They match on item type plus name, and
+  only there: a Vote Certificate is not in Ores, Lux not in Collectibles. In
+  a shulker box the content key of a named item is its name, so a box of
+  Bank-O'-Notes counts too. Diamonds and emeralds are not server currency.
+- An item can be in several lenses (elytra: Gear and Collectibles; tipped
+  arrows: Gear and Potions). Overlap is fine because a lens is a view, not a
+  category tree.
 - A filled shulker box counts by its contents (any item inside matches).
-- Lenses don't try to cover everything. On the 2026-11-27 data the first 12
-  lenses covered 330 of 769 distinct items (53% of trades); building blocks,
-  nature and mob drops stay reachable by typing.
+- Lenses don't try to cover everything: on the 2026-11-28 data about half the
+  trades are in no lens, and they stay reachable by typing.
+- Lens IDs are part of shared URLs. When lenses merge, the old IDs resolve to
+  the new lens (`armor`, `weapons`, `tools` → `gear`; `books` →
+  `enchanting`); a dropped lens (`transport`) is ignored.
 - There are no user-defined lenses. Fixed presets keep the menu short, the URL
   shareable and the definitions testable.
 
@@ -87,7 +113,11 @@ There are no new buttons. Each search field is the picker for its side:
 - On phones the menus span the whole search card instead of their field, and
   their height follows the room the on-screen keyboard leaves (the keyboard
   only shrinks the visual viewport, so `autocomplete.ts` measures it and sets
-  `--menu-room`).
+  `--menu-room`). The first touch in an open menu (a tap or a scroll) makes
+  the field let go of focus: the keyboard hides and the menu grows to its
+  full height, while it stays open until a tap outside it, a pick that
+  closes it, or the other field. Tapping the field brings the keyboard back.
+  Typing stays one tap; browsing doesn't fight the keyboard.
 - **Typing** keeps the menu: up to five matching item names on top, then the
   same menu with counts for the new text, and under "Sold by" the shops and
   owners whose name matches it. Picking a category or filter keeps the text;
@@ -140,7 +170,8 @@ When a lens hides every match, the empty result says so and offers a way out:
 - **User-defined lenses or "add all to cart".** Left out on purpose. Lenses only
   filter; buying stays a per-trade decision.
 - **Matching on display names.** It fails for renamed items and shulker contents.
-  Item IDs are stable.
+  Item IDs are stable. The server currencies are the exception, because their
+  name is what makes them currency.
 
 ## Consequences
 

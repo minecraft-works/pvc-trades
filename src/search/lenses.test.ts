@@ -26,16 +26,38 @@ describe('isItemInLens', () => {
         expect(isItemInLens(lens('redstone'), 'REDSTONE_ORE')).toBe(false);
     });
 
-    test('tool suffixes do not catch pickaxes as axes or vice versa', () => {
-        expect(lensesOf('DIAMOND_PICKAXE')).toEqual(['tools']);
-        expect(lensesOf('NETHERITE_AXE')).toEqual(['tools']);
-        expect(lensesOf('DIAMOND_SWORD')).toEqual(['weapons']);
+    test('gear suffixes do not catch pickaxes as axes or vice versa', () => {
+        expect(lensesOf('DIAMOND_PICKAXE')).toEqual(['gear']);
+        expect(lensesOf('NETHERITE_AXE')).toEqual(['gear']);
+        expect(lensesOf('DIAMOND_SWORD')).toEqual(['gear']);
     });
 
     test('an item can sit in several lenses', () => {
-        expect(lensesOf('ELYTRA')).toEqual(['armor', 'transport', 'collectibles']);
-        expect(lensesOf('SILENCE_ARMOR_TRIM_SMITHING_TEMPLATE')).toEqual(['armor', 'collectibles']);
-        expect(lensesOf('TNT')).toEqual(['weapons', 'redstone']);
+        expect(lensesOf('ELYTRA')).toEqual(['gear', 'collectibles']);
+        expect(lensesOf('TIPPED_ARROW')).toEqual(['gear', 'potions']);
+    });
+
+    test('armor trims are collectibles, not gear; the netherite upgrade is both', () => {
+        expect(lensesOf('SILENCE_ARMOR_TRIM_SMITHING_TEMPLATE')).toEqual(['collectibles']);
+        expect(lensesOf('NETHERITE_UPGRADE_SMITHING_TEMPLATE')).toEqual(['gear', 'collectibles']);
+    });
+
+    test('maps are map art only', () => {
+        expect(lensesOf('FILLED_MAP')).toEqual(['mapart']);
+    });
+
+    test('claim ores are claim blocks, other ores stay ores', () => {
+        for (const type of ['COAL_ORE', 'LAPIS_ORE', 'REDSTONE_ORE', 'DIAMOND_ORE', 'NETHER_GOLD_ORE']) {
+            expect(lensesOf(type), type).toEqual(['claims']);
+        }
+        expect(lensesOf('IRON_ORE')).toEqual(['ores']);
+        expect(lensesOf('DEEPSLATE_DIAMOND_ORE')).toEqual(['ores']);
+    });
+
+    test('the everyday money is not an ore', () => {
+        for (const type of ['DIAMOND', 'EMERALD', 'DIAMOND_BLOCK', 'EMERALD_BLOCK']) {
+            expect(lensesOf(type), type).toEqual([]);
+        }
     });
 
     test('accepts namespaced, lowercase and spaced IDs', () => {
@@ -47,6 +69,7 @@ describe('isItemInLens', () => {
     test('items outside every lens are left alone', () => {
         expect(lensesOf('OAK_LOG')).toEqual([]);
         expect(lensesOf('SHULKER_BOX')).toEqual([]);
+        expect(lensesOf('BLAZE_POWDER')).toEqual([]);
     });
 });
 
@@ -56,7 +79,7 @@ describe('receivesFromLens / paysWithLens', () => {
     test('checks the received item on the Buying side and the cost items on the Paying side', () => {
         expect(receivesFromLens(hopperForDiamonds, lens('redstone'))).toBe(true);
         expect(paysWithLens(hopperForDiamonds, lens('redstone'))).toBe(false);
-        expect(paysWithLens(hopperForDiamonds, lens('ores'))).toBe(true);
+        expect(paysWithLens({ ...hopperForDiamonds, item1: item('IRON_INGOT') }, lens('ores'))).toBe(true);
     });
 
     test('a received shulker box counts by its contents', () => {
@@ -98,10 +121,47 @@ describe('Map Art', () => {
     });
 });
 
+const named = (type: string, name: string): Item => ({ type, name, amount: 1 });
+
+function lensesOfStack(resultItem: Item): readonly string[] {
+    return LENSES.filter(candidate => receivesFromLens({ resultItem, shulkerItems: undefined }, candidate)).map(candidate => candidate.id);
+}
+
+describe('Server Currency', () => {
+    test('takes the server items by type and name, and only there', () => {
+        expect(lensesOfStack(named('BOOK', 'Playtime Certificate'))).toEqual(['currency']);
+        expect(lensesOfStack(named('BOOK', 'T2 Playtime Certificate'))).toEqual(['currency']);
+        expect(lensesOfStack(named('DIAMOND', '50 Votes Certificate'))).toEqual(['currency']);
+        expect(lensesOfStack(named('LIGHT', 'Lux'))).toEqual(['currency']);
+        expect(lensesOfStack(named('SUNFLOWER', 'Event Coin'))).toEqual(['currency']);
+        expect(lensesOfStack(named('AMETHYST_SHARD', '§bCaddozzo'))).toEqual(['currency']);
+    });
+
+    test('ignores the name on another item type, and plain items', () => {
+        expect(lensesOfStack(named('DIRT', 'Playtime Certificate'))).toEqual([]);
+        expect(lensesOfStack(named('LIGHT', 'Lux lamp'))).toEqual(['collectibles']);
+        expect(lensesOfStack(item('BOOK'))).toEqual(['enchanting']);
+        expect(lensesOfStack(item('DIAMOND'))).toEqual([]);
+    });
+
+    test('a shulker box of server currency counts by its (named) contents', () => {
+        const box = item('SHULKER_BOX', ["- 64x §a§oBank§e§o-§a§oO'§e§o-§a§oNote"]);
+        expect(paysWithLens({ item1: box, item2: undefined }, lens('currency'))).toBe(true);
+        expect(paysWithLens({ item1: item('SHULKER_BOX', ['- 64x EMERALD_BLOCK']), item2: undefined }, lens('currency'))).toBe(false);
+    });
+});
+
 describe('findLens', () => {
     test('is case-insensitive and rejects unknown IDs', () => {
         expect(findLens('Redstone')?.label).toBe('Redstone');
         expect(findLens('nether')).toBeUndefined();
         expect(findLens(undefined)).toBeUndefined();
+    });
+
+    test('resolves earlier IDs from shared links', () => {
+        expect(findLens('tools')?.id).toBe('gear');
+        expect(findLens('armor')?.id).toBe('gear');
+        expect(findLens('books')?.id).toBe('enchanting');
+        expect(findLens('transport')).toBeUndefined();
     });
 });
