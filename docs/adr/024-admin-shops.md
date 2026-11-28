@@ -36,14 +36,15 @@ there says the two must match.
   menu. It is picked in place like a category, its pill reads "Admin shops",
   and it uses the URL, Back/Forward and Backspace like any shop filter. Typing
   "admin" also finds the owner.
-- **Hide them**: a trade filter **Hide admin shops** (pill "No admin shops",
-  `filters=noadmin`, Alt+5). It combines with every other filter.
-- The two exclude each other (`withShop` / `withFilter` in `search/scope.ts`).
-  Picking the admin shops turns off "Hide admin shops", and turning that on
-  drops an admin shop filter. A URL with both keeps the shop filter.
-- Both rows only appear when the data has admin shops; localhost data has
-  none. "Hide admin shops" also stays visible while it is on, so it can be
-  turned off.
+- Its count ("31 shops · 198 trades") and the "Shops & owners" owner count
+  follow the current search, the same way the category counts do: picking
+  Tools shows how many admin shops and owners sell tools
+  (`createSearchMatcher('shop')`, which leaves out the shop filter).
+- The row only appears when the data has admin shops; localhost data has
+  none.
+- **No "hide" filter.** An earlier version had a "Hide admin shops" trade
+  filter. It was dropped to keep the filter list short; the menu offers the
+  admin shops as a group to pick, not as something to leave out.
 
 ### 2. Stock is unlimited, not plentiful
 
@@ -76,7 +77,7 @@ admin trades):
 
 The trades that move are items the server sells itself, and they move toward
 the price players can always pay. Excluding admin shops from the medians would
-hide that. "Hide admin shops" covers players who want only player shops.
+hide that.
 
 ### 4. Display
 
@@ -95,8 +96,7 @@ shop.
 - **An "Admin" lens.** It mixes who with what, and it would need item rules
   for a seller.
 - **A dedicated tri-state control (all / only / none).** It would be a new
-  control next to the menus that ADR-023 already settled on, and the two
-  existing mechanisms cover it.
+  control next to the menus that ADR-023 already settled on.
 - **Leaving admin shops out of valuation.** The data above shows no harmful
   effect, and they are real prices.
 - **Hiding admin shops by default.** That would surprise players looking for

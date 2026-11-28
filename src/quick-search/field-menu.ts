@@ -12,8 +12,8 @@
  */
 
 import { type Lens, LENSES, type LensId, paysWithLens, receivesFromLens } from '../search/lenses.js';
-import { getScopeLens, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
-import { ADMIN_SHOPS_FILTER, ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
+import { getScopeLens, type ScopePart, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
+import { ADMIN_SHOPS_FILTER, ADMIN_SHOPS_LABEL, formatShopFilter, isAdminFilter, isAdminShop, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { FilterResult, QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
@@ -26,14 +26,24 @@ const MAX_TYPED_SHOPS = 3;
 /** Whether the current search lists a trade, see SearchSortHandler.createSearchMatcher */
 type SearchMatcher = (trade: Trade) => FilterResult | undefined;
 
+/** What the sellers under "Sold by" would show with the current search */
+interface SellerCounts {
+    /** Owners with at least one result */
+    readonly owners: number;
+    /** Admin shop locations with at least one result */
+    readonly adminShops: number;
+    /** Results in admin shops (items with Best per item) */
+    readonly adminResults: number;
+}
+
 /** Dependencies from the host module */
 export interface FieldMenuDeps {
     getTrades: () => readonly Trade[];
     /** Shop and owner suggestions for the current trades */
     getShopSuggestions: () => readonly ShopSuggestion[];
     getScope: () => SearchScope;
-    /** The current search without this field's lens, to count what each lens would show */
-    createSearchMatcher: (side: SearchSide) => SearchMatcher;
+    /** The current search without one part (a field's lens or the shop filter), to count what picking it would show */
+    createSearchMatcher: (leaveOut: ScopePart) => SearchMatcher;
     setLens: (side: SearchSide, lens: LensId | undefined) => void;
     setShop: (shop: ShopFilter | undefined) => void;
     toggleFilter: (key: keyof QuickFilters) => void;
@@ -89,6 +99,32 @@ function countPerLens(options: { trades: readonly Trade[]; match: SearchMatcher;
 }
 
 /**
+ * How many results the sellers under "Sold by" would show with the current
+ * search (shop filter left out): owners with results, and the admin shops.
+ * Best per item counts items, like the lens counts.
+ * @param options - What to count
+ * @param options.trades - All trades
+ * @param options.match - The current search without the shop filter
+ * @param options.perItem - Whether Best per item is on
+ * @returns Seller counts
+ */
+function countSellers(options: { trades: readonly Trade[]; match: SearchMatcher; perItem: boolean }): SellerCounts {
+    const { trades, match, perItem } = options;
+    const owners = new Set<string>();
+    const adminLocations = new Set<string>();
+    const adminResults = new Set<string>();
+    for (const [index, trade] of trades.entries()) {
+        const result = match(trade);
+        if (result && trade.shopOwner) { owners.add(trade.shopOwner.toLowerCase()); }
+        if (result && isAdminShop(trade)) {
+            adminLocations.add(`${trade.x},${trade.y},${trade.z},${trade.world}`);
+            adminResults.add(perItem ? result.displayName.toLowerCase() : String(index));
+        }
+    }
+    return { owners: owners.size, adminShops: adminLocations.size, adminResults: adminResults.size };
+}
+
+/**
  * Build the menu of one search field.
  * @param side - Buying or Paying
  * @param deps - Host callbacks
@@ -140,18 +176,20 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
     /**
      * The pinned "Admin shops" row: the server's own shops as one group,
      * picked in place like a category
-     * @param suggestion - The admin owner's suggestion, for its counts
+     * @param counts - What the sellers would show with the current search
      * @returns Menu row
      */
-    function adminAction(suggestion: ShopSuggestion): MenuEntry {
-        const { shop } = deps.getScope();
+    function adminAction(counts: SellerCounts): MenuEntry {
+        const { shop, filters } = deps.getScope();
         const current = isAdminFilter(shop) && shop?.shop === undefined;
+        const results = plural(counts.adminResults, filters.bestPerItem ? 'item' : 'trade');
         const action: ActionSuggestion = {
             current,
             label: ADMIN_SHOPS_LABEL,
-            detail: suggestion.detail,
+            detail: `${plural(counts.adminShops, 'shop')} · ${results}`,
             actionLabel: 'Show only the admin shops',
             tone: 'who',
+            empty: counts.adminResults === 0,
             keepOpen: true,
             accept: () => { deps.setShop(current ? undefined : ADMIN_SHOPS_FILTER); },
         };
@@ -160,22 +198,23 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
 
     /**
      * The "Sold by" rows: Admin shops (when the data has them), shops whose
-     * name matches the typed text, and the list of all shops and owners
+     * name matches the typed text, and the list of all shops and owners.
+     * The counts follow the current search, like the category counts.
      * @param typed - Text typed in the field
-     * @param admin - The admin owner's suggestion, if there are admin shops
+     * @param counts - What the sellers would show with the current search
      * @returns Menu rows under "Sold by"
      */
-    function getSoldBy(typed: string, admin: ShopSuggestion | undefined): readonly MenuEntry[] {
+    function getSoldBy(typed: string, counts: SellerCounts): readonly MenuEntry[] {
         const { shop } = deps.getScope();
         const all = deps.getShopSuggestions();
-        const ownerCount = all.filter(suggestion => suggestion.kind === 'owner').length;
+        const admin = all.find(suggestion => suggestion.kind === 'owner' && isAdminFilter(suggestion.filter));
         const typedShops = rankShopSuggestions(all, typed, MAX_TYPED_SHOPS).filter(suggestion => suggestion !== admin);
         return [
-            ...(admin ? [adminAction(admin)] : []),
+            ...(admin ? [adminAction(counts)] : []),
             ...typedShops.map(suggestion => shopAction(suggestion)),
             {
                 kind: 'submenu', label: 'Shops & owners',
-                detail: shop ? formatShopFilter(shop) : plural(ownerCount, 'owner'),
+                detail: shop ? formatShopFilter(shop) : plural(counts.owners, 'owner'),
                 tone: 'who', submenu: shopSubmenu,
             },
         ];
@@ -210,15 +249,12 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             ...LENSES.map(lens => lensAction(lens, counts.get(lens.id) ?? 0)),
         ];
         if (side === 'pay') { return lenses; }
-        const admin = deps.getShopSuggestions().find(suggestion => suggestion.kind === 'owner' && isAdminFilter(suggestion.filter));
-        // "Hide admin shops" only when there are admin shops to hide, or to turn it off again
-        const filters = TRADE_FILTERS.filter(spec => spec.key !== 'hideAdmin' || admin !== undefined || scope.filters.hideAdmin);
         return [
             ...lenses,
             { kind: 'heading', label: 'Sold by' },
-            ...getSoldBy(typed, admin),
+            ...getSoldBy(typed, countSellers({ trades: deps.getTrades(), match: deps.createSearchMatcher('shop'), perItem: scope.filters.bestPerItem })),
             { kind: 'heading', label: 'Filters' },
-            ...filters.map(spec => filterToggle(spec)),
+            ...TRADE_FILTERS.map(spec => filterToggle(spec)),
         ];
     }
 

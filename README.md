@@ -15,8 +15,8 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 - **Categories, Shops and Filters**: Click the Buying field (or press `Alt+↓`) for its menu:
   - **Categories** (*lenses* in the docs) narrow a side to a theme, one per field. Picking one keeps the menu open, so you can tick a filter too. There are 12: Armor, Weapons, Tools, Redstone, Flowers, Ores & Minerals, Food, Potions, Enchanted Books, Transportation, Music & Discs, Collectibles & Rarities. "Redstone" on Buying finds hoppers, pistons and observers too; a shulker box counts by its contents.
   - **Shops & owners** lists every owner and shop.
-  - **Filters**: Deals only, Best per item, Shulkers, New, Hide admin shops.
-  - **Admin shops** (the server's own spawn shops, fixed prices, unlimited stock shown as ∞) are one tap under "Sold by"; "Hide admin shops" leaves them out. See [ADR-024](docs/adr/024-admin-shops.md)
+  - **Filters**: Deals only, Best per item, Shulkers, New.
+  - **Admin shops** (the server's own spawn shops, fixed prices, unlimited stock shown as ∞) are one tap under "Sold by". See [ADR-024](docs/adr/024-admin-shops.md)
   
   Clicking the Paying field shows the same categories ("pay with Food" finds shops that accept food). Typing keeps the menu under the item-name suggestions; each category shows how many results picking it would give for the current search and filters. On phones the menu spans the search card and stays above the keyboard; a click outside an open menu only closes it. Whatever is active shows as a pill under the fields (✕ removes it) and is kept in the URL (`?lens=redstone&owner=…&filters=best`). See [ADR-023](docs/adr/023-search-lenses-and-scopes.md)
 - **Shops and Owners**: The shop's name and owner appear on the map, in the route and in the cart (not in the trade table). The map also shows every other shop with stock as a dot; hover for its name, click to select it. Pick a shop or player from the Buying menu, or use "All N trades →" on the map, to see only that shop's trades; the filter is kept in the URL (`?owner=…&shop=…`), so a shop can be shared as a link
@@ -38,7 +38,7 @@ A web application for viewing and analyzing Minecraft shop trades with exchange 
 | `Enter` | Result row | Open the shop on the map |
 | `+` | Result row | Add the trade to the cart |
 | `Esc` | Result row | Back to the Buying field |
-| `Alt+1` / `Alt+2` / `Alt+3` / `Alt+4` / `Alt+5` | Anywhere | Toggle "Deals only" (≤ −75%) / "Best per item" / "Shulkers" (only trades with a filled shulker box) / "New" (new since your last visit) / "Hide admin shops" |
+| `Alt+1` / `Alt+2` / `Alt+3` / `Alt+4` | Anywhere | Toggle "Deals only" (≤ −75%) / "Best per item" / "Shulkers" (only trades with a filled shulker box) / "New" (new since your last visit) |
 | `Ctrl+Shift+X` | Anywhere | Swap the Buying and Paying terms and lenses |
 
 Put a name in double quotes (`"emerald"`) for an exact match: it matches Emerald but not Emerald block.

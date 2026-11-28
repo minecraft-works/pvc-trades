@@ -2,7 +2,7 @@
  * Pill row under the search fields: one pill per active lens, shop filter and
  * trade filter, in WHAT → WHO → HOW order. Clicking a pill opens the menu to
  * change it; its ✕ removes it. The row is hidden while nothing narrows the
- * results. Alt+1…5 toggle the trade filters from anywhere.
+ * results. Alt+1…4 toggle the trade filters from anywhere.
  *
  * @module quick-search/scope-pills
  */
@@ -147,7 +147,7 @@ export function createScopePills(container: HTMLElement, deps: ScopePillsDeps): 
 }
 
 /**
- * Alt+1…5 toggle the trade filters, in menu order.
+ * Alt+1…4 toggle the trade filters, in menu order.
  * @param event - Keydown event
  * @param toggle - Flip a filter
  * @returns True if the event was a filter shortcut

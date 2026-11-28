@@ -147,21 +147,15 @@
     content: " ✓";
 }
 
-/* A picked category or ticked filter: bold, a check, and tinted like its pill
-   under the fields (violet category, neutral filter) */
-.search-suggestions li.search-suggestion--what.is-current:not([aria-selected="true"]) {
-    background: rgb(179 157 219 / 18%);
-    color: var(--color-scope-what);
-}
-
-.search-suggestions li.search-suggestion--how.is-current:not([aria-selected="true"]) {
+/* A picked category, seller or filter: bold, a check, and a neutral tint (one look for all) */
+.search-suggestions li.is-current:not([aria-selected="true"]) {
     background: rgb(224 224 224 / 12%);
 }
 
 /* Hover only where there is a pointer that hovers: after a tap, :hover sticks
    on touch screens and the tapped row would look like a second kind of "picked" */
 @media (hover: hover) {
-    .search-suggestions li:is(.search-suggestion--what, .search-suggestion--how).is-current:hover {
+    .search-suggestions li.is-current:hover {
         background: var(--color-accent);
         color: var(--color-bg);
     }
@@ -242,7 +236,7 @@
     border-top: none;
 }
 
-/* Alt+1…5 mean nothing without a keyboard */
+/* Alt+1…4 mean nothing without a keyboard */
 @media (pointer: coarse) {
     .search-suggestion-toggle .suggestion-detail {
         display: none;

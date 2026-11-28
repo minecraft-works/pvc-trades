@@ -50,7 +50,7 @@ A shopkeeper at specific coordinates that offers trades. The shop data gives mos
 Limits the results to one owner's shops, or to one named shop of that owner. Set by picking a shop or owner in the Buying field's menu (typed, or from **Shops & owners**), or with "All N trades →" on the map. Shown as a removable pill under the search and kept in the URL (`?owner=…&shop=…`).
 
 ### Admin Shop
-One of the server's own shops (the spawn villagers), added by the shops Worker. Owner `Server Admins` (`ADMIN_SHOP_OWNER`), fixed prices and unlimited stock. The `stock` value is a placeholder, shown as ∞ and never used for ranking. Pick **Admin shops** in the Buying menu to see only them (`?owner=Server+Admins`), or tick **Hide admin shops** to leave them out. Together they count as one independent shop ([ADR-024](adr/024-admin-shops.md)).
+One of the server's own shops (the spawn villagers), added by the shops Worker. Owner `Server Admins` (`ADMIN_SHOP_OWNER`), fixed prices and unlimited stock. The `stock` value is a placeholder, shown as ∞ and never used for ranking. Pick **Admin shops** in the Buying menu to see only them (`?owner=Server+Admins`). Together they count as one independent shop ([ADR-024](adr/024-admin-shops.md)).
 
 ### Independent Shop
 A shop that is more than **16 blocks** away from other shops **and** has a different owner. Shops of one owner count as one source wherever they are, which prevents price manipulation through proximity or through one player's chain of shops (see [ADR-001](adr/001-price-aggregation-design.md)).
@@ -156,7 +156,7 @@ A user-curated list of items they want to track. Each favorite can have an optio
 A built-in item category (Redstone, Food, Armor, …) that narrows one side of the search: on Buying it keeps trades whose received item is in the lens, on Paying trades that ask for one. Lenses match on vanilla item IDs, may overlap, and count a shulker box by its contents. The UI calls them *categories* ([ADR-023](adr/023-search-lenses-and-scopes.md)).
 
 ### Search Scope
-Everything besides the typed text that narrows the results: a **lens** per side (what), a **shop or owner** (who, including the admin shops as a group) and **trade filters** such as Deals, Best per item or Hide admin shops (how). Picked from a search field's menu, shown as pills under the fields, and kept in the URL.
+Everything besides the typed text that narrows the results: a **lens** per side (what), a **shop or owner** (who, including the admin shops as a group) and **trade filters** such as Deals or Best per item (how). Picked from a search field's menu, shown as pills under the fields, and kept in the URL.
 
 ### Threshold
 A per-favorite deviation filter (e.g., ≤−25%). Only trades at or below this deviation level trigger a watchlist hit in the dashboard. Items with no threshold show all matching trades.

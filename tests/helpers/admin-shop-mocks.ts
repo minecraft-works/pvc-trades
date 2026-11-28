@@ -41,7 +41,7 @@ export const ADMIN_SHOP_DATA = {
             location: '-170.0, 64.0, 130.0',
             world: 'World',
             recipes: [{
-                resultItem: { type: 'WHEAT', amount: 16, ...NO_EXTRAS },
+                resultItem: { type: 'CARROT', amount: 16, ...NO_EXTRAS },
                 item1: { type: 'EMERALD', amount: 4, ...NO_EXTRAS },
                 stock: ADMIN_PLACEHOLDER_STOCK,
             }],

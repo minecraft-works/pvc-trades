@@ -32,8 +32,8 @@ import { isFilledShulker } from '../valuation/item-identity.js';
 import { confidentOnly, isEstimate } from './deviation.js';
 import { findLens, type Lens, paysWithLens, receivesFromLens } from './lenses.js';
 import { parseExactQuery, pickBestPerItem } from './query.js';
-import type { SearchScope, SearchSide } from './scope.js';
-import { getRealStock, isAdminShop, matchesShopFilter } from './shop-filter.js';
+import type { ScopePart, SearchScope } from './scope.js';
+import { getRealStock, matchesShopFilter } from './shop-filter.js';
 
 /** "Deals only" shows trades at least this much below market */
 const DEALS_ONLY_MAX_PERCENT = QUICK_SEARCH.DEALS_ONLY_MAX_PERCENT;
@@ -122,10 +122,11 @@ export interface SearchSortHandler {
     /** Return current active sort columns for renderer */
     getActiveSorts: () => ReadonlyMap<SortColumn, SortDirection>;
     /**
-     * A check for the current search without one field's lens, e.g. to count
-     * what each lens of that field would show (Best per item not applied)
+     * A check for the current search without one part (a field's lens, or the
+     * shop filter), e.g. to count what each lens or seller would show
+     * (Best per item not applied)
      */
-    createSearchMatcher: (side: SearchSide) => (trade: Trade) => FilterResult | undefined;
+    createSearchMatcher: (leaveOut: ScopePart) => (trade: Trade) => FilterResult | undefined;
 }
 
 // ============================================================================
@@ -228,7 +229,6 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
     function isExcludedByQuickFilters(trade: Trade, filters: QuickFilters): boolean {
         if (filters.newOnly && !deps.getNewTradeKeys().has(getTradeKey(trade))) { return true; }
         if (filters.shulkersOnly && !involvesFilledShulker(trade)) { return true; }
-        if (filters.hideAdmin && isAdminShop(trade)) { return true; }
         if (!filters.dealsOnly) { return false; }
         // Cross-currency estimates are too uncertain to count as deals (ADR-019)
         const deviation = confidentOnly(deps.getDeviation())(trade);
@@ -279,18 +279,22 @@ export function createSearchSortHandler(deps: SearchSortDeps): SearchSortHandler
 
     /**
      * A check for the current search (text, shop, header toggles, trade
-     * filters and the other field's lens), leaving out one field's lens
-     * @param side - Field whose lens is left out
+     * filters and lenses), leaving out one part: a field's lens, to count
+     * what each lens would show, or the shop filter, to count per seller
+     * @param leaveOut - The lens of a field, or the shop filter
      * @returns Match for a trade, or undefined when the search leaves it out
      */
-    function createSearchMatcher(side: SearchSide): (trade: Trade) => FilterResult | undefined {
+    function createSearchMatcher(leaveOut: ScopePart): (trade: Trade) => FilterResult | undefined {
         const scope = deps.getScope();
         const wantQuery = deps.getInputValue('searchWant');
         const giveQuery = deps.getInputValue('searchGive');
-        const otherLens = findLens(side === 'buy' ? scope.payLens : scope.buyLens);
-        const isInOtherLens = side === 'buy' ? paysWithLens : receivesFromLens;
+        const filterScope = leaveOut === 'shop' ? { ...scope, shop: undefined } : scope;
+        const buyLens = leaveOut === 'buy' ? undefined : findLens(scope.buyLens);
+        const payLens = leaveOut === 'pay' ? undefined : findLens(scope.payLens);
         return (trade) => {
-            const passes = !isExcludedByFilters(trade, scope) && (!otherLens || isInOtherLens(trade, otherLens));
+            const passes = !isExcludedByFilters(trade, filterScope)
+                && (!buyLens || receivesFromLens(trade, buyLens))
+                && (!payLens || paysWithLens(trade, payLens));
             return passes ? filterTrade(trade, wantQuery, giveQuery) : undefined;
         };
     }

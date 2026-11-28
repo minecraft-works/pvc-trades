@@ -42,6 +42,13 @@ Then('every trade should show unlimited stock', async ({ page }) => {
     }
 });
 
+Then('the {string} row in the Buying menu should read {string}', async ({ page }, label: string, detail: string) => {
+    await page.locator('#searchWant').click();
+    const row = page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: label });
+    await expect(row.locator('.suggestion-detail')).toHaveText(detail);
+    await page.keyboard.press('Escape');
+});
+
 Then('the Buying menu should not offer {string}', async ({ page }, label: string) => {
     await page.locator('#searchWant').click();
     await expect(page.locator(WANT_MENU)).toBeVisible();

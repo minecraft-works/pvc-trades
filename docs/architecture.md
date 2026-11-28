@@ -65,8 +65,8 @@ run again and new trade keys are highlighted.
   match on item IDs (`search/lenses.ts`); the whole search state is mirrored
   in the URL (`url-sync.ts`, `search/scope.ts`).
 - Admin shops (owner `ADMIN_SHOP_OWNER`, appended by the shops Worker) are
-  the owner filter "Admin shops" or the trade filter "Hide admin shops",
-  which exclude each other (`withShop`/`withFilter`). Their stock is
+  the owner filter "Admin shops", pinned under "Sold by" with counts that
+  follow the search (`createSearchMatcher('shop')`). Their stock is
   unlimited, so ranking uses `getRealStock()` (`search/shop-filter.ts`,
   ADR-024).
 - Sorting supports several columns at once (`search-sort.ts`).
