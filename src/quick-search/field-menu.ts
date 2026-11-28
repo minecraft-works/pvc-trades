@@ -1,6 +1,6 @@
 /**
  * What the Buying and Paying field menus offer. Both open on the same grid
- * of lenses (shown as item categories, under "Buy" or "Pay with"). Buying
+ * of lenses (shown as "Categories"; one per field, picked in place). Buying
  * also offers shops and owners and the trade filters, which narrow the whole
  * trade; Paying only has lenses on the cost items. Builds the rows the
  * autocomplete shows; the choices go to the search scope (see ADR-023).
@@ -10,7 +10,7 @@
 
 import { type Lens, LENSES, type LensId, paysWithLens, rankLenses, receivesFromLens } from '../search/lenses.js';
 import { getScopeLens, rankTradeFilters, type SearchScope, type SearchSide, TRADE_FILTERS, type TradeFilterSpec } from '../search/scope.js';
-import { matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
+import { formatShopFilter, matchesShopFilter, rankShopSuggestions, type ShopSuggestion } from '../search/shop-filter.js';
 import type { QuickFilters, ShopFilter, Trade } from '../types.js';
 import type { ActionSuggestion, FieldMenu, MenuEntry, Submenu } from './autocomplete.js';
 
@@ -21,8 +21,6 @@ export const SHOP_SUBMENU_ID = 'shops';
 const MAX_TYPED_LENSES = 2;
 const MAX_TYPED_SHOPS = 3;
 const MAX_TYPED_FILTERS = 2;
-/** Owners listed in the Buying menu before "All shops & owners" */
-const MAX_TOP_OWNERS = 3;
 
 /** Dependencies from the host module */
 export interface FieldMenuDeps {
@@ -101,6 +99,8 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
             actionLabel: side === 'buy' ? 'Only buy items in this category' : 'Only pay with items in this category',
             tone: 'what',
             empty: count === 0,
+            // Like the filters: picking a category in the menu keeps it open, so a filter can be ticked next
+            keepOpen: !typed,
             accept: () => { deps.setLens(side, current ? undefined : lens.id); },
         };
         return { kind: 'action', action };
@@ -144,30 +144,23 @@ export function createFieldMenu(side: SearchSide, deps: FieldMenuDeps): FieldMen
         },
     };
 
-    /**
-     * The active shop filter, then the owners with the most trades
-     * @returns Up to {@link MAX_TOP_OWNERS} shop and owner rows
-     */
-    function getTopShops(): readonly MenuEntry[] {
-        const all = deps.getShopSuggestions();
-        const active = all.find(suggestion => isSameShop(deps.getScope().shop, suggestion.filter));
-        const owners = all.filter(suggestion => suggestion.kind === 'owner' && suggestion !== active).toSorted(byTrades);
-        return [...(active ? [active] : []), ...owners].slice(0, MAX_TOP_OWNERS).map(suggestion => shopAction(suggestion));
-    }
-
     function getRootMenu(): readonly MenuEntry[] {
-        // Both fields open on their lenses, so the two menus start the same way
+        // Both fields open on their categories, so the two menus start the same way
         const lenses: readonly MenuEntry[] = [
-            { kind: 'heading', label: side === 'buy' ? 'Buy' : 'Pay with' },
+            { kind: 'heading', label: 'Categories' },
             ...LENSES.map(lens => lensAction(lens, false)),
         ];
         if (side === 'pay') { return lenses; }
+        const scope = deps.getScope();
         const ownerCount = deps.getShopSuggestions().filter(suggestion => suggestion.kind === 'owner').length;
         return [
             ...lenses,
             { kind: 'heading', label: 'Sold by' },
-            ...getTopShops(),
-            { kind: 'submenu', label: 'All shops & owners', detail: plural(ownerCount, 'owner'), tone: 'who', submenu: shopSubmenu },
+            {
+                kind: 'submenu', label: 'Shops & owners',
+                detail: scope.shop ? formatShopFilter(scope.shop) : plural(ownerCount, 'owner'),
+                tone: 'who', submenu: shopSubmenu,
+            },
             { kind: 'heading', label: 'Filters' },
             ...TRADE_FILTERS.map(spec => filterToggle(spec)),
         ];

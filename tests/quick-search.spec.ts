@@ -220,30 +220,29 @@ test.describe('Trade filters', () => {
 test.describe('Lenses', () => {
     test.beforeEach(async ({ page }) => { await openApp(page); });
 
-    test('clicking Buying opens on its categories, and one keeps only its items', async ({ page }) => {
+    test('clicking Buying opens on its categories; one is picked in place and a filter can follow', async ({ page }) => {
         await page.locator(WANT).click();
-        await expect(page.locator(`${WANT_MENU} .search-suggestion-heading`).first()).toHaveText('Buy');
-        await page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: 'Food' }).click();
+        await expect(page.locator(`${WANT_MENU} .search-suggestion-heading`).first()).toHaveText('Categories');
+        const category = (name: string) => page.locator(`${WANT_MENU} .search-suggestion-action`, { hasText: name });
+        await category('Food').click();
 
         await expect(page.locator(ROW)).toHaveCount(4);
         expect(new Set(await resultNames(page))).toEqual(new Set(['Cooked beef']));
         await expect(page.locator(pill('lens-buy'))).toContainText('buying Food');
         await expect(page).toHaveURL(/[?&]lens=food/);
-    });
 
-    test('the Buying menu lists the three owners with the most trades', async ({ page }) => {
-        const owners = ['Alice', 'Bob', 'Carol'];
-        const daveShop = { location: '3000.0, 64.0, 0.0', world: 'world', shopOwner: 'Dave', recipes: [recipe('SAND', 1, EMERALD_TYPE, 1)] };
-        await openApp(page, '', { data: [...SHOP_DATA.data.map((shop, index) => ({ ...shop, shopOwner: owners[index] })), daveShop] });
-
-        await page.locator(WANT).click();
-        const shops = page.locator(`${WANT_MENU} .search-suggestion-action.search-suggestion--who`);
-        await expect(shops).toHaveText([/Alice/, /Bob/, /Carol/]);
-        await expect(page.locator(`${WANT_MENU} .search-suggestion-submenu`)).toContainText('4 owners');
-
-        await shops.filter({ hasText: 'Bob' }).click();
-        await expect(page.locator(pill('shop'))).toContainText('Bob');
+        // The menu stays open, so a filter can be ticked next; another category replaces the first
+        await expect(category('Food')).toHaveClass(/is-current/);
+        await page.locator(`${WANT_MENU} .search-suggestion-toggle`, { hasText: 'Best per item' }).click();
+        await expect(page.locator(ROW)).toHaveCount(1);
+        await category('Ores & Minerals').click();
+        await expect(category('Food')).not.toHaveClass(/is-current/);
+        await expect(page.locator(pill('lens-buy'))).toContainText('buying Ores & Minerals');
         await expect(page.locator(ROW)).toHaveCount(2);
+
+        await category('Ores & Minerals').click();
+        await expect(page.locator(pill('lens-buy'))).toHaveCount(0);
+        await expect(page.locator(WANT_MENU)).toBeVisible();
     });
 
     test('typing offers matching categories after the item names', async ({ page }) => {
@@ -296,7 +295,7 @@ test.describe('Lenses', () => {
         await expect(page.locator(WANT)).toHaveValue('Cooked beef');
 
         await page.locator(WANT).click();
-        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'All shops & owners' }).click();
+        await page.locator(`${WANT_MENU} .search-suggestion-submenu`, { hasText: 'Shops & owners' }).click();
         await page.keyboard.type('bo');
         const shops = page.locator(`${WANT_MENU} .search-suggestion-action`);
         await expect(shops).toHaveText([/Bob/]);

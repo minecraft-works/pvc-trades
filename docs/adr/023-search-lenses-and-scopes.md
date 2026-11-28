@@ -51,17 +51,21 @@ Music & Discs, Collectibles & Rarities.
 There are no new buttons. Each search field is the picker for its side:
 
 - **Click Buying or press Alt+↓** to open its menu. It starts with the
-  lens grid under "Buy", then under "Sold by" the three owners with the most
-  trades (an active shop filter first) and *All shops & owners ›* (a
-  browsable list of all owners and shops), then the filters as tick rows
-  that stay open.
-- **Click Paying** to open its menu: the same lens grid under "Pay with",
-  and nothing else.
+  lens grid under "Categories", then *Shops & owners ›* under "Sold by" (a
+  browsable list of all owners and shops), then the filters.
+- **Click Paying** to open its menu: the same "Categories" grid, and nothing
+  else.
+- Categories and filters are picked in place: the menu stays open, so a
+  category and a filter (Food + Deals) take one menu visit. A field has one
+  category at most, so picking another replaces it and picking the active
+  one clears it; filters combine freely. The active category is a tinted
+  tile with a ✓, like its pill, rather than a radio button (which can't be
+  cleared by clicking it again); filters keep their ☐/☑ tick.
 - Both menus open on the same grid, so they look alike and a lens is one tap
-  away on either side. In the UI a lens is called a *category*: the headings
-  ("Buy", "Pay with") and the pills ("buying Redstone") say what it does, and
-  typed suggestions read "category · 110 trades". "Lens" stays the term in
-  code and docs.
+  away on either side. In the UI a lens is called a *category*: the menu
+  heading says "Categories", the pills ("buying Redstone") say what it does,
+  and typed suggestions read "category · 110 trades". "Lens" stays the term
+  in code and docs.
 - The grid uses one-line tiles (name and in-stock trade count) in two
   columns, filters included, to keep the Buying menu short. Menu rows have no
   icons: the names are short and clear, emoji look different on every

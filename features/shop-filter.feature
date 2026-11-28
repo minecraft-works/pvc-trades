@@ -27,7 +27,7 @@ Feature: Shop and owner filter
   @shops @search
   Scenario: Browsing all shops and owners from the Buying menu
     Given the app is loaded with mock shop data
-    When I open "All shops & owners" in the Buying menu
+    When I open "Shops & owners" in the Buying menu
     Then the menu should list the owner "DiamondOwner"
     When I choose "Diamond Dealer" in the menu
     Then the shop filter should show "Diamond Dealer"

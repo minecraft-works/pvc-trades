@@ -4,7 +4,8 @@
  *
  * - Typing lists matching item names, then matching categories (lenses), shops and filters.
  * - Clicking the field, or Alt+↓, opens its menu: the field's categories,
- *   then (Buying) the top owners, All shops & owners › and filter rows that tick in place and keep it open.
+ *   then (Buying) Shops & owners › and the filters. Categories and filters
+ *   are picked in place and keep the menu open.
  * - In a submenu, typing narrows its list (text already in the field is kept
  *   and put back on leaving); Backspace or ← with nothing typed goes back.
  *
@@ -40,6 +41,8 @@ export interface ActionSuggestion {
     readonly current?: boolean;
     /** Nothing to show for it right now: dimmed */
     readonly empty?: boolean;
+    /** Picked in place from a menu: it stays open, like a filter row */
+    readonly keepOpen?: boolean;
     readonly accept: () => void;
 }
 
@@ -281,6 +284,12 @@ export function createAutocomplete(
             event.preventDefault();
             highlighted = index;
             accept(suggestion);
+            // A pick by pointer leaves no keyboard highlight behind: on the
+            // menu it would look like a second kind of "selected"
+            if (mode.kind === 'root') {
+                highlighted = -1;
+                renderHighlight();
+            }
         });
         return option;
     }
@@ -445,6 +454,11 @@ export function createAutocomplete(
             clearTypedText();
             action.accept();
             dispatchInput();
+            return;
+        }
+        if (action.keepOpen && mode.kind === 'root') {
+            action.accept();
+            refresh();
             return;
         }
         const restore = mode.kind === 'submenu' && input.value !== submenuBase;

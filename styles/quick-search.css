@@ -151,6 +151,28 @@
     content: " ✓";
 }
 
+/* The picked category (one per field): tinted like its pill under the fields */
+.search-suggestions li.search-suggestion--what.is-current:not([aria-selected="true"]) {
+    background: rgb(179 157 219 / 18%);
+    color: var(--color-scope-what);
+}
+
+/* Hover only where there is a pointer that hovers: after a tap, :hover sticks
+   on touch screens and the tapped row would look like a second kind of "picked" */
+@media (hover: hover) {
+    .search-suggestions li.search-suggestion--what.is-current:hover {
+        background: var(--color-accent);
+        color: var(--color-bg);
+    }
+}
+
+@media (hover: none) {
+    .search-suggestions li:hover:not([aria-selected="true"], .search-suggestion-heading, .search-suggestion-back) {
+        background: none;
+        color: var(--color-text);
+    }
+}
+
 .search-suggestions li.is-empty {
     opacity: 0.55;
 }
