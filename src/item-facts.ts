@@ -8,14 +8,13 @@
  * @module item-facts
  */
 
-import { formatName } from './formatting.js';
 import type { Item } from './types.js';
 
 /** What an item's lore says that is worth showing in the list */
 export interface ItemFacts {
-    /** Short badge labels, e.g. `['24x24', 'Nether only']`; empty when the name already says it */
+    /** Short badge labels, e.g. `['24x24', 'Nether only']` */
     readonly tags: readonly string[];
-    /** Lowercase text the search matches against, including facts the name already states */
+    /** Lowercase text the search matches against */
     readonly searchText: string;
 }
 
@@ -67,11 +66,7 @@ export function getItemFacts(item: Readonly<Item>): ItemFacts {
     ].filter(fact => fact !== undefined);
     if (facts.length === 0) { return NO_FACTS; }
 
-    const name = formatName(item).toLowerCase();
-    return {
-        tags: facts.filter(fact => !name.includes(fact.toLowerCase())),
-        searchText: facts.join(' ').toLowerCase(),
-    };
+    return { tags: facts, searchText: facts.join(' ').toLowerCase() };
 }
 
 /**

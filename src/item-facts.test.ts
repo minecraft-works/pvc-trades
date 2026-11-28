@@ -34,10 +34,10 @@ describe('getItemFacts', () => {
         expect(getItemFacts(chunk).tags).toEqual(['Chunk']);
     });
 
-    it('does not repeat what the name already says, but keeps it searchable', () => {
+    it('shows the size even when the name already says it', () => {
         const sixteen = block('16x16 Protection Block', ['§6Will protect 16x16 blocks.']);
-        expect(getItemFacts(sixteen)).toEqual({ tags: [], searchText: '16x16' });
-        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.'])).tags).toEqual([]);
+        expect(getItemFacts(sixteen)).toEqual({ tags: ['16x16'], searchText: '16x16' });
+        expect(getItemFacts(block('Chunk Protection Block', ['• Will protect an entire world chunk.'])).tags).toEqual(['Chunk']);
     });
 
     it('ignores items without such lore and shulker contents', () => {
