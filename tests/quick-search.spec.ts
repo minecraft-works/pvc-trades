@@ -150,7 +150,7 @@ test.describe('Trade filters', () => {
     test('the Paying menu only offers categories, straight away', async ({ page }) => {
         await page.locator(GIVE).click();
         const menu = page.locator('#searchGive-suggestions');
-        await expect(menu.locator('.search-suggestion-action')).toHaveCount(12);
+        await expect(menu.locator('.search-suggestion-action')).toHaveCount(13);
         await expect(menu.locator('.search-suggestion-toggle, .search-suggestion-submenu')).toHaveCount(0);
 
         await menu.locator('.search-suggestion-action', { hasText: 'Ores & Minerals' }).click();

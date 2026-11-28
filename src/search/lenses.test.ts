@@ -17,6 +17,11 @@ function lensesOf(type: string): readonly string[] {
 }
 
 const item = (type: string, lore?: readonly string[]): Item => ({ type, name: '', amount: 1, ...(lore && { lore: [...lore] }) });
+const named = (type: string, name: string): Item => ({ type, name, amount: 1 });
+
+function lensesOfStack(resultItem: Item): readonly string[] {
+    return LENSES.filter(candidate => receivesFromLens({ resultItem, shulkerItems: undefined }, candidate)).map(candidate => candidate.id);
+}
 
 describe('isItemInLens', () => {
     test('redstone covers components whose names lack the word', () => {
@@ -52,6 +57,12 @@ describe('isItemInLens', () => {
         }
         expect(lensesOf('IRON_ORE')).toEqual(['ores']);
         expect(lensesOf('DEEPSLATE_DIAMOND_ORE')).toEqual(['ores']);
+    });
+
+    test('any ore sold as a protection block is a claim block', () => {
+        expect(lensesOfStack({ type: 'COPPER_ORE', name: 'Chunk Protection Block', amount: 1 })).toEqual(['claims']);
+        expect(lensesOfStack({ type: 'DEEPSLATE_EMERALD_ORE', name: 'Super Protection Block', amount: 1 })).toEqual(['claims']);
+        expect(lensesOfStack(item('COPPER_ORE'))).toEqual(['ores']);
     });
 
     test('the everyday money is not an ore', () => {
@@ -121,20 +132,22 @@ describe('Map Art', () => {
     });
 });
 
-const named = (type: string, name: string): Item => ({ type, name, amount: 1 });
-
-function lensesOfStack(resultItem: Item): readonly string[] {
-    return LENSES.filter(candidate => receivesFromLens({ resultItem, shulkerItems: undefined }, candidate)).map(candidate => candidate.id);
-}
-
-describe('Server Currency', () => {
-    test('takes the server items by type and name, and only there', () => {
+describe('Admin and Community Currency', () => {
+    test('takes the server-issued items by type and name, and only there', () => {
         expect(lensesOfStack(named('BOOK', 'Playtime Certificate'))).toEqual(['currency']);
         expect(lensesOfStack(named('BOOK', 'T2 Playtime Certificate'))).toEqual(['currency']);
         expect(lensesOfStack(named('DIAMOND', '50 Votes Certificate'))).toEqual(['currency']);
         expect(lensesOfStack(named('LIGHT', 'Lux'))).toEqual(['currency']);
         expect(lensesOfStack(named('SUNFLOWER', 'Event Coin'))).toEqual(['currency']);
         expect(lensesOfStack(named('AMETHYST_SHARD', '§bCaddozzo'))).toEqual(['currency']);
+        expect(lensesOfStack(named('JACK_O_LANTERN', 'Trick or Treat Coin'))).toEqual(['currency']);
+        expect(lensesOfStack(named('LIME_WOOL', 'Voucher Credits - 120'))).toEqual(['currency']);
+    });
+
+    test('player and union coins are community currency', () => {
+        expect(lensesOfStack(named('END_CRYSTAL', 'BB Coin'))).toEqual(['community']);
+        expect(lensesOfStack(named('MAGMA_CREAM', 'GCU Coin'))).toEqual(['community']);
+        expect(lensesOfStack(named('SUNFLOWER', 'Investigation Coin'))).toEqual(['community']);
     });
 
     test('ignores the name on another item type, and plain items', () => {
@@ -144,7 +157,7 @@ describe('Server Currency', () => {
         expect(lensesOfStack(item('DIAMOND'))).toEqual([]);
     });
 
-    test('a shulker box of server currency counts by its (named) contents', () => {
+    test('a shulker box of currency counts by its (named) contents', () => {
         const box = item('SHULKER_BOX', ["- 64x §a§oBank§e§o-§a§oO'§e§o-§a§oNote"]);
         expect(paysWithLens({ item1: box, item2: undefined }, lens('currency'))).toBe(true);
         expect(paysWithLens({ item1: item('SHULKER_BOX', ['- 64x EMERALD_BLOCK']), item2: undefined }, lens('currency'))).toBe(false);

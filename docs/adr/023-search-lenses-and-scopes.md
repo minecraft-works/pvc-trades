@@ -22,7 +22,7 @@ scope* (`src/search/scope.ts`, held by `searchScopeStore`):
 
 | | Question | Options | How many |
 |---|---|---|---|
-| **WHAT** — lens | What kind of item? | 12 built-in lenses | one per side (Buying, Paying) |
+| **WHAT** — lens | What kind of item? | 13 built-in lenses | one per side (Buying, Paying) |
 | **WHO** — shop | Who sells it? | an owner, or one of their shops (the admin shops are one owner, ADR-024) | one |
 | **HOW** — trade filters | Which trades are good? | Deals, Best per item, Shulkers, New | any |
 
@@ -31,9 +31,10 @@ cheapest offer for each redstone item in ValeriaShares' shops.
 
 ### 2. Lenses are built-in, ID-based and may overlap
 
-`src/search/lenses.ts` defines 12 lenses, in menu order: Map Art, Flowers,
-Food, Redstone, Gear, Enchanting, Potions, Server Currency, Claim Blocks,
-Ores & Minerals, Music & Discs, Collectibles & Rarities.
+`src/search/lenses.ts` defines 13 lenses, in menu order: Map Art, Flowers,
+Food, Redstone, Gear, Enchanting, Potions, Admin Currency, Community
+Currency, Claim Blocks, Ores & Minerals, Music & Discs, Collectibles &
+Rarities.
 
 - **A lens earns its place by collecting a set that typing can't.** Text
   search already finds one item or one word (`oak`, `wool`, `stone`); a lens
@@ -48,8 +49,10 @@ Ores & Minerals, Music & Discs, Collectibles & Rarities.
   are a niche). **Ores & Minerals** leaves out diamonds, emeralds and their
   blocks: they are the everyday money, so on the Paying side the lens would
   match nearly every trade. **Claim Blocks** are the ores that claim land
-  when placed (coal, lapis, redstone, diamond and nether gold ore), so they
-  are not in Ores & Minerals.
+  when placed (coal, lapis, redstone, diamond and nether gold ore), plus any
+  ore sold under a "… Protection Block" or "… Claim Block" name (the admin
+  Claim Master sells the Chunk Protection Block as copper ore), so they are
+  not in Ores & Minerals.
 - A lens matches on the vanilla item ID (exact IDs plus prefixes/suffixes such
   as `_pickaxe`), never on the display name, so renamed items still count.
 - Exception one: **Map Art** also takes bundles the seller named
@@ -60,14 +63,24 @@ Ores & Minerals, Music & Discs, Collectibles & Rarities.
   1 diamond, a named bundle 7. Unnamed bundles (mostly empty bundles sold as
   items) and blank maps (a supply) stay out. Map Art covers about 520 trades:
   389 filled maps, 131 named bundles and shulker boxes of filled maps.
-- Exception two: **Server Currency** is the server's own money: vanilla items
-  with a fixed name, such as Playtime and Inactivity Certificates (books), the
-  50 Votes Certificate (a diamond), Bank-O'-Notes, Caddozzo, BB Coin, Lux,
-  Nepero and event coins (`SERVER_CURRENCIES`, from the PVC wiki's Server
-  Currency page and the shop data). They match on item type plus name, and
-  only there: a Vote Certificate is not in Ores, Lux not in Collectibles. In
-  a shulker box the content key of a named item is its name, so a box of
-  Bank-O'-Notes counts too. Diamonds and emeralds are not server currency.
+- Exception two: currencies and named claim blocks (`NAMED_ITEMS`) are
+  vanilla items with a fixed name. They match on item type plus name, and
+  sit in their own lens only: a Vote Certificate is not in Ores, Lux not in
+  Collectibles, a BB Coin not in Gear. In a shulker box the content key of a
+  named item is its name, so a box of Bank-O'-Notes counts too. Diamonds and
+  emeralds are neither kind of currency.
+  - **Admin Currency** is issued by the server: earned by playing, voting or
+    events (Playtime, Inactivity and Vote Certificates, Event and Trick or
+    Treat Coins, Writer's Quill, Influencer's Apple) or from the admin shops
+    and the bank (Bank-O'-Notes, Super/Hyper/Uber-Emeralds, Big Fat Diamond,
+    Nepero, Caddozzo, Lux, Sponsor Tokens, Voucher Credits). The list follows
+    the PVC wiki's Server Currency page and what the admin shops ("Server
+    Admins", ADR-024) sell and accept.
+  - **Community Currency** is issued by players and unions: BB Coin
+    (BareBones Farms), $LlamaCoin, GCU Coin (Games & Competitions Union),
+    Investigation Coin and Red Eye Coin. Players can mint a coin any time,
+    so this list needs upkeep; an unknown coin stays in the lens of its
+    vanilla type until it is added.
 - An item can be in several lenses (elytra: Gear and Collectibles; tipped
   arrows: Gear and Potions). Overlap is fine because a lens is a view, not a
   category tree.

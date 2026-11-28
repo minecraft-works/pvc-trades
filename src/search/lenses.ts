@@ -3,8 +3,8 @@
  * side of a trade to a theme. A lens matches on the vanilla item ID, so
  * renamed items still count; a filled shulker box counts by its contents.
  * An item can sit in several lenses (elytra: Gear and Collectibles &
- * Rarities). The server's own currencies (certificates, coins) are the
- * exception: they match on name and sit in Server Currency only.
+ * Rarities). Currencies and named claim blocks are the exception: they
+ * match on type and name and sit in their own lens only.
  *
  * See ADR-023.
  *
@@ -24,6 +24,7 @@ export type LensId =
     | 'enchanting'
     | 'potions'
     | 'currency'
+    | 'community'
     | 'claims'
     | 'ores'
     | 'music'
@@ -47,8 +48,15 @@ interface LensRule {
      * a named bundle is a map art set in practically every case (ADR-023)
      */
     readonly namedBundles?: boolean;
-    /** The server's own currencies, recognised by item type and name */
-    readonly serverCurrency?: boolean;
+}
+
+/** A named item that belongs to one lens, whatever its vanilla type says */
+interface NamedItemRule {
+    readonly lens: LensId;
+    /** Vanilla item ID, lowercase without namespace */
+    readonly type: RegExp;
+    /** Name without colour codes, lowercase */
+    readonly name: RegExp;
 }
 
 /** Display order of the lenses in the menu */
@@ -60,7 +68,8 @@ export const LENSES: readonly Lens[] = [
     { id: 'gear', label: 'Gear' },
     { id: 'enchanting', label: 'Enchanting' },
     { id: 'potions', label: 'Potions' },
-    { id: 'currency', label: 'Server Currency' },
+    { id: 'currency', label: 'Admin Currency' },
+    { id: 'community', label: 'Community Currency' },
     { id: 'claims', label: 'Claim Blocks' },
     { id: 'ores', label: 'Ores & Minerals' },
     { id: 'music', label: 'Music & Discs' },
@@ -79,26 +88,32 @@ const LENS_ALIASES: Readonly<Record<string, LensId>> = {
 const CLAIM_ORES: readonly string[] = ['coal_ore', 'lapis_ore', 'redstone_ore', 'diamond_ore', 'nether_gold_ore'];
 
 /**
- * Items the server (or its long-standing institutions) issues as currency:
- * vanilla items with a fixed name. The pattern is tested against the name
- * without colour codes, in lowercase.
+ * Named items with a lens of their own: currencies and claim blocks. Admin
+ * Currency is what the server issues (earned by playing or voting, or from
+ * admin shops and the bank); Community Currency is what players and unions
+ * issue. Diamonds and emeralds are neither.
  */
-const SERVER_CURRENCIES: readonly { readonly type: string; readonly name: RegExp }[] = [
-    { type: 'book', name: /playtime certificate|inactivity certificate/ },
-    { type: 'paper', name: /inactivity ticket|bank-?o['’]?-?note/ },
-    { type: 'diamond', name: /votes? (?:certificate|diamond)/ },
-    { type: 'diamond_block', name: /big fat diamond/ },
-    { type: 'emerald', name: /(?:super|hyper|uber)-?emerald|sponsor token/ },
-    { type: 'amethyst_shard', name: /caddozzo/ },
-    { type: 'end_crystal', name: /bb coin/ },
-    { type: 'light', name: /^lux$/ },
-    { type: 'magma_cream', name: /gcu coin/ },
-    { type: 'heart_of_the_sea', name: /llamacoin/ },
-    { type: 'charcoal', name: /nepero|quarry extractor fuel/ },
-    { type: 'sunflower', name: /coin$/ },
-    { type: 'golden_apple', name: /notch apple/ },
-    { type: 'apple', name: /youtuber's apple/ },
-    { type: 'feather', name: /writer's quill/ },
+const NAMED_ITEMS: readonly NamedItemRule[] = [
+    { lens: 'currency', type: /^book$/, name: /playtime certificate|inactivity certificate/ },
+    { lens: 'currency', type: /^paper$/, name: /inactivity ticket|bank-?o['’]?-?note|bulk totem voucher/ },
+    { lens: 'currency', type: /^diamond$/, name: /votes? (?:certificate|diamond)/ },
+    { lens: 'currency', type: /^diamond_block$/, name: /big fat diamond/ },
+    { lens: 'currency', type: /^emerald$/, name: /(?:super|hyper|uber)-?emerald|sponsor token/ },
+    { lens: 'currency', type: /^amethyst_shard$/, name: /caddozzo/ },
+    { lens: 'currency', type: /^light$/, name: /^lux$/ },
+    { lens: 'currency', type: /^charcoal$/, name: /nepero|quarry extractor fuel/ },
+    { lens: 'currency', type: /^sunflower$/, name: /^event coin$/ },
+    { lens: 'currency', type: /^jack_o_lantern$/, name: /trick or treat coin/ },
+    { lens: 'currency', type: /^golden_apple$/, name: /notch apple/ },
+    { lens: 'currency', type: /^apple$/, name: /(?:youtuber|influencer)'s apple/ },
+    { lens: 'currency', type: /^feather$/, name: /writer's quill/ },
+    { lens: 'currency', type: /^(?:flint|lime_wool)$/, name: /^voucher credits/ },
+    { lens: 'community', type: /^end_crystal$/, name: /bb coin/ },
+    { lens: 'community', type: /^heart_of_the_sea$/, name: /llamacoin/ },
+    { lens: 'community', type: /^magma_cream$/, name: /gcu coin/ },
+    { lens: 'community', type: /^sunflower$/, name: /investigation coin|red eye coin/ },
+    // Also ores outside CLAIM_ORES: the Chunk Protection Block is copper ore
+    { lens: 'claims', type: /_ore$/, name: /protection block|claim block/ },
 ];
 
 const LENS_RULES: Readonly<Record<LensId, LensRule>> = {
@@ -157,9 +172,8 @@ const LENS_RULES: Readonly<Record<LensId, LensRule>> = {
     potions: {
         ids: ['potion', 'splash_potion', 'lingering_potion', 'tipped_arrow', 'ominous_bottle'],
     },
-    currency: {
-        serverCurrency: true,
-    },
+    currency: {},
+    community: {},
     claims: {
         ids: CLAIM_ORES,
     },
@@ -204,7 +218,7 @@ function normalizeItemId(type: string): string {
 }
 
 /**
- * Normalize a display name or content key for the currency patterns:
+ * Normalize a display name or content key for the named-item patterns:
  * "§a§oBank§e§o-§a§oO'§e§o-§a§oNote" becomes "bank-o'-note".
  * @param name - Item name or shulker content key
  * @returns Lowercase name without colour codes
@@ -214,32 +228,47 @@ function normalizeName(name: string): string {
 }
 
 /**
- * Whether a name is one of the server's currencies. Used for shulker
- * contents, whose key is the name for a named item and carries no type.
- * @param name - Content key or display name
- * @returns True for a server currency name
+ * The lens a named item belongs to (see NAMED_ITEMS).
+ * @param name - Item name, or a shulker content key: the key of a named
+ *   item is its name, and it carries no type
+ * @param type - Vanilla item ID (normalized), or undefined to match any type
+ * @returns The lens, or undefined for any other item
  */
-function isCurrencyName(name: string): boolean {
+function findNamedItemLens(name: string, type: string | undefined): LensId | undefined {
     const normalized = normalizeName(name);
-    return normalized !== '' && SERVER_CURRENCIES.some(currency => currency.name.test(normalized));
+    if (normalized === '') { return undefined; }
+    return NAMED_ITEMS.find(rule => (type === undefined || rule.type.test(type)) && rule.name.test(normalized))?.lens;
 }
 
-const serverCurrencyCache = new WeakMap<Readonly<Item>, boolean>();
+const namedItemLensCache = new WeakMap<Readonly<Item>, { readonly lens: LensId | undefined }>();
+const namedKeyLensCache = new Map<string, { readonly lens: LensId | undefined }>();
 
 /**
- * Whether an item stack is one of the server's currencies: the right
- * vanilla type with the right name.
- * @param item - Item stack
- * @returns True for a server currency
+ * The lens a shulker content key or bare item type belongs to as a named
+ * item, whatever its type (cached: the menu counts check every key per lens).
+ * @param key - Content key or item type
+ * @returns The lens, or undefined for a plain item
  */
-function isServerCurrency(item: Readonly<Item>): boolean {
-    const cached = serverCurrencyCache.get(item);
-    if (cached !== undefined) { return cached; }
-    const name = normalizeName(item.name);
-    const type = normalizeItemId(item.type);
-    const found = name !== '' && SERVER_CURRENCIES.some(currency => currency.type === type && currency.name.test(name));
-    serverCurrencyCache.set(item, found);
-    return found;
+function getNamedKeyLens(key: string): LensId | undefined {
+    const cached = namedKeyLensCache.get(key);
+    if (cached) { return cached.lens; }
+    const lens = findNamedItemLens(key, undefined);
+    namedKeyLensCache.set(key, { lens });
+    return lens;
+}
+
+/**
+ * The lens a named item stack belongs to: the right vanilla type with the
+ * right name, e.g. a book named "Playtime Certificate".
+ * @param item - Item stack
+ * @returns The lens, or undefined for any other item
+ */
+function getNamedItemLens(item: Readonly<Item>): LensId | undefined {
+    const cached = namedItemLensCache.get(item);
+    if (cached) { return cached.lens; }
+    const lens = findNamedItemLens(item.name, normalizeItemId(item.type));
+    namedItemLensCache.set(item, { lens });
+    return lens;
 }
 
 /**
@@ -256,8 +285,8 @@ export function findLens(id: string | undefined): Lens | undefined {
 }
 
 /**
- * Whether an item type belongs to a lens. For Server Currency the "type" is
- * a name: only shulker contents carry no item type to check.
+ * Whether an item type belongs to a lens. A shulker content key can also be
+ * the name of a named item ("Bank-O'-Note"), which goes to its own lens.
  * @param lens - Lens to check
  * @param type - Vanilla item ID in any case, e.g. "HOPPER", or a content key
  * @returns True if the item is in the lens
@@ -267,8 +296,9 @@ export function findLens(id: string | undefined): Lens | undefined {
  * isItemInLens(findLens('gear')!, 'DIAMOND_PICKAXE')  // true
  */
 export function isItemInLens(lens: Lens, type: string): boolean {
+    const named = getNamedKeyLens(type);
+    if (named !== undefined) { return named === lens.id; }
     const rule = LENS_RULES[lens.id];
-    if (rule.serverCurrency === true) { return isCurrencyName(type); }
     const id = normalizeItemId(type);
     if (rule.excludes?.includes(id) === true) { return false; }
     if (RULE_IDS.get(lens.id)?.has(id)) { return true; }
@@ -296,17 +326,17 @@ function getStackTypes(item: Readonly<Item>): readonly string[] {
 
 /**
  * Whether an item stack is in a lens: by its type (a filled shulker box by
- * its contents), or as a named bundle for a lens that takes those. A server
- * currency is in Server Currency only, not in the lens of its vanilla type
- * (a Vote Certificate is a diamond, Lux a light block).
+ * its contents), or as a named bundle for a lens that takes those. A named
+ * item (NAMED_ITEMS) is in its own lens only, not in the lens of its vanilla
+ * type: a Vote Certificate is a diamond, Lux a light block.
  * @param item - Item stack
  * @param lens - Lens to check
  * @returns True if the stack is in the lens
  */
 function isStackInLens(item: Readonly<Item>, lens: Lens): boolean {
-    const rule = LENS_RULES[lens.id];
-    if (isServerCurrency(item)) { return rule.serverCurrency === true; }
-    if (rule.namedBundles === true && isNamedBundle(item)) { return true; }
+    const named = getNamedItemLens(item);
+    if (named !== undefined) { return named === lens.id; }
+    if (LENS_RULES[lens.id].namedBundles === true && isNamedBundle(item)) { return true; }
     return getStackTypes(item).some(type => isItemInLens(lens, type));
 }
 
